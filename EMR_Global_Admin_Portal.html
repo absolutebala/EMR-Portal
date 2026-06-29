@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>EMR Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --m:#7D1D3F;--md:#5A1229;--mdk:#3A0A1C;--ml:#A8294F;--mp:#F9EEF2;--mb:#E8C5D0;
+  --gl:#F5F3F5;--gm:#E5E0E3;--tx:#1C0D14;--txm:#7A6870;
+  --green:#059669;--amber:#D97706;--red:#DC2626;--blue:#2563EB;--purple:#7C3AED;--cyan:#0891B2;
+  --sw:230px;
+}
+body{font-family:'Poppins',sans-serif;background:var(--gl);color:var(--tx);font-size:13px;}
+button,input,select,textarea{font-family:'Poppins',sans-serif;}
+
+/* LOGIN */
+#lp{display:flex;min-height:100vh;background:linear-gradient(135deg,var(--mdk) 0%,var(--m) 55%,#9B2D52 100%);position:relative;overflow:hidden;}
+#lp::before{content:'';position:absolute;top:-25%;right:-15%;width:500px;height:500px;border-radius:50%;background:rgba(255,255,255,.04);}
+#lp::after{content:'';position:absolute;bottom:-20%;left:-10%;width:380px;height:380px;border-radius:50%;background:rgba(255,255,255,.03);}
+.lc{position:relative;margin:auto;width:420px;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:40px 0;}
+.lb{text-align:center;margin-bottom:28px;}
+.lb-ico{width:54px;height:54px;background:rgba(255,255,255,.15);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+.lb h1{font-size:26px;font-weight:700;color:#fff;letter-spacing:-.5px;}
+.lb p{font-size:12px;color:rgba(255,255,255,.55);margin-top:3px;font-weight:300;}
+.lbox{background:rgba(255,255,255,.97);border-radius:16px;padding:32px;box-shadow:0 24px 60px rgba(0,0,0,.3);}
+.lbox h2{font-size:16px;font-weight:600;color:var(--tx);margin-bottom:2px;}
+.lsub{font-size:11px;color:var(--txm);margin-bottom:20px;}
+.fg{margin-bottom:14px;}
+.fl{display:block;font-size:11px;font-weight:500;color:#374151;margin-bottom:5px;}
+.fi{width:100%;padding:10px 12px;border:1.5px solid var(--gm);border-radius:8px;font-size:13px;color:var(--tx);outline:none;transition:border .15s;}
+.fi:focus{border-color:var(--m);}
+.fi::placeholder{color:#C4B8BC;}
+.forgotlnk{display:block;text-align:right;font-size:11px;color:var(--m);cursor:pointer;margin:-8px 0 14px;}
+.forgotlnk:hover{text-decoration:underline;}
+.btn-login{width:100%;padding:11px;background:var(--m);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-login:hover{background:var(--ml);}
+.no-reg{text-align:center;margin-top:12px;font-size:11px;color:var(--txm);}
+.no-reg span{display:inline-flex;align-items:center;gap:4px;background:var(--gl);border:1px solid var(--gm);border-radius:20px;padding:3px 10px;}
+.lfoot{text-align:center;margin-top:auto;padding-top:24px;font-size:11px;color:rgba(255,255,255,.45);}
+.lfoot a{color:rgba(255,255,255,.75);text-decoration:none;font-weight:500;}
+
+/* APP SHELL */
+#app{display:none;min-height:100vh;}
+.sidebar{width:var(--sw);background:var(--mdk);position:fixed;top:0;left:0;height:100vh;display:flex;flex-direction:column;z-index:100;}
+.sb-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
+.sb-logo{display:flex;align-items:center;gap:10px;}
+.sb-ico{width:32px;height:32px;background:var(--m);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-brand h2{font-size:14px;font-weight:700;color:#fff;letter-spacing:-.3px;}
+.sb-brand span{font-size:10px;color:rgba(255,255,255,.35);}
+/* MODULE SWITCHER */
+.mod-switch-wrap{position:relative;margin-top:12px;}
+.mod-switch{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:8px 10px;cursor:pointer;transition:background .15s;}
+.mod-switch:hover{background:rgba(255,255,255,.11);}
+.mod-switch-ico{width:24px;height:24px;background:var(--m);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mod-switch-ico svg{width:13px;height:13px;fill:none;stroke:white;stroke-width:2;}
+.mod-switch-label{flex:1;font-size:12px;font-weight:600;color:#fff;}
+.mod-switch-chev{width:13px;height:13px;flex-shrink:0;fill:none;stroke:rgba(255,255,255,.45);stroke-width:2;transition:transform .15s;}
+.mod-switch.open .mod-switch-chev{transform:rotate(180deg);}
+.mod-dropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#2A0F1A;border:1px solid rgba(255,255,255,.12);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.4);overflow:hidden;z-index:300;display:none;}
+.mod-dropdown.open{display:block;}
+.mod-item{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .15s;}
+.mod-item:hover{background:rgba(255,255,255,.06);}
+.mod-item.active-mod{background:rgba(125,29,63,.35);}
+.mod-item.disabled{cursor:default;opacity:.4;}
+.mod-item.disabled:hover{background:transparent;}
+.mod-item-ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mod-item-ico svg{width:13px;height:13px;fill:none;stroke-width:2;}
+.mod-item-info{flex:1;}
+.mod-item-name{font-size:12px;font-weight:500;color:#fff;}
+.mod-item-tag{font-size:9px;color:rgba(255,255,255,.4);margin-top:1px;}
+.mod-item-check{width:14px;height:14px;flex-shrink:0;fill:none;stroke:#fff;stroke-width:2.5;}
+.mod-soon-badge{font-size:8px;font-weight:600;background:rgba(255,255,255,.1);color:rgba(255,255,255,.5);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.4px;}
+.mod-dropdown-div{height:1px;background:rgba(255,255,255,.08);margin:2px 0;}
+.sb-nav{flex:1;padding:10px 8px;overflow-y:auto;}
+.sb-nav::-webkit-scrollbar{width:3px;}.sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);}
+.nsec{font-size:9px;font-weight:600;color:rgba(255,255,255,.28);letter-spacing:1px;padding:10px 10px 4px;text-transform:uppercase;}
+.ni{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:all .15s;margin-bottom:2px;color:rgba(255,255,255,.52);font-size:12px;font-weight:400;}
+.ni:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);}
+.ni.active{background:var(--m);color:#fff;font-weight:500;}
+.ni svg{width:15px;height:15px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.8;}
+.ni.active svg{opacity:1;}
+.nbadge{margin-left:auto;background:rgba(255,255,255,.18);color:#fff;font-size:9px;font-weight:600;padding:1px 7px;border-radius:20px;}
+.ni.active .nbadge{background:rgba(255,255,255,.3);}
+.sb-prof{padding:10px 8px;border-top:1px solid rgba(255,255,255,.06);}
+.pb{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;cursor:pointer;transition:background .15s;position:relative;}
+.pb:hover{background:rgba(255,255,255,.07);}
+.pav{width:32px;height:32px;border-radius:50%;background:var(--ml);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;}
+.pinfo p{font-size:11px;font-weight:500;color:#fff;}
+.pinfo span{font-size:10px;color:rgba(255,255,255,.38);}
+.pdrop{position:absolute;bottom:calc(100%+6px);left:0;right:0;background:#fff;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.2);border:1px solid var(--gm);overflow:hidden;display:none;z-index:200;}
+.pdrop.open{display:block;}
+.pdi{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;color:var(--tx);cursor:pointer;}
+.pdi:hover{background:var(--gl);}
+.pdi.danger{color:var(--red);}
+.pdi svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;}
+.pdiv2{height:1px;background:var(--gm);}
+.main{margin-left:var(--sw);display:flex;flex-direction:column;min-height:100vh;}
+.topbar{height:56px;background:#fff;border-bottom:1px solid var(--gm);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:50;}
+.tb-title{font-size:15px;font-weight:600;color:var(--tx);}
+.tb-r{display:flex;align-items:center;gap:8px;}
+.notif{width:36px;height:36px;border-radius:8px;border:1px solid var(--gm);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
+.notif:hover{background:var(--gl);}
+.ndot{position:absolute;top:8px;right:8px;width:7px;height:7px;background:var(--m);border-radius:50%;border:1.5px solid #fff;}
+.content{flex:1;padding:22px 24px;}
+.page{display:none;}.page.active{display:block;}
+
+/* STATS */
+.sg5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px;}
+.sg4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+.sg2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.sg3l{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px;}
+.sc{background:#fff;border-radius:10px;padding:14px;border:1px solid var(--gm);cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative;overflow:hidden;}
+.sc:hover{box-shadow:0 4px 16px rgba(125,29,63,.1);transform:translateY(-1px);}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--m);}
+.sc.green::before{background:var(--green);}.sc.amber::before{background:var(--amber);}
+.sc.blue::before{background:var(--blue);}.sc.red::before{background:var(--red);}
+.sc.purple::before{background:var(--purple);}.sc.cyan::before{background:var(--cyan);}
+.sc-label{font-size:10px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.sc-val{font-size:24px;font-weight:700;color:var(--tx);line-height:1;}
+.sc-sub{font-size:10px;color:var(--txm);margin-top:3px;}
+.sc-ico{position:absolute;top:12px;right:12px;opacity:.08;}
+.sc-ico svg{width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:1.2;}
+
+/* CARDS */
+.card{background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:14px;}
+.ch{padding:12px 18px;border-bottom:1px solid var(--gm);display:flex;align-items:center;justify-content:space-between;}
+.ct{font-size:13px;font-weight:600;color:var(--tx);}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;}
+thead th{padding:9px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);background:#FAFAFA;white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--gm);transition:background .1s;}
+tbody tr:hover{background:var(--mp);}
+tbody tr:last-child{border-bottom:none;}
+tbody td{padding:10px 14px;font-size:12px;color:var(--tx);}
+.tlink{color:var(--m);font-weight:500;cursor:pointer;}.tlink:hover{text-decoration:underline;}
+.tmuted{color:var(--txm);}
+
+/* TAGS */
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;}
+.tg{background:#D1FAE5;color:#065F46;}.ta{background:#FEF3C7;color:#92400E;}
+.tb2{background:#DBEAFE;color:#1E40AF;}.tr2{background:#FEE2E2;color:#991B1B;}
+.tgr{background:#F1F5F9;color:#475569;}.tm{background:var(--mp);color:var(--m);border:1px solid var(--mb);}
+.tp{background:#EDE9FE;color:#5B21B6;}.tcy{background:#CFFAFE;color:#164E63;}
+
+/* BTNS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:all .15s;font-family:'Poppins',sans-serif;}
+.btn-sm{padding:5px 10px;font-size:11px;}.btn-ico{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;}
+.bm{background:var(--m);color:#fff;}.bm:hover{background:var(--ml);}
+.bo{background:#fff;color:#374151;border:1px solid var(--gm);}.bo:hover{background:var(--gl);}
+.bg3{background:transparent;color:var(--txm);}.bg3:hover{color:var(--tx);background:var(--gl);}
+.bd{background:#FEF2F2;color:var(--red);border:1px solid #FECACA;}
+.bgrn{background:#ECFDF5;color:var(--green);border:1px solid #A7F3D0;}
+.bamb{background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;}
+.bcyan{background:#CFFAFE;color:#164E63;border:1px solid #A5F3FC;}
+
+/* ACTION ROW */
+.ar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+.ar-l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.sbin{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--gm);border-radius:8px;padding:7px 12px;}
+.sbin input{border:none;outline:none;font-size:12px;color:var(--tx);background:transparent;font-family:'Poppins',sans-serif;width:220px;}
+.sbin input::placeholder{color:var(--txm);}
+.sbin svg{width:14px;height:14px;fill:none;stroke:var(--txm);stroke-width:2;}
+.fsel{padding:7px 12px;border:1px solid var(--gm);border-radius:8px;font-size:12px;color:var(--tx);background:#fff;outline:none;font-family:'Poppins',sans-serif;cursor:pointer;}
+
+/* MODAL */
+.mo{position:fixed;inset:0;background:rgba(28,13,20,.5);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+.mo.open{display:flex;}
+.md{background:#fff;border-radius:14px;width:620px;max-width:96vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25);}
+.md-lg{width:780px;}.md-sm{width:480px;}
+.mh{padding:18px 22px;border-bottom:1px solid var(--gm);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.mh h3{font-size:14px;font-weight:600;color:var(--tx);}
+.mc2{background:none;border:none;cursor:pointer;color:var(--txm);padding:4px;border-radius:5px;display:flex;}
+.mc2:hover{background:var(--gl);}
+.mc2 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;}
+.mb2{padding:22px;overflow-y:auto;flex:1;}
+.mf{padding:14px 22px;border-top:1px solid var(--gm);display:flex;justify-content:flex-end;gap:8px;background:#FAFAFA;}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.fgr{display:flex;flex-direction:column;gap:5px;}.fgr.full{grid-column:1/-1;}
+.fl2{font-size:11px;font-weight:500;color:#374151;}
+.fi2{padding:9px 12px;border:1.5px solid var(--gm);border-radius:7px;font-size:12px;color:var(--tx);outline:none;font-family:'Poppins',sans-serif;width:100%;transition:border .15s;}
+.fi2:focus{border-color:var(--m);}
+.req{color:var(--m);}
+.mdiv{height:1px;background:var(--gm);margin:16px 0;}
+.msec{font-size:11px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+
+/* MISC */
+.av{width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
+.prog{height:5px;background:var(--gm);border-radius:3px;overflow:hidden;}
+.prog-f{height:100%;border-radius:3px;transition:width .3s;}
+.ir{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--gm);font-size:12px;}
+.ir:last-child{border-bottom:none;}
+.il{color:var(--txm);}.iv{font-weight:500;color:var(--tx);}
+.sec-hdr{font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+.act-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gm);}
+.act-item:last-child{border-bottom:none;}
+.act-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.act-ico svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;}
+.act-body{font-size:11px;color:var(--txm);margin-top:1px;}
+.act-time{font-size:10px;color:var(--txm);margin-top:2px;}
+.tw{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.tl2{display:flex;gap:10px;padding-bottom:14px;position:relative;}
+.tl2::before{content:'';position:absolute;left:9px;top:20px;bottom:0;width:1.5px;background:var(--gm);}
+.tl2:last-child::before{display:none;}
+.tldot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid #fff;}
+.tldot svg{width:10px;height:10px;fill:none;stroke:white;stroke-width:2.5;}
+.sap-badge{display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:500;}
+.sap-badge .dot{width:7px;height:7px;background:#10B981;border-radius:50%;}
+.eng-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:500;}
+.es-avail{background:#D1FAE5;color:#065F46;}.es-travel{background:#DBEAFE;color:#1E40AF;}
+.es-onsite{background:#FEF3C7;color:#92400E;}.es-wip{background:#EDE9FE;color:#5B21B6;}
+.es-off{background:#F1F5F9;color:#475569;}
+.form-card{background:#fff;border:1px solid var(--gm);border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s;}
+.form-card:hover{box-shadow:0 2px 10px rgba(125,29,63,.08);}
+.form-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.fc-title{font-size:13px;font-weight:600;color:var(--tx);}
+.fc-meta{font-size:11px;color:var(--txm);}
+.product-card{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--gm);}
+.product-card:last-child{border-bottom:none;}
+.product-ico{width:36px;height:36px;background:var(--mp);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.product-ico svg{width:16px;height:16px;fill:none;stroke:var(--m);stroke-width:2;}
+.product-name{font-size:12px;font-weight:500;color:var(--tx);}
+.product-meta{font-size:10px;color:var(--txm);}
+.dispatch-step{display:flex;align-items:center;gap:8px;}
+.ds-dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--gm);flex-shrink:0;}
+.ds-dot.done{background:var(--green);border-color:var(--green);}
+.ds-dot.active{background:var(--amber);border-color:var(--amber);}
+.ds-line{flex:1;height:2px;background:var(--gm);}
+.ds-line.done{background:var(--green);}
+.mom-status{background:#F0FDF4;border:1px solid #A7F3D0;border-radius:10px;padding:12px 14px;margin-bottom:12px;}
+.mom-step{display:flex;align-items:center;gap:8px;padding:5px 0;}
+.mom-step svg{width:16px;height:16px;flex-shrink:0;}
+.warranty-toggle{display:flex;align-items:center;gap:8px;}
+.wt{width:46px;height:24px;background:var(--m);border-radius:12px;position:relative;cursor:pointer;transition:background .15s;}
+.wt::after{content:'Yes';position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:600;color:#fff;}
+.wt.off{background:var(--gm);}
+.wt.off::after{content:'No';color:var(--txm);}
+.ss{background:#fff;border-radius:10px;border:1px solid var(--gm);padding:20px;margin-bottom:14px;}
+.ss h3{font-size:13px;font-weight:600;color:var(--tx);margin-bottom:3px;}
+.ss p{font-size:11px;color:var(--txm);margin-bottom:14px;}
+.logo-up{border:2px dashed var(--mb);border-radius:10px;padding:24px;text-align:center;cursor:pointer;}
+.logo-up:hover{border-color:var(--m);background:var(--mp);}
+.logo-up svg{width:24px;height:24px;fill:none;stroke:var(--m);stroke-width:1.5;display:block;margin:0 auto 7px;opacity:.5;}
+.csw{width:30px;height:30px;border-radius:50%;cursor:pointer;border:3px solid transparent;display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:transparent;transition:all .15s;}
+.csw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--m);color:#fff;}
+.pf{text-align:center;padding:14px 24px;font-size:10px;color:var(--txm);border-top:1px solid var(--gm);background:#FAFAFA;}
+.pf a{color:var(--m);text-decoration:none;font-weight:500;}
+.pf a:hover{text-decoration:underline;}
+.multi-sn{display:flex;flex-wrap:wrap;gap:6px;border:1.5px solid var(--gm);border-radius:7px;padding:8px;min-height:42px;}
+.sn-chip{display:inline-flex;align-items:center;gap:5px;background:var(--mp);color:var(--m);border:1px solid var(--mb);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:500;}
+.sn-chip button{background:none;border:none;cursor:pointer;color:var(--m);font-size:12px;padding:0;line-height:1;}
+.sn-input{border:none;outline:none;font-size:12px;background:transparent;font-family:'Poppins',sans-serif;min-width:120px;}
+
+/* FORM BUILDER */
+.fb-wrap{display:flex;gap:0;height:100%;overflow:hidden;}
+.fb-canvas{flex:1;overflow-y:auto;padding:16px;background:#F5F3F5;}
+.fb-canvas::-webkit-scrollbar{width:4px;}.fb-canvas::-webkit-scrollbar-thumb{background:rgba(125,29,63,.15);border-radius:2px;}
+.fb-palette{width:260px;flex-shrink:0;background:#fff;border-left:1px solid var(--gm);display:flex;flex-direction:column;overflow:hidden;}
+.fb-tabs{display:flex;border-bottom:1px solid var(--gm);flex-shrink:0;}
+.fb-tab{flex:1;padding:9px;text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:var(--txm);border-bottom:2px solid transparent;transition:all .15s;}
+.fb-tab.active{color:var(--m);border-bottom-color:var(--m);}
+.fb-palette-body{flex:1;overflow-y:auto;padding:12px;}
+.fb-palette-body::-webkit-scrollbar{width:3px;}.fb-palette-body::-webkit-scrollbar-thumb{background:rgba(125,29,63,.1);}
+.fb-sec-lbl{font-size:9px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;margin-top:12px;}
+.fb-sec-lbl:first-child{margin-top:0;}
+.ftype-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px;}
+.ftype-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;border:1.5px solid var(--gm);border-radius:8px;cursor:pointer;background:#fff;transition:all .15s;font-family:'Poppins',sans-serif;}
+.ftype-btn:hover{border-color:var(--m);background:var(--mp);}
+.ftype-btn.active{border-color:var(--m);background:var(--mp);}
+.ftype-btn svg{width:16px;height:16px;fill:none;stroke:var(--txm);stroke-width:2;}
+.ftype-btn:hover svg,.ftype-btn.active svg{stroke:var(--m);}
+.ftype-btn span{font-size:10px;font-weight:500;color:var(--txm);}
+.ftype-btn:hover span,.ftype-btn.active span{color:var(--m);}
+.ftype-full{width:100%;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid var(--gm);border-radius:8px;cursor:pointer;background:#fff;transition:all .15s;font-family:'Poppins',sans-serif;}
+.ftype-full:hover{border-color:var(--m);background:var(--mp);}
+.ftype-full svg{width:14px;height:14px;fill:none;stroke:var(--txm);stroke-width:2;flex-shrink:0;}
+.ftype-full:hover svg{stroke:var(--m);}
+.ftype-full span{font-size:11px;font-weight:500;color:var(--txm);}
+.ftype-full:hover span{color:var(--m);}
+/* Canvas sections */
+.cvsec{background:#fff;border-radius:10px;border:1.5px solid var(--gm);overflow:hidden;margin-bottom:12px;transition:border .15s;}
+.cvsec:hover{border-color:var(--mb);}
+.cvsec.selected{border-color:var(--m);box-shadow:0 0 0 3px rgba(125,29,63,.08);}
+.cvsec-hdr{background:var(--mdk);padding:9px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;}
+.cvsec-hdr span{font-size:11px;font-weight:600;color:#fff;flex:1;}
+.cvsec-hdr-actions{display:flex;gap:4px;}
+.cvsec-hdr-btn{background:rgba(255,255,255,.15);border:none;border-radius:5px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.cvsec-hdr-btn svg{width:11px;height:11px;fill:none;stroke:white;stroke-width:2;}
+.cvsec-body{padding:10px;}
+/* Field row */
+.cvfield{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid var(--gm);border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff;transition:all .15s;position:relative;}
+.cvfield:hover{border-color:var(--mb);background:var(--mp);}
+.cvfield.selected{border-color:var(--m);background:var(--mp);box-shadow:0 0 0 3px rgba(125,29,63,.08);}
+.cvfield-drag{color:var(--gm);cursor:grab;font-size:14px;flex-shrink:0;}
+.cvfield-ico{width:26px;height:26px;border-radius:6px;background:var(--gl);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cvfield-ico svg{width:12px;height:12px;fill:none;stroke:var(--txm);stroke-width:2;}
+.cvfield.selected .cvfield-ico{background:var(--mp);}
+.cvfield.selected .cvfield-ico svg{stroke:var(--m);}
+.cvfield-info{flex:1;min-width:0;}
+.cvfield-label{font-size:12px;font-weight:500;color:var(--tx);}
+.cvfield-meta{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap;}
+.cvfield-tag{font-size:9px;font-weight:500;padding:1px 6px;border-radius:4px;}
+.cvf-prefill{background:#DBEAFE;color:#1E40AF;}
+.cvf-required{background:#FEE2E2;color:#991B1B;}
+.cvf-type{background:var(--gl);color:var(--txm);}
+.cvfield-actions{display:flex;gap:4px;opacity:0;transition:opacity .15s;}
+.cvfield:hover .cvfield-actions,.cvfield.selected .cvfield-actions{opacity:1;}
+.cvfa{background:var(--gl);border:none;border-radius:5px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.cvfa:hover{background:var(--gm);}
+.cvfa svg{width:11px;height:11px;fill:none;stroke:var(--txm);stroke-width:2;}
+.cv-add-field{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1.5px dashed var(--gm);border-radius:8px;cursor:pointer;color:var(--txm);font-size:11px;transition:all .15s;}
+.cv-add-field:hover{border-color:var(--m);color:var(--m);background:var(--mp);}
+.cv-add-field svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;}
+/* Table block */
+.cvtable{border:1.5px solid var(--gm);border-radius:8px;overflow:hidden;margin-bottom:6px;cursor:pointer;transition:all .15s;}
+.cvtable:hover{border-color:var(--mb);}
+.cvtable.selected{border-color:var(--m);box-shadow:0 0 0 3px rgba(125,29,63,.08);}
+.cvtable-hdr{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--gl);}
+.cvtable-hdr svg{width:13px;height:13px;fill:none;stroke:var(--txm);stroke-width:2;}
+.cvtable-hdr span{font-size:11px;font-weight:600;color:var(--tx);flex:1;}
+.cvtable-meta{display:flex;gap:6px;}
+.cvt-cols{display:flex;border-bottom:1px solid var(--gm);background:#FAFAFA;}
+.cvt-col{flex:1;padding:5px 8px;font-size:9px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-right:1px solid var(--gm);}
+.cvt-col:last-child{border-right:none;}
+.cvt-col.sno{flex:0 0 40px;text-align:center;}
+.cvt-col.narrow{flex:0 0 80px;text-align:center;}
+.cvt-row{display:flex;border-bottom:1px solid var(--gm);}
+.cvt-row:last-child{border-bottom:none;}
+.cvt-cell{flex:1;padding:7px 8px;font-size:11px;color:var(--tx);border-right:1px solid var(--gm);}
+.cvt-cell:last-child{border-right:none;}
+.cvt-cell.sno{flex:0 0 40px;text-align:center;font-weight:600;color:var(--m);}
+.cvt-cell.narrow{flex:0 0 80px;text-align:center;}
+.cvt-cell.sub{padding-left:18px;font-size:10px;color:var(--txm);}
+.cvt-cell.status-yn{display:flex;gap:3px;justify-content:center;align-items:center;}
+.yn-badge{font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;}
+.yn-y{background:#D1FAE5;color:#065F46;}
+.yn-n{background:#F1F5F9;color:#475569;}
+.yn-t{background:#D1FAE5;color:#065F46;}
+.yn-nt{background:#FEF3C7;color:#92400E;}
+.cvtable-footer{padding:7px 10px;border-top:1px solid var(--gm);background:#FAFAFA;display:flex;align-items:center;justify-content:space-between;}
+/* Properties panel */
+.prop-panel{padding:12px;}
+.prop-empty{text-align:center;padding:24px 12px;color:var(--txm);font-size:11px;}
+.prop-empty svg{width:28px;height:28px;display:block;margin:0 auto 8px;opacity:.3;fill:none;stroke:currentColor;stroke-width:1.5;}
+.prop-field{margin-bottom:12px;}
+.prop-label{font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.prop-toggle{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--gl);border-radius:7px;margin-bottom:6px;}
+.prop-toggle span{font-size:11px;color:var(--tx);}
+.toggle-sw{width:36px;height:20px;border-radius:10px;background:var(--m);position:relative;cursor:pointer;flex-shrink:0;}
+.toggle-sw::after{content:'';position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff;}
+.toggle-sw.off{background:var(--gm);}
+.toggle-sw.off::after{left:3px;right:auto;}
+.cv-add-section{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border:2px dashed var(--gm);border-radius:10px;cursor:pointer;color:var(--txm);font-size:12px;font-weight:500;transition:all .15s;}
+.cv-add-section:hover{border-color:var(--m);color:var(--m);background:var(--mp);}
+.cv-add-section svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;}
+
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="lp">
+  <div class="lc">
+    <div class="lb">
+      <div class="lb-ico"><svg width="26" height="26" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></div>
+      <h1>EMR Global</h1>
+      <p>Field Service Management Portal</p>
+    </div>
+    <div class="lbox" id="lform">
+      <h2>Admin Sign In</h2>
+      <div class="lsub">Authorised personnel only. Enter your credentials to continue.</div>
+      <div class="fg"><label class="fl">Email address</label><input id="lemail" class="fi" type="email" placeholder="admin@emrglobal.com"/></div>
+      <div class="fg"><label class="fl">Password</label><input id="lpass" class="fi" type="password" value="password" placeholder="••••••••"/></div>
+      <a class="forgotlnk" onclick="showForgot()">Forgot password?</a>
+      <button class="btn-login" onclick="doLogin()">Sign in to portal</button>
+      <div class="no-reg"><span><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Access by invitation only</span></div>
+    </div>
+    <div class="lbox" id="fform" style="display:none;">
+      <h2>Reset password</h2>
+      <div class="lsub">Enter your registered email. A reset link will be sent.</div>
+      <div class="fg"><label class="fl">Email address</label><input class="fi" type="email" placeholder="admin@emrglobal.com"/></div>
+      <button class="btn-login" onclick="showForgot()">Send reset link</button>
+      <div style="text-align:center;margin-top:12px;"><a style="font-size:11px;color:var(--m);cursor:pointer;" onclick="showForgot()">← Back to sign in</a></div>
+    </div>
+    <div class="lfoot">Powered by <a href="https://www.absoluteapplabs.com" target="_blank">Absolute App Labs</a></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo">
+        <div class="sb-ico"><svg width="16" height="16" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></div>
+        <div><h2>EMR Portal</h2><span>Suite</span></div>
+      </div>
+      <div class="mod-switch-wrap">
+        <div class="mod-switch" id="mod-switch" onclick="toggleModSwitch()">
+          <div class="mod-switch-ico"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg></div>
+          <div class="mod-switch-label">Field Management</div>
+          <svg class="mod-switch-chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="mod-dropdown" id="mod-dropdown">
+          <div class="mod-item active-mod">
+            <div class="mod-item-ico" style="background:var(--m);"><svg viewBox="0 0 24 24" style="stroke:white;"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg></div>
+            <div class="mod-item-info"><div class="mod-item-name">Field Management</div><div class="mod-item-tag">Work orders, engineers, SAP</div></div>
+            <svg class="mod-item-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="mod-dropdown-div"></div>
+          <div class="mod-item disabled">
+            <div class="mod-item-ico" style="background:rgba(255,255,255,.08);"><svg viewBox="0 0 24 24" style="stroke:rgba(255,255,255,.4);"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+            <div class="mod-item-info"><div class="mod-item-name">Sales</div><div class="mod-item-tag">Leads, accounts, pipeline</div></div>
+            <span class="mod-soon-badge">Coming soon</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="nsec">Main</div>
+      <div class="ni active" onclick="nav('dashboard')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</div>
+      <div class="ni" onclick="nav('workorders')"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Work Orders<span class="nbadge">8</span></div>
+      <div class="ni" onclick="nav('engineers')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Field Engineers</div>
+      <div class="nsec">Management</div>
+      <div class="ni" onclick="nav('users')"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Users</div>
+      <div class="ni" onclick="nav('customers')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Customers</div>
+      <div class="ni" onclick="nav('products')"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Products<span class="nbadge" style="background:#10B981;font-size:8px;">SAP</span></div>
+      <div class="nsec">Operations</div>
+      <div class="ni" onclick="nav('forms')"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>Forms</div>
+      <div class="ni" onclick="nav('requests')"><svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Product Requests<span class="nbadge">4</span></div>
+      <div class="nsec">System</div>
+      <div class="ni" onclick="nav('settings')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M12 2v2M4.93 4.93l1.41 1.41M2 12h2M4.93 19.07l1.41-1.41M12 20v2M19.07 19.07l-1.41-1.41M20 12h2"/></svg>Settings</div>
+    </nav>
+    <div class="sb-prof">
+      <div class="pb" onclick="togglePD()">
+        <div class="pav">SA</div>
+        <div class="pinfo"><p>Site Admin</p><span>Super Admin</span></div>
+        <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        <div class="pdrop" id="pdrop">
+          <div class="pdi" onclick="showM('m-profile')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Edit profile</div>
+          <div class="pdi"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Change password</div>
+          <div class="pdiv2"></div>
+          <div class="pdi danger" onclick="doLogout()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Logout</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="tb-title" id="ptitle">Dashboard</div>
+      <div class="tb-r">
+        <div style="display:flex;align-items:center;gap:6px;border:1px solid var(--gm);border-radius:8px;padding:5px 10px;background:#fff;">
+          <svg width="13" height="13" fill="none" stroke="var(--txm)" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+          <input type="date" style="border:none;outline:none;font-size:11px;font-family:'Poppins',sans-serif;color:var(--tx);cursor:pointer;"/>
+          <span style="color:var(--txm);font-size:11px;font-weight:500;">→</span>
+          <input type="date" style="border:none;outline:none;font-size:11px;font-family:'Poppins',sans-serif;color:var(--tx);cursor:pointer;"/>
+        </div>
+        <div class="notif"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><div class="ndot"></div></div>
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:8px;" onmouseover="this.style.background='var(--gl)'" onmouseout="this.style.background=''">
+          <div class="av" style="background:var(--m);color:#fff;">SA</div>
+          <div><div style="font-size:12px;font-weight:500;">Site Admin</div><div style="font-size:10px;color:var(--txm);">Super Admin</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="page active">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search work orders, customers, engineers..."/></div>
+            <select class="fsel"><option>All job types</option><option>Site Inspection</option><option>AMC</option><option>Commissioning</option><option>Supervision</option></select>
+            <select class="fsel"><option>All engineers</option><option>Rajan M.</option><option>Priya S.</option><option>Kumar A.</option></select>
+          </div>
+        </div>
+        <!-- Row 1: Open WO KPIs -->
+        <div class="sg5">
+          <div class="sc" onclick="nav('workorders')"><div class="sc-label">Open work orders</div><div class="sc-val">14</div><div class="sc-sub">Total active</div><div class="sc-ico"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/></svg></div></div>
+          <div class="sc blue" onclick="nav('workorders')"><div class="sc-label">Assigned</div><div class="sc-val">10</div><div class="sc-sub">Engineer allocated</div></div>
+          <div class="sc amber" onclick="nav('workorders')"><div class="sc-label">Unassigned</div><div class="sc-val">4</div><div class="sc-sub">Awaiting assignment</div></div>
+          <div class="sc green" onclick="nav('workorders')"><div class="sc-label">Completed today</div><div class="sc-val">3</div><div class="sc-sub">MoM generated</div></div>
+          <div class="sc red" onclick="nav('workorders')"><div class="sc-label">Pending / Incomplete</div><div class="sc-val">2</div><div class="sc-sub">Awaiting revisit</div></div>
+        </div>
+        <!-- Row 2: By Job Type -->
+        <div class="sg4" style="margin-bottom:14px;">
+          <div class="sc" onclick="nav('workorders')" style="padding:12px;"><div class="sc-label">Site inspection</div><div class="sc-val">6</div><div style="height:3px;background:var(--m);border-radius:2px;margin-top:6px;width:60%;"></div></div>
+          <div class="sc cyan" onclick="nav('workorders')" style="padding:12px;"><div class="sc-label">AMC</div><div class="sc-val">4</div><div style="height:3px;background:var(--cyan);border-radius:2px;margin-top:6px;width:40%;"></div></div>
+          <div class="sc purple" onclick="nav('workorders')" style="padding:12px;"><div class="sc-label">Commissioning</div><div class="sc-val">3</div><div style="height:3px;background:var(--purple);border-radius:2px;margin-top:6px;width:30%;"></div></div>
+          <div class="sc amber" onclick="nav('workorders')" style="padding:12px;"><div class="sc-label">Supervision</div><div class="sc-val">1</div><div style="height:3px;background:var(--amber);border-radius:2px;margin-top:6px;width:10%;"></div></div>
+        </div>
+        <div class="sg3l">
+          <div>
+            <div class="card" style="margin-bottom:14px;">
+              <div class="ch"><span class="ct">Recent work orders</span><button class="btn bg3 btn-sm" onclick="nav('workorders')">View all →</button></div>
+              <table><thead><tr><th>WO ID</th><th>Job type</th><th>Customer</th><th>Engineer</th><th>Scheduled</th><th>Status</th></tr></thead>
+              <tbody id="d-wo"></tbody></table>
+            </div>
+            <div class="card" style="margin-bottom:0;">
+              <div class="ch"><span class="ct">Recent activity</span></div>
+              <div style="padding:4px 14px;" id="d-activity"></div>
+            </div>
+          </div>
+          <div>
+            <div class="card" style="margin-bottom:14px;">
+              <div class="ch"><span class="ct">Engineer status</span><button class="btn bg3 btn-sm" onclick="nav('engineers')">View all →</button></div>
+              <div style="padding:10px 14px;" id="d-eng"></div>
+            </div>
+            <div class="card" style="margin-bottom:0;">
+              <div class="ch"><span class="ct">Product requests</span><button class="btn bg3 btn-sm" onclick="nav('requests')">View →</button></div>
+              <div style="padding:10px 14px;" id="d-req"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORK ORDERS -->
+      <div id="page-workorders" class="page">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search WO ID, serial no, customer..."/></div>
+            <select class="fsel"><option>All status</option><option>Unassigned</option><option>Assigned</option><option>In Progress</option><option>Pending</option><option>Completed</option></select>
+            <select class="fsel"><option>All job types</option><option>Site Inspection</option><option>AMC</option><option>Commissioning</option><option>Supervision</option></select>
+            <select class="fsel"><option>All engineers</option><option>Rajan M.</option><option>Priya S.</option><option>Kumar A.</option><option>Sathya K.</option><option>Arjun R.</option></select>
+            <input type="date" class="fsel" style="color:var(--tx);"/>
+          </div>
+          <button class="btn bm" onclick="showM('m-newwo')"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Work Order</button>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <table><thead><tr><th>WO ID</th><th>Serial No(s)</th><th>Job type</th><th>Sold customer</th><th>Shipped to</th><th>Engineer</th><th>Warranty</th><th>Scheduled</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="wo-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- FIELD ENGINEERS -->
+      <div id="page-engineers" class="page">
+        <div class="sg5" style="margin-bottom:16px;">
+          <div class="sc green" style="cursor:default;"><div class="sc-label">Available</div><div class="sc-val">2</div></div>
+          <div class="sc blue" style="cursor:default;"><div class="sc-label">Travelling</div><div class="sc-val">1</div></div>
+          <div class="sc amber" style="cursor:default;"><div class="sc-label">On site</div><div class="sc-val">2</div></div>
+          <div class="sc purple" style="cursor:default;"><div class="sc-label">Work in progress</div><div class="sc-val">1</div></div>
+          <div class="sc" style="cursor:default;"><div class="sc-label">Off duty</div><div class="sc-val">1</div></div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="ch"><span class="ct">Field engineers — live status</span><div style="display:flex;align-items:center;gap:6px;"><div style="width:7px;height:7px;background:#10B981;border-radius:50%;"></div><span style="font-size:11px;color:var(--txm);">Live</span></div></div>
+          <table><thead><tr><th>Engineer</th><th>Employee ID</th><th>Status</th><th>Current location</th><th>Next assigned site</th><th>Open WOs</th><th>Completed today</th><th>Actions</th></tr></thead>
+          <tbody id="eng-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- USERS -->
+      <div id="page-users" class="page">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search users..."/></div>
+            <select class="fsel"><option>All roles</option><option>Super Admin</option><option>Service Manager</option><option>Service Engineer</option><option>Inventory Team</option><option>Dispatch Team</option><option>Reporting Team</option></select>
+            <select class="fsel"><option>All status</option><option>Active</option><option>Inactive</option></select>
+          </div>
+          <div style="display:flex;gap:8px;"><button class="btn bo" onclick="showM('m-roles')"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Roles &amp; Permissions</button><button class="btn bm" onclick="showM('m-adduser')"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add User</button></div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <table><thead><tr><th>User</th><th>Employee ID</th><th>Role</th><th>Department</th><th>Email</th><th>Phone</th><th>Last login</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="user-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- CUSTOMERS -->
+      <div id="page-customers" class="page">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search customers..."/></div>
+          </div>
+          <button class="btn bm" onclick="showM('m-addcust')"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Customer</button>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <table><thead><tr><th>Customer</th><th>Type</th><th>Contact</th><th>Phone</th><th>Sites</th><th>Serial numbers</th><th>Last service</th><th>Actions</th></tr></thead>
+          <tbody id="cust-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- PRODUCTS (SAP) -->
+      <div id="page-products" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="sap-badge"><div class="dot"></div>Synced from SAP · Last updated 3 min ago</div>
+          </div>
+          <button class="btn bo"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh from SAP</button>
+        </div>
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search by product name or SAP code..."/></div>
+            <select class="fsel"><option>All categories</option><option>Relays & Sensors</option><option>Cables & Wiring</option><option>Instruments</option><option>Accessories</option><option>Mechanical Parts</option></select>
+          </div>
+          <div style="font-size:11px;color:var(--txm);">Showing 24 products from SAP</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <table><thead><tr><th>Product name</th><th>SAP code</th><th>Category</th><th>Unit</th><th>Description</th><th>Availability</th></tr></thead>
+          <tbody id="prod-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- FORMS -->
+      <div id="page-forms" class="page">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search forms..."/></div>
+            <select class="fsel"><option>All job types</option><option>Site Inspection</option><option>AMC</option><option>Commissioning</option><option>Supervision</option></select>
+          </div>
+          <button class="btn bm" onclick="showM('m-newform')"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create Form</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" id="forms-list"></div>
+      </div>
+
+      <!-- PRODUCT REQUESTS -->
+      <div id="page-requests" class="page">
+        <div class="ar">
+          <div class="ar-l">
+            <div class="sbin"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search requests..."/></div>
+            <select class="fsel"><option>All status</option><option>Requested</option><option>Approved</option><option>Dispatched</option><option>Delivered</option></select>
+            <select class="fsel"><option>All engineers</option><option>Rajan M.</option><option>Priya S.</option><option>Kumar A.</option></select>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span class="tag ta">4 pending action</span>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <table><thead><tr><th>Request ID</th><th>Work order</th><th>Engineer</th><th>Product</th><th>Qty</th><th>Photos</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="req-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div id="page-settings" class="page">
+        <div class="ss">
+          <h3>Organisation branding</h3>
+          <p>Upload your company logo and customise the portal appearance.</p>
+          <div class="tw">
+            <div><div class="sec-hdr">Company logo</div>
+              <div class="logo-up"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style="font-size:12px;font-weight:500;color:var(--m);">Click to upload logo</div><div style="font-size:10px;color:var(--txm);margin-top:2px;">PNG, SVG or JPG · Max 2MB</div></div>
+            </div>
+            <div><div class="sec-hdr">Preview</div>
+              <div style="background:var(--mdk);border-radius:10px;padding:18px;display:flex;align-items:center;gap:10px;">
+                <div style="width:32px;height:32px;background:var(--m);border-radius:8px;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></div>
+                <div><div style="font-size:14px;font-weight:700;color:#fff;">EMR Global</div><div style="font-size:10px;color:rgba(255,255,255,.4);">Admin Portal</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ss">
+          <h3>Colour theme</h3>
+          <p>Portal primary colour. Current: Maroon.</p>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <div style="text-align:center;"><div class="csw sel" style="background:#7D1D3F;">✓</div><div style="font-size:9px;color:var(--txm);margin-top:3px;">Maroon</div></div>
+            <div style="text-align:center;"><div class="csw" style="background:#1E3A5F;"></div><div style="font-size:9px;color:var(--txm);margin-top:3px;">Navy</div></div>
+            <div style="text-align:center;"><div class="csw" style="background:#064E3B;"></div><div style="font-size:9px;color:var(--txm);margin-top:3px;">Forest</div></div>
+            <div style="text-align:center;"><div class="csw" style="background:#374151;"></div><div style="font-size:9px;color:var(--txm);margin-top:3px;">Graphite</div></div>
+          </div>
+        </div>
+        <div class="ss">
+          <h3>Notifications</h3>
+          <p>Configure channels for customer and engineer notifications.</p>
+          <div class="fg2">
+            <div class="fgr"><label class="fl2">WhatsApp Business API key</label><input class="fi2" placeholder="API key from Meta Business"/></div>
+            <div class="fgr"><label class="fl2">SMS gateway</label><select class="fi2"><option>Twilio</option><option>MSG91</option><option>TextLocal</option></select></div>
+            <div class="fgr"><label class="fl2">SMS API key</label><input class="fi2" placeholder="SMS gateway API key"/></div>
+            <div class="fgr"><label class="fl2">Sender ID</label><input class="fi2" placeholder="e.g. EMRGLB"/></div>
+          </div>
+          <button class="btn bm" style="margin-top:4px;">Save notification settings</button>
+        </div>
+        <div class="ss">
+          <h3>General settings</h3>
+          <p>Portal defaults and timezone configuration.</p>
+          <div class="fg2">
+            <div class="fgr"><label class="fl2">Organisation name</label><input class="fi2" value="EMR Global"/></div>
+            <div class="fgr"><label class="fl2">Default timezone</label><select class="fi2"><option>Asia/Kolkata (IST +5:30)</option><option>UTC</option></select></div>
+            <div class="fgr"><label class="fl2">Date format</label><select class="fi2"><option>DD MMM YYYY</option><option>MM/DD/YYYY</option></select></div>
+            <div class="fgr"><label class="fl2">Admin email</label><input class="fi2" value="admin@emrglobal.com"/></div>
+          </div>
+          <button class="btn bm" style="margin-top:14px;">Save settings</button>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+    <div class="pf">Powered by <a href="https://www.absoluteapplabs.com" target="_blank">Absolute App Labs</a></div>
+  </div>
+</div>
+
+<!-- MODALS -->
+
+<!-- Work Order Detail -->
+<div class="mo" id="m-wodetail"><div class="md md-lg">
+  <div class="mh"><h3 id="wo-dt">Work order detail</h3><button class="mc2" onclick="closeM('m-wodetail')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="mb2" id="wo-dc"></div>
+  <div class="mf" id="wo-detail-footer"><button class="btn bo" onclick="closeM('m-wodetail')">Close</button><button class="btn bamb" id="wo-reassign-btn">Reassign engineer</button><button class="btn bm" id="wo-status-btn">Update status</button></div>
+</div></div>
+
+<!-- Form Builder -->
+<div class="mo" id="m-newform"><div class="md" style="width:960px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;">
+  <div class="mh" style="flex-shrink:0;">
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <h3>Form Builder</h3>
+        <div style="display:flex;gap:8px;">
+          <input id="fb-form-name" class="fi2" placeholder="Form name..." style="width:180px;padding:5px 10px;font-size:12px;"/>
+          <select class="fi2" style="width:180px;padding:5px 10px;font-size:12px;">
+            <option>Select job type</option>
+            <option>Site Inspection</option>
+            <option>AMC</option>
+            <option selected>Commissioning Activities</option>
+            <option>Supervision</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="fb-tabs" style="border-bottom:none;margin-right:8px;">
+        <div class="fb-tab active" id="fb-tab-build" onclick="fbTab('build')">Builder</div>
+        <div class="fb-tab" id="fb-tab-preview" onclick="fbTab('preview')">Preview</div>
+      </div>
+      <button class="mc2" onclick="closeM('m-newform')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+
+  <!-- BUILDER VIEW -->
+  <div id="fb-build-view" class="fb-wrap" style="flex:1;overflow:hidden;">
+
+    <!-- CANVAS -->
+    <div class="fb-canvas">
+
+      <!-- Section 1: Customer Information -->
+      <div class="cvsec" id="fbsec1" onclick="selectSection('fbsec1')">
+        <div class="cvsec-hdr">
+          <svg width="12" height="12" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Customer Information</span>
+          <div class="cvsec-hdr-actions">
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button>
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+        <div class="cvsec-body">
+          <div class="cvfield selected" id="f1" onclick="event.stopPropagation();selectField('f1')">
+            <span class="cvfield-drag">⠿</span>
+            <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></div>
+            <div class="cvfield-info">
+              <div class="cvfield-label">Customer Name</div>
+              <div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span><span class="cvfield-tag cvf-prefill">Pre-fill: Job data</span><span class="cvfield-tag cvf-required">Required</span></div>
+            </div>
+            <div class="cvfield-actions"><button class="cvfa"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button><button class="cvfa"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button></div>
+          </div>
+          <div class="cvfield" id="f2" onclick="event.stopPropagation();selectField('f2')">
+            <span class="cvfield-drag">⠿</span>
+            <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></div>
+            <div class="cvfield-info">
+              <div class="cvfield-label">Contact Number</div>
+              <div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span><span class="cvfield-tag cvf-prefill">Pre-fill: Job data</span><span class="cvfield-tag cvf-required">Required</span></div>
+            </div>
+            <div class="cvfield-actions"><button class="cvfa"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button><button class="cvfa"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button></div>
+          </div>
+          <div class="cvfield" id="f3" onclick="event.stopPropagation();selectField('f3')">
+            <span class="cvfield-drag">⠿</span>
+            <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></div>
+            <div class="cvfield-info">
+              <div class="cvfield-label">Installation Location</div>
+              <div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span><span class="cvfield-tag cvf-prefill">Pre-fill: Job data</span><span class="cvfield-tag cvf-required">Required</span></div>
+            </div>
+            <div class="cvfield-actions"><button class="cvfa"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button><button class="cvfa"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button></div>
+          </div>
+          <div class="cvfield" id="f4" onclick="event.stopPropagation();selectField('f4')">
+            <span class="cvfield-drag">⠿</span>
+            <div class="cvfield-ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+            <div class="cvfield-info">
+              <div class="cvfield-label">Project Details</div>
+              <div class="cvfield-meta"><span class="cvfield-tag cvf-type">Long text</span></div>
+            </div>
+            <div class="cvfield-actions"><button class="cvfa"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button><button class="cvfa"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button></div>
+          </div>
+          <div class="cv-add-field" onclick="event.stopPropagation();"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add field</div>
+        </div>
+      </div>
+
+      <!-- Section 2: Transformer Details -->
+      <div class="cvsec" id="fbsec2" onclick="selectSection('fbsec2')">
+        <div class="cvsec-hdr">
+          <svg width="12" height="12" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+          <span>Transformer Details</span>
+          <div class="cvsec-hdr-actions">
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button>
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+        <div class="cvsec-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f5')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">NIFPS Serial No.</div><div class="cvfield-meta"><span class="cvfield-tag cvf-prefill">Pre-fill: Job</span></div></div>
+            </div>
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f6')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">Rating</div><div class="cvfield-meta"><span class="cvfield-tag cvf-prefill">Pre-fill: Job</span></div></div>
+            </div>
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f7')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">Manufacturer</div><div class="cvfield-meta"><span class="cvfield-tag cvf-prefill">Pre-fill: Job</span></div></div>
+            </div>
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f8')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">Site Address</div><div class="cvfield-meta"><span class="cvfield-tag cvf-prefill">Pre-fill: Job</span></div></div>
+            </div>
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f9')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">Date of Installation</div><div class="cvfield-meta"><span class="cvfield-tag cvf-type">Date</span><span class="cvfield-tag cvf-required">Required</span></div></div>
+            </div>
+            <div class="cvfield" style="margin-bottom:0;" onclick="event.stopPropagation();selectField('f10')">
+              <div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div>
+              <div class="cvfield-info"><div class="cvfield-label">Duration</div><div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span><span class="cvfield-tag cvf-required">Required</span></div></div>
+            </div>
+          </div>
+          <div class="cv-add-field" onclick="event.stopPropagation();"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add field</div>
+        </div>
+      </div>
+
+      <!-- Section 3: Observations Table block -->
+      <div class="cvsec" id="fbsec3" onclick="selectSection('fbsec3')">
+        <div class="cvsec-hdr">
+          <svg width="12" height="12" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+          <span>Detailed Observations & Activity Status</span>
+          <div class="cvsec-hdr-actions">
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button>
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button>
+          </div>
+        </div>
+        <div class="cvsec-body">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:500;color:var(--txm);">Block type:</span>
+            <span class="tag tm" style="font-size:10px;">Table / Checklist</span>
+            <span style="font-size:11px;font-weight:500;color:var(--txm);margin-left:8px;">Status type:</span>
+            <span class="tag tg" style="font-size:10px;">Yes / No</span>
+            <span style="font-size:11px;font-weight:500;color:var(--txm);margin-left:8px;">Columns:</span>
+            <span style="font-size:11px;color:var(--tx);">S.No · Details · Status · Remarks</span>
+          </div>
+          <div class="cvtable selected" id="ftable1" onclick="event.stopPropagation();selectField('ftable1')">
+            <div class="cvt-cols">
+              <div class="cvt-col sno">S.No</div>
+              <div class="cvt-col">Details of Checks / Test</div>
+              <div class="cvt-col narrow">Status</div>
+              <div class="cvt-col narrow">Remarks</div>
+            </div>
+            <div class="cvt-row"><div class="cvt-cell sno">1</div><div class="cvt-cell">Verification of switchyard cubicle panel erection was carried out</div><div class="cvt-cell narrow status-yn"><span class="yn-badge yn-y">Yes</span><span class="yn-badge yn-n">No</span></div><div class="cvt-cell narrow" style="font-size:10px;color:var(--txm);">Text input</div></div>
+            <div class="cvt-row"><div class="cvt-cell sno">2</div><div class="cvt-cell">Verification of signal box erection was carried out</div><div class="cvt-cell narrow status-yn"><span class="yn-badge yn-y">Yes</span><span class="yn-badge yn-n">No</span></div><div class="cvt-cell narrow" style="font-size:10px;color:var(--txm);">Text input</div></div>
+            <div class="cvt-row"><div class="cvt-cell sno">3</div><div class="cvt-cell">Verification of control panel erection was carried out</div><div class="cvt-cell narrow status-yn"><span class="yn-badge yn-y">Yes</span><span class="yn-badge yn-n">No</span></div><div class="cvt-cell narrow" style="font-size:10px;color:var(--txm);">Text input</div></div>
+            <div class="cvt-row" style="background:var(--gl);"><div class="cvt-cell sno" style="color:var(--txm);">···</div><div class="cvt-cell" style="font-size:10px;color:var(--txm);">4 more rows (4–7)</div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div></div>
+            <div class="cvtable-footer">
+              <span style="font-size:11px;color:var(--txm);">7 rows total</span>
+              <button class="btn bo" style="padding:4px 10px;font-size:10px;width:auto;">+ Add row</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Pre-commissioning Checklist -->
+      <div class="cvsec" id="fbsec4" onclick="selectSection('fbsec4')">
+        <div class="cvsec-hdr">
+          <svg width="12" height="12" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          <span>Pre-Commissioning Checklist</span>
+          <div class="cvsec-hdr-actions">
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button>
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button>
+          </div>
+        </div>
+        <div class="cvsec-body">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:500;color:var(--txm);">Block type:</span>
+            <span class="tag tm" style="font-size:10px;">Table / Checklist</span>
+            <span style="font-size:11px;font-weight:500;color:var(--txm);margin-left:8px;">Status type:</span>
+            <span class="tag ta" style="font-size:10px;">Tested / Not Tested</span>
+            <span style="font-size:11px;font-weight:500;color:var(--txm);margin-left:8px;">Sub-rows:</span>
+            <span class="tag tg" style="font-size:10px;">Enabled</span>
+          </div>
+          <div class="cvtable" id="ftable2" onclick="event.stopPropagation();selectField('ftable2')">
+            <div class="cvt-cols">
+              <div class="cvt-col sno">S.No</div>
+              <div class="cvt-col">Details</div>
+              <div class="cvt-col narrow">Tested</div>
+              <div class="cvt-col narrow">Not Tested</div>
+              <div class="cvt-col narrow">Remarks</div>
+            </div>
+            <div class="cvt-row" style="background:var(--mp);"><div class="cvt-cell sno">1</div><div class="cvt-cell" style="font-weight:500;">Earthing of switchyard equipment verified</div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div></div>
+            <div class="cvt-row"><div class="cvt-cell sno" style="color:var(--txm);font-size:10px;">(a)</div><div class="cvt-cell sub">Cubicle panel</div><div class="cvt-cell narrow status-yn"><span class="yn-badge yn-t">☑</span></div><div class="cvt-cell narrow status-yn"><span class="yn-badge yn-nt">☑</span></div><div class="cvt-cell narrow" style="font-size:10px;color:var(--txm);">Text input</div></div>
+            <div class="cvt-row" style="background:var(--gl);"><div class="cvt-cell sno" style="color:var(--txm);">···</div><div class="cvt-cell" style="font-size:10px;color:var(--txm);">(b) Control panel, (c) Signal box</div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div></div>
+            <div class="cvt-row" style="background:var(--mp);"><div class="cvt-cell sno">2</div><div class="cvt-cell" style="font-weight:500;">Potential-free contact configured</div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div></div>
+            <div class="cvt-row" style="background:var(--gl);"><div class="cvt-cell sno" style="color:var(--txm);">···</div><div class="cvt-cell" style="font-size:10px;color:var(--txm);">5 sub-items (a–e)</div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div><div class="cvt-cell narrow"></div></div>
+            <div class="cvtable-footer">
+              <span style="font-size:11px;color:var(--txm);">4 main rows · 8 sub-rows</span>
+              <div style="display:flex;gap:6px;">
+                <button class="btn bo" style="padding:4px 10px;font-size:10px;width:auto;">+ Add row</button>
+                <button class="btn bo" style="padding:4px 10px;font-size:10px;width:auto;">+ Add sub-row</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 5: Customer Sign-off -->
+      <div class="cvsec" id="fbsec5" onclick="selectSection('fbsec5')">
+        <div class="cvsec-hdr">
+          <svg width="12" height="12" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
+          <span>Customer Sign-off</span>
+          <div class="cvsec-hdr-actions">
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg></button>
+            <button class="cvsec-hdr-btn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/></svg></button>
+          </div>
+        </div>
+        <div class="cvsec-body">
+          <div class="cvfield" onclick="event.stopPropagation();selectField('f11')"><span class="cvfield-drag">⠿</span><div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div><div class="cvfield-info"><div class="cvfield-label">Customer Name</div><div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span><span class="cvfield-tag cvf-required">Required</span></div></div></div>
+          <div class="cvfield" onclick="event.stopPropagation();selectField('f12')"><span class="cvfield-drag">⠿</span><div class="cvfield-ico"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/></svg></div><div class="cvfield-info"><div class="cvfield-label">Designation</div><div class="cvfield-meta"><span class="cvfield-tag cvf-type">Text</span></div></div></div>
+          <div class="cvfield" onclick="event.stopPropagation();selectField('f13')"><span class="cvfield-drag">⠿</span><div class="cvfield-ico"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg></div><div class="cvfield-info"><div class="cvfield-label">Digital Signature</div><div class="cvfield-meta"><span class="cvfield-tag cvf-type">Signature</span><span class="cvfield-tag cvf-required">Required</span></div></div></div>
+          <div class="cv-add-field" onclick="event.stopPropagation();"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add field</div>
+        </div>
+      </div>
+
+      <!-- Add section -->
+      <div class="cv-add-section" onclick=""><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add new section</div>
+
+    </div><!-- /canvas -->
+
+    <!-- PALETTE + PROPERTIES -->
+    <div class="fb-palette">
+      <div id="fb-palette-panel">
+        <div style="padding:10px 12px;border-bottom:1px solid var(--gm);background:#FAFAFA;">
+          <div style="font-size:11px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;">Add to form</div>
+        </div>
+        <div class="fb-palette-body">
+          <div class="fb-sec-lbl">Basic fields</div>
+          <div class="ftype-grid">
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg><span>Text</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>Number</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>Long text</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg><span>Dropdown</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Date</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg><span>Photo</span></button>
+            <button class="ftype-btn active"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg><span>Signature</span></button>
+            <button class="ftype-btn"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>Checkbox</span></button>
+          </div>
+          <div class="fb-sec-lbl">Structure</div>
+          <button class="ftype-full"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg><span>New section</span></button>
+          <button class="ftype-full" style="margin-top:6px;"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg><span>Table / Checklist block</span></button>
+          <div class="fb-sec-lbl">Status types</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--gl);border-radius:7px;font-size:11px;"><span>Yes / No</span><div style="display:flex;gap:3px;"><span class="yn-badge yn-y">Yes</span><span class="yn-badge yn-n">No</span></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--gl);border-radius:7px;font-size:11px;"><span>Tested / Not Tested</span><div style="display:flex;gap:3px;"><span class="yn-badge yn-t">☑</span><span class="yn-badge yn-nt">☑</span></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--gl);border-radius:7px;font-size:11px;"><span>Checkbox only</span><input type="checkbox" checked style="accent-color:var(--m);cursor:pointer;"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Properties panel (shown when field selected) -->
+      <div id="fb-props-panel" style="display:none;flex-direction:column;height:100%;">
+        <div style="padding:10px 12px;border-bottom:1px solid var(--gm);background:#FAFAFA;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:11px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;">Field properties</div>
+          <button onclick="closePropPanel()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--txm);">←</button>
+        </div>
+        <div class="fb-palette-body" style="flex:1;overflow-y:auto;">
+          <div class="prop-field"><div class="prop-label">Field label</div><input class="fi2" id="prop-label" value="Customer Name" style="font-size:12px;"/></div>
+          <div class="prop-field"><div class="prop-label">Field type</div><select class="fi2" style="font-size:12px;"><option selected>Text</option><option>Long text</option><option>Number</option><option>Date</option><option>Dropdown</option><option>Photo</option><option>Signature</option><option>Checkbox</option></select></div>
+          <div class="prop-field"><div class="prop-label">Field options</div>
+            <div class="prop-toggle"><span>Required field</span><div class="toggle-sw" onclick="this.classList.toggle('off')"></div></div>
+            <div class="prop-toggle"><span>Pre-fill from job data</span><div class="toggle-sw" onclick="this.classList.toggle('off')"></div></div>
+            <div class="prop-toggle"><span>Read-only on mobile</span><div class="toggle-sw off" onclick="this.classList.toggle('off')"></div></div>
+          </div>
+          <div class="prop-field"><div class="prop-label">Placeholder text</div><input class="fi2" placeholder="Hint shown to engineer" style="font-size:12px;"/></div>
+          <div class="prop-field"><div class="prop-label">Help text</div><input class="fi2" placeholder="Optional guidance" style="font-size:12px;"/></div>
+          <div style="display:flex;gap:6px;margin-top:4px;">
+            <button class="btn bm" style="font-size:11px;padding:7px;">Save</button>
+            <button class="btn bd" style="font-size:11px;padding:7px;">Delete field</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /palette -->
+  </div><!-- /builder view -->
+
+  <!-- PREVIEW VIEW -->
+  <div id="fb-preview-view" style="display:none;flex:1;overflow-y:auto;padding:20px;background:#F5F3F5;">
+    <div style="max-width:480px;margin:0 auto;">
+      <div style="background:var(--mdk);border-radius:12px;padding:14px;text-align:center;margin-bottom:14px;">
+        <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:2px;">EMR</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;">Pre-Commissioning Checklist — MOM</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:14px;border:1px solid var(--gm);margin-bottom:10px;font-size:11px;color:var(--txm);text-align:center;">This is how the form will appear on the engineer's mobile app. Fill in sample values to preview.</div>
+      <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);padding:14px;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:600;color:var(--m);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;font-size:10px;">Customer Information</div>
+        <div style="margin-bottom:8px;"><label style="font-size:10px;color:var(--txm);display:block;margin-bottom:3px;">Customer Name</label><div style="background:var(--gl);border:1px solid var(--gm);border-radius:7px;padding:8px 10px;font-size:12px;color:var(--txm);">TN Electricity Board — auto-filled</div></div>
+        <div style="margin-bottom:8px;"><label style="font-size:10px;color:var(--txm);display:block;margin-bottom:3px;">Project Details</label><textarea style="width:100%;border:1.5px solid var(--gm);border-radius:7px;padding:8px 10px;font-size:12px;font-family:Poppins;resize:none;outline:none;" rows="2" placeholder="Engineer fills at site"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mf" style="flex-shrink:0;">
+    <button class="btn bo" onclick="closeM('m-newform')">Cancel</button>
+    <button class="btn bg3">Save as draft</button>
+    <button class="btn bo" onclick="fbTab('preview')">Preview on mobile</button>
+    <button class="btn bm">Publish form</button>
+  </div>
+</div></div>
+
+<!-- Add User -->
+<div class="mo" id="m-adduser"><div class="md">
+  <div class="mh"><h3>Add user</h3><button class="mc2" onclick="closeM('m-adduser')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="mb2">
+    <div class="fg2">
+      <div class="fgr"><label class="fl2">First name <span class="req">*</span></label><input class="fi2" placeholder="First name"/></div>
+      <div class="fgr"><label class="fl2">Last name <span class="req">*</span></label><input class="fi2" placeholder="Last name"/></div>
+      <div class="fgr"><label class="fl2">Employee ID <span class="req">*</span></label><input class="fi2" placeholder="EMP-XXXXX"/></div>
+      <div class="fgr"><label class="fl2">Email <span class="req">*</span></label><input class="fi2" type="email" placeholder="name@emrglobal.com"/></div>
+      <div class="fgr"><label class="fl2">Phone</label><input class="fi2" placeholder="+91 XXXXXXXXXX"/></div>
+      <div class="fgr"><label class="fl2">Department</label><input class="fi2" placeholder="e.g. Field Services"/></div>
+      <div class="fgr full"><label class="fl2">Role <span class="req">*</span></label><select class="fi2"><option>Select role</option><option>Super Admin</option><option>Service Manager</option><option>Service Engineer</option><option>Sales Executive Engineer</option><option>Inventory Team</option><option>Dispatch Team</option><option>Reporting Team</option></select></div>
+      <div class="fgr full">
+        <label class="fl2">Module access <span class="req">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px;">
+          <label style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1.5px solid var(--mb);background:var(--mp);border-radius:8px;cursor:pointer;">
+            <input type="checkbox" checked style="width:15px;height:15px;accent-color:var(--m);cursor:pointer;"/>
+            <div style="flex:1;"><div style="font-size:12px;font-weight:600;color:var(--m);">Field Management</div><div style="font-size:10px;color:var(--txm);">Work orders, engineers, forms, SAP</div></div>
+          </label>
+          <label style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1.5px solid var(--gm);background:var(--gl);border-radius:8px;cursor:not-allowed;opacity:.55;">
+            <input type="checkbox" disabled style="width:15px;height:15px;cursor:not-allowed;"/>
+            <div style="flex:1;"><div style="font-size:12px;font-weight:600;color:var(--txm);">Sales</div><div style="font-size:10px;color:var(--txm);">Leads, accounts, pipeline</div></div>
+            <span class="mod-soon-badge" style="background:var(--gm);color:var(--txm);">Coming soon</span>
+          </label>
+        </div>
+        <div style="font-size:10px;color:var(--txm);margin-top:5px;">Users with access to multiple modules (e.g. Executives) can be assigned more than one module once additional modules are available.</div>
+      </div>
+    </div>
+    <div style="background:var(--mp);border:1px solid var(--mb);border-radius:8px;padding:10px 12px;margin-top:4px;font-size:11px;color:var(--m);">Login credentials will be auto-generated and emailed to the user on account creation.</div>
+  </div>
+  <div class="mf"><button class="btn bo" onclick="closeM('m-adduser')">Cancel</button><button class="btn bm">Create account</button></div>
+</div></div>
+
+<!-- Add Customer -->
+<div class="mo" id="m-addcust"><div class="md md-lg">
+  <div class="mh"><h3>Add customer</h3><button class="mc2" onclick="closeM('m-addcust')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="mb2">
+    <div class="msec">Customer details</div>
+    <div class="fg2">
+      <div class="fgr full"><label class="fl2">Organisation name <span class="req">*</span></label><input class="fi2" placeholder="Customer organisation name"/></div>
+      <div class="fgr"><label class="fl2">Customer type</label><select class="fi2"><option>Sold customer</option><option>Shipped customer</option><option>Both</option></select></div>
+      <div class="fgr"><label class="fl2">Contact person <span class="req">*</span></label><input class="fi2" placeholder="Primary contact name"/></div>
+      <div class="fgr"><label class="fl2">Phone <span class="req">*</span></label><input class="fi2" placeholder="+91 XXXXXXXXXX"/></div>
+      <div class="fgr"><label class="fl2">Email</label><input class="fi2" type="email" placeholder="contact@customer.com"/></div>
+      <div class="fgr"><label class="fl2">WhatsApp number</label><input class="fi2" placeholder="For notifications"/></div>
+    </div>
+    <div class="mdiv"></div>
+    <div class="msec">Site & equipment</div>
+    <div class="fg2">
+      <div class="fgr full"><label class="fl2">Site address <span class="req">*</span></label><input class="fi2" placeholder="Full site address"/></div>
+      <div class="fgr"><label class="fl2">Serial number</label><input class="fi2" placeholder="SN-TR-XXXXX"/></div>
+      <div class="fgr"><label class="fl2">Year of manufacture</label><input class="fi2" placeholder="e.g. 2019"/></div>
+      <div class="fgr"><label class="fl2">Warranty status</label><select class="fi2"><option>Under warranty</option><option>Warranty expired</option><option>AMC</option></select></div>
+    </div>
+  </div>
+  <div class="mf"><button class="btn bo" onclick="closeM('m-addcust')">Cancel</button><button class="btn bm">Add customer</button></div>
+</div></div>
+
+<!-- Roles & Permissions Modal -->
+<div class="mo" id="m-roles"><div class="md md-lg">
+  <div class="mh"><h3>Roles &amp; Permissions</h3><button class="mc2" onclick="closeM('m-roles')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="mb2">
+    <p style="font-size:12px;color:var(--txm);margin-bottom:16px;">Configure access permissions for each role. Toggle permissions on or off per module.</p>
+    <div style="overflow-x:auto;">
+    <table style="min-width:700px;">
+    <thead><tr>
+      <th>Permission / Module</th>
+      <th style="text-align:center;">Super Admin</th>
+      <th style="text-align:center;">Service Manager</th>
+      <th style="text-align:center;">Service Engineer</th>
+      <th style="text-align:center;">Inventory Team</th>
+      <th style="text-align:center;">Dispatch Team</th>
+      <th style="text-align:center;">Reporting Team</th>
+    </tr></thead>
+    <tbody id="roles-tbody"></tbody>
+    </table></div>
+  </div>
+  <div class="mf"><button class="btn bo" onclick="closeM('m-roles')">Cancel</button><button class="btn bm">Save permissions</button></div>
+</div></div>
+
+<!-- Edit Profile -->
+<div class="mo" id="m-profile"><div class="md md-sm">
+  <div class="mh"><h3>Edit profile</h3><button class="mc2" onclick="closeM('m-profile')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="mb2">
+    <div style="text-align:center;margin-bottom:18px;"><div class="av" style="width:52px;height:52px;background:var(--m);font-size:16px;color:#fff;margin:0 auto 8px;">SA</div><div style="font-size:11px;color:var(--txm);">Click to change photo</div></div>
+    <div class="fg2"><div class="fgr"><label class="fl2">First name</label><input class="fi2" value="Site"/></div><div class="fgr"><label class="fl2">Last name</label><input class="fi2" value="Admin"/></div><div class="fgr full"><label class="fl2">Email</label><input class="fi2" value="admin@emrglobal.com"/></div></div>
+  </div>
+  <div class="mf"><button class="btn bo" onclick="closeM('m-profile')">Cancel</button><button class="btn bm">Save</button></div>
+</div></div>
+
+<script>
+const COLORS=['#7D1D3F','#5B6AC4','#0891B2','#D97706','#059669','#7C3AED','#DC2626','#1E3A5F'];
+const WOS=[
+  {id:'WO-2026-0145',sn:'SN-TR-01142, SN-TR-01143',type:'Site Inspection',sold:'TN Electricity Board',ship:'TN Electricity Board',eng:'Rajan M.',war:true,date:'10 May 2026',status:'Assigned'},
+  {id:'WO-2026-0144',sn:'SN-TR-01098',type:'AMC',sold:'TANGEDCO',ship:'TANGEDCO',eng:'—',war:false,date:'09 May 2026',status:'Unassigned'},
+  {id:'WO-2026-0143',sn:'SN-TR-01131',type:'Commissioning',sold:'Chennai Metro Rail',ship:'Chennai Metro Rail',eng:'Priya S.',war:true,date:'09 May 2026',status:'In Progress'},
+  {id:'WO-2026-0142',sn:'SN-TR-01055',type:'Site Inspection',sold:'TANGEDCO',ship:'Guindy TNEB',eng:'Kumar A.',war:false,date:'08 May 2026',status:'Completed'},
+  {id:'WO-2026-0141',sn:'SN-TR-01031',type:'AMC',sold:'TN Electricity Board',ship:'TN Electricity Board',eng:'Sathya K.',war:false,date:'07 May 2026',status:'Pending'},
+  {id:'WO-2026-0140',sn:'SN-TR-01198',type:'Supervision',sold:'Chennai Smart City',ship:'Chennai Smart City',eng:'Arjun R.',war:true,date:'06 May 2026',status:'Completed'},
+];
+const ENGS=[
+  {id:'EMP-00482',name:'Rajan M.',ini:'RM',status:'Travelling',curLoc:'Chennai Central',nextSite:'Tambaram East Sub-Station',openWO:2,doneToday:1},
+  {id:'EMP-00391',name:'Priya S.',ini:'PS',status:'On Site',curLoc:'Anna Nagar Depot',nextSite:'Guindy Sub-Station',openWO:1,doneToday:1},
+  {id:'EMP-00287',name:'Kumar A.',ini:'KA',status:'Work In Progress',curLoc:'Guindy Sub-Station',nextSite:'—',openWO:1,doneToday:1},
+  {id:'EMP-00354',name:'Sathya K.',ini:'SK',status:'Available',curLoc:'Velachery',nextSite:'Velachery Sub-Station',openWO:1,doneToday:0},
+  {id:'EMP-00423',name:'Arjun R.',ini:'AR',status:'Available',curLoc:'Anna Nagar',nextSite:'—',openWO:0,doneToday:2},
+  {id:'EMP-00512',name:'Meena R.',ini:'MR',status:'Off Duty',curLoc:'—',nextSite:'—',openWO:0,doneToday:0},
+];
+const USERS=[
+  {id:'EMP-001',name:'Site Admin',ini:'SA',role:'Super Admin',dept:'Management',email:'admin@emrglobal.com',phone:'+91 98400 00001',last:'Today',active:true},
+  {id:'EMP-102',name:'James T.',ini:'JT',role:'Service Manager',dept:'Operations',email:'james.t@emrglobal.com',phone:'+91 98400 10234',last:'Today',active:true},
+  {id:'EMP-210',name:'Meena R.',ini:'MR',role:'Dispatch Team',dept:'Logistics',email:'meena.r@emrglobal.com',phone:'+91 98400 21034',last:'Yesterday',active:true},
+  {id:'EMP-482',name:'Rajan M.',ini:'RM',role:'Service Engineer',dept:'Field',email:'rajan.m@emrglobal.com',phone:'+91 98400 48234',last:'Today',active:true},
+  {id:'EMP-391',name:'Priya S.',ini:'PS',role:'Service Engineer',dept:'Field',email:'priya.s@emrglobal.com',phone:'+91 98400 39134',last:'Today',active:true},
+  {id:'EMP-287',name:'Kumar A.',ini:'KA',role:'Service Engineer',dept:'Field',email:'kumar.a@emrglobal.com',phone:'+91 98400 28734',last:'Today',active:true},
+  {id:'EMP-601',name:'Kavitha N.',ini:'KN',role:'Inventory Team',dept:'Warehouse',email:'kavitha.n@emrglobal.com',phone:'+91 98400 60134',last:'1 week ago',active:false},
+];
+const CUSTS=[
+  {id:'C001',name:'Tamil Nadu Electricity Board',type:'Both',contact:'S. Ramesh',phone:'+91 44 2852 3456',sites:2,sns:5,last:'10 May 2026'},
+  {id:'C002',name:'TANGEDCO',type:'Both',contact:'R. Krishnamurthy',phone:'+91 44 2351 4567',sites:1,sns:3,last:'08 May 2026'},
+  {id:'C003',name:'Chennai Metro Rail Ltd',type:'Shipped',contact:'Anand K.',phone:'+91 44 2345 6789',sites:1,sns:2,last:'06 May 2026'},
+  {id:'C004',name:'Chennai Smart City',type:'Sold',contact:'Priya Nair',phone:'+91 44 2234 5678',sites:1,sns:2,last:'03 May 2026'},
+];
+const PRODS=[
+  {name:'Oil Surge Relay',code:'SAP-1000234',cat:'Relays & Sensors',unit:'No.',desc:'Protects transformer from oil surge',avail:'In stock (5)'},
+  {name:'Buchholz Relay',code:'SAP-1000189',cat:'Relays & Sensors',unit:'No.',desc:'Detects internal transformer faults',avail:'Low stock (2)'},
+  {name:'Temperature Indicator',code:'SAP-1000456',cat:'Instruments',unit:'No.',desc:'Winding temperature monitoring',avail:'In stock (8)'},
+  {name:'Silica Gel Breather',code:'SAP-1000078',cat:'Accessories',unit:'No.',desc:'Moisture absorption for transformer oil',avail:'Out of stock'},
+  {name:'HT Cable (XLPE)',code:'SAP-1000312',cat:'Cables & Wiring',unit:'Metres',desc:'High tension XLPE insulated cable',avail:'In stock (200m)'},
+  {name:'LT Cable (Armoured)',code:'SAP-1000298',cat:'Cables & Wiring',unit:'Metres',desc:'Low tension armoured cable',avail:'In stock (350m)'},
+  {name:'Pressure Relief Valve',code:'SAP-1000534',cat:'Mechanical Parts',unit:'No.',desc:'Tank pressure relief mechanism',avail:'In stock (3)'},
+  {name:'Winding Thermometer',code:'SAP-1000512',cat:'Instruments',unit:'No.',desc:'Direct winding temp measurement',avail:'In stock (4)'},
+];
+const FORMS=[
+  {name:'MOM',type:'Commissioning Activities',fields:36,status:'Active',updated:'08 May 2026'},
+];
+const REQS=[
+  {id:'PR-0042',wo:'WO-2026-0143',eng:'Priya S.',prod:'Buchholz Relay',qty:'2 No.',photos:2,date:'08 May 2026',status:'Requested'},
+  {id:'PR-0041',wo:'WO-2026-0142',eng:'Kumar A.',prod:'Temperature Indicator',qty:'1 No.',photos:1,date:'07 May 2026',status:'Approved'},
+  {id:'PR-0040',wo:'WO-2026-0141',eng:'Sathya K.',prod:'HT Cable (XLPE)',qty:'45 Metres',photos:3,date:'06 May 2026',status:'Dispatched'},
+  {id:'PR-0039',wo:'WO-2026-0138',eng:'Rajan M.',prod:'Oil Surge Relay',qty:'1 No.',photos:1,date:'05 May 2026',status:'Delivered'},
+];
+
+function tg(s){const m={Assigned:'tb2',Unassigned:'tgr','In Progress':'ta',Completed:'tg',Pending:'tr2',Active:'tg',Inactive:'tgr',Requested:'ta',Approved:'tb2',Dispatched:'tp',Delivered:'tg',Active2:'tg',Draft:'tgr'};return `<span class="tag ${m[s]||'tgr'}">${s}</span>`;}
+function engStatusTag(s){const m={Available:'es-avail',Travelling:'es-travel','On Site':'es-onsite','Work In Progress':'es-wip','Off Duty':'es-off'};return `<span class="eng-status ${m[s]||'es-off'}">${s}</span>`;}
+function av(ini,i){return `<div class="av" style="background:${COLORS[i%COLORS.length]};color:#fff;">${ini}</div>`;}
+function acts(v,e,d,da){let h='<div style="display:flex;align-items:center;gap:5px;">';
+  if(v)h+=`<button class="btn bg3 btn-ico btn-sm" onclick="${v}" title="View"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+  if(e)h+=`<button class="btn bg3 btn-ico btn-sm" onclick="${e}" title="Edit"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg></button>`;
+  if(da)h+=`<button class="btn bg3 btn-ico btn-sm" onclick="${da}" title="Deactivate" style="color:var(--amber)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>`;
+  if(d)h+=`<button class="btn bg3 btn-ico btn-sm" onclick="${d}" title="Delete" style="color:var(--red)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg></button>`;
+  return h+'</div>';}
+
+const PERMS=[
+  {module:"Dashboard",sa:true,sm:true,se:false,inv:false,dis:false,rep:true},
+  {module:"Work Orders — View",sa:true,sm:true,se:true,inv:false,dis:false,rep:true},
+  {module:"Work Orders — Create / Edit",sa:true,sm:true,se:false,inv:false,dis:false,rep:false},
+  {module:"Work Orders — Delete",sa:true,sm:false,se:false,inv:false,dis:false,rep:false},
+  {module:"Field Engineers — View",sa:true,sm:true,se:false,inv:false,dis:false,rep:true},
+  {module:"Field Engineers — Manage",sa:true,sm:true,se:false,inv:false,dis:false,rep:false},
+  {module:"Users — View",sa:true,sm:true,se:false,inv:false,dis:false,rep:false},
+  {module:"Users — Create / Edit",sa:true,sm:false,se:false,inv:false,dis:false,rep:false},
+  {module:"Customers — View",sa:true,sm:true,se:true,inv:false,dis:false,rep:true},
+  {module:"Customers — Create / Edit",sa:true,sm:true,se:false,inv:false,dis:false,rep:false},
+  {module:"Products — View",sa:true,sm:true,se:true,inv:true,dis:true,rep:true},
+  {module:"Forms — View",sa:true,sm:true,se:false,inv:false,dis:false,rep:false},
+  {module:"Forms — Create / Edit",sa:true,sm:false,se:false,inv:false,dis:false,rep:false},
+  {module:"Product Requests — View",sa:true,sm:true,se:true,inv:true,dis:true,rep:true},
+  {module:"Product Requests — Approve",sa:true,sm:true,se:false,inv:true,dis:false,rep:false},
+  {module:"Product Requests — Dispatch",sa:true,sm:false,se:false,inv:false,dis:true,rep:false},
+  {module:"MoM — View / Download",sa:true,sm:true,se:true,inv:false,dis:false,rep:true},
+  {module:"Settings",sa:true,sm:false,se:false,inv:false,dis:false,rep:false},
+];
+function tick(v){return v?'<span style="color:var(--green);font-size:16px;text-align:center;display:block;">✓</span>':'<span style="color:var(--gm);font-size:14px;text-align:center;display:block;">—</span>';}
+function renderRoles(){
+  const t=document.getElementById('roles-tbody');if(!t)return;
+  t.innerHTML=PERMS.map((p,i)=>`<tr style="background:${i%2===0?'var(--mp)':'#fff'}">
+    <td style="font-size:12px;font-weight:${p.module.includes("—")?"400":"600"};padding-left:${p.module.includes("—")?"22px":"14px"}">${p.module}</td>
+    <td style="text-align:center;">${tick(p.sa)}</td>
+    <td style="text-align:center;">${tick(p.sm)}</td>
+    <td style="text-align:center;">${tick(p.se)}</td>
+    <td style="text-align:center;">${tick(p.inv)}</td>
+    <td style="text-align:center;">${tick(p.dis)}</td>
+    <td style="text-align:center;">${tick(p.rep)}</td>
+  </tr>`).join("");
+}
+
+function fbTab(tab){
+  document.getElementById('fb-build-view').style.display = tab==='build' ? 'flex' : 'none';
+  document.getElementById('fb-preview-view').style.display = tab==='preview' ? 'block' : 'none';
+  document.getElementById('fb-tab-build').classList.toggle('active', tab==='build');
+  document.getElementById('fb-tab-preview').classList.toggle('active', tab==='preview');
+}
+function selectField(id){
+  document.querySelectorAll('.cvfield,.cvtable').forEach(el=>el.classList.remove('selected'));
+  const el=document.getElementById(id); if(el) el.classList.add('selected');
+  document.getElementById('fb-palette-panel').style.display='none';
+  const pp=document.getElementById('fb-props-panel'); pp.style.display='flex';
+  // Update label if it's a known field
+  const labels={'f1':'Customer Name','f2':'Contact Number','f3':'Installation Location','f4':'Project Details','f5':'NIFPS Serial No.','f6':'Rating','f7':'Manufacturer','f8':'Site Address','f9':'Date of Installation','f10':'Duration','f11':'Customer Name','f12':'Designation','f13':'Digital Signature','ftable1':'Observations Table','ftable2':'Pre-Commissioning Checklist'};
+  const li=document.getElementById('prop-label'); if(li&&labels[id]) li.value=labels[id];
+}
+function selectSection(id){
+  document.querySelectorAll('.cvsec').forEach(el=>el.classList.remove('selected'));
+  const el=document.getElementById(id); if(el) el.classList.add('selected');
+}
+function closePropPanel(){
+  document.getElementById('fb-palette-panel').style.display='block';
+  document.getElementById('fb-props-panel').style.display='none';
+  document.querySelectorAll('.cvfield,.cvtable').forEach(el=>el.classList.remove('selected'));
+}
+
+function renderAll(){
+  // Work orders
+  const sorted=[...WOS].sort((a,b)=>a.status==='Unassigned'?-1:b.status==='Unassigned'?1:0);
+  document.getElementById('wo-tbody').innerHTML=sorted.map(r=>`<tr>
+    <td><span class="tlink" onclick="showWO('${r.id}')">${r.id}</span></td>
+    <td style="font-size:11px;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r.sn}">${r.sn}</td>
+    <td><span class="tag tgr">${r.type}</span></td>
+    <td>${r.sold}</td><td class="tmuted">${r.ship}</td><td>${r.eng}</td>
+    <td>${r.war?`<span class="tag tg">Yes</span>`:`<span class="tag tgr">No</span>`}</td>
+    <td class="tmuted">${r.date}</td><td>${tg(r.status)}</td>
+    <td>${acts(`showWO('${r.id}')`,`showM('m-newwo')`,null,null)}</td>
+  </tr>`).join('');
+  document.getElementById('d-wo').innerHTML=sorted.slice(0,5).map(r=>`<tr style="cursor:pointer;" onclick="showWO('${r.id}')">
+    <td class="tlink">${r.id}</td><td><span class="tag tgr" style="font-size:9px;">${r.type}</span></td><td>${r.sold}</td><td>${r.eng}</td><td class="tmuted">${r.date}</td><td>${tg(r.status)}</td>
+  </tr>`).join('');
+
+  // Engineers
+  document.getElementById('eng-tbody').innerHTML=ENGS.map((e,i)=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px;">${av(e.ini,i)}<span style="font-size:12px;font-weight:500;">${e.name}</span></div></td>
+    <td class="tmuted">${e.id}</td>
+    <td>${engStatusTag(e.status)}</td>
+    <td class="tmuted">${e.curLoc}</td>
+    <td class="tmuted">${e.nextSite}</td>
+    <td>${e.openWO} open</td>
+    <td>${e.doneToday} today</td>
+    <td>${acts(`alert('View: ${e.name}')`,null,null,null)}</td>
+  </tr>`).join('');
+  document.getElementById('d-eng').innerHTML=ENGS.map((e,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gm);">
+    ${av(e.ini,i)}<div style="flex:1;"><div style="font-size:11px;font-weight:500;">${e.name}</div><div style="font-size:10px;color:var(--txm);">${e.curLoc}</div></div>${engStatusTag(e.status)}
+  </div>`).join('');
+
+  // Users
+  document.getElementById('user-tbody').innerHTML=USERS.map((u,i)=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px;">${av(u.ini,i)}<div><div style="font-size:12px;font-weight:500;">${u.name}</div><div style="font-size:10px;color:var(--txm);">${u.dept}</div></div></div></td>
+    <td class="tmuted">${u.id}</td><td>${tg(u.role==='Super Admin'?'Active':u.role)}<span class="tag" style="background:${COLORS[i%COLORS.length]}22;color:${COLORS[i%COLORS.length]};font-size:10px;margin-left:4px;">${u.role}</span></td>
+    <td class="tmuted">${u.dept}</td><td class="tmuted">${u.email}</td><td class="tmuted">${u.phone}</td>
+    <td class="tmuted">${u.last}</td><td>${u.active?tg('Completed'):tg('Unassigned')}</td>
+    <td>${acts(`alert('View: ${u.name}')`,`showM('m-adduser')`,null,`alert('Deactivate: ${u.name}')`)}</td>
+  </tr>`).join('').replace(/Completed/g,'Active').replace(/Unassigned/g,'Inactive');
+
+  // Customers
+  document.getElementById('cust-tbody').innerHTML=CUSTS.map((c,i)=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px;"><div class="av" style="background:${COLORS[i%COLORS.length]};color:#fff;">${c.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><span style="font-weight:500;">${c.name}</span></div></td>
+    <td><span class="tag tgr">${c.type}</span></td><td>${c.contact}</td><td class="tmuted">${c.phone}</td>
+    <td>${c.sites} site${c.sites>1?'s':''}</td><td>${c.sns} SNs</td><td class="tmuted">${c.last}</td>
+    <td>${acts(`alert('View: ${c.name}')`,`showM('m-addcust')`,null,null)}</td>
+  </tr>`).join('');
+
+  // Products
+  document.getElementById('prod-tbody').innerHTML=PRODS.map(p=>`<tr>
+    <td><div style="display:flex;align-items:center;gap:8px;"><div class="product-ico" style="width:28px;height:28px;border-radius:6px;"><svg width="13" height="13" fill="none" stroke="var(--m)" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div><span style="font-weight:500;">${p.name}</span></div></td>
+    <td class="tmuted" style="font-family:monospace;font-size:11px;">${p.code}</td>
+    <td><span class="tag tgr">${p.cat}</span></td><td class="tmuted">${p.unit}</td>
+    <td class="tmuted" style="font-size:11px;">${p.desc}</td>
+    <td><span class="tag ${p.avail.includes('Out')?'tr2':p.avail.includes('Low')?'ta':'tg'}">${p.avail}</span></td>
+  </tr>`).join('');
+
+  // Forms
+  document.getElementById('forms-list').innerHTML=FORMS.map(f=>`<div class="form-card" onclick="${f.name==='MOM'?'showM(\'m-mom-form\')':"showM('m-newform')"}">
+    <div class="form-card-header">
+      <div class="fc-title">${f.name}</div>
+      ${tg(f.status==='Active'?'Active':'Draft')}
+    </div>
+    <div class="fc-meta">Assigned to: <strong>${f.type}</strong> · ${f.fields} fields · Last updated ${f.updated}</div>
+    <div style="margin-top:10px;display:flex;gap:6px;">
+      <button class="btn bg3 btn-sm" onclick="event.stopPropagation();">Edit</button>
+      <button class="btn bg3 btn-sm" onclick="event.stopPropagation();">Preview</button>
+      ${f.status==='Draft'?`<button class="btn bgrn btn-sm" onclick="event.stopPropagation();">Publish</button>`:`<button class="btn bd btn-sm" onclick="event.stopPropagation();">Unpublish</button>`}
+    </div>
+  </div>`).join('');
+
+  // Product Requests
+  document.getElementById('req-tbody').innerHTML=REQS.map(r=>`<tr>
+    <td class="tlink" onclick="showReqDetail('${r.id}')">${r.id}</td>
+    <td class="tmuted">${r.wo}</td><td>${r.eng}</td><td style="font-weight:500;">${r.prod}</td>
+    <td class="tmuted">${r.qty}</td>
+    <td><span class="tag tgr">${r.photos} photo${r.photos>1?'s':''}</span></td>
+    <td class="tmuted">${r.date}</td><td>${tg(r.status)}</td>
+    <td>
+      ${r.status==='Requested'?`<button class="btn bgrn btn-sm">Approve</button>`:''}
+      ${r.status==='Approved'?`<button class="btn bcyan btn-sm">Mark dispatched</button>`:''}
+      ${r.status==='Dispatched'?`<button class="btn bamb btn-sm">Mark delivered</button>`:''}
+      ${r.status==='Delivered'?`<span style="font-size:10px;color:var(--green);">✓ Complete</span>`:''}
+    </td>
+  </tr>`).join('');
+
+  // Dashboard activity
+  document.getElementById('d-activity').innerHTML=[
+    {c:'#DBEAFE',sc:'var(--blue)',msg:'Rajan M. started travel to Tambaram East Sub-Station',t:'12 min ago'},
+    {c:'#D1FAE5',sc:'var(--green)',msg:'Priya S. submitted inspection form for WO-2026-0143',t:'45 min ago'},
+    {c:'var(--mp)',sc:'var(--m)',msg:'Kumar A. raised a product request — Temperature Indicator × 1',t:'1 hr ago'},
+    {c:'#FEF3C7',sc:'var(--amber)',msg:'New work order WO-2026-0144 created — Unassigned',t:'2 hrs ago'},
+    {c:'#D1FAE5',sc:'var(--green)',msg:'Arjun R. completed WO-2026-0140 — MoM generated & sent to SAP',t:'3 hrs ago'},
+  ].map(a=>`<div class="act-item">
+    <div class="act-ico" style="background:${a.c};"><svg width="14" height="14" fill="none" stroke="${a.sc}" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div><div class="act-body">${a.msg}</div><div class="act-time">${a.t}</div></div>
+  </div>`).join('');
+
+  // Dashboard requests
+  document.getElementById('d-req').innerHTML=REQS.map(r=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gm);">
+    <div><div style="font-size:11px;font-weight:500;">${r.prod}</div><div style="font-size:10px;color:var(--txm);">${r.eng} · ${r.wo}</div></div>
+    ${tg(r.status)}
+  </div>`).join('');
+}
+
+function showWO(id){
+  const r=WOS.find(w=>w.id===id);if(!r)return;
+  const isMoM=r.status==='Completed';
+  document.getElementById('wo-dt').textContent=r.id+' — '+r.type;
+  document.getElementById('wo-dc').innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <span class="tag tgr">${r.type}</span>${tg(r.status)}<span class="tag ${r.war?'tg':'tgr'}">${r.war?'Under warranty':'No warranty'}</span>
+    </div>
+    ${isMoM?`<div class="mom-status">
+      <div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:8px;">MoM — Minutes of Meeting</div>
+      <div class="mom-step"><svg fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span style="font-size:11px;color:#065F46;">MoM generated automatically on job completion</span></div>
+      <div class="mom-step"><svg fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span style="font-size:11px;color:#065F46;">MoM PDF sent to SAP against Serial Number ${r.sn}</span></div>
+      <div class="mom-step"><svg fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span style="font-size:11px;color:#065F46;">SAP updated — engineer visits, activities, timestamps, status</span></div>
+      <div style="margin-top:10px;display:flex;gap:8px;"><button class="btn bgrn btn-sm">Download MoM PDF</button><button class="btn bo btn-sm">View in SAP</button></div>
+    </div>`:''}
+    <div class="tw" style="gap:14px;margin-bottom:14px;">
+      <div>
+        <div class="sec-hdr">Work order details</div>
+        <div class="ir"><span class="il">Work order</span><span class="iv" style="color:var(--m);">${r.id}</span></div>
+        <div class="ir"><span class="il">Serial number(s)</span><span class="iv" style="color:var(--m);font-size:11px;">${r.sn}</span></div>
+        <div class="ir"><span class="il">Job type</span><span class="iv">${r.type}</span></div>
+        <div class="ir"><span class="il">Scheduled</span><span class="iv">${r.date}</span></div>
+        <div class="ir"><span class="il">Assigned engineer</span><span class="iv">${r.eng}</span></div>
+      </div>
+      <div>
+        <div class="sec-hdr">Customer details</div>
+        <div class="ir"><span class="il">Sold customer</span><span class="iv">${r.sold}</span></div>
+        <div class="ir"><span class="il">Shipped to</span><span class="iv">${r.ship}</span></div>
+        <div class="ir"><span class="il">Warranty</span><span class="iv">${r.war?'Yes':'No'}</span></div>
+        <div class="ir"><span class="il">Status</span>${tg(r.status)}</div>
+      </div>
+    </div>
+    <div class="sec-hdr">Activity timeline</div>
+    <div>
+      ${r.status==='Completed'?`<div class="tl2"><div class="tldot" style="background:var(--green);"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div style="font-size:12px;font-weight:500;">Job completed · MoM sent to SAP</div><div class="tmuted" style="font-size:10px;">${r.date} · Customer signature captured · SAP updated</div></div></div>`:''}
+      ${r.status==='In Progress'||r.status==='Completed'?`<div class="tl2"><div class="tldot" style="background:var(--amber);"><svg viewBox="0 0 24 24"><polyline points="12 6 12 12 16 14"/></svg></div><div><div style="font-size:12px;font-weight:500;">Work in progress</div><div class="tmuted" style="font-size:10px;">Engineer checked in at site · GPS and timestamp recorded</div></div></div>`:''}
+      <div class="tl2"><div class="tldot" style="background:var(--blue);"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" fill="none"/></svg></div><div><div style="font-size:12px;font-weight:500;">Work order assigned to ${r.eng}</div><div class="tmuted" style="font-size:10px;">${r.date} · Engineer notified via WhatsApp & SMS</div></div></div>
+      <div class="tl2"><div class="tldot" style="background:var(--m);"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z" fill="none"/></svg></div><div><div style="font-size:12px;font-weight:500;">Work order created</div><div class="tmuted" style="font-size:10px;">Created in portal · Customer notified via WhatsApp & SMS</div></div></div>
+    </div>`;
+  // Show/hide action buttons based on status
+  const isComplete = r.status === 'Completed';
+  document.getElementById('wo-reassign-btn').style.display = isComplete ? 'none' : '';
+  document.getElementById('wo-status-btn').style.display = isComplete ? 'none' : '';
+  showM('m-wodetail');
+}
+
+function showReqDetail(id){alert('Product request detail: '+id);}
+
+const TITLES={dashboard:'Dashboard',workorders:'Work Orders',engineers:'Field Engineers',users:'Users',customers:'Customers',products:'Products',forms:'Forms',requests:'Product Requests',settings:'Settings'};
+function nav(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
+  const pg=document.getElementById('page-'+p);if(pg)pg.classList.add('active');
+  document.querySelectorAll('.ni').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes(`'${p}'`))x.classList.add('active');});
+  document.getElementById('ptitle').textContent=TITLES[p]||p;
+}
+function showM(id){document.getElementById(id).classList.add('open');if(id==='m-roles')renderRoles();}
+function closeM(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.mo').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
+function togglePD(){const d=document.getElementById('pdrop');d.classList.toggle('open');}
+function toggleModSwitch(){
+  document.getElementById('mod-switch').classList.toggle('open');
+  document.getElementById('mod-dropdown').classList.toggle('open');
+}
+document.addEventListener('click',e=>{
+  const sw=document.getElementById('mod-switch'),dd=document.getElementById('mod-dropdown');
+  if(dd&&dd.classList.contains('open')&&!e.target.closest('.mod-switch-wrap')){
+    sw.classList.remove('open');dd.classList.remove('open');
+  }
+});
+document.addEventListener('click',e=>{const d=document.getElementById('pdrop');if(d&&d.classList.contains('open')&&!e.target.closest('.pb'))d.classList.remove('open');});
+function showForgot(){const lf=document.getElementById('lform'),ff=document.getElementById('fform');lf.style.display=lf.style.display==='none'?'block':'none';ff.style.display=ff.style.display==='none'?'block':'none';}
+function doLogin(){document.getElementById('lp').style.display='none';document.getElementById('app').style.display='block';renderAll();}
+function doLogout(){document.getElementById('app').style.display='none';document.getElementById('lp').style.display='flex';}
+document.getElementById('lpass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+</script>
+
+
+
+<!-- MOM Form Modal -->
+<div class="mo" id="m-mom-form"><div class="md md-lg" style="max-height:92vh;">
+  <div class="mh">
+    <div>
+      <h3>MOM — Minutes of Meeting</h3>
+      <div style="font-size:11px;color:var(--txm);margin-top:2px;">Commissioning Activities &nbsp;·&nbsp; 36 fields &nbsp;·&nbsp; <span class="tag tg" style="font-size:10px;">Active</span></div>
+    </div>
+    <button class="mc2" onclick="closeM('m-mom-form')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="mb2" style="background:#FAFAFA;">
+
+    <!-- EMR Header -->
+    <div style="background:var(--mdk);border-radius:10px;padding:14px;text-align:center;margin-bottom:14px;">
+      <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:2px;">EMR</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;">Pre-Commissioning Checklist — MOM</div>
+    </div>
+
+    <!-- Customer Information -->
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:12px;">
+      <div style="background:var(--mdk);padding:9px 14px;display:flex;align-items:center;gap:8px;">
+        <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.5px;">Customer Information</span>
+      </div>
+      <div style="padding:14px;">
+        <div class="fg2">
+          <div class="fgr"><label class="fl2">Customer name</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr"><label class="fl2">Contact number</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr full"><label class="fl2">Installation location</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr full"><label class="fl2">Project details</label><textarea class="fi2" rows="2" placeholder="Engineer fills at site"></textarea></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transformer Details -->
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:12px;">
+      <div style="background:var(--mdk);padding:9px 14px;display:flex;align-items:center;gap:8px;">
+        <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.5px;">Transformer Details</span>
+      </div>
+      <div style="padding:14px;">
+        <div class="fg2">
+          <div class="fgr"><label class="fl2">NIFPS serial no.</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr"><label class="fl2">Rating of transformer</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr"><label class="fl2">Manufacturer</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr"><label class="fl2">Site address</label><input class="fi2" placeholder="Auto-filled from job" style="background:var(--gl);color:var(--txm);"/></div>
+          <div class="fgr"><label class="fl2">Date of installation <span class="req">*</span></label><input class="fi2" type="date"/></div>
+          <div class="fgr"><label class="fl2">Duration <span class="req">*</span></label><input class="fi2" placeholder="e.g. 2 days"/></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Observations -->
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:12px;">
+      <div style="background:var(--mdk);padding:9px 14px;display:flex;align-items:center;gap:8px;">
+        <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.5px;">Detailed Observations & Activity Status</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#F5F3F5;">
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:44px;text-align:center;">S.No</th>
+          <th style="padding:8px 12px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);text-align:left;">Details of Checks / Test</th>
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:110px;text-align:center;">Status</th>
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:160px;text-align:left;">Remarks</th>
+        </tr></thead>
+        <tbody>
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">1</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Verification of switchyard cubicle panel erection was carried out</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">2</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Verification of signal box erection was carried out</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">3</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Verification of control panel erection was carried out</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">4</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Inspection of shutter valve erection along with cabling and termination was carried out</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">5</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Inspection of arc sensor fixing, cabling and termination was carried out</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">6</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">Support pipe grouting work (under customer civil scope) was reviewed</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:none;font-size:12px;font-weight:700;color:var(--m);">7</td>
+            <td style="padding:10px 12px;border-bottom:none;font-size:12px;color:var(--tx);">LHD cable laying with conduit was checked</td>
+            <td style="padding:10px;border-bottom:none;text-align:center;"><div style="display:flex;gap:4px;justify-content:center;"><span style="background:#D1FAE5;color:#065F46;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">Yes</span><span style="background:#F1F5F9;color:#475569;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">No</span></div></td>
+            <td style="padding:10px;border-bottom:none;"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:5px 8px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pre-Commissioning Checklist -->
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:12px;">
+      <div style="background:var(--mdk);padding:9px 14px;display:flex;align-items:center;gap:8px;">
+        <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.5px;">Pre-Commissioning Checklist</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#F5F3F5;">
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:44px;text-align:center;">S.No</th>
+          <th style="padding:8px 12px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);text-align:left;">Details</th>
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:80px;text-align:center;">Tested</th>
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:90px;text-align:center;">Not Tested</th>
+          <th style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gm);width:150px;text-align:left;">Remarks</th>
+        </tr></thead>
+        <tbody>
+          <!-- Item 1 main -->
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">1</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;font-weight:500;color:var(--tx);">Earthing of the below switchyard equipment is to be verified</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(a)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Cubicle panel</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(b)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Control panel</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(c)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Signal box</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <!-- Item 2 main -->
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">2</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;font-weight:500;color:var(--tx);">Potential-free contact assigned with the main protection relay was configured</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(a)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Differential Protection Input (NO)</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(b)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">PRV Trip – (1) &amp; (2) (NO)</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(c)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Buchholz Trip (NO)</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:var(--mp);">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(d)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Master Trip Feedback – 86 Relay (NO)</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--gm);font-size:11px;color:var(--txm);">(e)</td>
+            <td style="padding:8px 12px 8px 22px;border-bottom:1px solid var(--gm);font-size:11px;color:var(--tx);">Master Relay Trip Command – 110V / 220V</td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:8px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <!-- Item 3 -->
+          <tr style="background:var(--mp);">
+            <td style="padding:10px;text-align:center;border-bottom:1px solid var(--gm);font-size:12px;font-weight:700;color:var(--m);">3</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--gm);font-size:12px;color:var(--tx);">AC supply availability was verified in control panel</td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:10px;border-bottom:1px solid var(--gm);"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+          <!-- Item 4 -->
+          <tr style="background:#fff;">
+            <td style="padding:10px;text-align:center;border-bottom:none;font-size:12px;font-weight:700;color:var(--m);">4</td>
+            <td style="padding:10px 12px;border-bottom:none;font-size:12px;color:var(--tx);">DC cable availability was verified in control panel</td>
+            <td style="padding:10px;border-bottom:none;text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;"/></td>
+            <td style="padding:10px;border-bottom:none;text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;"/></td>
+            <td style="padding:10px;border-bottom:none;"><input style="width:100%;border:1px solid var(--gm);border-radius:5px;padding:4px 7px;font-size:11px;font-family:'Poppins',sans-serif;outline:none;" placeholder="Remarks"/></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Customer Sign-off -->
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--gm);overflow:hidden;margin-bottom:4px;">
+      <div style="background:var(--mdk);padding:9px 14px;display:flex;align-items:center;gap:8px;">
+        <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.5px;">Customer Sign-off</span>
+      </div>
+      <div style="padding:14px;">
+        <div class="fg2">
+          <div class="fgr"><label class="fl2">Customer name</label><input class="fi2" placeholder="Captured at site by engineer"/></div>
+          <div class="fgr"><label class="fl2">Designation</label><input class="fi2" placeholder="e.g. Site Manager"/></div>
+          <div class="fgr full"><label class="fl2">Digital signature</label>
+            <div style="border:2px dashed var(--mb);border-radius:10px;height:70px;background:var(--mp);display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:12px;font-weight:500;color:var(--m);">Captured on engineer's mobile app</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="mf">
+    <button class="btn bo" onclick="closeM('m-mom-form')">Close</button>
+    <button class="btn bg3">Edit form</button>
+    <button class="btn bm">Download PDF template</button>
+  </div>
+</div></div>
+
+
+<!-- Assign Form Modal -->
+<div class="mo" id="m-assign-form"><div class="md md-sm">
+  <div class="mh">
+    <div>
+      <h3>Assign form to job type</h3>
+      <div style="font-size:11px;color:var(--txm);margin-top:2px;">MOM — Commissioning Activities · 36 fields</div>
+    </div>
+    <button class="mc2" onclick="closeM('m-assign-form')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="mb2">
+    <div style="background:var(--mp);border:1px solid var(--mb);border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--m);">
+      When a work order of the selected job type is opened on the mobile app, this form will load automatically for the engineer to fill.
+    </div>
+    <div class="fgr" style="margin-bottom:14px;">
+      <label class="fl2">Job type <span class="req">*</span></label>
+      <select class="fi2">
+        <option value="">Select job type</option>
+        <option value="si">Site Inspection</option>
+        <option value="amc">AMC</option>
+        <option value="ca" selected>Commissioning Activities</option>
+        <option value="sv">Supervision</option>
+      </select>
+    </div>
+    <div style="background:var(--gl);border-radius:9px;padding:10px 12px;">
+      <div style="font-size:11px;font-weight:500;color:var(--tx);margin-bottom:6px;">Currently assigned to</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span class="tag tcy" style="font-size:11px;">Commissioning Activities</span>
+        <span class="tag tg" style="font-size:10px;">Active</span>
+      </div>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="btn bo" onclick="closeM('m-assign-form')">Cancel</button>
+    <button class="btn bm" onclick="closeM('m-assign-form')">Save assignment</button>
+  </div>
+</div></div>
+
+</body>
+</html>
