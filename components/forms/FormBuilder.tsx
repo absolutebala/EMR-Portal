@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType, StatusType } from '@/lib/types'
 
@@ -55,7 +55,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [propHelp, setPropHelp] = useState('')
   const [saving, setSaving] = useState(false)
   const [formId, setFormId] = useState<string | null>(editForm?.id || null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
     const { data: secs } = await supabase.from('form_sections').select('*').eq('form_id', id).order('order_index')
@@ -79,14 +79,17 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
       setFormName(editForm.name)
       setJobType(editForm.job_type)
       setFormId(editForm.id)
+      setSelected(null)
       loadForm(editForm.id)
     } else if (open && !editForm) {
       setFormName('')
       setJobType('site_inspection')
       setSections([])
       setFormId(null)
+      setSelected(null)
     }
-  }, [open, editForm, loadForm])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editForm?.id])
 
   async function ensureForm(): Promise<string> {
     if (formId) return formId
@@ -165,6 +168,11 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
 
   async function handleSave(status: 'draft' | 'active') {
     setSaving(true)
+    // Flush any unsaved field property edits before saving
+    if (selected?.type === 'field') {
+      const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
+      await supabase.from('form_fields').update(updates).eq('id', selected.id)
+    }
     const fid = await ensureForm()
     const fieldCount = sections.reduce((n, s) => n + s.fields.length + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
     await supabase.from('forms').update({ name: formName, job_type: jobType, status, field_count: fieldCount, updated_at: new Date().toISOString() }).eq('id', fid)
