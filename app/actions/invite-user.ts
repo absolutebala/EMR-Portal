@@ -37,7 +37,7 @@ export async function inviteUser(payload: {
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     type: 'invite',
     email: payload.email,
-    options: { redirectTo: `${siteUrl}/login` },
+    options: { redirectTo: `${siteUrl}/set-password` },
   })
 
   if (linkError) return { error: linkError.message }

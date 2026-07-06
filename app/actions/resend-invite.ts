@@ -19,7 +19,7 @@ export async function resendInvite(email: string): Promise<{ error: string | nul
   const { data, error } = await supabase.auth.admin.generateLink({
     type: 'invite',
     email,
-    options: { redirectTo: `${siteUrl}/login` },
+    options: { redirectTo: `${siteUrl}/set-password` },
   })
 
   if (error) return { error: error.message }
