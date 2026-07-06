@@ -1,7 +1,6 @@
 'use server'
 
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 
 export async function inviteUser(payload: {
   email: string
@@ -12,18 +11,17 @@ export async function inviteUser(payload: {
   department: string | null
   role: string
 }): Promise<{ error: string | null; inviteLink?: string }> {
-  const cookieStore = await cookies()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: () => {},
-      },
-    }
-  )
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set.' }
+  }
+
+  // createClient from supabase-js with service role key = full admin access, bypasses RLS
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
