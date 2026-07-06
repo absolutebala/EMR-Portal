@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Modal from '@/components/ui/Modal'
 import { inviteUser } from '@/app/actions/invite-user'
 import { updateUser } from '@/app/actions/update-user'
-import { getRoles } from '@/app/actions/roles-actions'
+import { getRoles, type RoleWithCount } from '@/app/actions/roles-actions'
 import type { UserRole, Profile } from '@/lib/types'
 
 interface Props {
@@ -29,7 +29,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
     manager_id: editUser?.manager_id || '',
     is_active: editUser?.is_active ?? true,
   })
-  const [roles, setRoles] = useState<string[]>([])
+  const [roles, setRoles] = useState<RoleWithCount[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [inviteLink, setInviteLink] = useState<string | null>(null)
@@ -37,7 +37,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
 
   const loadRoles = useCallback(async () => {
     const { roles: data } = await getRoles()
-    setRoles(data.map(r => r.name))
+    setRoles(data)
   }, [])
 
   useEffect(() => { loadRoles() }, [loadRoles])
@@ -120,7 +120,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   }
 
   const isEdit = !!editUser
-  const isEngineer = form.role === 'Service Engineer'
+  const selectedRole = roles.find(r => r.name === form.role)
+  const isEngineer = selectedRole?.requires_manager ?? false
 
   // Success state — show invite link
   if (inviteLink) {
@@ -203,7 +204,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>
             <select required style={fi2} value={form.role} onChange={e => { set('role', e.target.value); set('manager_id', '') }}>
               <option value="">Select role</option>
-              {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
             </select>
           </div>
 

@@ -12,6 +12,7 @@ function adminClient() {
 export interface RoleWithCount {
   name: string
   is_system: boolean
+  requires_manager: boolean
   created_at: string
   user_count: number
 }
@@ -108,6 +109,19 @@ export async function updateRolePermissions(
       .from('roles')
       .update({ permissions })
       .eq('name', roleName)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function updateRoleRequiresManager(
+  name: string,
+  requires_manager: boolean
+): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb.from('roles').update({ requires_manager }).eq('name', name)
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

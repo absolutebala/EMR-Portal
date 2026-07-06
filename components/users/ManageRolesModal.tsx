@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Modal from '@/components/ui/Modal'
-import { getRoles, addRole, renameRole, deleteRole } from '@/app/actions/roles-actions'
+import { getRoles, addRole, renameRole, deleteRole, updateRoleRequiresManager } from '@/app/actions/roles-actions'
 import type { RoleWithCount } from '@/app/actions/roles-actions'
 
 const fi: React.CSSProperties = { padding: '8px 11px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', flex: 1, transition: 'border .15s' }
@@ -117,10 +117,23 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
                 <>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{r.name}</div>
-                    <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
+                    <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
                       {r.user_count} user{r.user_count !== 1 ? 's' : ''}
-                      {r.is_system && <span style={{ marginLeft: 6, background: 'var(--mp)', color: 'var(--m)', padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>System</span>}
+                      {r.is_system && <span style={{ background: 'var(--mp)', color: 'var(--m)', padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>System</span>}
                     </div>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      await updateRoleRequiresManager(r.name, !r.requires_manager)
+                      load()
+                    }}
+                    title="Requires reporting manager when assigning this role"
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, border: '1px solid var(--gm)', background: r.requires_manager ? 'var(--mp)' : '#fff', userSelect: 'none' }}
+                  >
+                    <div style={{ width: 26, height: 15, borderRadius: 8, position: 'relative', background: r.requires_manager ? 'var(--m)' : '#D1D5DB', transition: 'background .2s', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', top: 2, left: r.requires_manager ? 13 : 2, width: 11, height: 11, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: r.requires_manager ? 'var(--m)' : 'var(--txm)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.4px' }}>Mgr</span>
                   </div>
                   <>
                     <button
