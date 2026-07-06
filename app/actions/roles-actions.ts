@@ -16,6 +16,12 @@ export interface RoleWithCount {
   user_count: number
 }
 
+export interface RoleWithPermissions {
+  name: string
+  is_system: boolean
+  permissions: Record<string, boolean>
+}
+
 export async function getRoles(): Promise<{ roles: RoleWithCount[]; error: string | null }> {
   try {
     const sb = adminClient()
@@ -66,6 +72,43 @@ export async function renameRole(
       return { error: error.message }
     }
     return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getRolesWithPermissions(): Promise<{ roles: RoleWithPermissions[]; error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { data, error } = await sb
+      .from('roles')
+      .select('name, is_system, permissions')
+      .order('created_at', { ascending: true })
+    if (error) return { roles: [], error: error.message }
+    return {
+      roles: (data || []).map(r => ({
+        name: r.name,
+        is_system: r.is_system,
+        permissions: (r.permissions as Record<string, boolean>) || {},
+      })),
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { roles: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function updateRolePermissions(
+  roleName: string,
+  permissions: Record<string, boolean>
+): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb
+      .from('roles')
+      .update({ permissions })
+      .eq('name', roleName)
+    return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }

@@ -122,28 +122,26 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
                       {r.is_system && <span style={{ marginLeft: 6, background: 'var(--mp)', color: 'var(--m)', padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>System</span>}
                     </div>
                   </div>
-                  {!r.is_system && (
-                    <>
-                      <button
-                        onClick={() => startEdit(r)}
-                        title="Rename"
-                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.name)}
-                        disabled={deletingRole === r.name}
-                        title={r.user_count > 0 ? 'Reassign users before deleting' : 'Delete role'}
-                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: r.user_count > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: r.user_count > 0 || deletingRole === r.name ? .4 : 1 }}
-                      >
-                        {deletingRole === r.name
-                          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-                          : <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                        }
-                      </button>
-                    </>
-                  )}
+                  <>
+                    <button
+                      onClick={() => startEdit(r)}
+                      title="Rename"
+                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.name)}
+                      disabled={deletingRole === r.name || r.user_count > 0}
+                      title={r.user_count > 0 ? 'Reassign users before deleting' : 'Delete role'}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: r.user_count > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: r.user_count > 0 || deletingRole === r.name ? .4 : 1 }}
+                    >
+                      {deletingRole === r.name
+                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                        : <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      }
+                    </button>
+                  </>
                 </>
               )}
             </div>
@@ -152,7 +150,7 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
       )}
 
       <div style={{ marginTop: 14, fontSize: 11, color: 'var(--txm)', lineHeight: 1.6 }}>
-        System roles cannot be renamed or deleted. Custom roles with assigned users cannot be deleted until users are reassigned.
+        Roles with assigned users cannot be deleted until those users are reassigned to another role.
       </div>
     </Modal>
   )
