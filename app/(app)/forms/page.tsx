@@ -6,6 +6,7 @@ import Topbar from '@/components/layout/Topbar'
 import FormBuilder from '@/components/forms/FormBuilder'
 import AssignModal from '@/components/forms/AssignModal'
 import { JobTypeBadge, FormStatusBadge } from '@/components/ui/Badge'
+import { duplicateForm } from '@/app/actions/duplicate-form'
 import type { Form } from '@/lib/types'
 
 function formatDate(d: string) {
@@ -22,6 +23,8 @@ export default function FormsPage() {
   const [assignForm, setAssignForm] = useState<Form | null>(null)
   const [loading, setLoading] = useState(true)
   const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [duplicateTarget, setDuplicateTarget] = useState<Form | null>(null)
+  const [duplicateName, setDuplicateName] = useState('')
   const supabase = createClient()
 
   const loadForms = useCallback(async () => {
@@ -53,60 +56,17 @@ export default function FormsPage() {
     loadForms()
   }
 
-  async function duplicateForm(form: Form) {
-    setDuplicating(form.id)
+  function openDuplicate(form: Form) {
+    setDuplicateTarget(form)
+    setDuplicateName(`${form.name} (Copy)`)
+  }
 
-    // Duplicate the form record
-    const { data: newForm } = await supabase.from('forms').insert({
-      name: `${form.name} (Copy)`,
-      job_type: form.job_type,
-      status: 'draft',
-      field_count: form.field_count,
-    }).select().single()
-
-    if (!newForm) { setDuplicating(null); return }
-
-    // Copy sections
-    const { data: sections } = await supabase.from('form_sections').select('*').eq('form_id', form.id).order('order_index')
-    for (const sec of sections || []) {
-      const { data: newSec } = await supabase.from('form_sections').insert({
-        form_id: newForm.id, title: sec.title, order_index: sec.order_index,
-      }).select().single()
-      if (!newSec) continue
-
-      // Copy fields
-      const { data: fields } = await supabase.from('form_fields').select('*').eq('section_id', sec.id).order('order_index')
-      for (const f of fields || []) {
-        await supabase.from('form_fields').insert({
-          section_id: newSec.id, label: f.label, field_type: f.field_type,
-          is_required: f.is_required, prefill_from_job: f.prefill_from_job,
-          read_only_on_mobile: f.read_only_on_mobile, placeholder: f.placeholder,
-          help_text: f.help_text, order_index: f.order_index,
-        })
-      }
-
-      // Copy tables and their rows
-      const { data: tables } = await supabase.from('form_tables').select('*').eq('section_id', sec.id).order('order_index')
-      for (const t of tables || []) {
-        const { data: newTable } = await supabase.from('form_tables').insert({
-          section_id: newSec.id, status_type: t.status_type,
-          has_subrows: t.has_subrows, order_index: t.order_index,
-        }).select().single()
-        if (!newTable) continue
-
-        const { data: rows } = await supabase.from('form_table_rows').select('*').eq('table_id', t.id).order('order_index')
-        // Map old row IDs to new row IDs for parent_row_id linking
-        const rowIdMap: Record<string, string> = {}
-        for (const r of rows || []) {
-          const { data: newRow } = await supabase.from('form_table_rows').insert({
-            table_id: newTable.id, row_label: r.row_label, sno_label: r.sno_label,
-            order_index: r.order_index, parent_row_id: r.parent_row_id ? rowIdMap[r.parent_row_id] || null : null,
-          }).select().single()
-          if (newRow) rowIdMap[r.id] = newRow.id
-        }
-      }
-    }
-
+  async function confirmDuplicate() {
+    if (!duplicateTarget || !duplicateName.trim()) return
+    setDuplicating(duplicateTarget.id)
+    setDuplicateTarget(null)
+    const { error } = await duplicateForm(duplicateTarget.id, duplicateName.trim())
+    if (error) alert(`Duplicate failed: ${error}`)
     setDuplicating(null)
     loadForms()
   }
@@ -164,7 +124,7 @@ export default function FormsPage() {
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Edit</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Preview</button>
                   <button
-                    onClick={() => duplicateForm(f)}
+                    onClick={() => openDuplicate(f)}
                     disabled={duplicating === f.id}
                     style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: duplicating === f.id ? 'wait' : 'pointer', fontFamily: 'Poppins,sans-serif', opacity: duplicating === f.id ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     {duplicating === f.id ? 'Duplicating…' : (
@@ -182,6 +142,27 @@ export default function FormsPage() {
 
         <FormBuilder open={showBuilder} onClose={() => { setShowBuilder(false); setEditForm(null) }} onSaved={loadForms} editForm={editForm}/>
         {assignForm && <AssignModal form={assignForm} open={!!assignForm} onClose={() => setAssignForm(null)} onSaved={loadForms}/>}
+
+        {/* Duplicate name dialog */}
+        {duplicateTarget && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>Duplicate form</div>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 16 }}>Copying <strong>{duplicateTarget.name}</strong> — enter a name for the new form.</div>
+              <input
+                autoFocus
+                value={duplicateName}
+                onChange={e => setDuplicateName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmDuplicate(); if (e.key === 'Escape') setDuplicateTarget(null) }}
+                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--m)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box', marginBottom: 16 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setDuplicateTarget(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+                <button onClick={confirmDuplicate} disabled={!duplicateName.trim()} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: duplicateName.trim() ? 1 : .5 }}>Duplicate</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
