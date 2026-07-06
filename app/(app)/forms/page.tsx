@@ -21,6 +21,7 @@ export default function FormsPage() {
   const [editForm, setEditForm] = useState<Form | null>(null)
   const [assignForm, setAssignForm] = useState<Form | null>(null)
   const [loading, setLoading] = useState(true)
+  const [duplicating, setDuplicating] = useState<string | null>(null)
   const supabase = createClient()
 
   const loadForms = useCallback(async () => {
@@ -49,6 +50,64 @@ export default function FormsPage() {
   async function toggleStatus(form: Form) {
     const newStatus = form.status === 'active' ? 'draft' : 'active'
     await supabase.from('forms').update({ status: newStatus }).eq('id', form.id)
+    loadForms()
+  }
+
+  async function duplicateForm(form: Form) {
+    setDuplicating(form.id)
+
+    // Duplicate the form record
+    const { data: newForm } = await supabase.from('forms').insert({
+      name: `${form.name} (Copy)`,
+      job_type: form.job_type,
+      status: 'draft',
+      field_count: form.field_count,
+    }).select().single()
+
+    if (!newForm) { setDuplicating(null); return }
+
+    // Copy sections
+    const { data: sections } = await supabase.from('form_sections').select('*').eq('form_id', form.id).order('order_index')
+    for (const sec of sections || []) {
+      const { data: newSec } = await supabase.from('form_sections').insert({
+        form_id: newForm.id, title: sec.title, order_index: sec.order_index,
+      }).select().single()
+      if (!newSec) continue
+
+      // Copy fields
+      const { data: fields } = await supabase.from('form_fields').select('*').eq('section_id', sec.id).order('order_index')
+      for (const f of fields || []) {
+        await supabase.from('form_fields').insert({
+          section_id: newSec.id, label: f.label, field_type: f.field_type,
+          is_required: f.is_required, prefill_from_job: f.prefill_from_job,
+          read_only_on_mobile: f.read_only_on_mobile, placeholder: f.placeholder,
+          help_text: f.help_text, order_index: f.order_index,
+        })
+      }
+
+      // Copy tables and their rows
+      const { data: tables } = await supabase.from('form_tables').select('*').eq('section_id', sec.id).order('order_index')
+      for (const t of tables || []) {
+        const { data: newTable } = await supabase.from('form_tables').insert({
+          section_id: newSec.id, status_type: t.status_type,
+          has_subrows: t.has_subrows, order_index: t.order_index,
+        }).select().single()
+        if (!newTable) continue
+
+        const { data: rows } = await supabase.from('form_table_rows').select('*').eq('table_id', t.id).order('order_index')
+        // Map old row IDs to new row IDs for parent_row_id linking
+        const rowIdMap: Record<string, string> = {}
+        for (const r of rows || []) {
+          const { data: newRow } = await supabase.from('form_table_rows').insert({
+            table_id: newTable.id, row_label: r.row_label, sno_label: r.sno_label,
+            order_index: r.order_index, parent_row_id: r.parent_row_id ? rowIdMap[r.parent_row_id] || null : null,
+          }).select().single()
+          if (newRow) rowIdMap[r.id] = newRow.id
+        }
+      }
+    }
+
+    setDuplicating(null)
     loadForms()
   }
 
@@ -104,6 +163,14 @@ export default function FormsPage() {
                   <button onClick={() => { setAssignForm(f) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--mb)', borderRadius: 6, background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Assign</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Edit</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Preview</button>
+                  <button
+                    onClick={() => duplicateForm(f)}
+                    disabled={duplicating === f.id}
+                    style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: duplicating === f.id ? 'wait' : 'pointer', fontFamily: 'Poppins,sans-serif', opacity: duplicating === f.id ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {duplicating === f.id ? 'Duplicating…' : (
+                      <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Duplicate</>
+                    )}
+                  </button>
                   <button onClick={() => toggleStatus(f)} style={{ padding: '5px 10px', fontSize: 11, border: `1px solid ${f.status === 'active' ? '#FCD34D' : 'var(--gm)'}`, borderRadius: 6, background: f.status === 'active' ? '#FEF3C7' : '#fff', color: f.status === 'active' ? '#92400E' : 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
                     {f.status === 'active' ? 'Unpublish' : 'Publish'}
                   </button>
