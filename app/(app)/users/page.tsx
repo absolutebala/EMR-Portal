@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getUsers } from '@/app/actions/get-users'
-import { toggleUserActive } from '@/app/actions/toggle-user-active'
+import { deleteUser } from '@/app/actions/delete-user'
 import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
 import BulkUploadModal from '@/components/users/BulkUploadModal'
@@ -37,6 +37,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [inviteCopied, setInviteCopied] = useState<string | null>(null)
   const [inviteLoading, setInviteLoading] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadUsers = useCallback(async () => {
@@ -68,8 +70,11 @@ export default function UsersPage() {
     return matchSearch && matchRole && matchStatus
   })
 
-  async function deactivate(user: Profile) {
-    const { error } = await toggleUserActive(user.id, !user.is_active)
+  async function handleDelete(userId: string) {
+    setDeleting(userId)
+    const { error } = await deleteUser(userId)
+    setDeleting(null)
+    setConfirmDelete(null)
     if (error) { alert(error); return }
     loadUsers()
   }
@@ -177,13 +182,30 @@ export default function UsersPage() {
                               <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy invite</>
                             )}
                           </button>
+                        ) : confirmDelete === u.id ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>Delete?</span>
+                            <button
+                              onClick={() => handleDelete(u.id)}
+                              disabled={deleting === u.id}
+                              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: deleting === u.id ? .7 : 1 }}
+                            >
+                              {deleting === u.id ? '…' : 'Yes, delete'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'Poppins,sans-serif' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         ) : (
                           <>
                             <button onClick={() => { setEditUser(u); setShowAdd(true) }} title="Edit" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                               <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
                             </button>
-                            <button onClick={() => deactivate(u)} title={u.is_active ? 'Deactivate' : 'Activate'} style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: u.is_active ? 'var(--amber)' : 'var(--green)' }}>
-                              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                            <button onClick={() => setConfirmDelete(u.id)} title="Delete user" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                             </button>
                           </>
                         )}

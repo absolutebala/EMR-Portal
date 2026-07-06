@@ -27,6 +27,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
     phone: editUser?.phone || '',
     role: (editUser?.role || '') as UserRole | '',
     manager_id: editUser?.manager_id || '',
+    is_active: editUser?.is_active ?? true,
   })
   const [roles, setRoles] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -50,6 +51,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
       phone: editUser?.phone || '',
       role: (editUser?.role || '') as UserRole | '',
       manager_id: editUser?.manager_id || '',
+      is_active: editUser?.is_active ?? true,
     })
   }, [editUser])
 
@@ -90,6 +92,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           phone: form.phone || null,
           role: form.role as UserRole,
           manager_id: form.role === 'Service Engineer' ? (form.manager_id || null) : null,
+          is_active: form.is_active,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -228,6 +231,30 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
                   ))}
                 </select>
               )}
+            </div>
+          )}
+
+          {isEdit && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Status</label>
+              <div
+                onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+              >
+                <div style={{
+                  width: 38, height: 22, borderRadius: 11, position: 'relative', transition: 'background .2s',
+                  background: form.is_active ? 'var(--m)' : '#9CA3AF',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 3, left: form.is_active ? 19 : 3,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                  }} />
+                </div>
+                <span style={{ fontSize: 12, color: form.is_active ? 'var(--m)' : '#6B7280', fontWeight: 500 }}>
+                  {form.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
           )}
 
