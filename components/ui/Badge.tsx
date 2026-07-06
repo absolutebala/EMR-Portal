@@ -17,7 +17,13 @@ export function RoleBadge({ role }: { role: string }) {
   )
 }
 
-export function StatusBadge({ active }: { active: boolean }) {
+export function StatusBadge({ active, pending }: { active: boolean; pending?: boolean }) {
+  if (pending) return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: '#FEF3C7', color: '#92400E' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+      Invite Pending
+    </span>
+  )
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: active ? '#D1FAE5' : '#F1F5F9', color: active ? '#065F46' : '#475569' }}>
       {active ? 'Active' : 'Inactive'}

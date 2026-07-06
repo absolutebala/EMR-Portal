@@ -19,6 +19,7 @@ export interface Profile {
   department: string | null
   role: UserRole
   is_active: boolean
+  invite_pending: boolean
   created_at: string
   last_login_at: string | null
 }

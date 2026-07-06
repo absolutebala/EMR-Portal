@@ -53,6 +53,7 @@ export async function inviteUser(payload: {
     email: payload.email,
     phone: payload.phone,
     role: payload.role,
+    invite_pending: true,
   })
 
   if (profileError) return { error: profileError.message }
