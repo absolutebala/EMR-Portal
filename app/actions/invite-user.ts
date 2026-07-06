@@ -27,6 +27,15 @@ export async function inviteUser(payload: {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
+  // Check for duplicate employee ID
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('employee_id', payload.employee_id)
+    .maybeSingle()
+
+  if (existing) return { error: `Employee ID "${payload.employee_id}" is already assigned to another user.` }
+
   // Generate invite link without sending an email — avoids rate limits
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     type: 'invite',
