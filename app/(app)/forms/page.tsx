@@ -8,6 +8,7 @@ import AssignModal from '@/components/forms/AssignModal'
 import { JobTypeBadge, FormStatusBadge } from '@/components/ui/Badge'
 import { duplicateForm } from '@/app/actions/duplicate-form'
 import { toggleFormStatus } from '@/app/actions/toggle-form-status'
+import { deleteForm } from '@/app/actions/assign-form'
 import type { Form } from '@/lib/types'
 
 function formatDate(d: string) {
@@ -27,6 +28,8 @@ export default function FormsPage() {
   const [duplicateTarget, setDuplicateTarget] = useState<Form | null>(null)
   const [duplicateName, setDuplicateName] = useState('')
   const [publishConflict, setPublishConflict] = useState<{ form: Form; conflictName: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Form | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForms = useCallback(async () => {
@@ -64,6 +67,16 @@ export default function FormsPage() {
     const { form } = publishConflict
     setPublishConflict(null)
     await toggleStatus(form, true)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await deleteForm(deleteTarget.id)
+    setDeleting(false)
+    setDeleteTarget(null)
+    if (error) { alert(`Delete failed: ${error}`); return }
+    loadForms()
   }
 
   function openDuplicate(form: Form) {
@@ -129,7 +142,7 @@ export default function FormsPage() {
                   <span style={{ fontSize: 11, color: 'var(--txm)' }}>{f.field_count} fields</span>
                   <span style={{ fontSize: 11, color: 'var(--txm)' }}>Updated {formatDate(f.updated_at)}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button onClick={() => { setAssignForm(f) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--mb)', borderRadius: 6, background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Assign</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Edit</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Preview</button>
@@ -143,6 +156,13 @@ export default function FormsPage() {
                   </button>
                   <button onClick={() => toggleStatus(f)} style={{ padding: '5px 10px', fontSize: 11, border: `1px solid ${f.status === 'active' ? '#FCD34D' : 'var(--gm)'}`, borderRadius: 6, background: f.status === 'active' ? '#FEF3C7' : '#fff', color: f.status === 'active' ? '#92400E' : 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
                     {f.status === 'active' ? 'Unpublish' : 'Publish'}
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(f)}
+                    title="Delete form"
+                    style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 11, border: '1px solid #FECACA', borderRadius: 6, background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                    Delete
                   </button>
                 </div>
               </div>
@@ -185,6 +205,29 @@ export default function FormsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => setPublishConflict(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
                 <button onClick={confirmPublishSwap} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Yes, publish</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete confirmation dialog */}
+        {deleteTarget && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 8 }}>Delete form</div>
+              <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 6, lineHeight: 1.6 }}>
+                Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This will permanently remove the form and all its sections and fields.
+              </div>
+              {deleteTarget.status === 'active' && (
+                <div style={{ fontSize: 11, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, padding: '8px 12px', marginBottom: 4 }}>
+                  This form is currently published. Deleting it will remove it from the assigned job type.
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+                <button onClick={() => setDeleteTarget(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+                <button onClick={confirmDelete} disabled={deleting} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: '#B91C1C', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: deleting ? .7 : 1 }}>
+                  {deleting ? 'Deleting…' : 'Yes, delete'}
+                </button>
               </div>
             </div>
           </div>

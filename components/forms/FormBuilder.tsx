@@ -15,6 +15,7 @@ import {
   addFormTableRow,
   reorderFormSections,
 } from '@/app/actions/form-builder-actions'
+import { deleteForm } from '@/app/actions/assign-form'
 import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType } from '@/lib/types'
 
 const JOB_TYPES: { value: JobType; label: string }[] = [
@@ -122,13 +123,10 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editForm?.id])
 
-  // Clean up the auto-created form if user cancels without saving
+  // If user cancels a new form without saving, delete the auto-created draft
   async function handleClose() {
     if (isNewForm && formId) {
-      // Delete the auto-created draft (cascade deletes sections/fields)
-      const { createClient: adminCreate } = await import('@supabase/supabase-js')
-      // We can't call service role from client — just leave it; user sees "Untitled" draft
-      // They can delete it later. Better UX: leave it with the name if user typed one.
+      await deleteForm(formId)
     }
     onClose()
   }
