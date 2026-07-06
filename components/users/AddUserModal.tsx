@@ -28,7 +28,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
     employee_id: editUser?.employee_id || '',
     email: editUser?.email || '',
     phone: editUser?.phone || '',
-    department: editUser?.department || '',
     role: (editUser?.role || '') as UserRole | '',
   })
   const [loading, setLoading] = useState(false)
@@ -68,7 +67,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           last_name: form.last_name,
           employee_id: form.employee_id,
           phone: form.phone || null,
-          department: form.department || null,
           role: form.role as UserRole,
         }).eq('id', editUser.id)
         if (error) throw error
@@ -81,7 +79,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           last_name: form.last_name,
           employee_id: form.employee_id,
           phone: form.phone || null,
-          department: form.department || null,
           role: form.role,
         })
         if (inviteError) throw new Error(inviteError)
@@ -174,10 +171,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           <div>
             <label style={fl2}>Phone</label>
             <input style={fi2} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXXXXXXX" />
-          </div>
-          <div>
-            <label style={fl2}>Department</label>
-            <input style={fi2} value={form.department} onChange={e => set('department', e.target.value)} placeholder="e.g. Field Services" />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>

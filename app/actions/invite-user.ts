@@ -8,7 +8,6 @@ export async function inviteUser(payload: {
   last_name: string
   employee_id: string
   phone: string | null
-  department: string | null
   role: string
 }): Promise<{ error: string | null; inviteLink?: string }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -53,7 +52,6 @@ export async function inviteUser(payload: {
     employee_id: payload.employee_id,
     email: payload.email,
     phone: payload.phone,
-    department: payload.department,
     role: payload.role,
   })
 
