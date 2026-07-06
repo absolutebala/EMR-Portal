@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
@@ -33,7 +33,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [inviteCopied, setInviteCopied] = useState<string | null>(null)
   const [inviteLoading, setInviteLoading] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
@@ -187,7 +187,7 @@ export default function UsersPage() {
           )}
         </div>
 
-        <AddUserModal open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser}/>
+        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser}/>
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={loadUsers}/>
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)}/>
       </div>

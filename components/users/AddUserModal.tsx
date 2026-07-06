@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
-import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/app/actions/invite-user'
+import { updateUser } from '@/app/actions/update-user'
 import type { UserRole, Profile } from '@/lib/types'
 
 const ROLES: UserRole[] = [
@@ -34,7 +34,17 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
   const [error, setError] = useState('')
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const supabase = createClient()
+
+  useEffect(() => {
+    setForm({
+      first_name: editUser?.first_name || '',
+      last_name: editUser?.last_name || '',
+      employee_id: editUser?.employee_id || '',
+      email: editUser?.email || '',
+      phone: editUser?.phone || '',
+      role: (editUser?.role || '') as UserRole | '',
+    })
+  }, [editUser])
 
   function set(k: string, v: string) {
     setForm(f => ({ ...f, [k]: v }))
@@ -62,14 +72,14 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
 
     try {
       if (editUser) {
-        const { error } = await supabase.from('profiles').update({
+        const { error } = await updateUser(editUser.id, {
           first_name: form.first_name,
           last_name: form.last_name,
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role as UserRole,
-        }).eq('id', editUser.id)
-        if (error) throw error
+        })
+        if (error) throw new Error(error)
         onSaved()
         handleClose()
       } else {
