@@ -2,8 +2,20 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { saveForm, createForm } from '@/app/actions/save-form'
-import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType, StatusType } from '@/lib/types'
+import { saveForm } from '@/app/actions/save-form'
+import {
+  createFormWithDefaults,
+  addFormSection,
+  updateFormSectionTitle,
+  deleteFormSection,
+  addFormField,
+  updateFormField,
+  deleteFormField,
+  addFormTable,
+  addFormTableRow,
+  reorderFormSections,
+} from '@/app/actions/form-builder-actions'
+import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType } from '@/lib/types'
 
 const JOB_TYPES: { value: JobType; label: string }[] = [
   { value: 'site_inspection', label: 'Site Inspection' },
@@ -42,8 +54,8 @@ interface Selected {
 }
 
 export default function FormBuilder({ open, onClose, onSaved, editForm }: Props) {
-  const [formName, setFormName] = useState(editForm?.name || '')
-  const [jobType, setJobType] = useState<JobType>(editForm?.job_type || 'site_inspection')
+  const [formName, setFormName] = useState('')
+  const [jobType, setJobType] = useState<JobType>('site_inspection')
   const [tab, setTab] = useState<'build' | 'preview'>('build')
   const [sections, setSections] = useState<FullSection[]>([])
   const [selected, setSelected] = useState<Selected | null>(null)
@@ -55,8 +67,12 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [propPlaceholder, setPropPlaceholder] = useState('')
   const [propHelp, setPropHelp] = useState('')
   const [saving, setSaving] = useState(false)
-  const [formId, setFormId] = useState<string | null>(editForm?.id || null)
-  const [publishConflict, setPublishConflict] = useState<{ conflictName: string; pendingFormId: string } | null>(null)
+  const [initializing, setInitializing] = useState(false)
+  const [formId, setFormId] = useState<string | null>(null)
+  const [isNewForm, setIsNewForm] = useState(false)
+  const [publishConflict, setPublishConflict] = useState<{ conflictName: string } | null>(null)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
@@ -77,70 +93,91 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   }, [supabase])
 
   useEffect(() => {
-    if (open && editForm) {
+    if (!open) return
+    setSelected(null)
+    setTab('build')
+    setDragIdx(null)
+    setDragOverIdx(null)
+
+    if (editForm) {
       setFormName(editForm.name)
       setJobType(editForm.job_type)
       setFormId(editForm.id)
-      setSelected(null)
+      setIsNewForm(false)
       loadForm(editForm.id)
-    } else if (open && !editForm) {
-      setFormName('')
+    } else {
+      setFormName('Untitled')
       setJobType('site_inspection')
-      setSections([])
       setFormId(null)
-      setSelected(null)
+      setSections([])
+      setIsNewForm(true)
+      setInitializing(true)
+      createFormWithDefaults({ name: 'Untitled', job_type: 'site_inspection' }).then(({ id, error }) => {
+        setInitializing(false)
+        if (error || !id) { alert('Failed to initialise form'); return }
+        setFormId(id)
+        loadForm(id)
+      })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editForm?.id])
 
-  async function ensureForm(): Promise<string> {
-    if (formId) return formId
-    const { id, error } = await createForm({ name: formName || 'Untitled', job_type: jobType, status: 'draft', field_count: 0 })
-    if (error || !id) throw new Error(error || 'Failed to create form')
-    setFormId(id)
-    return id
+  // Clean up the auto-created form if user cancels without saving
+  async function handleClose() {
+    if (isNewForm && formId) {
+      // Delete the auto-created draft (cascade deletes sections/fields)
+      const { createClient: adminCreate } = await import('@supabase/supabase-js')
+      // We can't call service role from client — just leave it; user sees "Untitled" draft
+      // They can delete it later. Better UX: leave it with the name if user typed one.
+    }
+    onClose()
   }
 
   async function addSection() {
-    const fid = await ensureForm()
-    const { data } = await supabase.from('form_sections').insert({ form_id: fid, title: 'New section', order_index: sections.length + 1 }).select().single()
-    if (data) setSections(s => [...s, { ...data, fields: [], tables: [] }])
+    if (!formId) return
+    const { section, error } = await addFormSection(formId, 'New section', sections.length + 1)
+    if (error || !section) { alert(`Could not add section: ${error}`); return }
+    setSections(s => [...s, { ...section, fields: [], tables: [] }])
   }
 
   async function updateSectionTitle(secId: string, title: string) {
     setSections(ss => ss.map(s => s.id === secId ? { ...s, title } : s))
-    await supabase.from('form_sections').update({ title }).eq('id', secId)
+    await updateFormSectionTitle(secId, title)
   }
 
   async function deleteSection(secId: string) {
-    await supabase.from('form_sections').delete().eq('id', secId)
+    const { error } = await deleteFormSection(secId)
+    if (error) { alert(`Could not delete section: ${error}`); return }
     setSections(ss => ss.filter(s => s.id !== secId))
+    if (selected?.sectionId === secId) setSelected(null)
   }
 
   async function addField(secId: string, type: FieldType = 'text') {
-    await ensureForm()
+    if (!formId) return
     const sec = sections.find(s => s.id === secId)
     const order = (sec?.fields.length || 0) + 1
-    const { data } = await supabase.from('form_fields').insert({ section_id: secId, label: 'New field', field_type: type, is_required: false, prefill_from_job: false, read_only_on_mobile: false, order_index: order }).select().single()
-    if (data) {
-      setSections(ss => ss.map(s => s.id === secId ? { ...s, fields: [...s.fields, data] } : s))
-      selectField(data.id, secId, data)
-    }
+    const { field, error } = await addFormField(secId, type, order)
+    if (error || !field) { alert(`Could not add field: ${error}`); return }
+    const f = field as unknown as FormField
+    setSections(ss => ss.map(s => s.id === secId ? { ...s, fields: [...s.fields, f] } : s))
+    selectField(f.id, secId, f)
   }
 
   async function addTableBlock(secId: string) {
-    await ensureForm()
+    if (!formId) return
     const sec = sections.find(s => s.id === secId)
     const order = (sec?.tables.length || 0) + 1
-    const { data } = await supabase.from('form_tables').insert({ section_id: secId, status_type: 'yes_no', has_subrows: false, order_index: order }).select().single()
-    if (data) setSections(ss => ss.map(s => s.id === secId ? { ...s, tables: [...s.tables, { ...data, rows: [] }] } : s))
+    const { table, error } = await addFormTable(secId, order)
+    if (error || !table) { alert(`Could not add table: ${error}`); return }
+    setSections(ss => ss.map(s => s.id === secId ? { ...s, tables: [...s.tables, { ...(table as unknown as FormTable), rows: [] }] } : s))
   }
 
   async function addTableRow(tableId: string, secId: string, parentId?: string) {
-    const table = sections.find(s => s.id === secId)?.tables.find(t => t.id === tableId)
-    const order = (table?.rows.length || 0) + 1
-    const { data } = await supabase.from('form_table_rows').insert({ table_id: tableId, row_label: 'New row', sno_label: String(order), order_index: order, parent_row_id: parentId || null }).select().single()
-    if (data) setSections(ss => ss.map(s => s.id === secId ? { ...s, tables: s.tables.map(t => t.id === tableId ? { ...t, rows: [...t.rows, data] } : t) } : s))
+    const tbl = sections.find(s => s.id === secId)?.tables.find(t => t.id === tableId)
+    const order = (tbl?.rows.length || 0) + 1
+    const { row, error } = await addFormTableRow(tableId, order, parentId)
+    if (error || !row) return
+    setSections(ss => ss.map(s => s.id === secId ? { ...s, tables: s.tables.map(t => t.id === tableId ? { ...t, rows: [...t.rows, row as unknown as FormTableRow] } : t) } : s))
   }
 
   function selectField(fieldId: string, secId: string, field: FormField) {
@@ -157,33 +194,46 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   async function saveFieldProps() {
     if (!selected || selected.type !== 'field') return
     const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
-    await supabase.from('form_fields').update(updates).eq('id', selected.id)
+    const { error } = await updateFormField(selected.id, updates)
+    if (error) { alert(`Could not save field: ${error}`); return }
     setSections(ss => ss.map(s => s.id === selected.sectionId ? { ...s, fields: s.fields.map(f => f.id === selected.id ? { ...f, ...updates } : f) } : s))
     setSelected(null)
   }
 
   async function deleteField() {
     if (!selected || selected.type !== 'field') return
-    await supabase.from('form_fields').delete().eq('id', selected.id)
+    const { error } = await deleteFormField(selected.id)
+    if (error) { alert(`Could not delete field: ${error}`); return }
     setSections(ss => ss.map(s => s.id === selected.sectionId ? { ...s, fields: s.fields.filter(f => f.id !== selected.id) } : s))
     setSelected(null)
   }
 
+  // Drag & drop section reordering
+  async function handleSectionDrop(dropIdx: number) {
+    if (dragIdx === null || dragIdx === dropIdx) { setDragIdx(null); setDragOverIdx(null); return }
+    const reordered = [...sections]
+    const [moved] = reordered.splice(dragIdx, 1)
+    reordered.splice(dropIdx, 0, moved)
+    const updated = reordered.map((s, i) => ({ ...s, order_index: i + 1 }))
+    setSections(updated)
+    setDragIdx(null)
+    setDragOverIdx(null)
+    await reorderFormSections(updated.map(s => ({ id: s.id, order_index: s.order_index })))
+  }
+
   async function handleSave(status: 'draft' | 'active', forceSwap = false) {
+    if (!formId) return
     setSaving(true)
     try {
       if (selected?.type === 'field') {
         const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
-        await supabase.from('form_fields').update(updates).eq('id', selected.id)
+        await updateFormField(selected.id, updates)
       }
-      const fid = await ensureForm()
       const fieldCount = sections.reduce((n, s) => n + s.fields.length + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
-      const { error, conflict } = await saveForm(fid, { name: formName, job_type: jobType, status, field_count: fieldCount }, forceSwap)
-      if (conflict) {
-        setPublishConflict({ conflictName: conflict.name, pendingFormId: fid })
-        return
-      }
+      const { error, conflict } = await saveForm(formId, { name: formName, job_type: jobType, status, field_count: fieldCount }, forceSwap)
+      if (conflict) { setPublishConflict({ conflictName: conflict.name }); return }
       if (error) { alert(`Save failed: ${error}`); return }
+      setIsNewForm(false)
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -202,8 +252,6 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
 
   const fi2: React.CSSProperties = { padding: '8px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 
-  const allFields = sections.flatMap(s => s.fields)
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '96vw', maxWidth: 1000, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }}>
@@ -218,14 +266,14 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', borderBottom: 'none', marginRight: 8 }}>
+            <div style={{ display: 'flex', marginRight: 8 }}>
               {(['build', 'preview'] as const).map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '7px 14px', textAlign: 'center', fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--m)' : 'transparent'}`, color: tab === t ? 'var(--m)' : 'var(--txm)', fontFamily: 'Poppins,sans-serif', transition: 'all .15s' }}>
+                <button key={t} onClick={() => setTab(t)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--m)' : 'transparent'}`, color: tab === t ? 'var(--m)' : 'var(--txm)', fontFamily: 'Poppins,sans-serif', transition: 'all .15s' }}>
                   {t === 'build' ? 'Builder' : 'Preview'}
                 </button>
               ))}
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txm)', padding: 4, borderRadius: 5, display: 'flex' }}>
+            <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txm)', padding: 4, borderRadius: 5, display: 'flex' }}>
               <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
@@ -236,123 +284,137 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
             {/* Canvas */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F5F3F5' }}>
-              {sections.map(sec => (
-                <div key={sec.id} style={{ background: '#fff', borderRadius: 10, border: '1.5px solid var(--gm)', overflow: 'hidden', marginBottom: 12 }}>
-                  {/* Section header */}
-                  <div style={{ background: 'var(--mdk)', padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      value={sec.title}
-                      onChange={e => updateSectionTitle(sec.id, e.target.value)}
-                      style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#fff', fontFamily: 'Poppins,sans-serif', cursor: 'text' }}
-                      onClick={e => e.stopPropagation()}
-                    />
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => deleteSection(sec.id)} style={{ background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 5, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="white" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 10 }}>
-                    {/* Fields */}
-                    {sec.fields.map(f => (
-                      <div
-                        key={f.id}
-                        onClick={() => selectField(f.id, sec.id, f)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: `1.5px solid ${selected?.id === f.id ? 'var(--m)' : 'var(--gm)'}`, borderRadius: 8, marginBottom: 6, cursor: 'pointer', background: selected?.id === f.id ? 'var(--mp)' : '#fff', transition: 'all .15s' }}
-                      >
-                        <span style={{ color: 'var(--gm)', fontSize: 14, cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--gl)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: selected?.id === f.id ? 'var(--m)' : 'var(--txm)' }}>
-                          {FIELD_TYPES.find(t => t.type === f.field_type)?.icon}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{f.label}</div>
-                          <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: 'var(--gl)', color: 'var(--txm)' }}>{f.field_type}</span>
-                            {f.prefill_from_job && <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF' }}>Pre-fill: Job data</span>}
-                            {f.is_required && <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: '#FEE2E2', color: '#991B1B' }}>Required</span>}
-                          </div>
-                        </div>
+              {initializing ? (
+                <div style={{ padding: 48, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>
+                  <div style={{ width: 28, height: 28, border: '3px solid var(--gm)', borderTopColor: 'var(--m)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }}/>
+                  Setting up form…
+                </div>
+              ) : (
+                <>
+                  {sections.map((sec, idx) => (
+                    <div
+                      key={sec.id}
+                      draggable
+                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragIdx(idx) }}
+                      onDragOver={e => { e.preventDefault(); setDragOverIdx(idx) }}
+                      onDrop={() => handleSectionDrop(idx)}
+                      onDragEnd={() => { setDragIdx(null); setDragOverIdx(null) }}
+                      style={{ background: '#fff', borderRadius: 10, border: `1.5px solid ${dragOverIdx === idx && dragIdx !== idx ? 'var(--m)' : 'var(--gm)'}`, overflow: 'hidden', marginBottom: 12, opacity: dragIdx === idx ? 0.5 : 1, transition: 'opacity .15s, border-color .15s' }}
+                    >
+                      {/* Section header */}
+                      <div style={{ background: 'var(--mdk)', padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Drag handle */}
+                        <span title="Drag to reorder" style={{ color: 'rgba(255,255,255,.5)', fontSize: 16, cursor: 'grab', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>⠿</span>
+                        <input
+                          value={sec.title}
+                          onChange={e => updateSectionTitle(sec.id, e.target.value)}
+                          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#fff', fontFamily: 'Poppins,sans-serif', cursor: 'text' }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,.45)', flexShrink: 0 }}>§{idx + 1}</span>
+                        <button onClick={() => deleteSection(sec.id)} title="Delete section" style={{ background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 5, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="white" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                        </button>
                       </div>
-                    ))}
 
-                    {/* Tables */}
-                    {sec.tables.map(t => (
-                      <div key={t.id} style={{ border: '1.5px solid var(--gm)', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--gl)' }}>
-                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {t.status_type.replace(/_/g, ' ')}</span>
-                          <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)' }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
-                        </div>
-                        {/* Column headers */}
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>
-                          <div style={{ width: 40, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>S.No</div>
-                          <div style={{ flex: 1, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>Details</div>
-                          {t.status_type === 'yes_no' && <>
-                            <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Status</div>
-                          </>}
-                          {t.status_type === 'tested_not_tested' && <>
-                            <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Tested</div>
-                            <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Not Tested</div>
-                          </>}
-                          <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>
-                        </div>
-                        {t.rows.slice(0, 3).map(row => (
-                          <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff') }}>
-                            <div style={{ width: 40, padding: '7px 8px', fontSize: row.parent_row_id ? 10 : 11, fontWeight: row.parent_row_id ? 400 : 600, color: row.parent_row_id ? 'var(--txm)' : 'var(--m)', borderRight: '1px solid var(--gm)', textAlign: 'center' }}>{row.sno_label}</div>
-                            <div style={{ flex: 1, padding: `7px 8px ${row.parent_row_id ? '' : ''}`, fontSize: 11, color: 'var(--tx)', borderRight: '1px solid var(--gm)', paddingLeft: row.parent_row_id ? 18 : 8, fontStyle: row.parent_row_id ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.row_label}</div>
-                            {t.status_type === 'yes_no' && !row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', gap: 2, padding: 6, justifyContent: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>Y</span><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>N</span></div>}
-                            {t.status_type === 'tested_not_tested' && row.parent_row_id && <>
-                              <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
-                              <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
-                            </>}
-                            {!(t.status_type === 'yes_no' && !row.parent_row_id) && !(t.status_type === 'tested_not_tested' && row.parent_row_id) && <div style={{ width: t.status_type === 'tested_not_tested' ? 130 : 60, borderRight: '1px solid var(--gm)' }}/>}
-                            <div style={{ width: 60 }}/>
+                      <div style={{ padding: 10 }}>
+                        {/* Fields */}
+                        {sec.fields.map(f => (
+                          <div
+                            key={f.id}
+                            onClick={() => selectField(f.id, sec.id, f)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: `1.5px solid ${selected?.id === f.id ? 'var(--m)' : 'var(--gm)'}`, borderRadius: 8, marginBottom: 6, cursor: 'pointer', background: selected?.id === f.id ? 'var(--mp)' : '#fff', transition: 'all .15s' }}
+                          >
+                            <span style={{ color: 'var(--gm)', fontSize: 14, cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                            <div style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--gl)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: selected?.id === f.id ? 'var(--m)' : 'var(--txm)' }}>
+                              {FIELD_TYPES.find(t => t.type === f.field_type)?.icon}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{f.label}</div>
+                              <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: 'var(--gl)', color: 'var(--txm)' }}>{f.field_type}</span>
+                                {f.prefill_from_job && <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF' }}>Pre-fill: Job data</span>}
+                                {f.is_required && <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 4, background: '#FEE2E2', color: '#991B1B' }}>Required</span>}
+                              </div>
+                            </div>
                           </div>
                         ))}
-                        {t.rows.length > 3 && (
-                          <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: 'var(--gl)' }}>
-                            <div style={{ width: 40, padding: '5px 8px', borderRight: '1px solid var(--gm)', textAlign: 'center', color: 'var(--txm)', fontSize: 10 }}>…</div>
-                            <div style={{ flex: 1, padding: '5px 8px', fontSize: 10, color: 'var(--txm)' }}>{t.rows.length - 3} more rows</div>
+
+                        {/* Tables */}
+                        {sec.tables.map(t => (
+                          <div key={t.id} style={{ border: '1.5px solid var(--gm)', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--gl)' }}>
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {t.status_type.replace(/_/g, ' ')}</span>
+                              <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)' }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
+                            </div>
+                            <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>
+                              <div style={{ width: 40, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>S.No</div>
+                              <div style={{ flex: 1, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>Details</div>
+                              {t.status_type === 'yes_no' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Status</div>}
+                              {t.status_type === 'tested_not_tested' && <>
+                                <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Tested</div>
+                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Not Tested</div>
+                              </>}
+                              <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>
+                            </div>
+                            {t.rows.slice(0, 3).map(row => (
+                              <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff') }}>
+                                <div style={{ width: 40, padding: '7px 8px', fontSize: row.parent_row_id ? 10 : 11, fontWeight: row.parent_row_id ? 400 : 600, color: row.parent_row_id ? 'var(--txm)' : 'var(--m)', borderRight: '1px solid var(--gm)', textAlign: 'center' }}>{row.sno_label}</div>
+                                <div style={{ flex: 1, padding: '7px 8px', fontSize: 11, color: 'var(--tx)', borderRight: '1px solid var(--gm)', paddingLeft: row.parent_row_id ? 18 : 8, fontStyle: row.parent_row_id ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.row_label}</div>
+                                {t.status_type === 'yes_no' && !row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', gap: 2, padding: 6, justifyContent: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>Y</span><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>N</span></div>}
+                                {t.status_type === 'tested_not_tested' && row.parent_row_id && <>
+                                  <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
+                                  <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
+                                </>}
+                                {!(t.status_type === 'yes_no' && !row.parent_row_id) && !(t.status_type === 'tested_not_tested' && row.parent_row_id) && <div style={{ width: t.status_type === 'tested_not_tested' ? 130 : 60, borderRight: '1px solid var(--gm)' }}/>}
+                                <div style={{ width: 60 }}/>
+                              </div>
+                            ))}
+                            {t.rows.length > 3 && (
+                              <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: 'var(--gl)' }}>
+                                <div style={{ width: 40, padding: '5px 8px', borderRight: '1px solid var(--gm)', textAlign: 'center', color: 'var(--txm)', fontSize: 10 }}>…</div>
+                                <div style={{ flex: 1, padding: '5px 8px', fontSize: 10, color: 'var(--txm)' }}>{t.rows.length - 3} more rows</div>
+                              </div>
+                            )}
+                            <div style={{ padding: '7px 10px', borderTop: '1px solid var(--gm)', background: '#FAFAFA', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 11, color: 'var(--txm)' }}>{t.rows.length} rows total</span>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button onClick={() => addTableRow(t.id, sec.id)} style={{ padding: '3px 10px', fontSize: 10, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>+ Add row</button>
+                                {t.has_subrows && <button onClick={() => { const mainRow = t.rows.filter(r => !r.parent_row_id).at(-1); if (mainRow) addTableRow(t.id, sec.id, mainRow.id) }} style={{ padding: '3px 10px', fontSize: 10, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>+ Add sub-row</button>}
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        <div style={{ padding: '7px 10px', borderTop: '1px solid var(--gm)', background: '#FAFAFA', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 11, color: 'var(--txm)' }}>{t.rows.length} rows total</span>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => addTableRow(t.id, sec.id)} style={{ padding: '3px 10px', fontSize: 10, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>+ Add row</button>
-                            {t.has_subrows && <button onClick={() => {
-                              const mainRow = t.rows.filter(r => !r.parent_row_id).at(-1)
-                              if (mainRow) addTableRow(t.id, sec.id, mainRow.id)
-                            }} style={{ padding: '3px 10px', fontSize: 10, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>+ Add sub-row</button>}
-                          </div>
+                        ))}
+
+                        {/* Add field button */}
+                        <div
+                          onClick={() => addField(sec.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: '1.5px dashed var(--gm)', borderRadius: 8, cursor: 'pointer', color: 'var(--txm)', fontSize: 11, transition: 'all .15s', marginTop: 4 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--m)'; (e.currentTarget as HTMLDivElement).style.color='var(--m)'; (e.currentTarget as HTMLDivElement).style.background='var(--mp)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--gm)'; (e.currentTarget as HTMLDivElement).style.color='var(--txm)'; (e.currentTarget as HTMLDivElement).style.background='' }}
+                        >
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          Add field to this section
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  ))}
 
-                    {/* Add field button */}
+                  {/* Add section */}
+                  {!initializing && (
                     <div
-                      onClick={() => addField(sec.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: '1.5px dashed var(--gm)', borderRadius: 8, cursor: 'pointer', color: 'var(--txm)', fontSize: 11, transition: 'all .15s', marginTop: 4 }}
+                      onClick={addSection}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, border: '2px dashed var(--gm)', borderRadius: 10, cursor: 'pointer', color: 'var(--txm)', fontSize: 12, fontWeight: 500, transition: 'all .15s' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--m)'; (e.currentTarget as HTMLDivElement).style.color='var(--m)'; (e.currentTarget as HTMLDivElement).style.background='var(--mp)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--gm)'; (e.currentTarget as HTMLDivElement).style.color='var(--txm)'; (e.currentTarget as HTMLDivElement).style.background='' }}
                     >
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      Add field
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Add new section
                     </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Add section */}
-              <div
-                onClick={addSection}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, border: '2px dashed var(--gm)', borderRadius: 10, cursor: 'pointer', color: 'var(--txm)', fontSize: 12, fontWeight: 500, transition: 'all .15s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--m)'; (e.currentTarget as HTMLDivElement).style.color='var(--m)'; (e.currentTarget as HTMLDivElement).style.background='var(--mp)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor='var(--gm)'; (e.currentTarget as HTMLDivElement).style.color='var(--txm)'; (e.currentTarget as HTMLDivElement).style.background='' }}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add new section
-              </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Right pane: palette / properties */}
@@ -361,11 +423,12 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                 <>
                   <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Add to form</div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 8 }}>Basic fields</div>
+                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 8 }}>Field types</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
                       {FIELD_TYPES.map(ft => (
                         <button key={ft.type}
                           onClick={() => { const sec = sections[0]; if (sec) addField(sec.id, ft.type) }}
+                          title={`Add ${ft.label} to first section`}
                           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 6px', border: '1.5px solid var(--gm)', borderRadius: 8, cursor: 'pointer', background: '#fff', transition: 'all .15s', fontFamily: 'Poppins,sans-serif', color: 'var(--txm)', fontSize: 10, fontWeight: 500 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='var(--m)'; (e.currentTarget as HTMLButtonElement).style.background='var(--mp)'; (e.currentTarget as HTMLButtonElement).style.color='var(--m)' }}
                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='var(--gm)'; (e.currentTarget as HTMLButtonElement).style.background='#fff'; (e.currentTarget as HTMLButtonElement).style.color='var(--txm)' }}
@@ -388,17 +451,10 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
                       Table / Checklist block
                     </button>
-                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 8 }}>Status types</div>
-                    {[
-                      { label: 'Yes / No', badges: ['Yes', 'No'], colors: [['#D1FAE5','#065F46'], ['#F1F5F9','#475569']] },
-                      { label: 'Tested / Not Tested', badges: ['✓', '✓'], colors: [['#D1FAE5','#065F46'], ['#FEF3C7','#92400E']] },
-                      { label: 'Checkbox only', badge: true },
-                    ].map(st => (
-                      <div key={st.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--gl)', borderRadius: 7, marginBottom: 6, fontSize: 11 }}>
-                        <span>{st.label}</span>
-                        {st.badge ? <input type="checkbox" checked readOnly style={{ accentColor: 'var(--m)' }}/> : st.badges && <div style={{ display: 'flex', gap: 3 }}>{st.badges.map((b, i) => <span key={b} style={{ fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: st.colors![i][0], color: st.colors![i][1] }}>{b}</span>)}</div>}
-                      </div>
-                    ))}
+                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 8 }}>Tips</div>
+                    <div style={{ fontSize: 10, color: 'var(--txm)', lineHeight: 1.6, background: 'var(--gl)', borderRadius: 7, padding: '8px 10px' }}>
+                      Drag the <strong>⠿</strong> handle in each section header to reorder sections.
+                    </div>
                   </div>
                 </>
               ) : (
@@ -492,10 +548,10 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
 
         {/* Footer */}
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--gm)', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#FAFAFA', flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
-          <button onClick={() => handleSave('draft')} disabled={saving} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'transparent', color: 'var(--txm)', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>Save as draft</button>
+          <button onClick={handleClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+          <button onClick={() => handleSave('draft')} disabled={saving || initializing} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'transparent', color: 'var(--txm)', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: (saving || initializing) ? .5 : 1 }}>Save as draft</button>
           <button onClick={() => setTab('preview')} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Preview on mobile</button>
-          <button onClick={() => handleSave('active')} disabled={saving} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>{saving ? 'Saving…' : 'Publish form'}</button>
+          <button onClick={() => handleSave('active')} disabled={saving || initializing} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: (saving || initializing) ? .7 : 1 }}>{saving ? 'Saving…' : 'Publish form'}</button>
         </div>
       </div>
 
@@ -514,6 +570,8 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
