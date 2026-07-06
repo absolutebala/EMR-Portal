@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
+import { inviteUser } from '@/app/actions/invite-user'
 import type { UserRole, Profile } from '@/lib/types'
 
 const ROLES: UserRole[] = [
@@ -56,37 +57,16 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
         }).eq('id', editUser.id)
         if (error) throw error
       } else {
-        // Invite user via Supabase admin — we use signUp with random password
-        // and let Supabase send invite email
-        const { data, error: authError } = await supabase.auth.admin
-          ? // If admin client available
-            { data: null, error: new Error('Use server action for invite') }
-          : await supabase.auth.signUp({
-              email: form.email,
-              password: Math.random().toString(36).slice(-12),
-              options: { emailRedirectTo: `${window.location.origin}/login` }
-            })
-
-        if (authError) throw authError
-
-        if (data?.user) {
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id,
-            first_name: form.first_name,
-            last_name: form.last_name,
-            employee_id: form.employee_id,
-            email: form.email,
-            phone: form.phone || null,
-            department: form.department || null,
-            role: form.role as UserRole,
-          })
-          if (profileError) throw profileError
-
-          await supabase.from('user_module_access').insert({
-            user_id: data.user.id,
-            module: 'field_management',
-          })
-        }
+        const { error: inviteError } = await inviteUser({
+          email: form.email,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          employee_id: form.employee_id,
+          phone: form.phone || null,
+          department: form.department || null,
+          role: form.role,
+        })
+        if (inviteError) throw new Error(inviteError)
       }
 
       onSaved()
