@@ -7,25 +7,26 @@ import { createClient } from '@/lib/supabase/client'
 interface SidebarProps {
   userName: string
   userRole: string
+  permissions: Record<string, boolean>
 }
 
 const NAV = [
   { section: 'Main', items: [
-    { label: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
-    { label: 'Work Orders', icon: 'workorders', path: '/work-orders', badge: null, stub: true },
-    { label: 'Field Engineers', icon: 'engineers', path: '/engineers', stub: true },
+    { label: 'Dashboard',       icon: 'dashboard',  path: '/dashboard',    permKey: 'Dashboard' },
+    { label: 'Work Orders',     icon: 'workorders', path: '/work-orders',  permKey: 'Work Orders — View',       stub: true },
+    { label: 'Field Engineers', icon: 'engineers',  path: '/engineers',    permKey: 'Field Engineers — View',   stub: true },
   ]},
   { section: 'Management', items: [
-    { label: 'Users', icon: 'users', path: '/users' },
-    { label: 'Customers', icon: 'customers', path: '/customers' },
-    { label: 'Products', icon: 'products', path: '/products', stub: true },
+    { label: 'Users',      icon: 'users',      path: '/users',     permKey: 'Users — View' },
+    { label: 'Customers',  icon: 'customers',  path: '/customers', permKey: 'Customers — View' },
+    { label: 'Products',   icon: 'products',   path: '/products',  permKey: 'Products — View',  stub: true },
   ]},
   { section: 'Operations', items: [
-    { label: 'Forms', icon: 'forms', path: '/forms' },
-    { label: 'Product Requests', icon: 'requests', path: '/requests', stub: true },
+    { label: 'Forms',             icon: 'forms',     path: '/forms',    permKey: 'Forms — View' },
+    { label: 'Product Requests',  icon: 'requests',  path: '/requests', permKey: 'Product Requests — View', stub: true },
   ]},
   { section: 'System', items: [
-    { label: 'Settings', icon: 'settings', path: '/settings' },
+    { label: 'Settings', icon: 'settings', path: '/settings', permKey: 'Settings' },
   ]},
 ]
 
@@ -45,7 +46,13 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-export default function Sidebar({ userName, userRole }: SidebarProps) {
+export default function Sidebar({ userName, userRole, permissions }: SidebarProps) {
+  // If permissions is empty (migration not yet run), show everything as fallback.
+  const hasPerms = Object.keys(permissions).length > 0
+  function allowed(permKey: string) {
+    if (!hasPerms) return true
+    return permissions[permKey] !== false
+  }
   const pathname = usePathname()
   const router = useRouter()
   const [modOpen, setModOpen] = useState(false)
@@ -119,32 +126,36 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-        {NAV.map(({ section, items }) => (
-          <div key={section}>
-            <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>
-            {items.map(item => {
-              const active = pathname === item.path || pathname.startsWith(item.path + '/')
-              return (
-                <div
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
-                    background: active ? 'var(--m)' : 'transparent',
-                    color: active ? '#fff' : 'rgba(255,255,255,.52)',
-                    fontWeight: active ? 500 : 400, fontSize: 12,
-                    transition: 'all .15s',
-                  }}
-                  onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } }}
-                  onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } }}
-                >
-                  <span style={{ opacity: active ? 1 : .8, flexShrink: 0 }}>{ICONS[item.icon]}</span>
-                  {item.label}
-                </div>
-              )
-            })}
-          </div>
-        ))}
+        {NAV.map(({ section, items }) => {
+          const visible = items.filter(item => allowed(item.permKey))
+          if (visible.length === 0) return null
+          return (
+            <div key={section}>
+              <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>
+              {visible.map(item => {
+                const active = pathname === item.path || pathname.startsWith(item.path + '/')
+                return (
+                  <div
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
+                      background: active ? 'var(--m)' : 'transparent',
+                      color: active ? '#fff' : 'rgba(255,255,255,.52)',
+                      fontWeight: active ? 500 : 400, fontSize: 12,
+                      transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } }}
+                    onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } }}
+                  >
+                    <span style={{ opacity: active ? 1 : .8, flexShrink: 0 }}>{ICONS[item.icon]}</span>
+                    {item.label}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Profile */}

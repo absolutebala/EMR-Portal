@@ -36,9 +36,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'
   const userRole = profile?.role || 'User'
 
+  const { data: roleData } = await supabase
+    .from('roles')
+    .select('permissions')
+    .eq('name', userRole)
+    .maybeSingle()
+
+  const permissions = (roleData?.permissions as Record<string, boolean> | null) ?? {}
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar userName={userName} userRole={userRole} />
+      <Sidebar userName={userName} userRole={userRole} permissions={permissions} />
       <div style={{ marginLeft: 230, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {children}
       </div>
