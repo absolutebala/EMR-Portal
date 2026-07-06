@@ -36,7 +36,9 @@ export default function RolesModal({ open, onClose }: { open: boolean; onClose: 
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { roles: data } = await getRolesWithPermissions()
+    setError('')
+    const { roles: data, error: err } = await getRolesWithPermissions()
+    if (err) setError(err)
     setRoles(data)
     setPending({})
     setLoading(false)
@@ -92,6 +94,9 @@ export default function RolesModal({ open, onClose }: { open: boolean; onClose: 
       <p style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 12 }}>
         Click any cell to toggle access. Changes are applied when you click Save.
       </p>
+      {error && !loading && (
+        <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>{error}</div>
+      )}
       {loading ? (
         <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--txm)' }}>Loading…</div>
       ) : (
