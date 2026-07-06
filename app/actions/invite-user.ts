@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createClient as serverClient } from '@/lib/supabase/server'
 
 export async function inviteUser(payload: {
   email: string
@@ -17,6 +18,10 @@ export async function inviteUser(payload: {
   if (!supabaseUrl || !serviceRoleKey) {
     return { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set.' }
   }
+
+  const sSb = await serverClient()
+  const { data: { user: currentUser } } = await sSb.auth.getUser()
+  const createdBy = currentUser?.id ?? null
 
   // createClient from supabase-js with service role key = full admin access, bypasses RLS
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -55,6 +60,7 @@ export async function inviteUser(payload: {
     phone: payload.phone,
     role: payload.role,
     manager_id: payload.manager_id,
+    created_by: createdBy,
     invite_pending: true,
   })
 

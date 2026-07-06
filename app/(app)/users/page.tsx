@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getUsers } from '@/app/actions/get-users'
+import { toggleUserActive } from '@/app/actions/toggle-user-active'
 import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
 import BulkUploadModal from '@/components/users/BulkUploadModal'
@@ -39,10 +41,10 @@ export default function UsersPage() {
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
-    setUsers(data || [])
+    const { users: data } = await getUsers()
+    setUsers(data as unknown as Profile[])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     loadUsers()
@@ -53,7 +55,7 @@ export default function UsersPage() {
         })
       }
     })
-  }, [loadUsers, supabase])
+  }, [loadUsers, supabase])  // supabase stable via useMemo; loadUsers has no deps
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase()
@@ -67,7 +69,8 @@ export default function UsersPage() {
   })
 
   async function deactivate(user: Profile) {
-    await supabase.from('profiles').update({ is_active: !user.is_active }).eq('id', user.id)
+    const { error } = await toggleUserActive(user.id, !user.is_active)
+    if (error) { alert(error); return }
     loadUsers()
   }
 
