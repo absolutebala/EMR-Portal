@@ -9,16 +9,36 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
-// Default sections added to every new form — one per field type
-const DEFAULT_SECTIONS = [
-  { title: 'Customer Information',      fieldType: 'text',      fieldLabel: 'Customer Name' },
-  { title: 'Measurements & Numbers',   fieldType: 'number',    fieldLabel: 'Value' },
-  { title: 'Notes & Remarks',          fieldType: 'long_text', fieldLabel: 'Remarks' },
-  { title: 'Selection',                fieldType: 'dropdown',  fieldLabel: 'Select option' },
-  { title: 'Date & Time',              fieldType: 'date',      fieldLabel: 'Date' },
-  { title: 'Photos',                   fieldType: 'photo',     fieldLabel: 'Attach photo' },
-  { title: 'Signature',                fieldType: 'signature', fieldLabel: 'Sign here' },
-  { title: 'Checklist',                fieldType: 'checkbox',  fieldLabel: 'Check item' },
+interface DefaultField {
+  label: string
+  fieldType: string
+  isRequired?: boolean
+  prefillFromJob?: boolean
+}
+
+interface DefaultSection {
+  title: string
+  fields: DefaultField[]
+}
+
+// Default sections for every new form. Customer Information mirrors the MOM form.
+const DEFAULT_SECTIONS: DefaultSection[] = [
+  {
+    title: 'Customer Information',
+    fields: [
+      { label: 'Customer Name',        fieldType: 'text',      isRequired: true,  prefillFromJob: true },
+      { label: 'Contact Number',       fieldType: 'text',      isRequired: true,  prefillFromJob: true },
+      { label: 'Installation Location',fieldType: 'text',      isRequired: true,  prefillFromJob: true },
+      { label: 'Project Details',      fieldType: 'long_text', isRequired: false, prefillFromJob: false },
+    ],
+  },
+  { title: 'Measurements & Numbers', fields: [{ label: 'Value',         fieldType: 'number'    }] },
+  { title: 'Notes & Remarks',        fields: [{ label: 'Remarks',       fieldType: 'long_text' }] },
+  { title: 'Selection',              fields: [{ label: 'Select option', fieldType: 'dropdown'  }] },
+  { title: 'Date & Time',            fields: [{ label: 'Date',          fieldType: 'date'      }] },
+  { title: 'Photos',                 fields: [{ label: 'Attach photo',  fieldType: 'photo'     }] },
+  { title: 'Signature',              fields: [{ label: 'Sign here',     fieldType: 'signature' }] },
+  { title: 'Checklist',              fields: [{ label: 'Check item',    fieldType: 'checkbox'  }] },
 ]
 
 export async function createFormWithDefaults(payload: {
@@ -28,9 +48,10 @@ export async function createFormWithDefaults(payload: {
   try {
     const sb = adminClient()
 
+    const totalFields = DEFAULT_SECTIONS.reduce((n, s) => n + s.fields.length, 0)
     const { data: form, error: formErr } = await sb
       .from('forms')
-      .insert({ name: payload.name || 'Untitled', job_type: payload.job_type, status: 'draft', field_count: DEFAULT_SECTIONS.length })
+      .insert({ name: payload.name || 'Untitled', job_type: payload.job_type, status: 'draft', field_count: totalFields })
       .select('id')
       .single()
 
@@ -45,15 +66,17 @@ export async function createFormWithDefaults(payload: {
         .single()
 
       if (section) {
-        await sb.from('form_fields').insert({
-          section_id: section.id,
-          label: sec.fieldLabel,
-          field_type: sec.fieldType,
-          is_required: false,
-          prefill_from_job: false,
-          read_only_on_mobile: false,
-          order_index: 1,
-        })
+        await sb.from('form_fields').insert(
+          sec.fields.map((f, fi) => ({
+            section_id: section.id,
+            label: f.label,
+            field_type: f.fieldType,
+            is_required: f.isRequired ?? false,
+            prefill_from_job: f.prefillFromJob ?? false,
+            read_only_on_mobile: false,
+            order_index: fi + 1,
+          }))
+        )
       }
     }
 
