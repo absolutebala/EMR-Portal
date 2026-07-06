@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import type { UserRole } from '@/lib/types'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -17,7 +16,8 @@ export async function updateUser(
     last_name: string
     employee_id: string
     phone: string | null
-    role: UserRole
+    role: string
+    manager_id: string | null
   }
 ): Promise<{ error: string | null }> {
   try {

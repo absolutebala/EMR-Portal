@@ -1,11 +1,4 @@
-export type UserRole =
-  | 'Super Admin'
-  | 'Service Manager'
-  | 'Service Engineer'
-  | 'Sales Executive Engineer'
-  | 'Inventory Team'
-  | 'Dispatch Team'
-  | 'Reporting Team'
+export type UserRole = string
 
 export type Module = 'field_management' | 'sales'
 
@@ -22,6 +15,7 @@ export interface Profile {
   invite_pending: boolean
   created_at: string
   last_login_at: string | null
+  manager_id: string | null
 }
 
 export interface UserModuleAccess {

@@ -1,27 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Modal from '@/components/ui/Modal'
 import { inviteUser } from '@/app/actions/invite-user'
 import { updateUser } from '@/app/actions/update-user'
+import { getRoles } from '@/app/actions/roles-actions'
 import type { UserRole, Profile } from '@/lib/types'
-
-const ROLES: UserRole[] = [
-  'Super Admin', 'Service Manager', 'Service Engineer',
-  'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team',
-]
 
 interface Props {
   open: boolean
   onClose: () => void
   onSaved: () => void
   editUser?: Profile | null
+  managers: Profile[]
 }
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
-export default function AddUserModal({ open, onClose, onSaved, editUser }: Props) {
+export default function AddUserModal({ open, onClose, onSaved, editUser, managers }: Props) {
   const [form, setForm] = useState({
     first_name: editUser?.first_name || '',
     last_name: editUser?.last_name || '',
@@ -29,11 +26,20 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
     email: editUser?.email || '',
     phone: editUser?.phone || '',
     role: (editUser?.role || '') as UserRole | '',
+    manager_id: editUser?.manager_id || '',
   })
+  const [roles, setRoles] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  const loadRoles = useCallback(async () => {
+    const { roles: data } = await getRoles()
+    setRoles(data.map(r => r.name))
+  }, [])
+
+  useEffect(() => { loadRoles() }, [loadRoles])
 
   useEffect(() => {
     setForm({
@@ -43,6 +49,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
       email: editUser?.email || '',
       phone: editUser?.phone || '',
       role: (editUser?.role || '') as UserRole | '',
+      manager_id: editUser?.manager_id || '',
     })
   }, [editUser])
 
@@ -67,6 +74,10 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.role) { setError('Please select a role'); return }
+    if (form.role === 'Service Engineer' && !form.manager_id) {
+      setError('Please select a Reporting Manager for this Service Engineer')
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -78,6 +89,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role as UserRole,
+          manager_id: form.role === 'Service Engineer' ? (form.manager_id || null) : null,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -90,6 +102,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role,
+          manager_id: form.role === 'Service Engineer' ? (form.manager_id || null) : null,
         })
         if (inviteError) throw new Error(inviteError)
         onSaved()
@@ -104,6 +117,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
   }
 
   const isEdit = !!editUser
+  const isEngineer = form.role === 'Service Engineer'
 
   // Success state — show invite link
   if (inviteLink) {
@@ -154,7 +168,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
         <>
           <button onClick={handleClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
           <button form="user-form" type="submit" disabled={loading} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
-            {loading ? 'Creating…' : isEdit ? 'Save changes' : 'Create account'}
+            {loading ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save changes' : 'Create account'}
           </button>
         </>
       }
@@ -182,13 +196,41 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
             <label style={fl2}>Phone</label>
             <input style={fi2} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXXXXXXX" />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div>
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>
-            <select required style={{ ...fi2 }} value={form.role} onChange={e => set('role', e.target.value)}>
+            <select required style={fi2} value={form.role} onChange={e => { set('role', e.target.value); set('manager_id', '') }}>
               <option value="">Select role</option>
-              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              {roles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
+
+          {isEngineer && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>
+                Reporting Manager <span style={{ color: 'var(--m)' }}>*</span>
+              </label>
+              {managers.length === 0 ? (
+                <div style={{ padding: '9px 12px', border: '1.5px solid #FCA5A5', borderRadius: 7, fontSize: 12, color: '#DC2626', background: '#FEF2F2' }}>
+                  No Service Managers found. Please add a Service Manager first.
+                </div>
+              ) : (
+                <select
+                  style={fi2}
+                  value={form.manager_id}
+                  onChange={e => set('manager_id', e.target.value)}
+                  required
+                >
+                  <option value="">Select reporting manager</option>
+                  {managers.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.first_name} {m.last_name} ({m.employee_id})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Module access <span style={{ color: 'var(--m)' }}>*</span></label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>

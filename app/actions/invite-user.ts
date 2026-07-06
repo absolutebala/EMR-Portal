@@ -9,6 +9,7 @@ export async function inviteUser(payload: {
   employee_id: string
   phone: string | null
   role: string
+  manager_id: string | null
 }): Promise<{ error: string | null; inviteLink?: string }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -53,6 +54,7 @@ export async function inviteUser(payload: {
     email: payload.email,
     phone: payload.phone,
     role: payload.role,
+    manager_id: payload.manager_id,
     invite_pending: true,
   })
 

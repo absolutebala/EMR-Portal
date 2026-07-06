@@ -6,6 +6,7 @@ import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
 import BulkUploadModal from '@/components/users/BulkUploadModal'
 import RolesModal from '@/components/users/RolesModal'
+import ManageRolesModal from '@/components/users/ManageRolesModal'
 import { RoleBadge, StatusBadge } from '@/components/ui/Badge'
 import { resendInvite } from '@/app/actions/resend-invite'
 import type { Profile } from '@/lib/types'
@@ -29,6 +30,7 @@ export default function UsersPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
+  const [showManageRoles, setShowManageRoles] = useState(false)
   const [editUser, setEditUser] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [inviteCopied, setInviteCopied] = useState<string | null>(null)
@@ -102,6 +104,10 @@ export default function UsersPage() {
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowManageRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M20 21a8 8 0 10-16 0"/><path d="M16 11l2 2 4-4"/></svg>
+              Roles
+            </button>
             <button onClick={() => setShowRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               Roles &amp; Permissions
@@ -187,8 +193,9 @@ export default function UsersPage() {
           )}
         </div>
 
-        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser}/>
+        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager')}/>
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={loadUsers}/>
+        <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)}/>
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)}/>
       </div>
     </>
