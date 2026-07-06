@@ -33,10 +33,26 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const supabase = createClient()
 
   function set(k: string, v: string) {
     setForm(f => ({ ...f, [k]: v }))
+  }
+
+  function handleClose() {
+    setInviteLink(null)
+    setCopied(false)
+    setError('')
+    onClose()
+  }
+
+  async function copyLink() {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(inviteLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,8 +72,10 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           role: form.role as UserRole,
         }).eq('id', editUser.id)
         if (error) throw error
+        onSaved()
+        handleClose()
       } else {
-        const { error: inviteError } = await inviteUser({
+        const { error: inviteError, inviteLink: link } = await inviteUser({
           email: form.email,
           first_name: form.first_name,
           last_name: form.last_name,
@@ -67,10 +85,10 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           role: form.role,
         })
         if (inviteError) throw new Error(inviteError)
+        onSaved()
+        if (link) setInviteLink(link)
+        else handleClose()
       }
-
-      onSaved()
-      onClose()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -80,16 +98,56 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
 
   const isEdit = !!editUser
 
+  // Success state — show invite link
+  if (inviteLink) {
+    return (
+      <Modal
+        open={open}
+        onClose={handleClose}
+        title="User created"
+        footer={
+          <button onClick={handleClose} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+            Done
+          </button>
+        }
+      >
+        <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <svg width="22" height="22" fill="none" stroke="#065F46" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>Account created successfully</div>
+          <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 20 }}>
+            Share this one-time invite link with the user so they can set their password and log in.
+          </div>
+          <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
+            <span style={{ flex: 1, fontSize: 11, color: 'var(--txm)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+              {inviteLink}
+            </span>
+            <button
+              onClick={copyLink}
+              style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--gm)', background: copied ? '#D1FAE5' : '#fff', color: copied ? '#065F46' : 'var(--tx)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
+            >
+              {copied ? '✓ Copied' : 'Copy link'}
+            </button>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txm)' }}>
+            This link expires in 24 hours.
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={isEdit ? 'Edit user' : 'Add user'}
       footer={
         <>
-          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+          <button onClick={handleClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
           <button form="user-form" type="submit" disabled={loading} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
-            {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Create account'}
+            {loading ? 'Creating…' : isEdit ? 'Save changes' : 'Create account'}
           </button>
         </>
       }
@@ -99,38 +157,31 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fl2}>First name <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={form.first_name} onChange={e => set('first_name', e.target.value)} placeholder="First name"
-             />
+            <input required style={fi2} value={form.first_name} onChange={e => set('first_name', e.target.value)} placeholder="First name" />
           </div>
           <div>
             <label style={fl2}>Last name <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name"
-             />
+            <input required style={fi2} value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name" />
           </div>
           <div>
             <label style={fl2}>Employee ID <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={form.employee_id} onChange={e => set('employee_id', e.target.value)} placeholder="EMP-XXXXX"
-             />
+            <input required style={fi2} value={form.employee_id} onChange={e => set('employee_id', e.target.value)} placeholder="EMP-XXXXX" />
           </div>
           <div>
             <label style={fl2}>Email <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required type="email" disabled={isEdit} style={{ ...fi2, background: isEdit ? 'var(--gl)' : '#fff' }} value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@emrglobal.com"
-             />
+            <input required type="email" disabled={isEdit} style={{ ...fi2, background: isEdit ? 'var(--gl)' : '#fff' }} value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@emrglobal.com" />
           </div>
           <div>
             <label style={fl2}>Phone</label>
-            <input style={fi2} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXXXXXXX"
-             />
+            <input style={fi2} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXXXXXXX" />
           </div>
           <div>
             <label style={fl2}>Department</label>
-            <input style={fi2} value={form.department} onChange={e => set('department', e.target.value)} placeholder="e.g. Field Services"
-             />
+            <input style={fi2} value={form.department} onChange={e => set('department', e.target.value)} placeholder="e.g. Field Services" />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>
-            <select required style={{ ...fi2 }} value={form.role} onChange={e => set('role', e.target.value)}
-             >
+            <select required style={{ ...fi2 }} value={form.role} onChange={e => set('role', e.target.value)}>
               <option value="">Select role</option>
               {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
@@ -157,8 +208,9 @@ export default function AddUserModal({ open, onClose, onSaved, editUser }: Props
           </div>
         </div>
         {!isEdit && (
-          <div style={{ background: 'var(--mp)', border: '1px solid var(--mb)', borderRadius: 8, padding: '10px 12px', marginTop: 14, fontSize: 11, color: 'var(--m)' }}>
-            Login credentials will be auto-generated and emailed to the user on account creation.
+          <div style={{ background: 'var(--mp)', border: '1px solid var(--mb)', borderRadius: 8, padding: '10px 12px', marginTop: 14, fontSize: 11, color: 'var(--m)', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            An invite link will be generated for you to share with the user directly.
           </div>
         )}
       </form>

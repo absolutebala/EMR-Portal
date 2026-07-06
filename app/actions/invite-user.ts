@@ -11,10 +11,9 @@ export async function inviteUser(payload: {
   phone: string | null
   department: string | null
   role: string
-}) {
+}): Promise<{ error: string | null; inviteLink?: string }> {
   const cookieStore = await cookies()
 
-  // Admin client uses the service role key — stays server-side only
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -26,15 +25,19 @@ export async function inviteUser(payload: {
     }
   )
 
-  // Send a Supabase invite email so the user sets their own password
-  const { data, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-    payload.email,
-    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'}/login` }
-  )
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
-  if (inviteError) return { error: inviteError.message }
+  // Generate invite link without sending an email — avoids rate limits
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    type: 'invite',
+    email: payload.email,
+    options: { redirectTo: `${siteUrl}/login` },
+  })
 
-  const userId = data.user.id
+  if (linkError) return { error: linkError.message }
+
+  const userId = linkData.user.id
+  const inviteLink = linkData.properties?.action_link
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: userId,
@@ -54,5 +57,5 @@ export async function inviteUser(payload: {
     module: 'field_management',
   })
 
-  return { error: null }
+  return { error: null, inviteLink }
 }
