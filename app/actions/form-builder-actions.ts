@@ -11,7 +11,7 @@ function adminClient() {
 
 // Default sections added to every new form — one per field type
 const DEFAULT_SECTIONS = [
-  { title: 'General Information',      fieldType: 'text',      fieldLabel: 'Name / Description' },
+  { title: 'Customer Information',      fieldType: 'text',      fieldLabel: 'Customer Name' },
   { title: 'Measurements & Numbers',   fieldType: 'number',    fieldLabel: 'Value' },
   { title: 'Notes & Remarks',          fieldType: 'long_text', fieldLabel: 'Remarks' },
   { title: 'Selection',                fieldType: 'dropdown',  fieldLabel: 'Select option' },
