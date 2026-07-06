@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { saveForm, createForm } from '@/app/actions/save-form'
 import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType, StatusType } from '@/lib/types'
 
 const JOB_TYPES: { value: JobType; label: string }[] = [
@@ -93,9 +94,10 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
 
   async function ensureForm(): Promise<string> {
     if (formId) return formId
-    const { data } = await supabase.from('forms').insert({ name: formName || 'Untitled', job_type: jobType, status: 'draft', field_count: 0 }).select().single()
-    if (data) { setFormId(data.id); return data.id }
-    throw new Error('Failed to create form')
+    const { id, error } = await createForm({ name: formName || 'Untitled', job_type: jobType, status: 'draft', field_count: 0 })
+    if (error || !id) throw new Error(error || 'Failed to create form')
+    setFormId(id)
+    return id
   }
 
   async function addSection() {
@@ -168,17 +170,23 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
 
   async function handleSave(status: 'draft' | 'active') {
     setSaving(true)
-    // Flush any unsaved field property edits before saving
-    if (selected?.type === 'field') {
-      const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
-      await supabase.from('form_fields').update(updates).eq('id', selected.id)
+    try {
+      // Flush any unsaved field property edits before saving
+      if (selected?.type === 'field') {
+        const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
+        await supabase.from('form_fields').update(updates).eq('id', selected.id)
+      }
+      const fid = await ensureForm()
+      const fieldCount = sections.reduce((n, s) => n + s.fields.length + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
+      const { error } = await saveForm(fid, { name: formName, job_type: jobType, status, field_count: fieldCount })
+      if (error) { alert(`Save failed: ${error}`); return }
+      onSaved()
+      onClose()
+    } catch (e: unknown) {
+      alert(`Save failed: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSaving(false)
     }
-    const fid = await ensureForm()
-    const fieldCount = sections.reduce((n, s) => n + s.fields.length + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
-    await supabase.from('forms').update({ name: formName, job_type: jobType, status, field_count: fieldCount, updated_at: new Date().toISOString() }).eq('id', fid)
-    setSaving(false)
-    onSaved()
-    onClose()
   }
 
   if (!open) return null

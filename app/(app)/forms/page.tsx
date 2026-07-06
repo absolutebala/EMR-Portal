@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import FormBuilder from '@/components/forms/FormBuilder'
 import AssignModal from '@/components/forms/AssignModal'
 import { JobTypeBadge, FormStatusBadge } from '@/components/ui/Badge'
 import { duplicateForm } from '@/app/actions/duplicate-form'
+import { toggleFormStatus } from '@/app/actions/toggle-form-status'
 import type { Form } from '@/lib/types'
 
 function formatDate(d: string) {
@@ -25,7 +26,7 @@ export default function FormsPage() {
   const [duplicating, setDuplicating] = useState<string | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Form | null>(null)
   const [duplicateName, setDuplicateName] = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadForms = useCallback(async () => {
     setLoading(true)
@@ -51,8 +52,8 @@ export default function FormsPage() {
   })
 
   async function toggleStatus(form: Form) {
-    const newStatus = form.status === 'active' ? 'draft' : 'active'
-    await supabase.from('forms').update({ status: newStatus }).eq('id', form.id)
+    const { error } = await toggleFormStatus(form.id, form.status)
+    if (error) { alert(`Failed to update form status: ${error}`); return }
     loadForms()
   }
 
