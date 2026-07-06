@@ -56,6 +56,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [propHelp, setPropHelp] = useState('')
   const [saving, setSaving] = useState(false)
   const [formId, setFormId] = useState<string | null>(editForm?.id || null)
+  const [publishConflict, setPublishConflict] = useState<{ conflictName: string; pendingFormId: string } | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
@@ -168,17 +169,20 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
     setSelected(null)
   }
 
-  async function handleSave(status: 'draft' | 'active') {
+  async function handleSave(status: 'draft' | 'active', forceSwap = false) {
     setSaving(true)
     try {
-      // Flush any unsaved field property edits before saving
       if (selected?.type === 'field') {
         const updates = { label: propLabel, field_type: propType, is_required: propRequired, prefill_from_job: propPrefill, read_only_on_mobile: propReadOnly, placeholder: propPlaceholder || null, help_text: propHelp || null }
         await supabase.from('form_fields').update(updates).eq('id', selected.id)
       }
       const fid = await ensureForm()
       const fieldCount = sections.reduce((n, s) => n + s.fields.length + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
-      const { error } = await saveForm(fid, { name: formName, job_type: jobType, status, field_count: fieldCount })
+      const { error, conflict } = await saveForm(fid, { name: formName, job_type: jobType, status, field_count: fieldCount }, forceSwap)
+      if (conflict) {
+        setPublishConflict({ conflictName: conflict.name, pendingFormId: fid })
+        return
+      }
       if (error) { alert(`Save failed: ${error}`); return }
       onSaved()
       onClose()
@@ -187,6 +191,11 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
     } finally {
       setSaving(false)
     }
+  }
+
+  async function confirmPublishSwap() {
+    setPublishConflict(null)
+    await handleSave('active', true)
   }
 
   if (!open) return null
@@ -486,9 +495,25 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
           <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
           <button onClick={() => handleSave('draft')} disabled={saving} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'transparent', color: 'var(--txm)', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>Save as draft</button>
           <button onClick={() => setTab('preview')} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Preview on mobile</button>
-          <button onClick={() => handleSave('active')} disabled={saving} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>Publish form</button>
+          <button onClick={() => handleSave('active')} disabled={saving} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>{saving ? 'Saving…' : 'Publish form'}</button>
         </div>
       </div>
+
+      {/* Publish conflict confirmation */}
+      {publishConflict && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 8 }}>Cannot assign two forms for one Job Type</div>
+            <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 20, lineHeight: 1.6 }}>
+              Publishing <strong>{formName}</strong> will unpublish <strong>{publishConflict.conflictName}</strong>. Continue?
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setPublishConflict(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+              <button onClick={confirmPublishSwap} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Yes, publish</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

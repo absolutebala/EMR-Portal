@@ -26,6 +26,7 @@ export default function FormsPage() {
   const [duplicating, setDuplicating] = useState<string | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Form | null>(null)
   const [duplicateName, setDuplicateName] = useState('')
+  const [publishConflict, setPublishConflict] = useState<{ form: Form; conflictName: string } | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForms = useCallback(async () => {
@@ -51,10 +52,18 @@ export default function FormsPage() {
     return matchSearch && matchJob
   })
 
-  async function toggleStatus(form: Form) {
-    const { error } = await toggleFormStatus(form.id, form.status)
+  async function toggleStatus(form: Form, forceSwap = false) {
+    const { error, conflict } = await toggleFormStatus(form.id, form.status, form.job_type, forceSwap)
     if (error) { alert(`Failed to update form status: ${error}`); return }
+    if (conflict) { setPublishConflict({ form, conflictName: conflict.name }); return }
     loadForms()
+  }
+
+  async function confirmPublishSwap() {
+    if (!publishConflict) return
+    const { form } = publishConflict
+    setPublishConflict(null)
+    await toggleStatus(form, true)
   }
 
   function openDuplicate(form: Form) {
@@ -160,6 +169,22 @@ export default function FormsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => setDuplicateTarget(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
                 <button onClick={confirmDuplicate} disabled={!duplicateName.trim()} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: duplicateName.trim() ? 1 : .5 }}>Duplicate</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Publish conflict confirmation dialog */}
+        {publishConflict && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 8 }}>Cannot assign two forms for one Job Type</div>
+              <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 20, lineHeight: 1.6 }}>
+                Publishing <strong>{publishConflict.form.name}</strong> will unpublish <strong>{publishConflict.conflictName}</strong>. Continue?
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setPublishConflict(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+                <button onClick={confirmPublishSwap} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Yes, publish</button>
               </div>
             </div>
           </div>
