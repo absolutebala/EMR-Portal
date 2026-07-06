@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
+import BulkUploadModal from '@/components/users/BulkUploadModal'
 import RolesModal from '@/components/users/RolesModal'
 import { RoleBadge, StatusBadge } from '@/components/ui/Badge'
 import { resendInvite } from '@/app/actions/resend-invite'
@@ -26,6 +27,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [showBulk, setShowBulk] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
   const [editUser, setEditUser] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -103,6 +105,10 @@ export default function UsersPage() {
             <button onClick={() => setShowRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               Roles &amp; Permissions
+            </button>
+            <button onClick={() => setShowBulk(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Bulk Upload
             </button>
             <button onClick={() => { setEditUser(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -182,6 +188,7 @@ export default function UsersPage() {
         </div>
 
         <AddUserModal open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser}/>
+        <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={loadUsers}/>
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)}/>
       </div>
     </>
