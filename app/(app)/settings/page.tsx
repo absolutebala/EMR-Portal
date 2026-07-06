@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
-import { saveSettings, uploadLogo } from '@/app/actions/save-settings'
+import { saveSettings } from '@/app/actions/save-settings'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
@@ -32,7 +32,6 @@ export default function SettingsPage() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadSettings = useCallback(async () => {
@@ -51,7 +50,6 @@ export default function SettingsPage() {
         sms_sender_id: data.sms_sender_id || '',
         logo_url: data.logo_url || '',
       })
-      if (data.logo_url) setLogoPreview(data.logo_url)
     }
   }, [supabase])
 
@@ -76,30 +74,6 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(null), 2000)
   }
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file || !settingsId) return
-
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const base64Data = ev.target?.result as string
-      setLogoPreview(base64Data)
-
-      const ext = file.name.split('.').pop() || 'png'
-      setSaving('branding')
-      const { error, url } = await uploadLogo(settingsId, base64Data, file.type, ext)
-      setSaving(null)
-      if (error) { alert(`Logo upload failed: ${error}`); return }
-      if (url) {
-        setLogoPreview(url)
-        setSettings(s => ({ ...s, logo_url: url }))
-        setSaved('branding')
-        setTimeout(() => setSaved(null), 2000)
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
   function applyTheme(t: typeof THEMES[0]) {
     document.documentElement.style.setProperty('--m', t.color)
     document.documentElement.style.setProperty('--mdk', t.mdk)
@@ -117,46 +91,6 @@ export default function SettingsPage() {
     <>
       <Topbar title="Settings" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px', maxWidth: 800 }}>
-
-        {/* Branding */}
-        <div style={ss}>
-          <h3 style={h3s}>Organisation branding</h3>
-          <p style={ps}>Upload your company logo and customise the portal appearance.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Company logo</div>
-              <label style={{ border: '2px dashed var(--mb)', borderRadius: 10, padding: 24, textAlign: 'center', cursor: 'pointer', display: 'block', transition: 'all .15s', position: 'relative' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLLabelElement).style.borderColor='var(--m)'; (e.currentTarget as HTMLLabelElement).style.background='var(--mp)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLLabelElement).style.borderColor='var(--mb)'; (e.currentTarget as HTMLLabelElement).style.background='' }}>
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload}/>
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" style={{ maxHeight: 60, maxWidth: '100%', marginBottom: 8, display: 'block', margin: '0 auto 8px' }}/>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--m)" strokeWidth="1.5" style={{ display: 'block', margin: '0 auto 7px', opacity: .5 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                )}
-                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m)' }}>{saving === 'branding' ? 'Uploading…' : logoPreview ? 'Click to change' : 'Click to upload logo'}</div>
-                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>PNG, SVG or JPG · Max 2MB</div>
-                {saved === 'branding' && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4 }}>✓ Saved</div>}
-              </label>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Preview</div>
-              <div style={{ background: 'var(--mdk)', borderRadius: 10, padding: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 8 }}/>
-                ) : (
-                  <div style={{ width: 32, height: 32, background: 'var(--m)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
-                  </div>
-                )}
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{settings.org_name}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)' }}>Admin Portal</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Colour theme */}
         <div style={ss}>
