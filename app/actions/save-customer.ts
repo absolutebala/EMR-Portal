@@ -51,6 +51,16 @@ export async function addCustomer(payload: {
     })
     if (te) return { error: te.message }
 
+    // Create primary contact record
+    await sb.from('customer_contacts').insert({
+      customer_id: cust.id,
+      name: payload.contact_person,
+      phone: payload.phone,
+      email: payload.email,
+      whatsapp_number: payload.whatsapp_number,
+      is_primary: true,
+    })
+
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

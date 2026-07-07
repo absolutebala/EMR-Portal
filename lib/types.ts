@@ -41,6 +41,18 @@ export interface Customer {
   created_at: string
 }
 
+export interface CustomerContact {
+  id: string
+  customer_id: string
+  name: string
+  designation: string | null
+  phone: string | null
+  email: string | null
+  whatsapp_number: string | null
+  is_primary: boolean
+  created_at: string
+}
+
 export interface CustomerSite {
   id: string
   customer_id: string

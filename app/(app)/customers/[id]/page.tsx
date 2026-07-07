@@ -3,16 +3,18 @@ import { createClient } from '@/lib/supabase/server'
 import Topbar from '@/components/layout/Topbar'
 import CustomerInfoClient from '@/components/customers/CustomerInfoClient'
 import TransformerTableClient from '@/components/customers/TransformerTableClient'
+import ContactsTableClient from '@/components/customers/ContactsTableClient'
 import Link from 'next/link'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: customer }, { data: sites }, { data: transformers }, { data: { user } }] = await Promise.all([
+  const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, { data: { user } }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     supabase.from('customer_sites').select('*').eq('customer_id', id),
     supabase.from('transformers').select('*').eq('customer_id', id),
+    supabase.from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
     supabase.auth.getUser(),
   ])
 
@@ -55,6 +57,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             ))}
           </div>
         </div>
+
+        {/* Contacts table */}
+        <ContactsTableClient
+          customerId={customer.id}
+          contacts={contacts || []}
+          canEdit={canEdit}
+        />
 
         {/* Full-width transformer table */}
         <TransformerTableClient
