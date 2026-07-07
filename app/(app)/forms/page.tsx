@@ -9,6 +9,7 @@ import { JobTypeBadge, FormStatusBadge } from '@/components/ui/Badge'
 import { duplicateForm } from '@/app/actions/duplicate-form'
 import { toggleFormStatus } from '@/app/actions/toggle-form-status'
 import { deleteForm } from '@/app/actions/assign-form'
+import { getForms } from '@/app/actions/get-forms'
 import type { Form } from '@/lib/types'
 
 function formatDate(d: string) {
@@ -34,10 +35,10 @@ export default function FormsPage() {
 
   const loadForms = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('forms').select('*').order('updated_at', { ascending: false })
-    setForms(data || [])
+    const { data } = await getForms()
+    setForms((data as Form[]) || [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     loadForms()
