@@ -35,44 +35,6 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 12 }}>Getting started</div>
-            {[
-              { step: 1, text: 'Configure Settings — update org name, logo and branding', done: false },
-              { step: 2, text: 'Add Users — invite your team with role-based access', done: false },
-              { step: 3, text: 'Add Customers — register client organisations and sites', done: false },
-              { step: 4, text: 'Review the seeded MOM form in the Forms module', done: false },
-            ].map(item => (
-              <div key={item.step} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--gm)' }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: item.done ? 'var(--green)' : 'var(--mp)', border: `2px solid ${item.done ? 'var(--green)' : 'var(--mb)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: item.done ? '#fff' : 'var(--m)', flexShrink: 0 }}>
-                  {item.step}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--tx)', paddingTop: 2 }}>{item.text}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 12 }}>Sprint 1 modules</div>
-            {[
-              { name: 'Users', status: 'Live', path: '/users' },
-              { name: 'Customers', status: 'Live', path: '/customers' },
-              { name: 'Settings', status: 'Live', path: '/settings' },
-              { name: 'Forms (Form Builder)', status: 'Live', path: '/forms' },
-              { name: 'Work Orders', status: 'Sprint 2' },
-              { name: 'Field Engineers', status: 'Sprint 2' },
-              { name: 'Products (SAP)', status: 'Sprint 2' },
-            ].map(m => (
-              <div key={m.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--gm)' }}>
-                <span style={{ fontSize: 12, color: 'var(--tx)' }}>{m.name}</span>
-                <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: m.status === 'Live' ? '#D1FAE5' : 'var(--gl)', color: m.status === 'Live' ? '#065F46' : 'var(--txm)' }}>
-                  {m.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </>
   )
