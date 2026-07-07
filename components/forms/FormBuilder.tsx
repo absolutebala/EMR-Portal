@@ -507,30 +507,77 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                 Preview — how this form appears on the mobile app
               </div>
               {sections.map(sec => (
-                <div key={sec.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 14, marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--m)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>{sec.title}</div>
-                  {sec.fields.map(f => (
-                    <div key={f.id} style={{ marginBottom: 10 }}>
-                      {f.field_type !== 'checkbox' && (
-                        <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>
-                          {f.label}{f.is_required && <span style={{ color: 'var(--red)' }}> *</span>}
-                        </label>
-                      )}
-                      {f.prefill_from_job ? (
-                        <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, color: 'var(--txm)' }}>Auto-filled from job</div>
-                      ) : f.field_type === 'long_text' ? (
-                        <textarea readOnly rows={2} placeholder={f.placeholder || 'Enter text…'} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', resize: 'none', outline: 'none', color: 'var(--tx)' }}/>
-                      ) : f.field_type === 'signature' ? (
-                        <div style={{ border: '1.5px dashed var(--gm)', borderRadius: 7, padding: '20px', textAlign: 'center', fontSize: 11, color: 'var(--txm)' }}>Tap to sign</div>
-                      ) : f.field_type === 'photo' ? (
-                        <div style={{ border: '1.5px dashed var(--gm)', borderRadius: 7, padding: '16px', textAlign: 'center', fontSize: 11, color: 'var(--txm)' }}>Tap to capture photo</div>
-                      ) : f.field_type === 'checkbox' ? (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}><input type="checkbox" style={{ accentColor: 'var(--m)' }}/>{f.label}</label>
-                      ) : (
-                        <input type={f.field_type === 'date' ? 'date' : 'text'} placeholder={f.placeholder || ''} readOnly={f.read_only_on_mobile} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--tx)' }}/>
-                      )}
-                    </div>
-                  ))}
+                <div key={sec.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ background: 'var(--mdk)', padding: '9px 14px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', textTransform: 'uppercase', letterSpacing: '.5px' }}>{sec.title}</span>
+                  </div>
+                  <div style={{ padding: sec.tables.length > 0 && sec.fields.length === 0 ? 0 : 14 }}>
+                    {sec.fields.map(f => (
+                      <div key={f.id} style={{ marginBottom: 10 }}>
+                        {f.field_type !== 'checkbox' && (
+                          <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>
+                            {f.label}{f.is_required && <span style={{ color: 'var(--red)' }}> *</span>}
+                          </label>
+                        )}
+                        {f.prefill_from_job ? (
+                          <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, color: 'var(--txm)' }}>Auto-filled from job</div>
+                        ) : f.field_type === 'long_text' ? (
+                          <textarea readOnly rows={2} placeholder={f.placeholder || 'Enter text…'} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', resize: 'none', outline: 'none', color: 'var(--tx)' }}/>
+                        ) : f.field_type === 'signature' ? (
+                          <div style={{ border: '1.5px dashed var(--gm)', borderRadius: 7, padding: '20px', textAlign: 'center', fontSize: 11, color: 'var(--txm)' }}>Tap to sign</div>
+                        ) : f.field_type === 'photo' ? (
+                          <div style={{ border: '1.5px dashed var(--gm)', borderRadius: 7, padding: '16px', textAlign: 'center', fontSize: 11, color: 'var(--txm)' }}>Tap to capture photo</div>
+                        ) : f.field_type === 'checkbox' ? (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}><input type="checkbox" style={{ accentColor: 'var(--m)' }}/>{f.label}</label>
+                        ) : (
+                          <input type={f.field_type === 'date' ? 'date' : 'text'} placeholder={f.placeholder || ''} readOnly={f.read_only_on_mobile} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--tx)' }}/>
+                        )}
+                      </div>
+                    ))}
+                    {sec.tables.map(t => (
+                      <table key={t.id} style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#F5F3F5' }}>
+                            <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 44, textAlign: 'center' }}>S.No</th>
+                            <th style={{ padding: '8px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Details</th>
+                            {t.status_type === 'yes_no' && <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 110, textAlign: 'center' }}>Status</th>}
+                            {t.status_type === 'tested_not_tested' && <>
+                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>Tested</th>
+                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>Not Tested</th>
+                            </>}
+                            <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 100, textAlign: 'left' }}>Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {t.rows.map((row, ri) => {
+                            const isSub = !!row.parent_row_id
+                            const isParent = !isSub
+                            return (
+                              <tr key={row.id} style={{ background: ri % 2 === 0 ? 'var(--mp)' : '#fff', borderBottom: '1px solid var(--gm)' }}>
+                                <td style={{ padding: isSub ? '7px 10px' : '10px', textAlign: 'center', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 700 : 400, color: isParent ? 'var(--m)' : 'var(--txm)' }}>{row.sno_label}</td>
+                                <td style={{ padding: isSub ? '8px 12px 8px 22px' : '10px 12px', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 500 : 400, color: 'var(--tx)', fontStyle: isSub ? 'italic' : 'normal' }}>{row.row_label}</td>
+                                {t.status_type === 'yes_no' && (
+                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                    {isParent && <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                      <span style={{ background: '#D1FAE5', color: '#065F46', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>Yes</span>
+                                      <span style={{ background: '#F1F5F9', color: '#475569', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>No</span>
+                                    </div>}
+                                  </td>
+                                )}
+                                {t.status_type === 'tested_not_tested' && <>
+                                  <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#059669' }} readOnly/>}</td>
+                                  <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#D97706' }} readOnly/>}</td>
+                                </>}
+                                <td style={{ padding: '8px 10px' }}>
+                                  {(t.status_type === 'yes_no' || isSub) && <input style={{ width: '100%', border: '1px solid var(--gm)', borderRadius: 5, padding: '4px 7px', fontSize: 11, fontFamily: 'Poppins,sans-serif', outline: 'none' }} placeholder="Remarks" readOnly/>}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
