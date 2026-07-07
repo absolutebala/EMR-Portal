@@ -78,8 +78,10 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
-    const { data } = await getFormData(id)
-    if (data) setSections(data as FullSection[])
+    setSections([])
+    const { data, error } = await getFormData(id)
+    if (error) { alert(`Failed to load form: ${error}`); return }
+    setSections((data as FullSection[]) || [])
   }, [])
 
   useEffect(() => {
