@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { saveForm } from '@/app/actions/save-form'
 import {
   createFormWithDefaults,
+  getFormData,
   addFormSection,
   updateFormSectionTitle,
   deleteFormSection,
@@ -77,21 +78,9 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
-    const { data: secs } = await supabase.from('form_sections').select('*').eq('form_id', id).order('order_index')
-    if (!secs) return
-    const fullSecs = await Promise.all(secs.map(async sec => {
-      const [{ data: fields }, { data: tables }] = await Promise.all([
-        supabase.from('form_fields').select('*').eq('section_id', sec.id).order('order_index'),
-        supabase.from('form_tables').select('*').eq('section_id', sec.id).order('order_index'),
-      ])
-      const tablesWithRows = await Promise.all((tables || []).map(async t => {
-        const { data: rows } = await supabase.from('form_table_rows').select('*').eq('table_id', t.id).order('order_index')
-        return { ...t, rows: rows || [] }
-      }))
-      return { ...sec, fields: fields || [], tables: tablesWithRows }
-    }))
-    setSections(fullSecs)
-  }, [supabase])
+    const { data } = await getFormData(id)
+    if (data) setSections(data as FullSection[])
+  }, [])
 
   useEffect(() => {
     if (!open) return
