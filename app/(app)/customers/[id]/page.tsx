@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Topbar from '@/components/layout/Topbar'
-import { CustomerTypeBadge } from '@/components/ui/Badge'
+import CustomerDetailClient from '@/components/customers/CustomerDetailClient'
 import Link from 'next/link'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,48 +21,27 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
 
-  const warrantyLabels: Record<string, { label: string; bg: string; color: string }> = {
-    under_warranty: { label: 'Under warranty', bg: '#D1FAE5', color: '#065F46' },
-    expired: { label: 'Expired', bg: '#FEE2E2', color: '#991B1B' },
-    amc: { label: 'AMC', bg: '#DBEAFE', color: '#1E40AF' },
-  }
+  const { data: roleData } = await supabase.from('roles').select('permissions').eq('name', userRole).maybeSingle()
+  const permissions = (roleData?.permissions as Record<string, boolean> | null) ?? {}
+  const hasPerms = Object.keys(permissions).length > 0
+  const canEdit = !hasPerms || permissions['Customers — Create / Edit'] !== false
 
   return (
     <>
       <Topbar title={customer.name} userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-        {/* Back */}
         <Link href="/customers" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--txm)', textDecoration: 'none', marginBottom: 16 }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Back to customers
         </Link>
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
-          {/* Info card */}
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--m)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                {customer.name.split(' ').slice(0,2).map((w: string) => w[0]).join('').toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--tx)' }}>{customer.name}</div>
-                <CustomerTypeBadge type={customer.type}/>
-              </div>
-            </div>
-            {[
-              ['Contact person', customer.contact_person],
-              ['Designation', customer.designation || '—'],
-              ['Phone', customer.phone],
-              ['Email', customer.email || '—'],
-              ['WhatsApp', customer.whatsapp_number || '—'],
-              ['SAP code', customer.sap_customer_code || '—'],
-            ].map(([label, value]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--gm)', fontSize: 12 }}>
-                <span style={{ color: 'var(--txm)' }}>{label}</span>
-                <span style={{ fontWeight: 500, color: 'var(--tx)' }}>{value}</span>
-              </div>
-            ))}
-          </div>
+          <CustomerDetailClient
+            customer={customer}
+            sites={sites || []}
+            transformers={transformers || []}
+            canEdit={canEdit}
+          />
 
           {/* Stats */}
           <div>
@@ -79,45 +58,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Transformers table */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
-          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>Transformer / serial numbers</span>
-            <span style={{ fontSize: 12, color: 'var(--txm)' }}>{transformers?.length || 0} registered</span>
-          </div>
-          {!transformers || transformers.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>No transformers registered yet.</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Site'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {transformers.map((t) => {
-                  const ws = warrantyLabels[t.warranty_status] || { label: t.warranty_status, bg: 'var(--gl)', color: 'var(--txm)' }
-                  const site = sites?.find(s => s.id === t.site_id)
-                  return (
-                    <tr key={t.id} style={{ borderBottom: '1px solid var(--gm)' }}>
-                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 500, color: 'var(--m)' }}>{t.serial_number}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{t.rating || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{t.manufacturer || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{t.year_of_manufacture || '—'}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: ws.bg, color: ws.color }}>{ws.label}</span>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{site?.site_name || '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
         </div>
 
         {/* Service history placeholder */}
