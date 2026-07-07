@@ -92,12 +92,15 @@ export async function getFormData(formId: string) {
     const { data: secs, error } = await sb.from('form_sections').select('*').eq('form_id', formId).order('order_index')
     if (error) return { error: error.message, data: null }
     const fullSecs = await Promise.all((secs || []).map(async (sec: { id: string; form_id: string; title: string; order_index: number }) => {
-      const [{ data: fields }, { data: tables }] = await Promise.all([
+      const [{ data: fields, error: fErr }, { data: tables, error: tErr }] = await Promise.all([
         sb.from('form_fields').select('*').eq('section_id', sec.id).order('order_index'),
         sb.from('form_tables').select('*').eq('section_id', sec.id).order('order_index'),
       ])
+      if (fErr) throw new Error(`form_fields [${sec.title}]: ${fErr.message}`)
+      if (tErr) throw new Error(`form_tables [${sec.title}]: ${tErr.message}`)
       const tablesWithRows = await Promise.all((tables || []).map(async (t: { id: string }) => {
-        const { data: rows } = await sb.from('form_table_rows').select('*').eq('table_id', t.id).order('order_index')
+        const { data: rows, error: rErr } = await sb.from('form_table_rows').select('*').eq('table_id', t.id).order('order_index')
+        if (rErr) throw new Error(`form_table_rows [table ${t.id}]: ${rErr.message}`)
         return { ...t, rows: rows || [] }
       }))
       return { ...sec, fields: fields || [], tables: tablesWithRows }
