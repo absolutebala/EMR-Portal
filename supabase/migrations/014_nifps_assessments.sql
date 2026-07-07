@@ -1,8 +1,8 @@
 create table if not exists public.nifps_assessments (
   id uuid primary key default gen_random_uuid(),
-  customer_id uuid references public.customers(id) on delete set null,
-  transformer_id uuid references public.transformers(id) on delete set null,
-  created_by uuid references public.profiles(id) on delete set null,
+  customer_id uuid,
+  transformer_id uuid,
+  created_by uuid,
   status text not null default 'draft' check (status in ('draft', 'submitted')),
   form_data jsonb not null default '{}',
   created_at timestamptz not null default now(),
