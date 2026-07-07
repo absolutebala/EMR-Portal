@@ -520,9 +520,11 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--m)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>{sec.title}</div>
                   {sec.fields.map(f => (
                     <div key={f.id} style={{ marginBottom: 10 }}>
-                      <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>
-                        {f.label}{f.is_required && <span style={{ color: 'var(--red)' }}> *</span>}
-                      </label>
+                      {f.field_type !== 'checkbox' && (
+                        <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>
+                          {f.label}{f.is_required && <span style={{ color: 'var(--red)' }}> *</span>}
+                        </label>
+                      )}
                       {f.prefill_from_job ? (
                         <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, color: 'var(--txm)' }}>Auto-filled from job</div>
                       ) : f.field_type === 'long_text' ? (
