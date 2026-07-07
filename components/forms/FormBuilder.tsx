@@ -76,11 +76,13 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const [previewSel, setPreviewSel] = useState<Record<string, { c1: boolean; c2: boolean }>>({})
+  const [previewObsSel, setPreviewObsSel] = useState<Record<string, 'progress' | 'completed' | 'na'>>({})
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
     setSections([])
     setPreviewSel({})
+    setPreviewObsSel({})
     const { data, error } = await getFormData(id)
     if (error) { alert(`Failed to load form: ${error}`); return }
     setSections((data as FullSection[]) || [])
@@ -336,7 +338,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                           <div key={t.id} style={{ border: '1.5px solid var(--gm)', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--gl)' }}>
                               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (exclusive)' : ''}` : t.status_type.replace(/_/g, ' ')}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (exclusive)' : ''}` : t.status_type === 'measurement' ? `${t.col2_label ? t.col2_label + ' · ' : ''}${t.col1_label || 'measurement'}` : t.status_type === 'observation' ? 'Observation checklist' : t.status_type.replace(/_/g, ' ')}</span>
                               <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)' }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
                             </div>
                             <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>
@@ -351,7 +353,14 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                                 <div style={{ width: 56, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#065F46', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#ECFDF5' }}>{t.col1_label || 'Col 1'}</div>
                                 <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#1E40AF', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#EFF6FF' }}>{t.col2_label || 'Col 2'}</div>
                               </>}
-                              {t.status_type !== 'two_party_exclusive' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>}
+                              {t.status_type === 'observation' && <>
+                                <div style={{ width: 94, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Status</div>
+                                <div style={{ width: 56, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Details</div>
+                              </>}
+                              {t.status_type === 'measurement' && (
+                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--m)', textTransform: 'uppercase', textAlign: 'center' }}>{t.col1_label || 'Value'}</div>
+                              )}
+                              {t.status_type !== 'two_party_exclusive' && t.status_type !== 'observation' && t.status_type !== 'measurement' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>}
                             </div>
                             {t.rows.slice(0, 3).map(row => (
                               <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff') }}>
@@ -368,7 +377,19 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                                   <div style={{ width: 56, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#059669', width: 13, height: 13 }} readOnly/></div>
                                   <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#3B82F6', width: 13, height: 13 }} readOnly/></div>
                                 </>}
-                                {t.status_type !== 'two_party_exclusive' && <div style={{ width: 60 }}/>}
+                                {t.status_type === 'observation' && <>
+                                  <div style={{ width: 94, borderRight: '1px solid var(--gm)', display: 'flex', gap: 3, padding: '5px 6px', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#FEF3C7', color: '#92400E', whiteSpace: 'nowrap' }}>Prog.</span>
+                                    <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>Done</span>
+                                  </div>
+                                  <div style={{ width: 56 }}/>
+                                </>}
+                                {t.status_type === 'measurement' && (
+                                  <div style={{ width: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 10, color: 'var(--txm)', border: '1px solid var(--gm)', borderRadius: 4, padding: '3px 8px', background: '#F9FAFB' }}>—</span>
+                                  </div>
+                                )}
+                                {t.status_type !== 'two_party_exclusive' && t.status_type !== 'observation' && t.status_type !== 'measurement' && <div style={{ width: 60 }}/>}
                               </div>
                             ))}
                             {t.rows.length > 3 && (
@@ -546,6 +567,71 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                       </div>
                     ))}
                     {sec.tables.map(t => {
+                      if (t.status_type === 'observation') {
+                        return (
+                          <div key={t.id}>
+                            {t.rows.map((row) => {
+                              const key = `${t.id}__${row.id}`
+                              const status = previewObsSel[key]
+                              const opts = [
+                                { k: 'progress' as const, label: 'In Progress', bg: '#D97706' },
+                                { k: 'completed' as const, label: 'Completed', bg: '#059669' },
+                                { k: 'na' as const, label: 'N / A', bg: '#6B7280' },
+                              ]
+                              return (
+                                <div key={row.id} style={{ borderBottom: '1px solid var(--gm)', padding: '14px 16px' }}>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'flex-start' }}>
+                                    <span style={{ fontWeight: 700, color: 'var(--m)', fontSize: 13, flexShrink: 0, minWidth: 22 }}>{row.sno_label}.</span>
+                                    <span style={{ fontSize: 12.5, color: 'var(--tx)', lineHeight: 1.6 }}>{row.row_label}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                    {opts.map(opt => {
+                                      const sel = status === opt.k
+                                      return (
+                                        <button key={opt.k} onClick={() => setPreviewObsSel(s => { const n = { ...s }; if (sel) delete n[key]; else n[key] = opt.k; return n })} style={{ flex: 1, padding: '10px 4px', border: `2px solid ${sel ? opt.bg : '#E5E7EB'}`, borderRadius: 8, fontSize: 11, fontWeight: 700, color: sel ? '#fff' : '#9CA3AF', background: sel ? opt.bg : '#fff', cursor: 'pointer', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Poppins,sans-serif', transition: 'all .15s', outline: 'none' }}>
+                                          {opt.label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                  <textarea readOnly rows={2} placeholder="Details / Remarks…" style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '9px 12px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--txm)', resize: 'none', boxSizing: 'border-box' }}/>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      }
+                      if (t.status_type === 'measurement') {
+                        return (
+                          <div key={t.id}>
+                            {t.col2_label && (
+                              <div style={{ padding: '7px 16px', background: '#F5F3F5', fontSize: 11, fontWeight: 700, color: 'var(--m)', borderBottom: '1px solid var(--gm)', letterSpacing: '.3px' }}>
+                                {t.col2_label}
+                              </div>
+                            )}
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: '#FAFAFA' }}>
+                                  <th style={{ width: 40, padding: '7px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'center' }}>S.No</th>
+                                  <th style={{ padding: '7px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Description</th>
+                                  <th style={{ width: 84, padding: '7px 10px', fontSize: 10, fontWeight: 600, color: 'var(--m)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'center' }}>{t.col1_label || 'Value'}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {t.rows.map((row, ri) => (
+                                  <tr key={row.id} style={{ background: ri % 2 === 0 ? 'var(--mp)' : '#fff', borderBottom: '1px solid var(--gm)' }}>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--m)' }}>{row.sno_label}</td>
+                                    <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--tx)' }}>{row.row_label}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                                      <input type="number" readOnly placeholder="0" style={{ width: 64, border: '1.5px solid var(--gm)', borderRadius: 6, padding: '6px 8px', fontSize: 13, fontFamily: 'Poppins,sans-serif', outline: 'none', textAlign: 'right', background: '#fff' }}/>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      }
                       if (t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') {
                         const isExcl = t.status_type === 'two_party_exclusive'
                         return (

@@ -91,7 +91,7 @@ export interface AppSettings {
 export type FormStatus = 'draft' | 'active'
 export type JobType = 'site_inspection' | 'amc' | 'commissioning_activities' | 'supervision'
 export type FieldType = 'text' | 'long_text' | 'number' | 'date' | 'dropdown' | 'photo' | 'signature' | 'checkbox'
-export type StatusType = 'yes_no' | 'tested_not_tested' | 'checkbox_only' | 'two_party' | 'two_party_exclusive'
+export type StatusType = 'yes_no' | 'tested_not_tested' | 'checkbox_only' | 'two_party' | 'two_party_exclusive' | 'observation' | 'measurement'
 
 export interface Form {
   id: string
