@@ -80,8 +80,12 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const loadForm = useCallback(async (id: string) => {
     setSections([])
     const { data, error } = await getFormData(id)
-    if (error) { alert(`Failed to load form: ${error}`); return }
-    setSections((data as FullSection[]) || [])
+    if (error) { alert(`getFormData error: ${error}`); return }
+    const secs = (data as FullSection[]) || []
+    const tableCount = secs.reduce((n, s) => n + s.tables.length, 0)
+    const rowCount = secs.reduce((n, s) => n + s.tables.reduce((m, t) => m + t.rows.length, 0), 0)
+    alert(`Loaded: ${secs.length} sections · ${tableCount} tables · ${rowCount} rows`)
+    setSections(secs)
   }, [])
 
   useEffect(() => {
