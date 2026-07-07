@@ -75,10 +75,12 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [publishConflict, setPublishConflict] = useState<{ conflictName: string } | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+  const [previewSel, setPreviewSel] = useState<Record<string, { c1: boolean; c2: boolean }>>({})
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
     setSections([])
+    setPreviewSel({})
     const { data, error } = await getFormData(id)
     if (error) { alert(`Failed to load form: ${error}`); return }
     setSections((data as FullSection[]) || [])
@@ -545,27 +547,44 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                     ))}
                     {sec.tables.map(t => {
                       if (t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') {
+                        const isExcl = t.status_type === 'two_party_exclusive'
                         return (
-                          <div key={t.id} style={{ margin: '0 -14px' }}>
-                            {t.rows.map((row) => (
-                              <div key={row.id} style={{ borderBottom: '1px solid var(--gm)', padding: '12px 14px' }}>
-                                <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 10, lineHeight: 1.5 }}>
-                                  <span style={{ fontWeight: 700, color: 'var(--m)', marginRight: 4 }}>{row.sno_label}.</span>
-                                  {row.row_label}
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, marginBottom: t.status_type === 'two_party' ? 8 : 0 }}>
-                                  <div style={{ flex: 1, padding: '11px 8px', border: '2px solid #059669', borderRadius: 9, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#059669', background: '#ECFDF5', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {t.col1_label || 'Col 1'}
+                          <div key={t.id}>
+                            {t.rows.map((row) => {
+                              const key = `${t.id}__${row.id}`
+                              const sel = previewSel[key] || { c1: false, c2: false }
+                              const toggleC1 = () => setPreviewSel(s => {
+                                const cur = s[key] || { c1: false, c2: false }
+                                return { ...s, [key]: isExcl ? (cur.c1 ? { c1: false, c2: false } : { c1: true, c2: false }) : { ...cur, c1: !cur.c1 } }
+                              })
+                              const toggleC2 = () => setPreviewSel(s => {
+                                const cur = s[key] || { c1: false, c2: false }
+                                return { ...s, [key]: isExcl ? (cur.c2 ? { c1: false, c2: false } : { c1: false, c2: true }) : { ...cur, c2: !cur.c2 } }
+                              })
+                              const c1Disabled = isExcl && sel.c2
+                              const c2Disabled = isExcl && sel.c1
+                              return (
+                                <div key={row.id} style={{ borderBottom: '1px solid var(--gm)', padding: '14px 16px' }}>
+                                  <div style={{ fontSize: 12.5, color: 'var(--tx)', marginBottom: 12, lineHeight: 1.6 }}>
+                                    <span style={{ fontWeight: 700, color: 'var(--m)', marginRight: 5 }}>{row.sno_label}.</span>
+                                    {row.row_label}
                                   </div>
-                                  <div style={{ flex: 1, padding: '11px 8px', border: '2px solid #D1D5DB', borderRadius: 9, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#9CA3AF', background: '#F9FAFB', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {t.col2_label || 'Col 2'}
+                                  <div style={{ display: 'flex', gap: 10, marginBottom: t.status_type === 'two_party' ? 10 : 0 }}>
+                                    <button onClick={toggleC1} style={{ flex: 1, padding: '12px 8px', border: `2px solid ${sel.c1 ? '#059669' : '#D1D5DB'}`, borderRadius: 9, fontSize: 13, fontWeight: 600, color: sel.c1 ? '#fff' : (c1Disabled ? '#C4C4C4' : '#6B7280'), background: sel.c1 ? '#059669' : (c1Disabled ? '#F3F4F6' : '#fff'), cursor: c1Disabled ? 'not-allowed' : 'pointer', minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Poppins,sans-serif', transition: 'all .15s', outline: 'none' }}>
+                                      {sel.c1 && <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                                      {t.col1_label || 'Col 1'}
+                                    </button>
+                                    <button onClick={toggleC2} style={{ flex: 1, padding: '12px 8px', border: `2px solid ${sel.c2 ? '#2563EB' : '#D1D5DB'}`, borderRadius: 9, fontSize: 13, fontWeight: 600, color: sel.c2 ? '#fff' : (c2Disabled ? '#C4C4C4' : '#6B7280'), background: sel.c2 ? '#2563EB' : (c2Disabled ? '#F3F4F6' : '#fff'), cursor: c2Disabled ? 'not-allowed' : 'pointer', minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Poppins,sans-serif', transition: 'all .15s', outline: 'none' }}>
+                                      {sel.c2 && <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                                      {t.col2_label || 'Col 2'}
+                                    </button>
                                   </div>
+                                  {t.status_type === 'two_party' && (
+                                    <input readOnly placeholder="Remarks…" style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '9px 12px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--txm)', boxSizing: 'border-box' }}/>
+                                  )}
                                 </div>
-                                {t.status_type === 'two_party' && (
-                                  <input readOnly placeholder="Remarks…" style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--txm)', boxSizing: 'border-box' }}/>
-                                )}
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )
                       }
