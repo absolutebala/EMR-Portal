@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Topbar from '@/components/layout/Topbar'
-import CustomerDetailClient from '@/components/customers/CustomerDetailClient'
+import CustomerInfoClient from '@/components/customers/CustomerInfoClient'
+import TransformerTableClient from '@/components/customers/TransformerTableClient'
 import Link from 'next/link'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,15 +36,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           Back to customers
         </Link>
 
+        {/* Top row: info card + stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
-          <CustomerDetailClient
-            customer={customer}
-            sites={sites || []}
-            transformers={transformers || []}
-            canEdit={canEdit}
-          />
+          <CustomerInfoClient customer={customer} canEdit={canEdit} />
 
-          {/* Stats */}
           <div>
             {[
               { label: 'Sites', val: sites?.length || 0, color: 'var(--m)' },
@@ -59,6 +55,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             ))}
           </div>
         </div>
+
+        {/* Full-width transformer table */}
+        <TransformerTableClient
+          customer={customer}
+          sites={sites || []}
+          transformers={transformers || []}
+          canEdit={canEdit}
+        />
 
         {/* Service history placeholder */}
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 32, textAlign: 'center' }}>
