@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import FormBuilder from '@/components/forms/FormBuilder'
 import AssignModal from '@/components/forms/AssignModal'
@@ -12,21 +11,11 @@ import { toggleFormStatus } from '@/app/actions/toggle-form-status'
 import { deleteForm } from '@/app/actions/assign-form'
 import type { Form } from '@/lib/types'
 
-const SYSTEM_FORMS = [
-  {
-    id: 'nifps-assessment',
-    name: 'NIFPS Installation – Assessment',
-    description: 'Site assessment form for NIFPS installation projects. Covers pipe measurements, cable requirements, material quantities and observations.',
-    href: '/forms/nifps-assessment',
-  },
-]
-
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 export default function FormsPage() {
-  const router = useRouter()
   const [forms, setForms] = useState<Form[]>([])
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
   const [search, setSearch] = useState('')
@@ -109,37 +98,6 @@ export default function FormsPage() {
     <>
       <Topbar title="Forms" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-
-        {/* System / fixed forms */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 10 }}>System Forms</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {SYSTEM_FORMS.map(sf => (
-              <div key={sf.id} style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 4 }}>{sf.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--txm)', lineHeight: 1.5 }}>{sf.description}</div>
-                  </div>
-                  <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 600, background: 'var(--mp)', color: 'var(--m)', padding: '2px 7px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>System</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => router.push(sf.href)}
-                    style={{ padding: '5px 12px', fontSize: 11, border: 'none', borderRadius: 6, background: 'var(--m)', color: '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', fontWeight: 500 }}>
-                    Open
-                  </button>
-                  <button onClick={() => router.push(`${sf.href}/new`)}
-                    style={{ padding: '5px 12px', fontSize: 11, border: '1px solid var(--mb)', borderRadius: 6, background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', fontWeight: 500 }}>
-                    + New
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 10 }}>Custom Forms</div>
 
         {/* Action bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
