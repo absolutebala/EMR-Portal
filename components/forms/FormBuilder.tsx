@@ -334,7 +334,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                           <div key={t.id} style={{ border: '1.5px solid var(--gm)', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--gl)' }}>
                               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {t.status_type.replace(/_/g, ' ')}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (exclusive)' : ''}` : t.status_type.replace(/_/g, ' ')}</span>
                               <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)' }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
                             </div>
                             <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>
@@ -345,19 +345,28 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                                 <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Tested</div>
                                 <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Not Tested</div>
                               </>}
-                              <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>
+                              {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
+                                <div style={{ width: 56, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#065F46', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#ECFDF5' }}>{t.col1_label || 'Col 1'}</div>
+                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#1E40AF', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#EFF6FF' }}>{t.col2_label || 'Col 2'}</div>
+                              </>}
+                              {t.status_type !== 'two_party_exclusive' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>}
                             </div>
                             {t.rows.slice(0, 3).map(row => (
                               <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff') }}>
                                 <div style={{ width: 40, padding: '7px 8px', fontSize: row.parent_row_id ? 10 : 11, fontWeight: row.parent_row_id ? 400 : 600, color: row.parent_row_id ? 'var(--txm)' : 'var(--m)', borderRight: '1px solid var(--gm)', textAlign: 'center' }}>{row.sno_label}</div>
                                 <div style={{ flex: 1, padding: '7px 8px', fontSize: 11, color: 'var(--tx)', borderRight: '1px solid var(--gm)', paddingLeft: row.parent_row_id ? 18 : 8, fontStyle: row.parent_row_id ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.row_label}</div>
                                 {t.status_type === 'yes_no' && !row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', gap: 2, padding: 6, justifyContent: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>Y</span><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>N</span></div>}
+                                {t.status_type === 'yes_no' && row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)' }}/>}
                                 {t.status_type === 'tested_not_tested' && row.parent_row_id && <>
                                   <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
                                   <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
                                 </>}
-                                {!(t.status_type === 'yes_no' && !row.parent_row_id) && !(t.status_type === 'tested_not_tested' && row.parent_row_id) && <div style={{ width: t.status_type === 'tested_not_tested' ? 130 : 60, borderRight: '1px solid var(--gm)' }}/>}
-                                <div style={{ width: 60 }}/>
+                                {t.status_type === 'tested_not_tested' && !row.parent_row_id && <div style={{ width: 130, borderRight: '1px solid var(--gm)' }}/>}
+                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
+                                  <div style={{ width: 56, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#059669', width: 13, height: 13 }} readOnly/></div>
+                                  <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#3B82F6', width: 13, height: 13 }} readOnly/></div>
+                                </>}
+                                {t.status_type !== 'two_party_exclusive' && <div style={{ width: 60 }}/>}
                               </div>
                             ))}
                             {t.rows.length > 3 && (
@@ -534,49 +543,76 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                         )}
                       </div>
                     ))}
-                    {sec.tables.map(t => (
-                      <table key={t.id} style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ background: '#F5F3F5' }}>
-                            <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 44, textAlign: 'center' }}>S.No</th>
-                            <th style={{ padding: '8px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Details</th>
-                            {t.status_type === 'yes_no' && <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 110, textAlign: 'center' }}>Status</th>}
-                            {t.status_type === 'tested_not_tested' && <>
-                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>Tested</th>
-                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>Not Tested</th>
-                            </>}
-                            <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 100, textAlign: 'left' }}>Remarks</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {t.rows.map((row, ri) => {
-                            const isSub = !!row.parent_row_id
-                            const isParent = !isSub
-                            return (
-                              <tr key={row.id} style={{ background: ri % 2 === 0 ? 'var(--mp)' : '#fff', borderBottom: '1px solid var(--gm)' }}>
-                                <td style={{ padding: isSub ? '7px 10px' : '10px', textAlign: 'center', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 700 : 400, color: isParent ? 'var(--m)' : 'var(--txm)' }}>{row.sno_label}</td>
-                                <td style={{ padding: isSub ? '8px 12px 8px 22px' : '10px 12px', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 500 : 400, color: 'var(--tx)', fontStyle: isSub ? 'italic' : 'normal' }}>{row.row_label}</td>
-                                {t.status_type === 'yes_no' && (
-                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                    {isParent && <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                                      <span style={{ background: '#D1FAE5', color: '#065F46', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>Yes</span>
-                                      <span style={{ background: '#F1F5F9', color: '#475569', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>No</span>
-                                    </div>}
-                                  </td>
+                    {sec.tables.map(t => {
+                      if (t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') {
+                        return (
+                          <div key={t.id} style={{ margin: '0 -14px' }}>
+                            {t.rows.map((row) => (
+                              <div key={row.id} style={{ borderBottom: '1px solid var(--gm)', padding: '12px 14px' }}>
+                                <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 10, lineHeight: 1.5 }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--m)', marginRight: 4 }}>{row.sno_label}.</span>
+                                  {row.row_label}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginBottom: t.status_type === 'two_party' ? 8 : 0 }}>
+                                  <div style={{ flex: 1, padding: '11px 8px', border: '2px solid #059669', borderRadius: 9, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#059669', background: '#ECFDF5', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {t.col1_label || 'Col 1'}
+                                  </div>
+                                  <div style={{ flex: 1, padding: '11px 8px', border: '2px solid #D1D5DB', borderRadius: 9, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#9CA3AF', background: '#F9FAFB', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {t.col2_label || 'Col 2'}
+                                  </div>
+                                </div>
+                                {t.status_type === 'two_party' && (
+                                  <input readOnly placeholder="Remarks…" style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--txm)', boxSizing: 'border-box' }}/>
                                 )}
-                                {t.status_type === 'tested_not_tested' && <>
-                                  <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#059669' }} readOnly/>}</td>
-                                  <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#D97706' }} readOnly/>}</td>
-                                </>}
-                                <td style={{ padding: '8px 10px' }}>
-                                  {(t.status_type === 'yes_no' || isSub) && <input style={{ width: '100%', border: '1px solid var(--gm)', borderRadius: 5, padding: '4px 7px', fontSize: 11, fontFamily: 'Poppins,sans-serif', outline: 'none' }} placeholder="Remarks" readOnly/>}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    ))}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                      return (
+                        <table key={t.id} style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ background: '#F5F3F5' }}>
+                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 44, textAlign: 'center' }}>S.No</th>
+                              <th style={{ padding: '8px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Details</th>
+                              {t.status_type === 'yes_no' && <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 110, textAlign: 'center' }}>Status</th>}
+                              {t.status_type === 'tested_not_tested' && <>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>Tested</th>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>Not Tested</th>
+                              </>}
+                              <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 100, textAlign: 'left' }}>Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {t.rows.map((row, ri) => {
+                              const isSub = !!row.parent_row_id
+                              const isParent = !isSub
+                              return (
+                                <tr key={row.id} style={{ background: ri % 2 === 0 ? 'var(--mp)' : '#fff', borderBottom: '1px solid var(--gm)' }}>
+                                  <td style={{ padding: isSub ? '7px 10px' : '10px', textAlign: 'center', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 700 : 400, color: isParent ? 'var(--m)' : 'var(--txm)' }}>{row.sno_label}</td>
+                                  <td style={{ padding: isSub ? '8px 12px 8px 22px' : '10px 12px', fontSize: isSub ? 11 : 12, fontWeight: isParent ? 500 : 400, color: 'var(--tx)', fontStyle: isSub ? 'italic' : 'normal' }}>{row.row_label}</td>
+                                  {t.status_type === 'yes_no' && (
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                      {isParent && <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                        <span style={{ background: '#D1FAE5', color: '#065F46', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>Yes</span>
+                                        <span style={{ background: '#F1F5F9', color: '#475569', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 600 }}>No</span>
+                                      </div>}
+                                    </td>
+                                  )}
+                                  {t.status_type === 'tested_not_tested' && <>
+                                    <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#059669' }} readOnly/>}</td>
+                                    <td style={{ padding: '8px', textAlign: 'center' }}>{isSub && <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#D97706' }} readOnly/>}</td>
+                                  </>}
+                                  <td style={{ padding: '8px 10px' }}>
+                                    {(t.status_type === 'yes_no' || isSub) && <input style={{ width: '100%', border: '1px solid var(--gm)', borderRadius: 5, padding: '4px 7px', fontSize: 11, fontFamily: 'Poppins,sans-serif', outline: 'none' }} placeholder="Remarks" readOnly/>}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
