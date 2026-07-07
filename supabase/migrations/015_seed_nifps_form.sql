@@ -34,7 +34,7 @@ create policy "Authenticated users can view forms" on public.forms
 
 drop policy if exists "Admins can manage forms" on public.forms;
 create policy "Admins can manage forms" on public.forms
-  for all using (get_my_role() in ('Super Admin', 'Service Manager'));
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and role in ('Super Admin', 'Service Manager')));
 
 create table if not exists public.form_sections (
   id uuid primary key default gen_random_uuid(),
@@ -51,7 +51,7 @@ create policy "Authenticated users can view form sections" on public.form_sectio
 
 drop policy if exists "Admins can manage form sections" on public.form_sections;
 create policy "Admins can manage form sections" on public.form_sections
-  for all using (get_my_role() in ('Super Admin', 'Service Manager'));
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and role in ('Super Admin', 'Service Manager')));
 
 create table if not exists public.form_fields (
   id uuid primary key default gen_random_uuid(),
@@ -74,7 +74,7 @@ create policy "Authenticated users can view form fields" on public.form_fields
 
 drop policy if exists "Admins can manage form fields" on public.form_fields;
 create policy "Admins can manage form fields" on public.form_fields
-  for all using (get_my_role() in ('Super Admin', 'Service Manager'));
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and role in ('Super Admin', 'Service Manager')));
 
 create table if not exists public.form_tables (
   id uuid primary key default gen_random_uuid(),
@@ -92,7 +92,7 @@ create policy "Authenticated users can view form tables" on public.form_tables
 
 drop policy if exists "Admins can manage form tables" on public.form_tables;
 create policy "Admins can manage form tables" on public.form_tables
-  for all using (get_my_role() in ('Super Admin', 'Service Manager'));
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and role in ('Super Admin', 'Service Manager')));
 
 create table if not exists public.form_table_rows (
   id uuid primary key default gen_random_uuid(),
@@ -111,7 +111,7 @@ create policy "Authenticated users can view form table rows" on public.form_tabl
 
 drop policy if exists "Admins can manage form table rows" on public.form_table_rows;
 create policy "Admins can manage form table rows" on public.form_table_rows
-  for all using (get_my_role() in ('Super Admin', 'Service Manager'));
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and role in ('Super Admin', 'Service Manager')));
 
 -- Trigger to keep forms.updated_at current
 create or replace function update_forms_updated_at()
