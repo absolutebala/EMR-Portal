@@ -17,8 +17,8 @@ DECLARE
   v_sec_id  uuid;
   v_tbl_id  uuid;
 BEGIN
-  SELECT id INTO v_form_id FROM forms WHERE name = 'NIFPS Installation – Assessment' LIMIT 1;
-  IF v_form_id IS NULL THEN RAISE EXCEPTION 'NIFPS Installation – Assessment form not found'; END IF;
+  SELECT id INTO v_form_id FROM forms WHERE name = 'NIFPS Installation - Assessment' LIMIT 1;
+  IF v_form_id IS NULL THEN RAISE EXCEPTION 'NIFPS Installation - Assessment form not found'; END IF;
 
   -- Remove old field-based sections 2, 3, 4 (sections 1, 5-11 stay)
   DELETE FROM form_sections WHERE form_id = v_form_id AND order_index IN (2, 3, 4);
