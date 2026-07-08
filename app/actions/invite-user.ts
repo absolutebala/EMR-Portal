@@ -2,7 +2,28 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient } from '@/lib/supabase/server'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
+
+function generateTempPassword(): string {
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const lower = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const special = '@#$!'
+  const all = upper + lower + digits + special
+  const bytes = randomBytes(8)
+  const chars = Array.from(bytes).map(b => all[b % all.length])
+  // Guarantee one of each required class
+  chars[0] = upper[randomBytes(1)[0] % upper.length]
+  chars[1] = lower[randomBytes(1)[0] % lower.length]
+  chars[2] = digits[randomBytes(1)[0] % digits.length]
+  chars[3] = special[randomBytes(1)[0] % special.length]
+  // Fisher-Yates shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomBytes(1)[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
 
 export async function inviteUser(payload: {
   email: string
@@ -12,7 +33,7 @@ export async function inviteUser(payload: {
   phone: string | null
   role: string
   manager_id: string | null
-}): Promise<{ error: string | null; inviteLink?: string }> {
+}): Promise<{ error: string | null; tempPassword?: string }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -23,12 +44,10 @@ export async function inviteUser(payload: {
   const sSb = await serverClient()
   const { data: { user: currentUser } } = await sSb.auth.getUser()
 
-  // createClient from supabase-js with service role key = full admin access, bypasses RLS
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Verify the admin's profile row exists and get their role (needed for FK + Super Admin guard)
   let createdBy: string | null = null
   let creatorRole: string | null = null
   if (currentUser?.id) {
@@ -37,12 +56,9 @@ export async function inviteUser(payload: {
     creatorRole = adminProfile?.role ?? null
   }
 
-  // Only block if we positively know the creator is not a Super Admin
   if (payload.role === 'Super Admin' && creatorRole !== null && creatorRole !== 'Super Admin') {
     return { error: 'Only Super Admins can assign the Super Admin role.' }
   }
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
   // Check for duplicate employee ID
   const { data: existing } = await supabase
@@ -53,18 +69,18 @@ export async function inviteUser(payload: {
 
   if (existing) return { error: `Employee ID "${payload.employee_id}" is already assigned to another user.` }
 
-  // Generate invite link without sending an email — avoids rate limits
-  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-    type: 'invite',
+  const tempPassword = generateTempPassword()
+
+  // Create auth user with a known temporary password
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: payload.email,
-    options: { redirectTo: `${siteUrl}/set-password` },
+    password: tempPassword,
+    email_confirm: true,
   })
 
-  if (linkError) return { error: linkError.message }
+  if (authError) return { error: authError.message }
 
-  const userId = linkData.user.id
-  const activationToken = randomUUID()
-  const inviteLink = `${siteUrl}/activate-account?token=${activationToken}`
+  const userId = authData.user.id
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: userId,
@@ -77,7 +93,7 @@ export async function inviteUser(payload: {
     manager_id: payload.manager_id,
     created_by: createdBy,
     invite_pending: true,
-    activation_token: activationToken,
+    must_change_password: true,
   })
 
   if (profileError) return { error: profileError.message }
@@ -87,5 +103,5 @@ export async function inviteUser(payload: {
     module: 'field_management',
   })
 
-  return { error: null, inviteLink }
+  return { error: null, tempPassword }
 }

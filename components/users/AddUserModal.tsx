@@ -33,7 +33,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const [roles, setRoles] = useState<RoleWithCount[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   const loadRoles = useCallback(async () => {
@@ -61,15 +61,15 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   }
 
   function handleClose() {
-    setInviteLink(null)
+    setTempPassword(null)
     setCopied(false)
     setError('')
     onClose()
   }
 
-  async function copyLink() {
-    if (!inviteLink) return
-    await navigator.clipboard.writeText(inviteLink)
+  async function copyPassword() {
+    if (!tempPassword) return
+    await navigator.clipboard.writeText(tempPassword)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
@@ -99,7 +99,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
         onSaved()
         handleClose()
       } else {
-        const { error: inviteError, inviteLink: link } = await inviteUser({
+        const { error: inviteError, tempPassword: pwd } = await inviteUser({
           email: form.email,
           first_name: form.first_name,
           last_name: form.last_name,
@@ -110,7 +110,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
         })
         if (inviteError) throw new Error(inviteError)
         onSaved()
-        if (link) setInviteLink(link)
+        if (pwd) setTempPassword(pwd)
         else handleClose()
       }
     } catch (err: unknown) {
@@ -125,8 +125,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const selectedRole = roles.find(r => r.name === form.role)
   const isEngineer = selectedRole?.requires_manager ?? false
 
-  // Success state — show invite link
-  if (inviteLink) {
+  // Success state — show temporary password
+  if (tempPassword) {
     return (
       <Modal
         open={open}
@@ -144,21 +144,21 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>Account created successfully</div>
           <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 20 }}>
-            Share this one-time invite link with the user so they can set their password and log in.
+            Share this temporary password with the user. They will be asked to set a new password on first login.
           </div>
           <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
-            <span style={{ flex: 1, fontSize: 11, color: 'var(--txm)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-              {inviteLink}
+            <span style={{ flex: 1, fontSize: 16, fontWeight: 600, color: 'var(--tx)', letterSpacing: 2, fontFamily: 'monospace' }}>
+              {tempPassword}
             </span>
             <button
-              onClick={copyLink}
+              onClick={copyPassword}
               style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--gm)', background: copied ? '#D1FAE5' : '#fff', color: copied ? '#065F46' : 'var(--tx)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
             >
-              {copied ? '✓ Copied' : 'Copy link'}
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
-          <div style={{ marginTop: 10, fontSize: 11, color: '#B45309', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 6, padding: '8px 10px', textAlign: 'left', lineHeight: 1.5 }}>
-            <strong>Important:</strong> Copy this link and share it directly (WhatsApp, email, etc.). Do <strong>not</strong> open it in your own browser — doing so will sign you out and the link will be spent.
+          <div style={{ marginTop: 10, fontSize: 11, color: '#1E40AF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '8px 10px', textAlign: 'left', lineHeight: 1.5 }}>
+            Share via WhatsApp or email. The user logs in at <strong>emr-portal-three.vercel.app</strong> with their email + this password. They will be prompted to change it immediately.
           </div>
         </div>
       </Modal>

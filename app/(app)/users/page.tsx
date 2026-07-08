@@ -97,26 +97,26 @@ export default function UsersPage() {
     loadUsers()
   }
 
-  async function copyInviteLink(user: Profile) {
+  async function copyInvitePassword(user: Profile) {
     setInviteLoading(user.id)
-    const { inviteLink, error } = await resendInvite(user.email)
+    const { tempPassword, error } = await resendInvite(user.email)
     setInviteLoading(null)
-    if (error || !inviteLink) { alert(error || 'Failed to generate link'); return }
-    await navigator.clipboard.writeText(inviteLink)
+    if (error || !tempPassword) { alert(error || 'Failed to generate password'); return }
+    await navigator.clipboard.writeText(tempPassword)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
-    alert(`Invite link copied for ${user.first_name} ${user.last_name}.\n\nShare this link directly via WhatsApp or email.\nDo NOT open it in your own browser — it will sign you out and the link will be spent.`)
+    alert(`Temporary password for ${user.first_name} ${user.last_name}:\n\n${tempPassword}\n\nCopied to clipboard. Share via WhatsApp or email.\nThey log in at the portal with their email + this password and will be asked to change it.`)
   }
 
-  async function copyResetLink(user: Profile) {
+  async function copyResetPassword(user: Profile) {
     setResetLoading(user.id)
-    const { resetLink, error } = await resetUserPassword(user.email)
+    const { tempPassword, error } = await resetUserPassword(user.email)
     setResetLoading(null)
-    if (error || !resetLink) { alert(error || 'Failed to generate reset link'); return }
-    await navigator.clipboard.writeText(resetLink)
+    if (error || !tempPassword) { alert(error || 'Failed to reset password'); return }
+    await navigator.clipboard.writeText(tempPassword)
     setResetCopied(user.id)
     setTimeout(() => setResetCopied(null), 2500)
-    alert(`Reset link copied for ${user.first_name} ${user.last_name}.\n\nShare this link directly via WhatsApp or email.\nDo NOT open it in your own browser — it will sign you out.`)
+    alert(`New temporary password for ${user.first_name} ${user.last_name}:\n\n${tempPassword}\n\nCopied to clipboard. They log in with this password and will be prompted to change it.`)
   }
 
   return (
@@ -207,7 +207,7 @@ export default function UsersPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {(u.invite_pending || !u.last_login_at) ? (
                           <button
-                            onClick={() => copyInviteLink(u)}
+                            onClick={() => copyInvitePassword(u)}
                             disabled={inviteLoading === u.id}
                             title="Copy invite link"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--gm)', background: inviteCopied === u.id ? '#D1FAE5' : '#fff', color: inviteCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
@@ -241,7 +241,7 @@ export default function UsersPage() {
                           <>
                             {can('Users — Create / Edit') && (
                               <button
-                                onClick={() => copyResetLink(u)}
+                                onClick={() => copyResetPassword(u)}
                                 disabled={resetLoading === u.id}
                                 title="Copy password reset link"
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: resetCopied === u.id ? '#D1FAE5' : 'var(--gl)', color: resetCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}

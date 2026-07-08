@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('first_name, last_name, role, is_active')
+    .select('first_name, last_name, role, is_active, must_change_password')
     .eq('id', user.id)
     .single()
 
@@ -32,6 +32,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     await supabase.auth.signOut()
     redirect('/login')
   }
+
+  if (profile?.must_change_password) redirect('/change-password')
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'
   const userRole = profile?.role || 'User'
