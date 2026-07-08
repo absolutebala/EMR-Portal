@@ -238,8 +238,8 @@ export default function UsersPage() {
 
         <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager')} currentUserRole={currentUser.role}/>
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={loadUsers}/>
-        <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)}/>
-        <RolesModal open={showRoles} onClose={() => setShowRoles(false)}/>
+        <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)} canEdit={can('Users — Roles Edit & Add')}/>
+        <RolesModal open={showRoles} onClose={() => setShowRoles(false)} canEdit={can('Users — Roles & Permissions Edit')}/>
       </div>
     </>
   )

@@ -7,7 +7,7 @@ import type { RoleWithCount } from '@/app/actions/roles-actions'
 
 const fi: React.CSSProperties = { padding: '8px 11px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', flex: 1, transition: 'border .15s' }
 
-export default function ManageRolesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function ManageRolesModal({ open, onClose, canEdit = false }: { open: boolean; onClose: () => void; canEdit?: boolean }) {
   const [roles, setRoles] = useState<RoleWithCount[]>([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
@@ -74,7 +74,7 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
       )}
 
       {/* Add new role */}
-      <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      {canEdit && <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           style={fi}
           value={newName}
@@ -88,7 +88,7 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
         >
           {adding ? 'Adding…' : '+ Add role'}
         </button>
-      </form>
+      </form>}
 
       {/* Roles list */}
       {loading ? (
@@ -122,39 +122,43 @@ export default function ManageRolesModal({ open, onClose }: { open: boolean; onC
                       {r.is_system && <span style={{ background: 'var(--mp)', color: 'var(--m)', padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>System</span>}
                     </div>
                   </div>
-                  <div
-                    onClick={async () => {
-                      await updateRoleRequiresManager(r.name, !r.requires_manager)
-                      load()
-                    }}
-                    title="Requires reporting manager when assigning this role"
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, border: '1px solid var(--gm)', background: r.requires_manager ? 'var(--mp)' : '#fff', userSelect: 'none' }}
-                  >
-                    <div style={{ width: 26, height: 15, borderRadius: 8, position: 'relative', background: r.requires_manager ? 'var(--m)' : '#D1D5DB', transition: 'background .2s', flexShrink: 0 }}>
-                      <div style={{ position: 'absolute', top: 2, left: r.requires_manager ? 13 : 2, width: 11, height: 11, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+                  {canEdit && (
+                    <div
+                      onClick={async () => {
+                        await updateRoleRequiresManager(r.name, !r.requires_manager)
+                        load()
+                      }}
+                      title="Requires reporting manager when assigning this role"
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, border: '1px solid var(--gm)', background: r.requires_manager ? 'var(--mp)' : '#fff', userSelect: 'none' }}
+                    >
+                      <div style={{ width: 26, height: 15, borderRadius: 8, position: 'relative', background: r.requires_manager ? 'var(--m)' : '#D1D5DB', transition: 'background .2s', flexShrink: 0 }}>
+                        <div style={{ position: 'absolute', top: 2, left: r.requires_manager ? 13 : 2, width: 11, height: 11, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 600, color: r.requires_manager ? 'var(--m)' : 'var(--txm)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.4px' }}>Mgr</span>
                     </div>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: r.requires_manager ? 'var(--m)' : 'var(--txm)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.4px' }}>Mgr</span>
-                  </div>
-                  <>
-                    <button
-                      onClick={() => startEdit(r)}
-                      title="Rename"
-                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(r.name)}
-                      disabled={deletingRole === r.name || r.user_count > 0}
-                      title={r.user_count > 0 ? 'Reassign users before deleting' : 'Delete role'}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: r.user_count > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: r.user_count > 0 || deletingRole === r.name ? .4 : 1 }}
-                    >
-                      {deletingRole === r.name
-                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-                        : <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      }
-                    </button>
-                  </>
+                  )}
+                  {canEdit && (
+                    <>
+                      <button
+                        onClick={() => startEdit(r)}
+                        title="Rename"
+                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(r.name)}
+                        disabled={deletingRole === r.name || r.user_count > 0}
+                        title={r.user_count > 0 ? 'Reassign users before deleting' : 'Delete role'}
+                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: r.user_count > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: r.user_count > 0 || deletingRole === r.name ? .4 : 1 }}
+                      >
+                        {deletingRole === r.name
+                          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                          : <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        }
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>

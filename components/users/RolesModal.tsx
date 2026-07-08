@@ -41,7 +41,7 @@ const MODULES = [
   'Settings',
 ]
 
-export default function RolesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function RolesModal({ open, onClose, canEdit = false }: { open: boolean; onClose: () => void; canEdit?: boolean }) {
   const [roles, setRoles] = useState<RoleWithPermissions[]>([])
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState<Record<string, Record<string, boolean>>>({})
@@ -104,18 +104,20 @@ export default function RolesModal({ open, onClose }: { open: boolean; onClose: 
           {error && <span style={{ fontSize: 11, color: '#DC2626', flex: 1 }}>{error}</span>}
           {saved && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
           <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>
-          <button
-            onClick={handleSave}
-            disabled={!hasPending || saving}
-            style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', cursor: hasPending && !saving ? 'pointer' : 'not-allowed', opacity: !hasPending || saving ? .5 : 1 }}
-          >
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={handleSave}
+              disabled={!hasPending || saving}
+              style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', cursor: hasPending && !saving ? 'pointer' : 'not-allowed', opacity: !hasPending || saving ? .5 : 1 }}
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          )}
         </div>
       }
     >
       <p style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 12 }}>
-        Click any cell to toggle access. Changes are applied when you click Save.
+        {canEdit ? 'Click any cell to toggle access. Changes are applied when you click Save.' : 'You have view-only access to this section.'}
       </p>
       {error && !loading && (
         <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>{error}</div>
@@ -149,12 +151,12 @@ export default function RolesModal({ open, onClose }: { open: boolean; onClose: 
                     return (
                       <td key={role.name} style={{ padding: '6px 8px', textAlign: 'center' }}>
                         <button
-                          onClick={() => toggle(role.name, mod, val)}
-                          title={`${val ? 'Revoke' : 'Grant'} ${mod} for ${role.name}`}
+                          onClick={() => canEdit && toggle(role.name, mod, val)}
+                          title={canEdit ? `${val ? 'Revoke' : 'Grant'} ${mod} for ${role.name}` : 'View only'}
                           style={{
                             width: 28, height: 28, borderRadius: 6, border: isDirty ? '2px solid var(--m)' : '1px solid var(--gm)',
                             background: val ? (isDirty ? 'var(--mp)' : '#D1FAE5') : '#fff',
-                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: canEdit ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             transition: 'all .12s',
                           }}
                         >
