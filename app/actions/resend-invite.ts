@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'crypto'
 
 export async function resendInvite(email: string): Promise<{ error: string | null; inviteLink?: string }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -16,26 +17,20 @@ export async function resendInvite(email: string): Promise<{ error: string | nul
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
-  const redirectTo = `${siteUrl}/set-password`
+  // Fetch or create the stable activation token for this user
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('activation_token')
+    .eq('email', email)
+    .maybeSingle()
 
-  // Try invite type first (works for unconfirmed users)
-  const { data: inviteData, error: inviteError } = await supabase.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: { redirectTo },
-  })
+  let token = profile?.activation_token as string | null
 
-  if (!inviteError && inviteData?.properties?.action_link) {
-    return { error: null, inviteLink: inviteData.properties.action_link }
+  if (!token) {
+    // Back-fill: user was created before this feature; assign them a token now
+    token = randomUUID()
+    await supabase.from('profiles').update({ activation_token: token }).eq('email', email)
   }
 
-  // Fall back to recovery link (works for confirmed users who haven't set a password yet)
-  const { data: recoveryData, error: recoveryError } = await supabase.auth.admin.generateLink({
-    type: 'recovery',
-    email,
-    options: { redirectTo },
-  })
-
-  if (recoveryError) return { error: recoveryError.message }
-  return { error: null, inviteLink: recoveryData?.properties?.action_link }
+  return { error: null, inviteLink: `${siteUrl}/activate?token=${token}` }
 }

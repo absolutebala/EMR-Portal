@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { clearActivationToken } from '@/app/actions/clear-activation-token'
 import { useRouter } from 'next/navigation'
 
 export default function SetPasswordPage() {
@@ -13,11 +14,12 @@ export default function SetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
   const [email, setEmail] = useState('')
+  const [userId, setUserId] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase puts tokens in the URL hash after invite verification
+    // Supabase puts tokens in the URL hash after invite/recovery verification
     const hash = window.location.hash
     const params = new URLSearchParams(hash.replace('#', ''))
     const accessToken = params.get('access_token')
@@ -28,12 +30,12 @@ export default function SetPasswordPage() {
         .then(({ data, error }) => {
           if (error) { setError('Invalid or expired invite link.'); return }
           setEmail(data.user?.email || '')
+          setUserId(data.user?.id || '')
           setReady(true)
         })
     } else {
-      // No tokens — might be a direct visit
       supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) { setEmail(user.email || ''); setReady(true) }
+        if (user) { setEmail(user.email || ''); setUserId(user.id || ''); setReady(true) }
         else setError('Invalid or expired invite link. Please ask your admin for a new one.')
       })
     }
@@ -47,6 +49,8 @@ export default function SetPasswordPage() {
     setError('')
     const { error } = await supabase.auth.updateUser({ password })
     if (error) { setError(error.message); setLoading(false); return }
+    // Mark activation complete so the link can no longer be reused
+    if (userId) await clearActivationToken(userId)
     router.push('/dashboard')
   }
 

@@ -2,20 +2,29 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [resetSent, setResetSent] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  useEffect(() => {
+    const n = searchParams.get('notice')
+    if (n === 'already-active') setNotice('Your account is already active. Sign in below.')
+    else if (n === 'invalid-link') setNotice('This activation link is invalid. Please contact your admin.')
+    else if (n === 'link-error') setNotice('Could not generate activation link. Please contact your admin.')
+  }, [searchParams])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -69,6 +78,9 @@ export default function LoginPage() {
             <>
               <h2 style={{ fontSize:16, fontWeight:600, color:'var(--tx)', margin:0, marginBottom:2 }}>Admin Sign In</h2>
               <div style={{ fontSize:11, color:'var(--txm)', marginBottom:20 }}>Authorised personnel only. Enter your credentials to continue.</div>
+              {notice && (
+                <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:8, padding:'10px 12px', fontSize:12, marginBottom:14 }}>{notice}</div>
+              )}
               {error && (
                 <div style={{ background:'#FEE2E2', color:'var(--red)', borderRadius:8, padding:'10px 12px', fontSize:12, marginBottom:14 }}>{error}</div>
               )}

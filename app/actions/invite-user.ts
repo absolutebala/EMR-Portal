@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient } from '@/lib/supabase/server'
+import { randomUUID } from 'crypto'
 
 export async function inviteUser(payload: {
   email: string
@@ -62,7 +63,8 @@ export async function inviteUser(payload: {
   if (linkError) return { error: linkError.message }
 
   const userId = linkData.user.id
-  const inviteLink = linkData.properties?.action_link
+  const activationToken = randomUUID()
+  const inviteLink = `${siteUrl}/activate?token=${activationToken}`
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: userId,
@@ -75,6 +77,7 @@ export async function inviteUser(payload: {
     manager_id: payload.manager_id,
     created_by: createdBy,
     invite_pending: true,
+    activation_token: activationToken,
   })
 
   if (profileError) return { error: profileError.message }
