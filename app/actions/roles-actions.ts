@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -125,6 +126,23 @@ export async function updateRoleRequiresManager(
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMyPermissions(): Promise<{ permissions: Record<string, boolean>; role: string; error: string | null }> {
+  try {
+    const sb = await createServerClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { permissions: {}, role: '', error: null }
+    const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).single()
+    const role = (profile?.role as string) || ''
+    if (!role) return { permissions: {}, role: '', error: null }
+    const admin = adminClient()
+    const { data: roleData, error } = await admin.from('roles').select('permissions').eq('name', role).maybeSingle()
+    if (error) return { permissions: {}, role, error: error.message }
+    return { permissions: (roleData?.permissions as Record<string, boolean>) ?? {}, role, error: null }
+  } catch (e: unknown) {
+    return { permissions: {}, role: '', error: e instanceof Error ? e.message : String(e) }
   }
 }
 

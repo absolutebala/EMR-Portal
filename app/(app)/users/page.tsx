@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getUsers } from '@/app/actions/get-users'
 import { deleteUser } from '@/app/actions/delete-user'
+import { getMyPermissions } from '@/app/actions/roles-actions'
 import Topbar from '@/components/layout/Topbar'
 import AddUserModal from '@/components/users/AddUserModal'
 import BulkUploadModal from '@/components/users/BulkUploadModal'
@@ -26,6 +27,7 @@ function av(name: string, i: number) {
 export default function UsersPage() {
   const [users, setUsers] = useState<Profile[]>([])
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string }>({ name: '', role: '' })
+  const [myPermissions, setMyPermissions] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -57,7 +59,14 @@ export default function UsersPage() {
         })
       }
     })
+    getMyPermissions().then(({ permissions }) => setMyPermissions(permissions))
   }, [loadUsers, supabase])  // supabase stable via useMemo; loadUsers has no deps
+
+  function can(key: string) {
+    const hasPerms = Object.keys(myPermissions).length > 0
+    if (!hasPerms) return true
+    return myPermissions[key] !== false
+  }
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase()
@@ -112,22 +121,30 @@ export default function UsersPage() {
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowManageRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M20 21a8 8 0 10-16 0"/><path d="M16 11l2 2 4-4"/></svg>
-              Roles
-            </button>
-            <button onClick={() => setShowRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              Roles &amp; Permissions
-            </button>
-            <button onClick={() => setShowBulk(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Bulk Upload
-            </button>
-            <button onClick={() => { setEditUser(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add User
-            </button>
+            {can('Users — Roles View') && (
+              <button onClick={() => setShowManageRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M20 21a8 8 0 10-16 0"/><path d="M16 11l2 2 4-4"/></svg>
+                Roles
+              </button>
+            )}
+            {can('Users — Roles & Permissions View') && (
+              <button onClick={() => setShowRoles(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Roles &amp; Permissions
+              </button>
+            )}
+            {can('Users — Bulk Upload') && (
+              <button onClick={() => setShowBulk(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Bulk Upload
+              </button>
+            )}
+            {can('Users — Create / Edit') && (
+              <button onClick={() => { setEditUser(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add User
+              </button>
+            )}
           </div>
         </div>
 
@@ -218,7 +235,7 @@ export default function UsersPage() {
           )}
         </div>
 
-        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager')}/>
+        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={loadUsers} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager')} currentUserRole={currentUser.role}/>
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={loadUsers}/>
         <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)}/>
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)}/>

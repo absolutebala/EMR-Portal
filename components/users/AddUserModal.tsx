@@ -13,12 +13,13 @@ interface Props {
   onSaved: () => void
   editUser?: Profile | null
   managers: Profile[]
+  currentUserRole?: string
 }
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
-export default function AddUserModal({ open, onClose, onSaved, editUser, managers }: Props) {
+export default function AddUserModal({ open, onClose, onSaved, editUser, managers, currentUserRole }: Props) {
   const [form, setForm] = useState({
     first_name: editUser?.first_name || '',
     last_name: editUser?.last_name || '',
@@ -120,6 +121,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   }
 
   const isEdit = !!editUser
+  const isSuperAdmin = currentUserRole === 'Super Admin'
+  const assignableRoles = isSuperAdmin ? roles : roles.filter(r => r.name !== 'Super Admin')
   const selectedRole = roles.find(r => r.name === form.role)
   const isEngineer = selectedRole?.requires_manager ?? false
 
@@ -204,7 +207,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>
             <select required style={fi2} value={form.role} onChange={e => { set('role', e.target.value); set('manager_id', '') }}>
               <option value="">Select role</option>
-              {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+              {assignableRoles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
             </select>
           </div>
 
