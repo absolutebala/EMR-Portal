@@ -19,11 +19,27 @@ export default function SetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase puts tokens in the URL hash after invite/recovery verification
+    const searchParams = new URLSearchParams(window.location.search)
+    const tokenHash = searchParams.get('token_hash')
+    const type = (searchParams.get('type') || 'recovery') as 'recovery' | 'invite' | 'email'
+
+    if (tokenHash) {
+      // Path A: from /activate — exchange hashed token directly (no Supabase redirect URL needed)
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+        .then(({ data, error }) => {
+          if (error) { setError('This link has expired or already been used. Please ask your admin for a new one.'); return }
+          setEmail(data.user?.email || '')
+          setUserId(data.user?.id || '')
+          setReady(true)
+        })
+      return
+    }
+
+    // Path B: from legacy Supabase redirect (hash fragment with access_token)
     const hash = window.location.hash
-    const params = new URLSearchParams(hash.replace('#', ''))
-    const accessToken = params.get('access_token')
-    const refreshToken = params.get('refresh_token')
+    const hashParams = new URLSearchParams(hash.replace('#', ''))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
 
     if (accessToken && refreshToken) {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })

@@ -27,21 +27,29 @@ export async function GET(req: NextRequest) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
+
   const { data, error } = await supabase.auth.admin.generateLink({
     type: 'recovery',
     email: profile.email,
+    // redirectTo only used as fallback; we use hashed_token directly below
     options: { redirectTo: `${siteUrl}/set-password` },
   })
 
-  if (error || !data?.properties?.action_link) {
+  if (error || !data?.properties?.hashed_token) {
     return NextResponse.redirect(new URL('/login?notice=link-error', req.url))
   }
 
-  // Clear any existing Supabase session cookies so Chrome's stale session
-  // doesn't interfere with the recovery link verification
-  const res = NextResponse.redirect(data.properties.action_link)
-  const cookieName = `sb-${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split('.')[0]}-auth-token`
-  res.cookies.delete(cookieName)
+  // Pass the hashed_token directly to /set-password so the browser client
+  // can call verifyOtp() without going through Supabase's redirect URL.
+  // This avoids the Chrome session interference that caused the redirect loop.
+  const dest = new URL('/set-password', req.url)
+  dest.searchParams.set('token_hash', data.properties.hashed_token)
+  dest.searchParams.set('type', 'recovery')
+
+  // Clear any stale Supabase session cookie so old Chrome sessions don't interfere
+  const res = NextResponse.redirect(dest)
+  const projectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split('.')[0]
+  res.cookies.delete(`sb-${projectRef}-auth-token`)
 
   return res
 }
