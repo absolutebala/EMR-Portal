@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,15 +16,14 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('')
   const [resetSent, setResetSent] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
-    const n = searchParams.get('notice')
+    const n = new URLSearchParams(window.location.search).get('notice')
     if (n === 'already-active') setNotice('Your account is already active. Sign in below.')
     else if (n === 'invalid-link') setNotice('This activation link is invalid. Please contact your admin.')
     else if (n === 'link-error') setNotice('Could not generate activation link. Please contact your admin.')
-  }, [searchParams])
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
