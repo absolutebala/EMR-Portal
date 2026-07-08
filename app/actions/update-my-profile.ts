@@ -10,26 +10,6 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
-export async function getMyProfile(): Promise<{
-  profile: { first_name: string; last_name: string; phone: string | null; email: string; employee_id: string } | null
-  error: string | null
-}> {
-  try {
-    const sb = await createServerClient()
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return { profile: null, error: 'Not authenticated' }
-    const { data, error } = await adminClient()
-      .from('profiles')
-      .select('first_name, last_name, phone, email, employee_id')
-      .eq('id', user.id)
-      .single()
-    if (error) return { profile: null, error: error.message }
-    return { profile: data, error: null }
-  } catch (e: unknown) {
-    return { profile: null, error: e instanceof Error ? e.message : String(e) }
-  }
-}
-
 export async function updateMyProfile(updates: {
   first_name: string
   last_name: string

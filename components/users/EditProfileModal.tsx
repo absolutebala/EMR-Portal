@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Modal from '@/components/ui/Modal'
-import { getMyProfile, updateMyProfile, changeMyPassword } from '@/app/actions/update-my-profile'
+import { createClient } from '@/lib/supabase/client'
+import { updateMyProfile, changeMyPassword } from '@/app/actions/update-my-profile'
 
 const fi: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', boxSizing: 'border-box', transition: 'border .15s' }
 const fiRO: React.CSSProperties = { ...fi, background: 'var(--gl)', color: 'var(--txm)' }
 const fl: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
 export default function EditProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const supabase = useMemo(() => createClient(), [])
   const [tab, setTab] = useState<'profile' | 'password'>('profile')
   const [loading, setLoading] = useState(true)
 
@@ -30,13 +32,30 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
     setProfileError('')
     setPwd({ current: '', next: '', confirm: '' })
     setPwdSaved(false)
-    setPwdError(false as unknown as boolean & string)
+    setPwdError('')
     setLoading(true)
-    getMyProfile().then(({ profile: p }) => {
-      if (p) setProfile({ first_name: p.first_name, last_name: p.last_name, phone: p.phone || '', email: p.email, employee_id: p.employee_id })
-      setLoading(false)
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setLoading(false); return }
+      supabase
+        .from('profiles')
+        .select('first_name, last_name, phone, email, employee_id')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setProfile({
+              first_name: data.first_name ?? '',
+              last_name: data.last_name ?? '',
+              phone: data.phone ?? '',
+              email: data.email ?? '',
+              employee_id: data.employee_id ?? '',
+            })
+          }
+          setLoading(false)
+        })
     })
-  }, [open])
+  }, [open, supabase])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -68,10 +87,7 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
   }
 
   const tabBtn = (t: 'profile' | 'password', label: string) => (
-    <button
-      onClick={() => setTab(t)}
-      style={{ flex: 1, padding: '8px 0', fontSize: 12, fontWeight: tab === t ? 600 : 400, color: tab === t ? 'var(--m)' : 'var(--txm)', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--m)' : 'transparent'}`, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', transition: 'all .15s' }}
-    >
+    <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', fontSize: 12, fontWeight: tab === t ? 600 : 400, color: tab === t ? 'var(--m)' : 'var(--txm)', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--m)' : 'transparent'}`, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', transition: 'all .15s' }}>
       {label}
     </button>
   )
@@ -86,10 +102,9 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
   )
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Profile" size="sm" footer={
-      <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>
-    }>
-      {/* Tabs */}
+    <Modal open={open} onClose={onClose} title="Edit Profile" size="sm"
+      footer={<button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>}
+    >
       <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', marginBottom: 20 }}>
         {tabBtn('profile', 'Profile Info')}
         {tabBtn('password', 'Change Password')}
@@ -132,22 +147,15 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
       ) : (
         <form onSubmit={handleChangePassword}>
           {pwdError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14 }}>{pwdError}</div>}
-          {[
+          {([
             { key: 'current' as const, label: 'Current password' },
             { key: 'next' as const, label: 'New password' },
             { key: 'confirm' as const, label: 'Confirm new password' },
-          ].map(({ key, label }) => (
+          ]).map(({ key, label }) => (
             <div key={key} style={{ marginBottom: 14 }}>
               <label style={fl}>{label} <span style={{ color: 'var(--m)' }}>*</span></label>
               <div style={{ position: 'relative' }}>
-                <input
-                  required
-                  type={showPwd[key] ? 'text' : 'password'}
-                  style={{ ...fi, paddingRight: 36 }}
-                  value={pwd[key]}
-                  onChange={e => setPwd(p => ({ ...p, [key]: e.target.value }))}
-                  placeholder="••••••••"
-                />
+                <input required type={showPwd[key] ? 'text' : 'password'} style={{ ...fi, paddingRight: 36 }} value={pwd[key]} onChange={e => setPwd(p => ({ ...p, [key]: e.target.value }))} placeholder="••••••••" />
                 <button type="button" onClick={() => setShowPwd(s => ({ ...s, [key]: !s[key] }))} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
                   {eyeIcon(showPwd[key])}
                 </button>
