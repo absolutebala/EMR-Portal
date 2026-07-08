@@ -209,7 +209,7 @@ export default function UsersPage() {
                           <button
                             onClick={() => copyInvitePassword(u)}
                             disabled={inviteLoading === u.id}
-                            title="Copy invite link"
+                            title="Copy login details"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--gm)', background: inviteCopied === u.id ? '#D1FAE5' : '#fff', color: inviteCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
                           >
                             {inviteLoading === u.id ? (
@@ -217,7 +217,7 @@ export default function UsersPage() {
                             ) : inviteCopied === u.id ? (
                               <>✓ Copied</>
                             ) : (
-                              <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy invite</>
+                              <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy password</>
                             )}
                           </button>
                         ) : confirmDelete === u.id ? (
@@ -243,7 +243,7 @@ export default function UsersPage() {
                               <button
                                 onClick={() => copyResetPassword(u)}
                                 disabled={resetLoading === u.id}
-                                title="Copy password reset link"
+                                title="Reset password — generates new temp password"
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: resetCopied === u.id ? '#D1FAE5' : 'var(--gl)', color: resetCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
                               >
                                 {resetLoading === u.id ? '…' : resetCopied === u.id ? '✓ Copied' : (
