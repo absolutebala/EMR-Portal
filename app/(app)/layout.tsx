@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('first_name, last_name, role, is_active')
+    .select('first_name, last_name, role, is_active, phone, employee_id')
     .eq('id', user.id)
     .single()
 
@@ -36,6 +36,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'
   const userRole = profile?.role || 'User'
 
+  const initialProfile = {
+    first_name: profile?.first_name || '',
+    last_name: profile?.last_name || '',
+    phone: profile?.phone || '',
+    email: user.email || '',
+    employee_id: profile?.employee_id || '',
+  }
+
   const [{ data: roleData }, { data: moduleRows }] = await Promise.all([
     supabase.from('roles').select('permissions').eq('name', userRole).maybeSingle(),
     supabase.from('user_module_access').select('module').eq('user_id', user.id),
@@ -46,7 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar userName={userName} userRole={userRole} permissions={permissions} modules={modules} />
+      <Sidebar userName={userName} userRole={userRole} permissions={permissions} modules={modules} initialProfile={initialProfile} />
       <div style={{ marginLeft: 230, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {children}
       </div>

@@ -10,6 +10,7 @@ interface SidebarProps {
   userRole: string
   permissions: Record<string, boolean>
   modules: string[]
+  initialProfile: { first_name: string; last_name: string; phone: string; email: string; employee_id: string }
 }
 
 const NAV = [
@@ -48,7 +49,7 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-export default function Sidebar({ userName, userRole, permissions, modules }: SidebarProps) {
+export default function Sidebar({ userName, userRole, permissions, modules, initialProfile }: SidebarProps) {
   // If permissions is empty (not yet configured), show everything as fallback.
   const hasPerms = Object.keys(permissions).length > 0
   function allowed(permKey: string) {
@@ -165,7 +166,7 @@ export default function Sidebar({ userName, userRole, permissions, modules }: Si
         })}
       </nav>
 
-      <EditProfileModal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} />
+      <EditProfileModal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} initialProfile={initialProfile} />
 
       {/* Profile */}
       <div style={{ padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.06)' }}>

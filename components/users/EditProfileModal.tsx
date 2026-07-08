@@ -1,24 +1,21 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
-import { createClient } from '@/lib/supabase/client'
 import { updateMyProfile, changeMyPassword } from '@/app/actions/update-my-profile'
 
 const fi: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', boxSizing: 'border-box', transition: 'border .15s' }
 const fiRO: React.CSSProperties = { ...fi, background: 'var(--gl)', color: 'var(--txm)' }
 const fl: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
-export default function EditProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const supabase = useMemo(() => createClient(), [])
-  const [tab, setTab] = useState<'profile' | 'password'>('profile')
-  const [loading, setLoading] = useState(true)
+interface InitialProfile { first_name: string; last_name: string; phone: string; email: string; employee_id: string }
 
-  const [profile, setProfile] = useState({ first_name: '', last_name: '', phone: '', email: '', employee_id: '' })
+export default function EditProfileModal({ open, onClose, initialProfile }: { open: boolean; onClose: () => void; initialProfile: InitialProfile }) {
+  const [tab, setTab] = useState<'profile' | 'password'>('profile')
+  const [profile, setProfile] = useState<InitialProfile>(initialProfile)
   const [saving, setSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
   const [profileError, setProfileError] = useState('')
-
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
   const [pwdSaving, setPwdSaving] = useState(false)
   const [pwdSaved, setPwdSaved] = useState(false)
@@ -28,45 +25,20 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
   useEffect(() => {
     if (!open) return
     setTab('profile')
+    setProfile(initialProfile)
     setProfileSaved(false)
     setProfileError('')
     setPwd({ current: '', next: '', confirm: '' })
     setPwdSaved(false)
     setPwdError('')
-    setLoading(true)
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const uid = session?.user?.id
-      if (!uid) { setLoading(false); return }
-      supabase
-        .from('profiles')
-        .select('first_name, last_name, phone, email, employee_id')
-        .eq('id', uid)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setProfile({
-              first_name: data.first_name ?? '',
-              last_name: data.last_name ?? '',
-              phone: data.phone ?? '',
-              email: data.email ?? '',
-              employee_id: data.employee_id ?? '',
-            })
-          }
-          setLoading(false)
-        })
-    })
-  }, [open, supabase])
+    setShowPwd({ current: false, next: false, confirm: false })
+  }, [open, initialProfile])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setProfileError('')
-    const { error } = await updateMyProfile({
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      phone: profile.phone || null,
-    })
+    const { error } = await updateMyProfile({ first_name: profile.first_name, last_name: profile.last_name, phone: profile.phone || null })
     setSaving(false)
     if (error) { setProfileError(error); return }
     setProfileSaved(true)
@@ -111,9 +83,7 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
         {tabBtn('password', 'Change Password')}
       </div>
 
-      {loading ? (
-        <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--txm)' }}>Loading…</div>
-      ) : tab === 'profile' ? (
+      {tab === 'profile' ? (
         <form onSubmit={handleSaveProfile}>
           {profileError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14 }}>{profileError}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
