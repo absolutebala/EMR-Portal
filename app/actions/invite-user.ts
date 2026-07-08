@@ -36,7 +36,8 @@ export async function inviteUser(payload: {
     creatorRole = adminProfile?.role ?? null
   }
 
-  if (payload.role === 'Super Admin' && creatorRole !== 'Super Admin') {
+  // Only block if we positively know the creator is not a Super Admin
+  if (payload.role === 'Super Admin' && creatorRole !== null && creatorRole !== 'Super Admin') {
     return { error: 'Only Super Admins can assign the Super Admin role.' }
   }
 
