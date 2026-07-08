@@ -12,6 +12,7 @@ import RolesModal from '@/components/users/RolesModal'
 import ManageRolesModal from '@/components/users/ManageRolesModal'
 import { RoleBadge, StatusBadge } from '@/components/ui/Badge'
 import { resendInvite } from '@/app/actions/resend-invite'
+import { resetUserPassword } from '@/app/actions/reset-user-password'
 import type { Profile } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED', '#DC2626', '#1E3A5F']
@@ -41,6 +42,8 @@ export default function UsersPage() {
   const [inviteLoading, setInviteLoading] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [resetLoading, setResetLoading] = useState<string | null>(null)
+  const [resetCopied, setResetCopied] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadUsers = useCallback(async () => {
@@ -101,6 +104,16 @@ export default function UsersPage() {
     await navigator.clipboard.writeText(inviteLink)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
+  }
+
+  async function copyResetLink(user: Profile) {
+    setResetLoading(user.id)
+    const { resetLink, error } = await resetUserPassword(user.email)
+    setResetLoading(null)
+    if (error || !resetLink) { alert(error || 'Failed to generate reset link'); return }
+    await navigator.clipboard.writeText(resetLink)
+    setResetCopied(user.id)
+    setTimeout(() => setResetCopied(null), 2500)
   }
 
   return (
@@ -223,9 +236,23 @@ export default function UsersPage() {
                           </div>
                         ) : (
                           <>
-                            <button onClick={() => { setEditUser(u); setShowAdd(true) }} title="Edit" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                              <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
-                            </button>
+                            {currentUser.role === 'Super Admin' && (
+                              <button
+                                onClick={() => copyResetLink(u)}
+                                disabled={resetLoading === u.id}
+                                title="Copy password reset link"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: resetCopied === u.id ? '#D1FAE5' : 'var(--gl)', color: resetCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
+                              >
+                                {resetLoading === u.id ? '…' : resetCopied === u.id ? '✓ Copied' : (
+                                  <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Reset pwd</>
+                                )}
+                              </button>
+                            )}
+                            {can('Users — Create / Edit') && (
+                              <button onClick={() => { setEditUser(u); setShowAdd(true) }} title="Edit" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
+                              </button>
+                            )}
                             <button onClick={() => setConfirmDelete(u.id)} title="Delete user" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                               <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                             </button>
