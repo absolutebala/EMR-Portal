@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import EditProfileModal from '@/components/users/EditProfileModal'
 
 interface SidebarProps {
   userName: string
@@ -58,6 +59,7 @@ export default function Sidebar({ userName, userRole, permissions, modules }: Si
   const router = useRouter()
   const [modOpen, setModOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
   const supabase = createClient()
 
   async function logout() {
@@ -163,6 +165,8 @@ export default function Sidebar({ userName, userRole, permissions, modules }: Si
         })}
       </nav>
 
+      <EditProfileModal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} />
+
       {/* Profile */}
       <div style={{ padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
         <div
@@ -182,7 +186,7 @@ export default function Sidebar({ userName, userRole, permissions, modules }: Si
 
           {profileOpen && (
             <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.2)', border: '1px solid var(--gm)', overflow: 'hidden', zIndex: 200 }}>
-              <div className="pdi" style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', fontSize:12, color:'var(--tx)', cursor:'pointer' }}
+              <div onClick={() => { setProfileOpen(false); setEditProfileOpen(true) }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', fontSize:12, color:'var(--tx)', cursor:'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--gl)'}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}
               >
