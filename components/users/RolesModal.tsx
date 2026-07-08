@@ -5,6 +5,21 @@ import Modal from '@/components/ui/Modal'
 import { getRolesWithPermissions, updateRolePermissions } from '@/app/actions/roles-actions'
 import type { RoleWithPermissions } from '@/app/actions/roles-actions'
 
+// If you enable the key, its value (View) is also enabled.
+// If you disable the value (View), its dependants (Edit) are also disabled.
+const REQUIRES_VIEW: Record<string, string> = {
+  'Users — Roles & Permissions Edit': 'Users — Roles & Permissions View',
+  'Users — Roles Edit & Add':          'Users — Roles View',
+  'Users — Create / Edit':             'Users — View',
+  'Work Orders — Create / Edit':       'Work Orders — View',
+  'Work Orders — Delete':              'Work Orders — View',
+  'Field Engineers — Manage':          'Field Engineers — View',
+  'Customers — Create / Edit':         'Customers — View',
+  'Forms — Create / Edit':             'Forms — View',
+  'Product Requests — Approve':        'Product Requests — View',
+  'Product Requests — Dispatch':       'Product Requests — View',
+}
+
 const ROLE_ORDER = [
   'Super Admin',
   'Service Manager',
@@ -75,7 +90,22 @@ export default function RolesModal({ open, onClose, canEdit = false }: { open: b
   }
 
   function toggle(roleName: string, mod: string, cur: boolean) {
-    setPending(p => ({ ...p, [roleName]: { ...(p[roleName] || {}), [mod]: !cur } }))
+    const next = !cur
+    setPending(p => {
+      const base = { ...(p[roleName] || {}) }
+      base[mod] = next
+      if (next) {
+        // enabling an edit perm → also enable its required view perm
+        const view = REQUIRES_VIEW[mod]
+        if (view) base[view] = true
+      } else {
+        // disabling a view perm → also disable any edit perms that depend on it
+        Object.entries(REQUIRES_VIEW).forEach(([edit, view]) => {
+          if (view === mod) base[edit] = false
+        })
+      }
+      return { ...p, [roleName]: base }
+    })
     setSaved(false)
     setError('')
   }
