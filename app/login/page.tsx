@@ -19,10 +19,18 @@ export default function LoginPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const n = new URLSearchParams(window.location.search).get('notice')
+    const params = new URLSearchParams(window.location.search)
+    const n = params.get('notice')
     if (n === 'already-active') setNotice('Your account is already active. Sign in below.')
     else if (n === 'invalid-link') setNotice('This activation link is invalid. Please contact your admin.')
     else if (n === 'link-error') setNotice('Could not generate activation link. Please contact your admin.')
+
+    // Chrome sometimes lands here with ?token=<uuid> instead of /activate?token=<uuid>
+    // Bounce back to the proper activation route
+    const token = params.get('token')
+    if (token && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+      window.location.replace(`/activate?token=${token}`)
+    }
   }, [])
 
   async function handleLogin(e: React.FormEvent) {

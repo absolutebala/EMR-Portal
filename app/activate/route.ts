@@ -9,15 +9,13 @@ function adminClient() {
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
-  const base = req.nextUrl.origin
 
   if (!token) {
-    return NextResponse.redirect(`${base}/login?notice=invalid-link`)
+    return NextResponse.redirect(new URL('/login?notice=invalid-link', req.url))
   }
 
   const supabase = adminClient()
 
-  // Look up the profile by its stable activation token
   const { data: profile } = await supabase
     .from('profiles')
     .select('id, email, activation_token')
@@ -25,12 +23,10 @@ export async function GET(req: NextRequest) {
     .maybeSingle()
 
   if (!profile) {
-    // Token is NULL (already activated) or doesn't exist at all
-    return NextResponse.redirect(`${base}/login?notice=already-active`)
+    return NextResponse.redirect(new URL('/login?notice=already-active', req.url))
   }
 
-  // Generate a fresh one-time Supabase recovery link
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || base
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
   const { data, error } = await supabase.auth.admin.generateLink({
     type: 'recovery',
     email: profile.email,
@@ -38,8 +34,14 @@ export async function GET(req: NextRequest) {
   })
 
   if (error || !data?.properties?.action_link) {
-    return NextResponse.redirect(`${base}/login?notice=link-error`)
+    return NextResponse.redirect(new URL('/login?notice=link-error', req.url))
   }
 
-  return NextResponse.redirect(data.properties.action_link)
+  // Clear any existing Supabase session cookies so Chrome's stale session
+  // doesn't interfere with the recovery link verification
+  const res = NextResponse.redirect(data.properties.action_link)
+  const cookieName = `sb-${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split('.')[0]}-auth-token`
+  res.cookies.delete(cookieName)
+
+  return res
 }
