@@ -69,7 +69,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
 
   async function copyPassword() {
     if (!tempPassword) return
-    await navigator.clipboard.writeText(tempPassword)
+    const text = `EMR Portal Login Details\n\nURL: https://emr-portal-three.vercel.app\nEmail: ${form.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    await navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }

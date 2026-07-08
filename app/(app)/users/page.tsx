@@ -102,10 +102,10 @@ export default function UsersPage() {
     const { tempPassword, error } = await resendInvite(user.email)
     setInviteLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to generate password'); return }
-    await navigator.clipboard.writeText(tempPassword)
+    const text = `EMR Portal Login Details\n\nURL: https://emr-portal-three.vercel.app\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    await navigator.clipboard.writeText(text)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
-    alert(`Temporary password for ${user.first_name} ${user.last_name}:\n\n${tempPassword}\n\nCopied to clipboard. Share via WhatsApp or email.\nThey log in at the portal with their email + this password and will be asked to change it.`)
   }
 
   async function copyResetPassword(user: Profile) {
@@ -113,10 +113,10 @@ export default function UsersPage() {
     const { tempPassword, error } = await resetUserPassword(user.email)
     setResetLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to reset password'); return }
-    await navigator.clipboard.writeText(tempPassword)
+    const text = `EMR Portal Login Details\n\nURL: https://emr-portal-three.vercel.app\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    await navigator.clipboard.writeText(text)
     setResetCopied(user.id)
     setTimeout(() => setResetCopied(null), 2500)
-    alert(`New temporary password for ${user.first_name} ${user.last_name}:\n\n${tempPassword}\n\nCopied to clipboard. They log in with this password and will be prompted to change it.`)
   }
 
   return (
