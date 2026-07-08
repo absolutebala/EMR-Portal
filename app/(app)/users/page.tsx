@@ -27,7 +27,7 @@ function av(name: string, i: number) {
 export default function UsersPage() {
   const [users, setUsers] = useState<Profile[]>([])
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string }>({ name: '', role: '' })
-  const [myPermissions, setMyPermissions] = useState<Record<string, boolean>>({})
+  const [myPermissions, setMyPermissions] = useState<Record<string, boolean> | null>(null)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -63,6 +63,7 @@ export default function UsersPage() {
   }, [loadUsers, supabase])  // supabase stable via useMemo; loadUsers has no deps
 
   function can(key: string) {
+    if (myPermissions === null) return false
     if (currentUser.role === 'Super Admin') return true
     const hasPerms = Object.keys(myPermissions).length > 0
     if (!hasPerms) return true
