@@ -63,6 +63,7 @@ export default function UsersPage() {
   }, [loadUsers, supabase])  // supabase stable via useMemo; loadUsers has no deps
 
   function can(key: string) {
+    if (currentUser.role === 'Super Admin') return true
     const hasPerms = Object.keys(myPermissions).length > 0
     if (!hasPerms) return true
     return myPermissions[key] !== false

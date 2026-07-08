@@ -5,6 +5,16 @@ import Modal from '@/components/ui/Modal'
 import { getRolesWithPermissions, updateRolePermissions } from '@/app/actions/roles-actions'
 import type { RoleWithPermissions } from '@/app/actions/roles-actions'
 
+const ROLE_ORDER = [
+  'Super Admin',
+  'Service Manager',
+  'Service Engineer',
+  'Sales Executive Engineer',
+  'Inventory Team',
+  'Dispatch Team',
+  'Reporting Team',
+]
+
 const MODULES = [
   'Dashboard',
   'Work Orders — View',
@@ -44,7 +54,15 @@ export default function RolesModal({ open, onClose }: { open: boolean; onClose: 
     setError('')
     const { roles: data, error: err } = await getRolesWithPermissions()
     if (err) setError(err)
-    setRoles(data)
+    const sorted = [...data].sort((a, b) => {
+      const ai = ROLE_ORDER.indexOf(a.name)
+      const bi = ROLE_ORDER.indexOf(b.name)
+      if (ai === -1 && bi === -1) return 0
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
+    setRoles(sorted)
     setPending({})
     setLoading(false)
   }, [])
