@@ -186,10 +186,10 @@ export default function UsersPage() {
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{u.email}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.phone || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString('en-IN') : '—'}</td>
-                    <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending}/></td>
+                    <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending || !u.last_login_at}/></td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {u.invite_pending ? (
+                        {(u.invite_pending || !u.last_login_at) ? (
                           <button
                             onClick={() => copyInviteLink(u)}
                             disabled={inviteLoading === u.id}
