@@ -150,7 +150,7 @@ export default function LoginPage() {
         </div>
 
         <div style={{ textAlign:'center', marginTop:'auto', paddingTop:24, fontSize:11, color:'rgba(255,255,255,.45)' }}>
-          Powered by <a href="#" style={{ color:'rgba(255,255,255,.75)', textDecoration:'none', fontWeight:500 }}>Absolute App Labs</a>
+          Powered by <a href="https://www.ittrident.com" target="_blank" rel="noopener noreferrer" style={{ color:'rgba(255,255,255,.75)', textDecoration:'none', fontWeight:500 }}>itTrident</a>
         </div>
       </div>
     </div>
