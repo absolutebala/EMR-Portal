@@ -3,14 +3,20 @@ import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
+
+  // Run auth + all counts in parallel — no sequential waterfall
+  const [{ data: { user } }, { count: userCount }, { count: customerCount }, { count: formCount }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }),
+    supabase.from('customers').select('*', { count: 'exact', head: true }),
+    supabase.from('forms').select('*', { count: 'exact', head: true }),
+  ])
+
+  const { data: profile } = await supabase
+    .from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
+
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-
-  const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
-  const { count: customerCount } = await supabase.from('customers').select('*', { count: 'exact', head: true })
-  const { count: formCount } = await supabase.from('forms').select('*', { count: 'exact', head: true })
 
   const stats = [
     { label: 'Total users', val: userCount ?? 0, color: 'var(--m)' },
@@ -34,7 +40,6 @@ export default async function DashboardPage() {
             </div>
           ))}
         </div>
-
       </div>
     </>
   )

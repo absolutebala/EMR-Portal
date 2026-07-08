@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
@@ -22,30 +22,36 @@ export default function CustomersPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
     const { data: custs } = await supabase.from('customers').select('*').order('created_at', { ascending: false })
-    if (!custs) { setLoading(false); return }
+    if (!custs || custs.length === 0) { setCustomers([]); setLoading(false); return }
 
-    const withCounts = await Promise.all(custs.map(async c => {
-      const [{ count: site_count }, { count: sn_count }] = await Promise.all([
-        supabase.from('customer_sites').select('*', { count: 'exact', head: true }).eq('customer_id', c.id),
-        supabase.from('transformers').select('*', { count: 'exact', head: true }).eq('customer_id', c.id),
-      ])
-      return { ...c, site_count: site_count || 0, sn_count: sn_count || 0 }
-    }))
+    // Fetch all site and transformer counts in 2 bulk queries instead of N×2 queries
+    const customerIds = custs.map(c => c.id)
+    const [{ data: sites }, { data: sns }] = await Promise.all([
+      supabase.from('customer_sites').select('customer_id').in('customer_id', customerIds),
+      supabase.from('transformers').select('customer_id').in('customer_id', customerIds),
+    ])
 
-    setCustomers(withCounts)
+    const siteMap: Record<string, number> = {}
+    sites?.forEach(s => { siteMap[s.customer_id] = (siteMap[s.customer_id] || 0) + 1 })
+    const snMap: Record<string, number> = {}
+    sns?.forEach(s => { snMap[s.customer_id] = (snMap[s.customer_id] || 0) + 1 })
+
+    setCustomers(custs.map(c => ({ ...c, site_count: siteMap[c.id] || 0, sn_count: snMap[c.id] || 0 })))
     setLoading(false)
   }, [supabase])
 
   useEffect(() => {
     loadCustomers()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) supabase.from('profiles').select('first_name,last_name,role').eq('id', user.id).single().then(({ data }) => {
+    // getSession reads from cookie — no network call, unlike getUser()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const userId = session?.user.id
+      if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })

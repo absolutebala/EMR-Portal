@@ -42,8 +42,9 @@ export default function FormsPage() {
 
   useEffect(() => {
     loadForms()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) supabase.from('profiles').select('first_name,last_name,role').eq('id', user.id).single().then(({ data }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const userId = session?.user.id
+      if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })

@@ -13,19 +13,16 @@ function adminClient() {
 export async function getUsers(): Promise<{ users: unknown[]; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return { users: [], error: 'Not authenticated.' }
-
-    const { data: profile } = await sb
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
     const admin = adminClient()
 
-    // Fetch auth users to get last_sign_in_at
-    const { data: authData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    // Run auth check and admin list in parallel — they don't depend on each other
+    const [{ data: { user } }, { data: authData }] = await Promise.all([
+      sb.auth.getUser(),
+      admin.auth.admin.listUsers({ perPage: 1000 }),
+    ])
+
+    if (!user) return { users: [], error: 'Not authenticated.' }
+
     const signInMap: Record<string, string | null> = {}
     for (const au of authData?.users ?? []) {
       signInMap[au.id] = au.last_sign_in_at ?? null
@@ -34,20 +31,21 @@ export async function getUsers(): Promise<{ users: unknown[]; error: string | nu
     const merge = (rows: Record<string, unknown>[]) =>
       rows.map(r => ({ ...r, last_login_at: signInMap[r.id as string] ?? r.last_login_at ?? null }))
 
+    // Get caller role + all profiles in parallel
+    const [{ data: profile }, { data, error }] = await Promise.all([
+      sb.from('profiles').select('role').eq('id', user.id).single(),
+      admin.from('profiles').select('*').order('created_at', { ascending: false }),
+    ])
+
     if (profile?.role === 'Service Manager') {
-      const { data, error } = await admin
+      const { data: managed, error: me } = await admin
         .from('profiles')
         .select('*')
         .eq('created_by', user.id)
         .order('created_at', { ascending: false })
-      return { users: merge((data as Record<string, unknown>[]) || []), error: error?.message || null }
+      return { users: merge((managed as Record<string, unknown>[]) || []), error: me?.message || null }
     }
 
-    // Super Admin and all other privileged roles see everyone
-    const { data, error } = await admin
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
     return { users: merge((data as Record<string, unknown>[]) || []), error: error?.message || null }
   } catch (e: unknown) {
     return { users: [], error: e instanceof Error ? e.message : String(e) }
