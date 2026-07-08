@@ -121,8 +121,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   }
 
   const isEdit = !!editUser
-  const isSuperAdmin = currentUserRole === 'Super Admin'
-  const assignableRoles = isSuperAdmin ? roles : roles.filter(r => r.name !== 'Super Admin')
+  const assignableRoles = roles
   const selectedRole = roles.find(r => r.name === form.role)
   const isEngineer = selectedRole?.requires_manager ?? false
 

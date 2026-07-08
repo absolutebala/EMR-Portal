@@ -27,11 +27,17 @@ export async function inviteUser(payload: {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Verify the admin's profile row exists before using it as the FK value
+  // Verify the admin's profile row exists and get their role (needed for FK + Super Admin guard)
   let createdBy: string | null = null
+  let creatorRole: string | null = null
   if (currentUser?.id) {
-    const { data: adminProfile } = await supabase.from('profiles').select('id').eq('id', currentUser.id).maybeSingle()
+    const { data: adminProfile } = await supabase.from('profiles').select('id, role').eq('id', currentUser.id).maybeSingle()
     createdBy = adminProfile?.id ?? null
+    creatorRole = adminProfile?.role ?? null
+  }
+
+  if (payload.role === 'Super Admin' && creatorRole !== 'Super Admin') {
+    return { error: 'Only Super Admins can assign the Super Admin role.' }
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
