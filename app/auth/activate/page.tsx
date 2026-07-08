@@ -5,14 +5,14 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { validateActivationLink } from '@/app/actions/validate-activation-link'
-import { clearActivationToken } from '@/app/actions/clear-activation-token'
+import { activateAccount } from '@/app/actions/activate-account'
 import { useRouter } from 'next/navigation'
 
 export default function ActivatePage() {
   const [state, setState] = useState<'loading' | 'form' | 'error' | 'done'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [email, setEmail] = useState('')
-  const [userId, setUserId] = useState('')
+  const [token, setToken] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [formError, setFormError] = useState('')
@@ -21,40 +21,25 @@ export default function ActivatePage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('token')
+    const t = new URLSearchParams(window.location.search).get('token')
+    if (!t) { setErrorMsg('Invalid activation link.'); setState('error'); return }
+    setToken(t)
 
-    if (!token) {
-      setErrorMsg('Invalid activation link.')
-      setState('error')
-      return
-    }
-
-    validateActivationLink(token).then(async ({ access_token, refresh_token, email: userEmail, error }) => {
+    validateActivationLink(t).then(({ email: userEmail, error }) => {
       if (error === 'already-active') {
         setErrorMsg('This account is already active. Please sign in.')
         setState('error')
         return
       }
-      if (error || !access_token || !refresh_token) {
-        setErrorMsg('Could not verify this link. Please ask your admin for a new one.')
+      if (error || !userEmail) {
+        setErrorMsg('This link is invalid. Please ask your admin for a new one.')
         setState('error')
         return
       }
-
-      // Server already exchanged the OTP — just hydrate the browser session from the tokens
-      const { data, error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token })
-
-      if (sessionError || !data.user) {
-        setErrorMsg('This link has expired or already been used. Please ask your admin for a new one.')
-        setState('error')
-        return
-      }
-
-      setEmail(userEmail || data.user.email || '')
-      setUserId(data.user.id)
+      setEmail(userEmail)
       setState('form')
     })
-  }, [supabase])
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -62,9 +47,27 @@ export default function ActivatePage() {
     if (password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
     setSaving(true)
     setFormError('')
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) { setFormError(error.message); setSaving(false); return }
-    if (userId) await clearActivationToken(userId)
+
+    // Admin sets the password server-side — no OTP or PKCE needed
+    const { email: confirmedEmail, error } = await activateAccount(token, password)
+    if (error || !confirmedEmail) {
+      setFormError(error === 'already-active' ? 'This account is already active.' : (error || 'Something went wrong.'))
+      setSaving(false)
+      return
+    }
+
+    // Simple sign-in with the new password — works in any browser
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: confirmedEmail,
+      password,
+    })
+
+    if (signInError) {
+      setFormError(signInError.message)
+      setSaving(false)
+      return
+    }
+
     setState('done')
     router.push('/dashboard')
   }
@@ -129,7 +132,7 @@ export default function ActivatePage() {
                 </div>
                 <button type="submit" disabled={saving}
                   style={{ width: '100%', padding: 11, background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', opacity: saving ? .7 : 1 }}>
-                  {saving ? 'Saving…' : 'Set password & sign in'}
+                  {saving ? 'Setting up account…' : 'Set password & sign in'}
                 </button>
               </form>
             </>
