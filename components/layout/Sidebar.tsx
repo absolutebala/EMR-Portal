@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import EditProfileModal from '@/components/users/EditProfileModal'
@@ -61,7 +61,12 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   const [modOpen, setModOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [navigating, setNavigating] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    setNavigating(null)
+  }, [pathname])
 
   async function logout() {
     await supabase.auth.signOut()
@@ -70,11 +75,14 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   }
 
   function navigate(path: string) {
+    if (path === pathname) return
+    setNavigating(path)
     router.push(path)
   }
 
   return (
     <div style={{ width: 230, background: 'var(--mdk)', position: 'fixed', top: 0, left: 0, height: '100vh', display: 'flex', flexDirection: 'column', zIndex: 100 }}>
+      <style>{`@keyframes navSpin { to { transform: rotate(360deg); } }`}</style>
       {/* Brand */}
       <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -142,21 +150,34 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
               <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>
               {visible.map(item => {
                 const active = pathname === item.path || pathname.startsWith(item.path + '/')
+                const isLoading = navigating === item.path
                 return (
                   <div
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
-                      background: active ? 'var(--m)' : 'transparent',
-                      color: active ? '#fff' : 'rgba(255,255,255,.52)',
-                      fontWeight: active ? 500 : 400, fontSize: 12,
+                      background: active || isLoading ? 'var(--m)' : 'transparent',
+                      color: active || isLoading ? '#fff' : 'rgba(255,255,255,.52)',
+                      fontWeight: active || isLoading ? 500 : 400, fontSize: 12,
                       transition: 'all .15s',
                     }}
-                    onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } }}
-                    onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } }}
+                    onMouseEnter={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } }}
+                    onMouseLeave={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } }}
                   >
-                    <span style={{ opacity: active ? 1 : .8, flexShrink: 0 }}>{ICONS[item.icon]}</span>
+                    {isLoading ? (
+                      <span style={{ flexShrink: 0, width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{
+                          display: 'inline-block', width: 11, height: 11,
+                          border: '2px solid rgba(255,255,255,.35)',
+                          borderTop: '2px solid #fff',
+                          borderRadius: '50%',
+                          animation: 'navSpin 0.6s linear infinite',
+                        }}/>
+                      </span>
+                    ) : (
+                      <span style={{ opacity: active ? 1 : .8, flexShrink: 0 }}>{ICONS[item.icon]}</span>
+                    )}
                     {item.label}
                   </div>
                 )
