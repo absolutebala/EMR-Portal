@@ -80,10 +80,11 @@ export default function UsersPage() {
     const q = search.toLowerCase()
     const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.employee_id.toLowerCase().includes(q)
     const matchRole = !roleFilter || u.role === roleFilter
+    const isPending = u.invite_pending || !u.last_login_at
     const matchStatus = !statusFilter ||
-      (statusFilter === 'Active' ? (u.is_active && !u.invite_pending) :
+      (statusFilter === 'Active' ? (u.is_active && !isPending) :
        statusFilter === 'Inactive' ? !u.is_active :
-       statusFilter === 'Pending' ? u.invite_pending : true)
+       statusFilter === 'Pending' ? isPending : true)
     return matchSearch && matchRole && matchStatus
   })
 
@@ -104,6 +105,7 @@ export default function UsersPage() {
     await navigator.clipboard.writeText(inviteLink)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
+    alert(`Invite link copied for ${user.first_name} ${user.last_name}.\n\nShare this link directly via WhatsApp or email.\nDo NOT open it in your own browser — it will sign you out and the link will be spent.`)
   }
 
   async function copyResetLink(user: Profile) {
@@ -114,6 +116,7 @@ export default function UsersPage() {
     await navigator.clipboard.writeText(resetLink)
     setResetCopied(user.id)
     setTimeout(() => setResetCopied(null), 2500)
+    alert(`Reset link copied for ${user.first_name} ${user.last_name}.\n\nShare this link directly via WhatsApp or email.\nDo NOT open it in your own browser — it will sign you out.`)
   }
 
   return (

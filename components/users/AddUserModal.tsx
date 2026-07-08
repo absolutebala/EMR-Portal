@@ -157,8 +157,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
               {copied ? '✓ Copied' : 'Copy link'}
             </button>
           </div>
-          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txm)' }}>
-            This link expires in 24 hours.
+          <div style={{ marginTop: 10, fontSize: 11, color: '#B45309', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 6, padding: '8px 10px', textAlign: 'left', lineHeight: 1.5 }}>
+            <strong>Important:</strong> Copy this link and share it directly (WhatsApp, email, etc.). Do <strong>not</strong> open it in your own browser — doing so will sign you out and the link will be spent.
           </div>
         </div>
       </Modal>
