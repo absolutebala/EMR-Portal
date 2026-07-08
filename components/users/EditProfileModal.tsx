@@ -2,17 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
+import { createClient } from '@/lib/supabase/client'
 import { updateMyProfile, changeMyPassword } from '@/app/actions/update-my-profile'
 
 const fi: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', boxSizing: 'border-box', transition: 'border .15s' }
 const fiRO: React.CSSProperties = { ...fi, background: 'var(--gl)', color: 'var(--txm)' }
 const fl: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
-interface InitialProfile { first_name: string; last_name: string; phone: string; email: string; employee_id: string }
+interface ProfileData { first_name: string; last_name: string; phone: string; email: string; employee_id: string }
 
-export default function EditProfileModal({ open, onClose, initialProfile }: { open: boolean; onClose: () => void; initialProfile: InitialProfile }) {
+const empty: ProfileData = { first_name: '', last_name: '', phone: '', email: '', employee_id: '' }
+
+export default function EditProfileModal({ open, onClose, userEmail }: { open: boolean; onClose: () => void; userEmail: string }) {
   const [tab, setTab] = useState<'profile' | 'password'>('profile')
-  const [profile, setProfile] = useState<InitialProfile>(initialProfile)
+  const [profile, setProfile] = useState<ProfileData>({ ...empty, email: userEmail })
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
   const [profileError, setProfileError] = useState('')
@@ -25,14 +29,33 @@ export default function EditProfileModal({ open, onClose, initialProfile }: { op
   useEffect(() => {
     if (!open) return
     setTab('profile')
-    setProfile(initialProfile)
     setProfileSaved(false)
     setProfileError('')
     setPwd({ current: '', next: '', confirm: '' })
     setPwdSaved(false)
     setPwdError('')
     setShowPwd({ current: false, next: false, confirm: false })
-  }, [open, initialProfile])
+
+    setLoading(true)
+    const sb = createClient()
+    sb.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setLoading(false); return }
+      sb.from('profiles')
+        .select('first_name, last_name, phone, employee_id')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          setProfile({
+            first_name: data?.first_name || '',
+            last_name: data?.last_name || '',
+            phone: data?.phone || '',
+            email: user.email || userEmail,
+            employee_id: data?.employee_id || '',
+          })
+          setLoading(false)
+        })
+    })
+  }, [open, userEmail])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -84,6 +107,9 @@ export default function EditProfileModal({ open, onClose, initialProfile }: { op
       </div>
 
       {tab === 'profile' ? (
+        loading ? (
+          <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--txm)' }}>Loading…</div>
+        ) : (
         <form onSubmit={handleSaveProfile}>
           {profileError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14 }}>{profileError}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -115,6 +141,7 @@ export default function EditProfileModal({ open, onClose, initialProfile }: { op
             </button>
           </div>
         </form>
+        )
       ) : (
         <form onSubmit={handleChangePassword}>
           {pwdError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14 }}>{pwdError}</div>}

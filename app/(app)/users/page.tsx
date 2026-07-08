@@ -55,11 +55,14 @@ export default function UsersPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         supabase.from('profiles').select('first_name,last_name,role').eq('id', user.id).single().then(({ data }) => {
-          if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
+          if (data) setCurrentUser(prev => ({ ...prev, name: `${data.first_name} ${data.last_name}`, role: data.role }))
         })
       }
     })
-    getMyPermissions().then(({ permissions }) => setMyPermissions(permissions))
+    getMyPermissions().then(({ permissions, role }) => {
+      setMyPermissions(permissions)
+      if (role) setCurrentUser(prev => ({ ...prev, role }))
+    })
   }, [loadUsers, supabase])  // supabase stable via useMemo; loadUsers has no deps
 
   function can(key: string) {

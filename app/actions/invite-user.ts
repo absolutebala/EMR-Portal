@@ -21,12 +21,18 @@ export async function inviteUser(payload: {
 
   const sSb = await serverClient()
   const { data: { user: currentUser } } = await sSb.auth.getUser()
-  const createdBy = currentUser?.id ?? null
 
   // createClient from supabase-js with service role key = full admin access, bypasses RLS
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+
+  // Verify the admin's profile row exists before using it as the FK value
+  let createdBy: string | null = null
+  if (currentUser?.id) {
+    const { data: adminProfile } = await supabase.from('profiles').select('id').eq('id', currentUser.id).maybeSingle()
+    createdBy = adminProfile?.id ?? null
+  }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
 
