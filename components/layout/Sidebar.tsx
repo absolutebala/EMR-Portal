@@ -8,6 +8,7 @@ interface SidebarProps {
   userName: string
   userRole: string
   permissions: Record<string, boolean>
+  modules: string[]
 }
 
 const NAV = [
@@ -46,7 +47,7 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-export default function Sidebar({ userName, userRole, permissions }: SidebarProps) {
+export default function Sidebar({ userName, userRole, permissions, modules }: SidebarProps) {
   // If permissions is empty (migration not yet run), show everything as fallback.
   const hasPerms = Object.keys(permissions).length > 0
   function allowed(permKey: string) {
@@ -83,45 +84,49 @@ export default function Sidebar({ userName, userRole, permissions }: SidebarProp
           </div>
         </div>
 
-        {/* Module switcher */}
-        <div style={{ position: 'relative', marginTop: 12 }}>
-          <div
-            onClick={() => setModOpen(!modOpen)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 9, padding: '8px 10px', cursor: 'pointer' }}
-          >
-            <div style={{ width: 24, height: 24, background: 'var(--m)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        {/* Module switcher — only shown if user has access to more than one module */}
+        {modules.length > 1 && (
+          <div style={{ position: 'relative', marginTop: 12 }}>
+            <div
+              onClick={() => setModOpen(!modOpen)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 9, padding: '8px 10px', cursor: 'pointer' }}
+            >
+              <div style={{ width: 24, height: 24, background: 'var(--m)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+              </div>
+              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#fff' }}>Field Management</span>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2" style={{ transition: 'transform .15s', transform: modOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 }}><polyline points="6 9 12 15 18 9"/></svg>
             </div>
-            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#fff' }}>Field Management</span>
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2" style={{ transition: 'transform .15s', transform: modOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 }}><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
 
-          {modOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#2A0F1A', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, boxShadow: '0 12px 32px rgba(0,0,0,.4)', overflow: 'hidden', zIndex: 300 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(125,29,63,.35)', cursor: 'pointer' }}>
-                <div style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--m)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+            {modOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#2A0F1A', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, boxShadow: '0 12px 32px rgba(0,0,0,.4)', overflow: 'hidden', zIndex: 300 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(125,29,63,.35)', cursor: 'pointer' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--m)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>Field Management</div>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Work orders, engineers, SAP</div>
+                  </div>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>Field Management</div>
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Work orders, engineers, SAP</div>
-                </div>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                {modules.includes('sales') && <>
+                  <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', opacity: .4, cursor: 'default' }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>Sales</div>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Leads, accounts, pipeline</div>
+                    </div>
+                    <span style={{ fontSize: 8, fontWeight: 600, background: 'rgba(255,255,255,.1)', color: 'rgba(255,255,255,.5)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>Coming soon</span>
+                  </div>
+                </>}
               </div>
-              <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', opacity: .4, cursor: 'default' }}>
-                <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>Sales</div>
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Leads, accounts, pipeline</div>
-                </div>
-                <span style={{ fontSize: 8, fontWeight: 600, background: 'rgba(255,255,255,.1)', color: 'rgba(255,255,255,.5)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>Coming soon</span>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
