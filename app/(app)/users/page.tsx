@@ -236,7 +236,7 @@ export default function UsersPage() {
                           </div>
                         ) : (
                           <>
-                            {currentUser.role === 'Super Admin' && (
+                            {can('Users — Create / Edit') && (
                               <button
                                 onClick={() => copyResetLink(u)}
                                 disabled={resetLoading === u.id}
