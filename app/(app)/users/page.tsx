@@ -202,7 +202,14 @@ export default function UsersPage() {
                     <td style={{ padding: '10px 14px' }}><RoleBadge role={u.role}/></td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{u.email}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.phone || '—'}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString('en-IN') : '—'}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      {u.last_login_at ? (
+                        <div>
+                          <div style={{ fontSize: 12, color: 'var(--txm)' }}>{new Date(u.last_login_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                          <div style={{ fontSize: 10, color: 'var(--txm)', opacity: .7, marginTop: 1 }}>{new Date(u.last_login_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
+                        </div>
+                      ) : <span style={{ fontSize: 12, color: 'var(--txm)' }}>—</span>}
+                    </td>
                     <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending || !u.last_login_at}/></td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
