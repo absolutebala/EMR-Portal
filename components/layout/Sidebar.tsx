@@ -48,11 +48,11 @@ function getInitials(name: string) {
 }
 
 export default function Sidebar({ userName, userRole, permissions, modules }: SidebarProps) {
-  // If permissions is empty (migration not yet run), show everything as fallback.
+  // If permissions is empty (not yet configured), show everything as fallback.
   const hasPerms = Object.keys(permissions).length > 0
   function allowed(permKey: string) {
     if (!hasPerms) return true
-    return permissions[permKey] !== false
+    return permissions[permKey] === true
   }
   const pathname = usePathname()
   const router = useRouter()

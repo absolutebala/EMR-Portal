@@ -66,7 +66,7 @@ export default function UsersPage() {
     if (currentUser.role === 'Super Admin') return true
     const hasPerms = Object.keys(myPermissions).length > 0
     if (!hasPerms) return true
-    return myPermissions[key] !== false
+    return myPermissions[key] === true
   }
 
   const filtered = users.filter(u => {
