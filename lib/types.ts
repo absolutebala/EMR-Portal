@@ -13,6 +13,7 @@ export interface Profile {
   role: UserRole
   is_active: boolean
   invite_pending: boolean
+  must_change_password: boolean
   created_at: string
   last_login_at: string | null
   manager_id: string | null

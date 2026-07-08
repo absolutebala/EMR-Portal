@@ -203,7 +203,7 @@ export default function UsersPage() {
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{u.email}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.phone || '—'}</td>
                     <td style={{ padding: '10px 14px' }}>
-                      {u.last_login_at && !u.invite_pending ? (
+                      {u.last_login_at && !u.invite_pending && !u.must_change_password ? (
                         <div>
                           <div style={{ fontSize: 12, color: 'var(--txm)' }}>{new Date(u.last_login_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                           <div style={{ fontSize: 10, color: 'var(--txm)', opacity: .7, marginTop: 1 }}>{new Date(u.last_login_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
