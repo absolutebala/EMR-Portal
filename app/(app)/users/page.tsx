@@ -81,7 +81,7 @@ export default function UsersPage() {
     const q = search.toLowerCase()
     const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.employee_id.toLowerCase().includes(q)
     const matchRole = !roleFilter || u.role === roleFilter
-    const isPending = u.invite_pending || !u.last_login_at
+    const isPending = u.invite_pending || u.must_change_password || !u.last_login_at
     const matchStatus = !statusFilter ||
       (statusFilter === 'Active' ? (u.is_active && !isPending) :
        statusFilter === 'Inactive' ? !u.is_active :
@@ -210,10 +210,10 @@ export default function UsersPage() {
                         </div>
                       ) : <span style={{ fontSize: 12, color: 'var(--txm)' }}>—</span>}
                     </td>
-                    <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending || !u.last_login_at}/></td>
+                    <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending || u.must_change_password || !u.last_login_at}/></td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {(u.invite_pending || !u.last_login_at) ? (
+                        {(u.invite_pending || u.must_change_password || !u.last_login_at) ? (
                           <button
                             onClick={() => copyInvitePassword(u)}
                             disabled={inviteLoading === u.id}
