@@ -35,12 +35,13 @@ export default function EditProfileModal({ open, onClose }: { open: boolean; onC
     setPwdError('')
     setLoading(true)
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { setLoading(false); return }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id
+      if (!uid) { setLoading(false); return }
       supabase
         .from('profiles')
         .select('first_name, last_name, phone, email, employee_id')
-        .eq('id', user.id)
+        .eq('id', uid)
         .single()
         .then(({ data }) => {
           if (data) {
