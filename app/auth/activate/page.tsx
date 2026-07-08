@@ -29,25 +29,22 @@ export default function ActivatePage() {
       return
     }
 
-    validateActivationLink(token).then(async ({ hashed_token, email: userEmail, error }) => {
+    validateActivationLink(token).then(async ({ access_token, refresh_token, email: userEmail, error }) => {
       if (error === 'already-active') {
         setErrorMsg('This account is already active. Please sign in.')
         setState('error')
         return
       }
-      if (error || !hashed_token) {
+      if (error || !access_token || !refresh_token) {
         setErrorMsg('Could not verify this link. Please ask your admin for a new one.')
         setState('error')
         return
       }
 
-      // Exchange the hashed token for a live session directly in the browser
-      const { data, error: otpError } = await supabase.auth.verifyOtp({
-        token_hash: hashed_token,
-        type: 'recovery',
-      })
+      // Server already exchanged the OTP — just hydrate the browser session from the tokens
+      const { data, error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token })
 
-      if (otpError || !data.user) {
+      if (sessionError || !data.user) {
         setErrorMsg('This link has expired or already been used. Please ask your admin for a new one.')
         setState('error')
         return
