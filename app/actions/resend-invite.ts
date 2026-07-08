@@ -32,5 +32,5 @@ export async function resendInvite(email: string): Promise<{ error: string | nul
     await supabase.from('profiles').update({ activation_token: token }).eq('email', email)
   }
 
-  return { error: null, inviteLink: `${siteUrl}/activate?token=${token}` }
+  return { error: null, inviteLink: `${siteUrl}/auth/activate?token=${token}` }
 }

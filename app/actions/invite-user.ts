@@ -64,7 +64,7 @@ export async function inviteUser(payload: {
 
   const userId = linkData.user.id
   const activationToken = randomUUID()
-  const inviteLink = `${siteUrl}/activate?token=${activationToken}`
+  const inviteLink = `${siteUrl}/auth/activate?token=${activationToken}`
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: userId,

@@ -26,5 +26,5 @@ export async function resetUserPassword(email: string): Promise<{ error: string 
 
   if (updateError) return { error: updateError.message }
 
-  return { error: null, resetLink: `${siteUrl}/activate?token=${token}` }
+  return { error: null, resetLink: `${siteUrl}/auth/activate?token=${token}` }
 }
