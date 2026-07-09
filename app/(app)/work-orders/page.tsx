@@ -48,6 +48,7 @@ export default function WorkOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [jobFilter, setJobFilter] = useState('')
   const [engFilter, setEngFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
@@ -67,7 +68,6 @@ export default function WorkOrdersPage() {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
-    // Load service engineers for assignment
     supabase.from('profiles').select('id, first_name, last_name').eq('role', 'Service Engineer').eq('is_active', true).order('first_name').then(({ data }) => {
       if (data) setEngineers(data)
     })
@@ -79,16 +79,18 @@ export default function WorkOrdersPage() {
     const matchStatus = !statusFilter || wo.status === statusFilter
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
-    return matchSearch && matchStatus && matchJob && matchEng
+    const matchDate = !dateFilter || wo.scheduled_date === dateFilter
+    return matchSearch && matchStatus && matchJob && matchEng && matchDate
   })
 
-  // Stats
+  // Stats — "Completed today" uses today's local date
+  const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
   const stats = {
     open: workOrders.filter(w => w.status !== 'completed').length,
     assigned: workOrders.filter(w => w.status === 'assigned').length,
     unassigned: workOrders.filter(w => w.status === 'unassigned').length,
+    completedToday: workOrders.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
     pending: workOrders.filter(w => w.status === 'pending').length,
-    completed: workOrders.filter(w => w.status === 'completed').length,
   }
 
   return (
@@ -102,8 +104,8 @@ export default function WorkOrdersPage() {
             { label: 'Open work orders', val: stats.open, sub: 'Total active', color: 'var(--m)' },
             { label: 'Assigned', val: stats.assigned, sub: 'Engineer allocated', color: 'var(--blue)' },
             { label: 'Unassigned', val: stats.unassigned, sub: 'Awaiting assignment', color: 'var(--amber)' },
+            { label: 'Completed today', val: stats.completedToday, sub: 'MoM generated', color: 'var(--green)' },
             { label: 'Pending / Incomplete', val: stats.pending, sub: 'Awaiting revisit', color: 'var(--red)' },
-            { label: 'Completed', val: stats.completed, sub: 'All time', color: 'var(--green)' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }} />
@@ -118,7 +120,7 @@ export default function WorkOrdersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '7px 12px', flex: 1, minWidth: 220 }}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search WO number, serial no, customer…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search WO ID, serial no, customer…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
             <option value="">All statuses</option>
@@ -136,6 +138,8 @@ export default function WorkOrdersPage() {
             <option value="">All engineers</option>
             {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
           </select>
+          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+            style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />
           <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Work Order
@@ -155,7 +159,7 @@ export default function WorkOrdersPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr>
-                    {['WO Number', 'Serial No(s)', 'Job type', 'Customer', 'Site', 'Engineer', 'Warranty', 'Scheduled', 'Status', 'Actions'].map(h => (
+                    {['WO ID', 'Serial No(s)', 'Job type', 'Sold customer', 'Shipped to', 'Engineer', 'Warranty', 'Scheduled', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -177,11 +181,11 @@ export default function WorkOrdersPage() {
                       <td style={{ padding: '10px 14px' }}><JobBadge type={wo.job_type} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{wo.customer_name || '—'}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{wo.site_name || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || 'Unassigned'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || '—'}</td>
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                         {wo.has_warranty
                           ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
-                          : <span style={{ fontSize: 11, color: 'var(--txm)' }}>—</span>}
+                          : <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>
                         {wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}

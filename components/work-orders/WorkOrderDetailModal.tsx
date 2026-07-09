@@ -36,6 +36,50 @@ function statusBadge(status: string) {
   return <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color }}>{c.label}</span>
 }
 
+function TimelineDot({ action }: { action: string }) {
+  const a = action.toLowerCase()
+  let bg = 'var(--m)'
+  let icon = (
+    <svg width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9z"/>
+    </svg>
+  )
+  if (a.includes('assigned') || a.includes('reassigned')) {
+    bg = '#1D4ED8'
+    icon = (
+      <svg width="10" height="10" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
+        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+      </svg>
+    )
+  } else if (a.includes('in progress')) {
+    bg = '#D97706'
+    icon = (
+      <svg width="10" height="10" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    )
+  } else if (a.includes('completed')) {
+    bg = '#059669'
+    icon = (
+      <svg width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    )
+  } else if (a.includes('pending')) {
+    bg = '#DC2626'
+    icon = (
+      <svg width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    )
+  }
+  return (
+    <div style={{ width: 20, height: 20, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 0 0 1px ' + bg + '40' }}>
+      {icon}
+    </div>
+  )
+}
+
 interface Engineer { id: string; first_name: string; last_name: string }
 
 interface Props {
@@ -90,13 +134,13 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', padding: '8px 0', borderBottom: '1px solid var(--gl)' }}>
-      <span style={{ width: 130, fontSize: 11, color: 'var(--txm)', flexShrink: 0 }}>{label}</span>
+      <span style={{ width: 140, fontSize: 11, color: 'var(--txm)', flexShrink: 0 }}>{label}</span>
       <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{value}</span>
     </div>
   )
 
   return (
-    <Modal open={open} onClose={onClose} title={wo ? `Work Order — ${wo.wo_number}` : 'Work Order Detail'}
+    <Modal open={open} onClose={onClose} title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Work Order Detail'}
       footer={
         !isComplete && wo ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -122,7 +166,37 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Not found</div>
       ) : (
         <div>
+          {/* Status/type/warranty tags row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#F1F5F9', color: '#475569', fontWeight: 500 }}>{JOB_LABELS[wo.job_type] || wo.job_type}</span>
+            {statusBadge(wo.status)}
+            <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: wo.has_warranty ? '#D1FAE5' : '#F1F5F9', color: wo.has_warranty ? '#065F46' : '#475569' }}>
+              {wo.has_warranty ? 'Under warranty' : 'No warranty'}
+            </span>
+          </div>
+
           {error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
+
+          {/* MoM section for completed WOs */}
+          {isComplete && (
+            <div style={{ background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46', marginBottom: 8 }}>MoM — Minutes of Meeting</div>
+              {[
+                'MoM generated automatically on job completion',
+                `MoM PDF sent to SAP against Serial Number ${wo.serial_numbers?.join(', ') || '—'}`,
+                'SAP updated — engineer visits, activities, timestamps, status',
+              ].map((text, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 11, color: '#065F46' }}>
+                  <svg width="16" height="16" fill="none" stroke="#059669" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  {text}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Download MoM PDF</button>
+                <button style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 11, fontFamily: 'Poppins,sans-serif' }}>View in SAP</button>
+              </div>
+            </div>
+          )}
 
           {/* Reassign panel */}
           {showReassign && (
@@ -140,21 +214,22 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
             </div>
           )}
 
+          {/* 2-column detail grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>Work order</div>
-              {row('WO Number', wo.wo_number)}
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>Work order details</div>
+              {row('Work order', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
+              {row('Serial number(s)', <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
               {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}
-              {row('Serial No(s)', wo.serial_numbers?.join(', ') || '—')}
               {row('Scheduled', wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
-              {row('Engineer', wo.engineer_name || <span style={{ color: 'var(--txm)' }}>Unassigned</span>)}
-              {row('Status', statusBadge(wo.status))}
+              {row('Assigned engineer', wo.engineer_name || <span style={{ color: 'var(--txm)' }}>Unassigned</span>)}
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>Customer</div>
-              {row('Customer', wo.customer_name || '—')}
-              {row('Site', wo.site_name || '—')}
-              {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Under warranty</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>Customer details</div>
+              {row('Sold customer', wo.customer_name || '—')}
+              {row('Shipped to', wo.site_name || '—')}
+              {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
+              {row('Status', statusBadge(wo.status))}
               {wo.notes && row('Notes', wo.notes)}
             </div>
           </div>
@@ -163,17 +238,18 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>Activity timeline</div>
           <div>
             {activity.map((a, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--m)', marginTop: 3 }} />
-                  {i < activity.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--gm)', marginTop: 4 }} />}
-                </div>
-                <div style={{ paddingBottom: 10 }}>
+              <div key={i} style={{ display: 'flex', gap: 10, paddingBottom: 14, position: 'relative' }}>
+                {i < activity.length - 1 && (
+                  <div style={{ position: 'absolute', left: 9, top: 22, bottom: 0, width: 1.5, background: 'var(--gm)' }} />
+                )}
+                <TimelineDot action={a.action} />
+                <div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{a.action}</div>
                   <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
                     {new Date(a.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     {' · '}
                     {new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    {a.actor_name ? ` · ${a.actor_name}` : ''}
                   </div>
                 </div>
               </div>
