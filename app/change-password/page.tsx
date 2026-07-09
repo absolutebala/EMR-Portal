@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { completePasswordChange } from '@/app/actions/complete-password-change'
 
 export default function ChangePasswordPage() {
   const [email, setEmail] = useState('')
@@ -34,16 +35,12 @@ export default function ChangePasswordPage() {
     const { error: pwError } = await supabase.auth.updateUser({ password })
     if (pwError) { setError(pwError.message); setSaving(false); return }
 
-    // Clear the must_change_password flag and mark invite complete
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase
-        .from('profiles')
-        .update({ must_change_password: false, invite_pending: false })
-        .eq('id', user.id)
-    }
+    // Use server action with admin client — RLS blocks browser client from updating must_change_password
+    const { error: profileError } = await completePasswordChange()
+    if (profileError) { setError('Password set but could not update profile. Please contact admin.'); setSaving(false); return }
 
-    router.push('/dashboard')
+    // Full page navigation so the server reads fresh session cookies
+    window.location.href = '/dashboard'
   }
 
   return (
