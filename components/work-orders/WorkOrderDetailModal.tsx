@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
-import { getWorkOrderDetail } from '@/app/actions/get-work-orders'
-import { updateWorkOrderStatus, reassignWorkOrderEngineer } from '@/app/actions/create-work-order'
+import { getWorkOrderDetail, getTransformersForCustomer } from '@/app/actions/get-work-orders'
+import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
@@ -81,6 +81,16 @@ function TimelineDot({ action }: { action: string }) {
 }
 
 interface Engineer { id: string; first_name: string; last_name: string }
+type CustomerTransformer = { id: string; serial_number: string; warranty_status: string; site_name: string | null }
+
+interface EditForm {
+  wo_number: string
+  job_type: string
+  transformer_ids: string[]
+  engineer_id: string
+  scheduled_date: string
+  notes: string
+}
 
 interface Props {
   open: boolean
@@ -88,6 +98,19 @@ interface Props {
   onUpdated: () => void
   workOrderId: string | null
   engineers: Engineer[]
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  border: '1.5px solid var(--gm)',
+  borderRadius: 7,
+  fontSize: 12,
+  outline: 'none',
+  fontFamily: 'Poppins,sans-serif',
+  color: 'var(--tx)',
+  background: '#fff',
+  boxSizing: 'border-box',
 }
 
 export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrderId, engineers }: Props) {
@@ -99,8 +122,14 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
   const [reassignId, setReassignId] = useState('')
   const [showReassign, setShowReassign] = useState(false)
 
+  // Edit mode
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<EditForm>({ wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '' })
+  const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
+  const [loadingTransformers, setLoadingTransformers] = useState(false)
+
   useEffect(() => {
-    if (!open || !workOrderId) { setWo(null); setActivity([]); return }
+    if (!open || !workOrderId) { setWo(null); setActivity([]); setEditing(false); return }
     setLoading(true)
     getWorkOrderDetail(workOrderId).then(({ workOrder, activity: act }) => {
       setWo(workOrder)
@@ -108,6 +137,60 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
       setLoading(false)
     })
   }, [open, workOrderId])
+
+  async function enterEditMode() {
+    if (!wo) return
+    setForm({
+      wo_number: wo.wo_number,
+      job_type: wo.job_type,
+      transformer_ids: wo.transformer_ids || [],
+      engineer_id: wo.engineer_id || '',
+      scheduled_date: wo.scheduled_date || '',
+      notes: wo.notes || '',
+    })
+    setEditing(true)
+    setShowReassign(false)
+    setError('')
+
+    // Load all transformers for this customer
+    setLoadingTransformers(true)
+    const { transformers } = await getTransformersForCustomer(wo.customer_id)
+    setCustomerTransformers(transformers)
+    setLoadingTransformers(false)
+  }
+
+  function cancelEdit() {
+    setEditing(false)
+    setError('')
+  }
+
+  function toggleTransformer(id: string) {
+    setForm(f => ({
+      ...f,
+      transformer_ids: f.transformer_ids.includes(id)
+        ? f.transformer_ids.filter(t => t !== id)
+        : [...f.transformer_ids, id],
+    }))
+  }
+
+  async function handleSaveEdit() {
+    if (!wo) return
+    if (!form.wo_number.trim()) { setError('Work order number is required.'); return }
+    if (!form.job_type) { setError('Job type is required.'); return }
+    setActing(true); setError('')
+    const { error: err } = await updateWorkOrder(wo.id, {
+      wo_number: form.wo_number.trim(),
+      job_type: form.job_type,
+      transformer_ids: form.transformer_ids,
+      engineer_id: form.engineer_id || null,
+      scheduled_date: form.scheduled_date || null,
+      notes: form.notes || null,
+    })
+    if (err) { setError(err); setActing(false); return }
+    const { workOrder, activity: act } = await getWorkOrderDetail(wo.id)
+    setWo(workOrder); setActivity(act as WorkOrderActivity[])
+    setEditing(false); setActing(false); onUpdated()
+  }
 
   async function handleStatusUpdate(status: string) {
     if (!wo) return
@@ -139,13 +222,34 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
     </div>
   )
 
+  const label = (text: string) => (
+    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase' as const, letterSpacing: .5, marginBottom: 4, marginTop: 10 }}>{text}</div>
+  )
+
   return (
-    <Modal open={open} onClose={onClose} title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Work Order Detail'}
+    <Modal open={open} onClose={editing ? () => {} : onClose}
+      title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Work Order Detail'}
       footer={
-        !isComplete && wo ? (
+        editing ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={cancelEdit} disabled={acting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>
+              Cancel
+            </button>
+            <button onClick={handleSaveEdit} disabled={acting}
+              style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: acting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: acting ? .7 : 1 }}>
+              {acting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        ) : !isComplete && wo ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>
-            <button onClick={() => setShowReassign(!showReassign)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--amber)', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+            <button onClick={enterEditMode}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Edit work order
+            </button>
+            <button onClick={() => setShowReassign(!showReassign)}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--amber)', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
               {wo.status === 'unassigned' ? 'Assign engineer' : 'Reassign engineer'}
             </button>
             {nextStatuses.map(s => (
@@ -156,7 +260,13 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
             ))}
           </div>
         ) : (
-          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Close</button>
+            {wo && <button onClick={enterEditMode}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Edit work order
+            </button>}
+          </div>
         )
       }
     >
@@ -164,7 +274,71 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading…</div>
       ) : !wo ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Not found</div>
+      ) : editing ? (
+        /* ── Edit form ── */
+        <div>
+          {error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              {label('Work order number')}
+              <input style={inputStyle} value={form.wo_number} onChange={e => setForm(f => ({ ...f, wo_number: e.target.value }))} placeholder="e.g. WO-2024-001" />
+
+              {label('Job type')}
+              <select style={inputStyle} value={form.job_type} onChange={e => setForm(f => ({ ...f, job_type: e.target.value }))}>
+                <option value="">Select job type…</option>
+                {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+
+              {label('Assign engineer')}
+              <select style={inputStyle} value={form.engineer_id} onChange={e => setForm(f => ({ ...f, engineer_id: e.target.value }))}>
+                <option value="">Unassigned</option>
+                {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+              </select>
+
+              {label('Scheduled date')}
+              <input type="date" style={inputStyle} value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
+
+              {label('Notes')}
+              <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…" />
+            </div>
+
+            <div>
+              {label('Serial numbers (transformers)')}
+              {loadingTransformers ? (
+                <div style={{ fontSize: 12, color: 'var(--txm)', padding: '8px 0' }}>Loading transformers…</div>
+              ) : customerTransformers.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--txm)', padding: '8px 0' }}>No transformers registered for this customer.</div>
+              ) : (
+                <div style={{ border: '1.5px solid var(--gm)', borderRadius: 7, overflow: 'hidden', maxHeight: 300, overflowY: 'auto' }}>
+                  {customerTransformers.map((t, i) => {
+                    const checked = form.transformer_ids.includes(t.id)
+                    return (
+                      <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', cursor: 'pointer', borderBottom: i < customerTransformers.length - 1 ? '1px solid var(--gl)' : 'none', background: checked ? 'var(--mp)' : '#fff' }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleTransformer(t.id)} style={{ accentColor: 'var(--m)', width: 14, height: 14, flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: checked ? 600 : 400, color: checked ? 'var(--m)' : 'var(--tx)' }}>{t.serial_number}</div>
+                          <div style={{ fontSize: 10, color: 'var(--txm)' }}>
+                            {t.site_name || 'No site'}
+                            {' · '}
+                            <span style={{ color: t.warranty_status === 'under_warranty' ? '#059669' : '#6B7280' }}>
+                              {t.warranty_status === 'under_warranty' ? 'Under warranty' : 'No warranty'}
+                            </span>
+                          </div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+              {form.transformer_ids.length > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 5 }}>{form.transformer_ids.length} transformer(s) selected</div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
+        /* ── View mode ── */
         <div>
           {/* Status/type/warranty tags row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
