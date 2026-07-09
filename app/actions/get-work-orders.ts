@@ -148,7 +148,6 @@ export async function getAssignableEngineers(): Promise<{ engineers: { id: strin
     .from('profiles')
     .select('id, first_name, last_name, role')
     .eq('role', 'Field Engineer')
-    .eq('is_active', true)
     .order('first_name')
   return { engineers: data || [] }
 }
