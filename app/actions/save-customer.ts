@@ -21,7 +21,7 @@ export async function addCustomer(payload: {
   warranty_status: string
   site_name: string
   site_address: string
-}): Promise<{ error: string | null }> {
+}): Promise<{ error: string | null; id?: string }> {
   try {
     const sb = adminClient()
 
@@ -61,7 +61,7 @@ export async function addCustomer(payload: {
       is_primary: true,
     })
 
-    return { error: null }
+    return { error: null, id: cust.id }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }

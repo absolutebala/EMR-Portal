@@ -89,6 +89,37 @@ export interface AppSettings {
   updated_at: string
 }
 
+export type WorkOrderStatus = 'unassigned' | 'assigned' | 'in_progress' | 'pending' | 'completed'
+
+export interface WorkOrder {
+  id: string
+  wo_number: string
+  job_type: JobType
+  customer_id: string
+  engineer_id: string | null
+  scheduled_date: string | null
+  status: WorkOrderStatus
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  customer_name?: string
+  engineer_name?: string
+  serial_numbers?: string[]
+  transformer_ids?: string[]
+  site_name?: string | null
+  has_warranty?: boolean
+}
+
+export interface WorkOrderActivity {
+  id: string
+  work_order_id: string
+  action: string
+  actor_name: string | null
+  created_at: string
+}
+
 export type FormStatus = 'draft' | 'active'
 export type JobType = 'site_inspection' | 'amc' | 'commissioning_activities' | 'supervision'
 export type FieldType = 'text' | 'long_text' | 'number' | 'date' | 'dropdown' | 'photo' | 'signature' | 'checkbox'

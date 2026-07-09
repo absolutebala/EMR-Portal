@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
+import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import type { Customer } from '@/lib/types'
 
@@ -18,9 +19,11 @@ interface CustomerWithCounts extends Customer {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerWithCounts[]>([])
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
+  const [engineers, setEngineers] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
+  const [woCustomer, setWoCustomer] = useState<{ id: string; name: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -48,12 +51,14 @@ export default function CustomersPage() {
 
   useEffect(() => {
     loadCustomers()
-    // getSession reads from cookie — no network call, unlike getUser()
     supabase.auth.getSession().then(({ data: { session } }) => {
       const userId = session?.user.id
       if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
+    })
+    supabase.from('profiles').select('id, first_name, last_name').eq('role', 'Service Engineer').eq('is_active', true).order('first_name').then(({ data }) => {
+      if (data) setEngineers(data)
     })
   }, [loadCustomers, supabase])
 
@@ -131,7 +136,21 @@ export default function CustomersPage() {
           )}
         </div>
 
-        <AddCustomerModal open={showAdd} onClose={() => { setShowAdd(false); setEditCustomer(null) }} onSaved={loadCustomers} editCustomer={editCustomer}/>
+        <AddCustomerModal
+          open={showAdd}
+          onClose={() => { setShowAdd(false); setEditCustomer(null) }}
+          onSaved={loadCustomers}
+          editCustomer={editCustomer}
+          onCreateWorkOrder={(id, name) => { setShowAdd(false); setEditCustomer(null); setWoCustomer({ id, name }) }}
+        />
+        <NewWorkOrderModal
+          open={!!woCustomer}
+          onClose={() => setWoCustomer(null)}
+          onSaved={() => { setWoCustomer(null) }}
+          engineers={engineers}
+          prefillCustomerId={woCustomer?.id}
+          prefillCustomerName={woCustomer?.name}
+        />
       </div>
     </>
   )

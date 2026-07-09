@@ -13,9 +13,10 @@ interface Props {
   onClose: () => void
   onSaved: () => void
   editCustomer?: Customer | null
+  onCreateWorkOrder?: (customerId: string, customerName: string) => void
 }
 
-export default function AddCustomerModal({ open, onClose, onSaved, editCustomer }: Props) {
+export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder }: Props) {
   const [form, setForm] = useState({
     name: '', type: 'both', contact_person: '', phone: '', email: '',
     whatsapp_number: '', site_name: '', site_address: '',
@@ -24,8 +25,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer 
   const whatsappTouched = useRef(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [savedCustomer, setSavedCustomer] = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
+    if (!open) setSavedCustomer(null)
     whatsappTouched.current = false
     if (editCustomer) {
       setForm(f => ({
@@ -72,8 +75,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer 
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
         })
         if (error) throw new Error(error)
+        onSaved()
+        onClose()
       } else {
-        const { error } = await addCustomer({
+        const { error, id } = await addCustomer({
           name: form.name, type: form.type,
           contact_person: form.contact_person, phone: form.phone,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
@@ -84,10 +89,13 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer 
           site_address: form.site_address,
         })
         if (error) throw new Error(error)
+        onSaved()
+        if (onCreateWorkOrder && id) {
+          setSavedCustomer({ id, name: form.name })
+        } else {
+          onClose()
+        }
       }
-
-      onSaved()
-      onClose()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -98,18 +106,37 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer 
   const isEdit = !!editCustomer
 
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit customer' : 'Add customer'} size="lg"
+    <Modal open={open} onClose={onClose} title={savedCustomer ? 'Customer added' : isEdit ? 'Edit customer' : 'Add customer'} size="lg"
       footer={
-        <>
-          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
-          <button form="cust-form" type="submit" disabled={loading} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
-            {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Add customer'}
-          </button>
-        </>
+        savedCustomer ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Done</button>
+            <button onClick={() => { onCreateWorkOrder!(savedCustomer.id, savedCustomer.name); onClose() }}
+              style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Create work order
+            </button>
+          </div>
+        ) : (
+          <>
+            <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+            <button form="cust-form" type="submit" disabled={loading} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
+              {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Add customer'}
+            </button>
+          </>
+        )
       }
     >
-      {error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
-      <form id="cust-form" onSubmit={handleSubmit}>
+      {savedCustomer ? (
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <svg width="22" height="22" fill="none" stroke="#065F46" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>{savedCustomer.name} added</div>
+          <div style={{ fontSize: 13, color: 'var(--txm)' }}>Would you like to create a work order for this customer?</div>
+        </div>
+      ) : null}
+      {!savedCustomer && error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
+      {savedCustomer ? null : <form id="cust-form" onSubmit={handleSubmit}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Customer details</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
           <div style={{ gridColumn: '1 / -1' }}>
@@ -180,7 +207,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer 
             </div>
           </>
         )}
-      </form>
+      </form>}
     </Modal>
   )
 }

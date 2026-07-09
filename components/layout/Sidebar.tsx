@@ -16,7 +16,7 @@ interface SidebarProps {
 const NAV = [
   { section: 'Main', items: [
     { label: 'Dashboard',       icon: 'dashboard',  path: '/dashboard',    permKey: 'Dashboard' },
-    { label: 'Work Orders',     icon: 'workorders', path: '/work-orders',  permKey: 'Work Orders — View',       stub: true },
+    { label: 'Work Orders',     icon: 'workorders', path: '/work-orders',  permKey: 'Work Orders — View' },
     { label: 'Field Engineers', icon: 'engineers',  path: '/engineers',    permKey: 'Field Engineers — View',   stub: true },
   ]},
   { section: 'Management', items: [
