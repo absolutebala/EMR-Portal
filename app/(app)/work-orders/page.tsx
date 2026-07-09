@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import WorkOrderDetailModal from '@/components/work-orders/WorkOrderDetailModal'
-import { getWorkOrders } from '@/app/actions/get-work-orders'
+import { getWorkOrders, getAssignableEngineers } from '@/app/actions/get-work-orders'
 import type { WorkOrder } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
@@ -55,8 +55,12 @@ export default function WorkOrdersPage() {
 
   const loadWorkOrders = useCallback(async () => {
     setLoading(true)
-    const { workOrders: data } = await getWorkOrders()
+    const [{ workOrders: data }, { engineers: engData }] = await Promise.all([
+      getWorkOrders(),
+      getAssignableEngineers(),
+    ])
     setWorkOrders(data)
+    setEngineers(engData)
     setLoading(false)
   }, [])
 
@@ -67,9 +71,6 @@ export default function WorkOrdersPage() {
       if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
-    })
-    supabase.from('profiles').select('id, first_name, last_name').in('role', ['Service Engineer', 'Service Manager']).eq('is_active', true).order('first_name').then(({ data }) => {
-      if (data) setEngineers(data)
     })
   }, [loadWorkOrders, supabase])
 

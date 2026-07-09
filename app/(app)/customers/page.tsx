@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
+import { getAssignableEngineers } from '@/app/actions/get-work-orders'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import type { Customer } from '@/lib/types'
 
@@ -57,9 +58,7 @@ export default function CustomersPage() {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
-    supabase.from('profiles').select('id, first_name, last_name').in('role', ['Service Engineer', 'Service Manager']).eq('is_active', true).order('first_name').then(({ data }) => {
-      if (data) setEngineers(data)
-    })
+    getAssignableEngineers().then(({ engineers: engData }) => setEngineers(engData))
   }, [loadCustomers, supabase])
 
   const filtered = customers.filter(c => {

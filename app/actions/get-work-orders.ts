@@ -142,6 +142,17 @@ export async function searchTransformersBySerial(query: string): Promise<{ resul
   }
 }
 
+export async function getAssignableEngineers(): Promise<{ engineers: { id: string; first_name: string; last_name: string; role: string }[] }> {
+  const admin = adminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('id, first_name, last_name, role')
+    .in('role', ['Service Engineer', 'Service Manager'])
+    .eq('is_active', true)
+    .order('first_name')
+  return { engineers: data || [] }
+}
+
 export async function getTransformersForCustomer(customerId: string): Promise<{ transformers: { id: string; serial_number: string; warranty_status: string; site_name: string | null }[] }> {
   const admin = adminClient()
   const { data } = await admin
