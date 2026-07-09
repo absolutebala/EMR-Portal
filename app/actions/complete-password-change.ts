@@ -16,11 +16,12 @@ export async function completePasswordChange(): Promise<{ error: string | null }
   if (!user) return { error: 'Not authenticated' }
 
   const admin = adminClient()
-  const { error } = await admin
-    .from('profiles')
-    .update({ must_change_password: false, invite_pending: false })
-    .eq('id', user.id)
+  const [{ error: profileError }, { error: metaError }] = await Promise.all([
+    admin.from('profiles').update({ must_change_password: false, invite_pending: false }).eq('id', user.id),
+    admin.auth.admin.updateUserById(user.id, { user_metadata: { must_change_password: false } }),
+  ])
 
-  if (error) return { error: error.message }
+  if (profileError) return { error: profileError.message }
+  if (metaError) return { error: metaError.message }
   return { error: null }
 }

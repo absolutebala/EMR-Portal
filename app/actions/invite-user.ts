@@ -76,6 +76,7 @@ export async function inviteUser(payload: {
     email: payload.email,
     password: tempPassword,
     email_confirm: true,
+    user_metadata: { must_change_password: true },
   })
 
   if (authError) return { error: authError.message }

@@ -46,6 +46,7 @@ export async function resendInvite(email: string): Promise<{ error: string | nul
 
   const { error: authError } = await supabase.auth.admin.updateUserById(profile.id, {
     password: tempPassword,
+    user_metadata: { must_change_password: true },
   })
 
   if (authError) return { error: authError.message }

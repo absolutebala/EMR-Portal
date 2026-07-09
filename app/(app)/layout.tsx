@@ -33,7 +33,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login')
   }
 
-  if (profile?.must_change_password) redirect('/change-password')
+  // user_metadata is set by admin API and returned by getUser() — always authoritative.
+  // If metadata explicitly says false, skip redirect even if DB hasn't caught up yet.
+  // Fall back to DB check for users created before metadata was introduced.
+  const metaFlag = user.user_metadata?.must_change_password
+  const mustChange = metaFlag === true || (metaFlag !== false && profile?.must_change_password === true)
+  if (mustChange) redirect('/change-password')
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'
   const userRole = profile?.role || 'User'
