@@ -57,7 +57,7 @@ export default function CustomersPage() {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
-    supabase.from('profiles').select('id, first_name, last_name').eq('role', 'Service Engineer').eq('is_active', true).order('first_name').then(({ data }) => {
+    supabase.from('profiles').select('id, first_name, last_name').in('role', ['Service Engineer', 'Service Manager']).eq('is_active', true).order('first_name').then(({ data }) => {
       if (data) setEngineers(data)
     })
   }, [loadCustomers, supabase])

@@ -31,6 +31,9 @@ export async function createWorkOrder(payload: {
 
     const status = payload.engineer_id ? 'assigned' : 'unassigned'
 
+    // Verify creator profile exists (FK requires profiles.id match)
+    const { data: creator } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
+
     const { data: wo, error } = await admin.from('work_orders').insert({
       wo_number: payload.wo_number,
       job_type: payload.job_type,
@@ -39,7 +42,7 @@ export async function createWorkOrder(payload: {
       scheduled_date: payload.scheduled_date || null,
       status,
       notes: payload.notes || null,
-      created_by: user.id,
+      created_by: creator ? user.id : null,
     }).select('id').single()
 
     if (error) return { error: error.message }
@@ -52,7 +55,6 @@ export async function createWorkOrder(payload: {
     }
 
     // Log creation activity
-    const { data: creator } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
     const actorName = creator ? `${creator.first_name} ${creator.last_name}` : 'Admin'
 
     const activityRows = [{ work_order_id: wo.id, action: `Work order created by ${actorName}`, actor_name: actorName }]
