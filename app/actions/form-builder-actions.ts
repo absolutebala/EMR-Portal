@@ -263,3 +263,49 @@ export async function reorderFormSections(
     return { error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+export async function updateFormTableRow(
+  rowId: string,
+  updates: { row_label?: string; sno_label?: string }
+): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb.from('form_table_rows').update(updates).eq('id', rowId)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteFormTableRow(rowId: string): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb.from('form_table_rows').delete().eq('id', rowId)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function updateFormTable(
+  tableId: string,
+  updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean }
+): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb.from('form_tables').update(updates).eq('id', tableId)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteFormTable(tableId: string): Promise<{ error: string | null }> {
+  try {
+    const sb = adminClient()
+    const { error } = await sb.from('form_tables').delete().eq('id', tableId)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
