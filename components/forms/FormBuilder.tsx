@@ -423,17 +423,19 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                                     <option value="measurement">Measurement</option>
                                   </select>
                                 </div>
-                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement') && (
+                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement' || t.status_type === 'tested_not_tested') && (
                                   <div style={{ flex: 1, minWidth: 90 }}>
-                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>Col 1 label</div>
+                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t.status_type === 'tested_not_tested' ? 'Tested label' : 'Col 1 label'}</div>
                                     <input value={t.col1_label || ''} onChange={e => handleUpdateTable(t.id, sec.id, { col1_label: e.target.value || null })}
+                                      placeholder={t.status_type === 'tested_not_tested' ? 'Tested' : 'Col 1'}
                                       style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--gm)', borderRadius: 6, fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' as const }}/>
                                   </div>
                                 )}
-                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement') && (
+                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement' || t.status_type === 'tested_not_tested') && (
                                   <div style={{ flex: 1, minWidth: 90 }}>
-                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>Col 2 label</div>
+                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t.status_type === 'tested_not_tested' ? 'Not tested label' : 'Col 2 label'}</div>
                                     <input value={t.col2_label || ''} onChange={e => handleUpdateTable(t.id, sec.id, { col2_label: e.target.value || null })}
+                                      placeholder={t.status_type === 'tested_not_tested' ? 'Not Tested' : 'Col 2'}
                                       style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--gm)', borderRadius: 6, fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' as const }}/>
                                   </div>
                                 )}
@@ -446,8 +448,8 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                               <div style={{ flex: 1, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>Details</div>
                               {t.status_type === 'yes_no' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Status</div>}
                               {t.status_type === 'tested_not_tested' && <>
-                                <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Tested</div>
-                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Not Tested</div>
+                                <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>{t.col1_label || 'Tested'}</div>
+                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>{t.col2_label || 'Not Tested'}</div>
                               </>}
                               {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
                                 <div style={{ width: 56, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#065F46', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#ECFDF5' }}>{t.col1_label || 'Col 1'}</div>
@@ -816,8 +818,8 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                               <th style={{ padding: '8px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Details</th>
                               {t.status_type === 'yes_no' && <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 110, textAlign: 'center' }}>Status</th>}
                               {t.status_type === 'tested_not_tested' && <>
-                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>Tested</th>
-                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>Not Tested</th>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>{t.col1_label || 'Tested'}</th>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>{t.col2_label || 'Not Tested'}</th>
                               </>}
                               <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 100, textAlign: 'left' }}>Remarks</th>
                             </tr>
