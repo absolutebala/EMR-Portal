@@ -162,7 +162,6 @@ export interface FormTable {
   has_subrows: boolean
   col1_label: string | null
   col2_label: string | null
-  title: string | null
   order_index: number
 }
 

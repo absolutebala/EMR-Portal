@@ -15,10 +15,6 @@ import {
   addFormTable,
   addFormTableRow,
   reorderFormSections,
-  updateFormTableRow,
-  deleteFormTableRow,
-  updateFormTable,
-  deleteFormTable,
 } from '@/app/actions/form-builder-actions'
 import { deleteForm } from '@/app/actions/assign-form'
 import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType } from '@/lib/types'
@@ -81,11 +77,6 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const [previewSel, setPreviewSel] = useState<Record<string, { c1: boolean; c2: boolean }>>({})
   const [previewObsSel, setPreviewObsSel] = useState<Record<string, 'progress' | 'completed' | 'na'>>({})
-  // Table / row editing state
-  const [editingRowId, setEditingRowId] = useState<string | null>(null)
-  const [editingRowLabel, setEditingRowLabel] = useState('')
-  const [editingRowSno, setEditingRowSno] = useState('')
-  const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadForm = useCallback(async (id: string) => {
@@ -208,50 +199,6 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
     if (error) { alert(`Could not delete field: ${error}`); return }
     setSections(ss => ss.map(s => s.id === selected.sectionId ? { ...s, fields: s.fields.filter(f => f.id !== selected.id) } : s))
     setSelected(null)
-  }
-
-  function startEditRow(row: FormTableRow) {
-    setEditingRowId(row.id)
-    setEditingRowLabel(row.row_label || '')
-    setEditingRowSno(row.sno_label || '')
-  }
-
-  async function saveRowEdit(tableId: string, secId: string) {
-    if (!editingRowId) return
-    const { error } = await updateFormTableRow(editingRowId, { row_label: editingRowLabel, sno_label: editingRowSno })
-    if (error) { alert(`Could not save row: ${error}`); return }
-    setSections(ss => ss.map(s => s.id === secId ? {
-      ...s,
-      tables: s.tables.map(t => t.id === tableId ? {
-        ...t,
-        rows: t.rows.map(r => r.id === editingRowId ? { ...r, row_label: editingRowLabel, sno_label: editingRowSno } : r),
-      } : t),
-    } : s))
-    setEditingRowId(null)
-  }
-
-  async function handleDeleteRow(rowId: string, tableId: string, secId: string) {
-    const { error } = await deleteFormTableRow(rowId)
-    if (error) { alert(`Could not delete row: ${error}`); return }
-    setSections(ss => ss.map(s => s.id === secId ? {
-      ...s,
-      tables: s.tables.map(t => t.id === tableId ? { ...t, rows: t.rows.filter(r => r.id !== rowId) } : t),
-    } : s))
-  }
-
-  async function handleUpdateTable(tableId: string, secId: string, updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean; title?: string | null }) {
-    await updateFormTable(tableId, updates)
-    setSections(ss => ss.map(s => s.id === secId ? {
-      ...s,
-      tables: s.tables.map(t => t.id === tableId ? { ...t, ...(updates as Partial<typeof t>) } : t),
-    } : s))
-  }
-
-  async function handleDeleteTable(tableId: string, secId: string) {
-    const { error } = await deleteFormTable(tableId)
-    if (error) { alert(`Could not delete table: ${error}`); return }
-    setSections(ss => ss.map(s => s.id === secId ? { ...s, tables: s.tables.filter(t => t.id !== tableId) } : s))
-    if (editingTableId === tableId) setEditingTableId(null)
   }
 
   // Drag & drop section reordering
@@ -387,75 +334,20 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                         ))}
 
                         {/* Tables */}
-                        {sec.tables.map(t => {
-                          const isEditingTable = editingTableId === t.id
-                          const displayRows = isEditingTable ? t.rows : t.rows.slice(0, 3)
-                          const hasEditCtrls = isEditingTable
-                          return (
-                          <div key={t.id} style={{ border: `1.5px solid ${isEditingTable ? 'var(--m)' : 'var(--gm)'}`, borderRadius: 8, overflow: 'hidden', marginBottom: 6, transition: 'border-color .15s' }}>
-                            {/* Table header */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: isEditingTable ? 'var(--mp)' : 'var(--gl)' }}>
-                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2" style={{ flexShrink: 0 }}><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                              <input
-                                value={t.title ?? ((t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (excl.)' : ''}` : t.status_type === 'measurement' ? `${t.col2_label ? t.col2_label + ' · ' : ''}${t.col1_label || 'measurement'}` : t.status_type === 'observation' ? 'Observation checklist' : t.status_type.replace(/_/g, ' '))}
-                                onChange={e => handleUpdateTable(t.id, sec.id, { title: e.target.value })}
-                                onClick={e => e.stopPropagation()}
-                                placeholder="Table title…"
-                                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: isEditingTable ? 'var(--m)' : 'var(--tx)', fontFamily: 'Poppins,sans-serif', cursor: 'text', minWidth: 0 }}
-                              />
-                              <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)', flexShrink: 0 }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
-                              <button onClick={() => setEditingTableId(isEditingTable ? null : t.id)} title="Table settings"
-                                style={{ background: isEditingTable ? 'var(--m)' : 'none', border: 'none', borderRadius: 5, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: isEditingTable ? '#fff' : 'var(--txm)' }}>
-                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                              </button>
-                              <button onClick={() => handleDeleteTable(t.id, sec.id)} title="Delete table"
-                                style={{ background: 'rgba(220,38,38,.1)', border: 'none', borderRadius: 5, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="var(--red)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-                              </button>
+                        {sec.tables.map(t => (
+                          <div key={t.id} style={{ border: '1.5px solid var(--gm)', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--gl)' }}>
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table / Checklist — {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (exclusive)' : ''}` : t.status_type === 'measurement' ? `${t.col2_label ? t.col2_label + ' · ' : ''}${t.col1_label || 'measurement'}` : t.status_type === 'observation' ? 'Observation checklist' : t.status_type.replace(/_/g, ' ')}</span>
+                              <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)' }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
                             </div>
-
-                            {/* Settings panel */}
-                            {isEditingTable && (
-                              <div style={{ padding: '10px 12px', background: '#FFFBEB', borderBottom: '1px solid #FEF3C7', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                                <div style={{ flex: 1, minWidth: 140 }}>
-                                  <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>Table type</div>
-                                  <select value={t.status_type} onChange={e => handleUpdateTable(t.id, sec.id, { status_type: e.target.value })}
-                                    style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--gm)', borderRadius: 6, fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff' }}>
-                                    <option value="yes_no">Yes / No</option>
-                                    <option value="tested_not_tested">Tested / Not Tested</option>
-                                    <option value="two_party">Two-party (checkboxes)</option>
-                                    <option value="two_party_exclusive">Two-party (exclusive)</option>
-                                    <option value="observation">Observation</option>
-                                    <option value="measurement">Measurement</option>
-                                  </select>
-                                </div>
-                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement' || t.status_type === 'tested_not_tested') && (
-                                  <div style={{ flex: 1, minWidth: 90 }}>
-                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t.status_type === 'tested_not_tested' ? 'Tested label' : 'Col 1 label'}</div>
-                                    <input value={t.col1_label || ''} onChange={e => handleUpdateTable(t.id, sec.id, { col1_label: e.target.value || null })}
-                                      placeholder={t.status_type === 'tested_not_tested' ? 'Tested' : 'Col 1'}
-                                      style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--gm)', borderRadius: 6, fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' as const }}/>
-                                  </div>
-                                )}
-                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive' || t.status_type === 'measurement' || t.status_type === 'tested_not_tested') && (
-                                  <div style={{ flex: 1, minWidth: 90 }}>
-                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t.status_type === 'tested_not_tested' ? 'Not tested label' : 'Col 2 label'}</div>
-                                    <input value={t.col2_label || ''} onChange={e => handleUpdateTable(t.id, sec.id, { col2_label: e.target.value || null })}
-                                      placeholder={t.status_type === 'tested_not_tested' ? 'Not Tested' : 'Col 2'}
-                                      style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--gm)', borderRadius: 6, fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' as const }}/>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Column headers */}
                             <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>
                               <div style={{ width: 40, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>S.No</div>
                               <div style={{ flex: 1, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderRight: '1px solid var(--gm)' }}>Details</div>
                               {t.status_type === 'yes_no' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Status</div>}
                               {t.status_type === 'tested_not_tested' && <>
-                                <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>{t.col1_label || 'Tested'}</div>
-                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>{t.col2_label || 'Not Tested'}</div>
+                                <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Tested</div>
+                                <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)' }}>Not Tested</div>
                               </>}
                               {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
                                 <div style={{ width: 56, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: '#065F46', textTransform: 'uppercase', textAlign: 'center', borderRight: '1px solid var(--gm)', background: '#ECFDF5' }}>{t.col1_label || 'Col 1'}</div>
@@ -469,76 +361,43 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                                 <div style={{ width: 70, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--m)', textTransform: 'uppercase', textAlign: 'center' }}>{t.col1_label || 'Value'}</div>
                               )}
                               {t.status_type !== 'two_party_exclusive' && t.status_type !== 'observation' && t.status_type !== 'measurement' && <div style={{ width: 60, padding: '5px 8px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', textAlign: 'center' }}>Remarks</div>}
-                              {hasEditCtrls && <div style={{ width: 52 }}/>}
                             </div>
-
-                            {/* Rows */}
-                            {displayRows.map(row => (
-                              <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff'), alignItems: 'stretch' }}>
-                                {editingRowId === row.id ? (
-                                  <>
-                                    <input value={editingRowSno} onChange={e => setEditingRowSno(e.target.value)}
-                                      style={{ width: 40, padding: '5px 4px', border: 'none', borderRight: '1px solid var(--gm)', fontSize: 11, textAlign: 'center', outline: 'none', fontFamily: 'Poppins,sans-serif', flexShrink: 0 }}/>
-                                    <input value={editingRowLabel} onChange={e => setEditingRowLabel(e.target.value)}
-                                      autoFocus
-                                      onKeyDown={e => { if (e.key === 'Enter') saveRowEdit(t.id, sec.id); if (e.key === 'Escape') setEditingRowId(null) }}
-                                      style={{ flex: 1, padding: '5px 8px', border: 'none', borderRight: '1px solid var(--gm)', fontSize: 11, outline: 'none', fontFamily: 'Poppins,sans-serif' }}/>
-                                    <button onClick={() => saveRowEdit(t.id, sec.id)} style={{ padding: '0 8px', border: 'none', background: '#D1FAE5', color: '#065F46', cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>✓</button>
-                                    <button onClick={() => setEditingRowId(null)} style={{ padding: '0 8px', border: 'none', background: '#F1F5F9', color: '#6B7280', cursor: 'pointer', fontSize: 15 }}>✗</button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div style={{ width: 40, padding: '7px 8px', fontSize: row.parent_row_id ? 10 : 11, fontWeight: row.parent_row_id ? 400 : 600, color: row.parent_row_id ? 'var(--txm)' : 'var(--m)', borderRight: '1px solid var(--gm)', textAlign: 'center', flexShrink: 0 }}>{row.sno_label}</div>
-                                    <div style={{ flex: 1, padding: '7px 8px', fontSize: 11, color: 'var(--tx)', borderRight: '1px solid var(--gm)', paddingLeft: row.parent_row_id ? 18 : 8, fontStyle: row.parent_row_id ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.row_label}</div>
-                                    {t.status_type === 'yes_no' && !row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', gap: 2, padding: 6, justifyContent: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>Y</span><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>N</span></div>}
-                                    {t.status_type === 'yes_no' && row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)' }}/>}
-                                    {t.status_type === 'tested_not_tested' && row.parent_row_id && <>
-                                      <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
-                                      <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
-                                    </>}
-                                    {t.status_type === 'tested_not_tested' && !row.parent_row_id && <div style={{ width: 130, borderRight: '1px solid var(--gm)' }}/>}
-                                    {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
-                                      <div style={{ width: 56, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#059669', width: 13, height: 13 }} readOnly/></div>
-                                      <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#3B82F6', width: 13, height: 13 }} readOnly/></div>
-                                    </>}
-                                    {t.status_type === 'observation' && <>
-                                      <div style={{ width: 94, borderRight: '1px solid var(--gm)', display: 'flex', gap: 3, padding: '5px 6px', alignItems: 'center', justifyContent: 'center' }}>
-                                        <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#FEF3C7', color: '#92400E', whiteSpace: 'nowrap' }}>Prog.</span>
-                                        <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>Done</span>
-                                      </div>
-                                      <div style={{ width: 56 }}/>
-                                    </>}
-                                    {t.status_type === 'measurement' && (
-                                      <div style={{ width: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <span style={{ fontSize: 10, color: 'var(--txm)', border: '1px solid var(--gm)', borderRadius: 4, padding: '3px 8px', background: '#F9FAFB' }}>—</span>
-                                      </div>
-                                    )}
-                                    {t.status_type !== 'two_party_exclusive' && t.status_type !== 'observation' && t.status_type !== 'measurement' && <div style={{ width: 60 }}/>}
-                                    {hasEditCtrls && (
-                                      <div style={{ width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '0 4px', borderLeft: '1px solid var(--gm)', flexShrink: 0 }}>
-                                        <button onClick={() => startEditRow(row)} title="Edit row"
-                                          style={{ background: 'var(--gl)', border: 'none', borderRadius: 4, width: 22, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>
-                                        </button>
-                                        <button onClick={() => handleDeleteRow(row.id, t.id, sec.id)} title="Delete row"
-                                          style={{ background: '#FEF2F2', border: 'none', borderRadius: 4, width: 22, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="var(--red)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-                                        </button>
-                                      </div>
-                                    )}
-                                  </>
+                            {t.rows.slice(0, 3).map(row => (
+                              <div key={row.id} style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: row.parent_row_id ? '#fff' : (t.status_type === 'tested_not_tested' ? 'var(--mp)' : '#fff') }}>
+                                <div style={{ width: 40, padding: '7px 8px', fontSize: row.parent_row_id ? 10 : 11, fontWeight: row.parent_row_id ? 400 : 600, color: row.parent_row_id ? 'var(--txm)' : 'var(--m)', borderRight: '1px solid var(--gm)', textAlign: 'center' }}>{row.sno_label}</div>
+                                <div style={{ flex: 1, padding: '7px 8px', fontSize: 11, color: 'var(--tx)', borderRight: '1px solid var(--gm)', paddingLeft: row.parent_row_id ? 18 : 8, fontStyle: row.parent_row_id ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.row_label}</div>
+                                {t.status_type === 'yes_no' && !row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', gap: 2, padding: 6, justifyContent: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>Y</span><span style={{ fontSize: 9, fontWeight: 600, padding: '2px 4px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>N</span></div>}
+                                {t.status_type === 'yes_no' && row.parent_row_id && <div style={{ width: 60, borderRight: '1px solid var(--gm)' }}/>}
+                                {t.status_type === 'tested_not_tested' && row.parent_row_id && <>
+                                  <div style={{ width: 60, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
+                                  <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: 'var(--m)' }} readOnly/></div>
+                                </>}
+                                {t.status_type === 'tested_not_tested' && !row.parent_row_id && <div style={{ width: 130, borderRight: '1px solid var(--gm)' }}/>}
+                                {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') && <>
+                                  <div style={{ width: 56, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#059669', width: 13, height: 13 }} readOnly/></div>
+                                  <div style={{ width: 70, borderRight: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><input type="checkbox" style={{ accentColor: '#3B82F6', width: 13, height: 13 }} readOnly/></div>
+                                </>}
+                                {t.status_type === 'observation' && <>
+                                  <div style={{ width: 94, borderRight: '1px solid var(--gm)', display: 'flex', gap: 3, padding: '5px 6px', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#FEF3C7', color: '#92400E', whiteSpace: 'nowrap' }}>Prog.</span>
+                                    <span style={{ fontSize: 7, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>Done</span>
+                                  </div>
+                                  <div style={{ width: 56 }}/>
+                                </>}
+                                {t.status_type === 'measurement' && (
+                                  <div style={{ width: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 10, color: 'var(--txm)', border: '1px solid var(--gm)', borderRadius: 4, padding: '3px 8px', background: '#F9FAFB' }}>—</span>
+                                  </div>
                                 )}
+                                {t.status_type !== 'two_party_exclusive' && t.status_type !== 'observation' && t.status_type !== 'measurement' && <div style={{ width: 60 }}/>}
                               </div>
                             ))}
-
-                            {/* "X more" — only in preview mode */}
-                            {!isEditingTable && t.rows.length > 3 && (
+                            {t.rows.length > 3 && (
                               <div style={{ display: 'flex', borderBottom: '1px solid var(--gm)', background: 'var(--gl)' }}>
                                 <div style={{ width: 40, padding: '5px 8px', borderRight: '1px solid var(--gm)', textAlign: 'center', color: 'var(--txm)', fontSize: 10 }}>…</div>
-                                <div style={{ flex: 1, padding: '5px 8px', fontSize: 10, color: 'var(--txm)' }}>{t.rows.length - 3} more rows — click ⚙ to see all</div>
+                                <div style={{ flex: 1, padding: '5px 8px', fontSize: 10, color: 'var(--txm)' }}>{t.rows.length - 3} more rows</div>
                               </div>
                             )}
-
                             <div style={{ padding: '7px 10px', borderTop: '1px solid var(--gm)', background: '#FAFAFA', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ fontSize: 11, color: 'var(--txm)' }}>{t.rows.length} rows total</span>
                               <div style={{ display: 'flex', gap: 6 }}>
@@ -547,8 +406,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                               </div>
                             </div>
                           </div>
-                          )
-                        })}
+                        ))}
 
                         {/* Add field button */}
                         <div
@@ -824,8 +682,8 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                               <th style={{ padding: '8px 12px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', textAlign: 'left' }}>Details</th>
                               {t.status_type === 'yes_no' && <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 110, textAlign: 'center' }}>Status</th>}
                               {t.status_type === 'tested_not_tested' && <>
-                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>{t.col1_label || 'Tested'}</th>
-                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>{t.col2_label || 'Not Tested'}</th>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 70, textAlign: 'center' }}>Tested</th>
+                                <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 80, textAlign: 'center' }}>Not Tested</th>
                               </>}
                               <th style={{ padding: '8px 10px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', borderBottom: '1px solid var(--gm)', width: 100, textAlign: 'left' }}>Remarks</th>
                             </tr>
