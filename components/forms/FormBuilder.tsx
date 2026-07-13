@@ -239,7 +239,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
     } : s))
   }
 
-  async function handleUpdateTable(tableId: string, secId: string, updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean }) {
+  async function handleUpdateTable(tableId: string, secId: string, updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean; title?: string | null }) {
     await updateFormTable(tableId, updates)
     setSections(ss => ss.map(s => s.id === secId ? {
       ...s,
@@ -395,8 +395,14 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                           <div key={t.id} style={{ border: `1.5px solid ${isEditingTable ? 'var(--m)' : 'var(--gm)'}`, borderRadius: 8, overflow: 'hidden', marginBottom: 6, transition: 'border-color .15s' }}>
                             {/* Table header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: isEditingTable ? 'var(--mp)' : 'var(--gl)' }}>
-                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>Table — {(t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (excl.)' : ''}` : t.status_type === 'measurement' ? `${t.col2_label ? t.col2_label + ' · ' : ''}${t.col1_label || 'measurement'}` : t.status_type === 'observation' ? 'Observation checklist' : t.status_type.replace(/_/g, ' ')}</span>
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--txm)" strokeWidth="2" style={{ flexShrink: 0 }}><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+                              <input
+                                value={t.title ?? ((t.status_type === 'two_party' || t.status_type === 'two_party_exclusive') ? `${t.col1_label || 'Col 1'} / ${t.col2_label || 'Col 2'}${t.status_type === 'two_party_exclusive' ? ' (excl.)' : ''}` : t.status_type === 'measurement' ? `${t.col2_label ? t.col2_label + ' · ' : ''}${t.col1_label || 'measurement'}` : t.status_type === 'observation' ? 'Observation checklist' : t.status_type.replace(/_/g, ' '))}
+                                onChange={e => handleUpdateTable(t.id, sec.id, { title: e.target.value })}
+                                onClick={e => e.stopPropagation()}
+                                placeholder="Table title…"
+                                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: isEditingTable ? 'var(--m)' : 'var(--tx)', fontFamily: 'Poppins,sans-serif', cursor: 'text', minWidth: 0 }}
+                              />
                               <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--mp)', color: 'var(--m)', border: '1px solid var(--mb)', flexShrink: 0 }}>{t.rows.filter(r => !r.parent_row_id).length} rows</span>
                               <button onClick={() => setEditingTableId(isEditingTable ? null : t.id)} title="Table settings"
                                 style={{ background: isEditingTable ? 'var(--m)' : 'none', border: 'none', borderRadius: 5, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: isEditingTable ? '#fff' : 'var(--txm)' }}>

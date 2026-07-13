@@ -289,7 +289,7 @@ export async function deleteFormTableRow(rowId: string): Promise<{ error: string
 
 export async function updateFormTable(
   tableId: string,
-  updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean }
+  updates: { status_type?: string; col1_label?: string | null; col2_label?: string | null; has_subrows?: boolean; title?: string | null }
 ): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
