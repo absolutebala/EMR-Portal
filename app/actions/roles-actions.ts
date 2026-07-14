@@ -2,12 +2,21 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient, getAuthedUser } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activity-log'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Server configuration error.')
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
+}
+
+async function currentActor(admin: ReturnType<typeof adminClient>): Promise<{ id: string | null; name: string }> {
+  const sb = await createServerClient()
+  const user = await getAuthedUser(sb)
+  if (!user) return { id: null, name: 'Admin' }
+  const { data: profile } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
+  return { id: user.id, name: profile ? `${profile.first_name} ${profile.last_name}` : 'Admin' }
 }
 
 export interface RoleWithCount {
@@ -53,6 +62,8 @@ export async function addRole(name: string): Promise<{ error: string | null }> {
       if (error.code === '23505') return { error: `Role "${trimmed}" already exists.` }
       return { error: error.message }
     }
+    const actor = await currentActor(sb)
+    await logActivity(sb, { actorId: actor.id, actorName: actor.name, action: `Created role ${trimmed}`, entityType: 'role' })
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -73,6 +84,8 @@ export async function renameRole(
       if (error.code === '23505') return { error: `Role "${trimmed}" already exists.` }
       return { error: error.message }
     }
+    const actor = await currentActor(sb)
+    await logActivity(sb, { actorId: actor.id, actorName: actor.name, action: `Renamed role ${oldName} to ${trimmed}`, entityType: 'role' })
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -110,6 +123,10 @@ export async function updateRolePermissions(
       .from('roles')
       .update({ permissions })
       .eq('name', roleName)
+    if (!error) {
+      const actor = await currentActor(sb)
+      await logActivity(sb, { actorId: actor.id, actorName: actor.name, action: `Updated permissions for role ${roleName}`, entityType: 'role' })
+    }
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -149,6 +166,7 @@ export async function getMyPermissions(): Promise<{ permissions: Record<string, 
 export async function deleteRole(name: string): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
+    const actor = await currentActor(sb)
     const { error } = await sb.from('roles').delete().eq('name', name)
     if (error) {
       if (error.code === '23503') {
@@ -156,6 +174,7 @@ export async function deleteRole(name: string): Promise<{ error: string | null }
       }
       return { error: error.message }
     }
+    await logActivity(sb, { actorId: actor.id, actorName: actor.name, action: `Deleted role ${name}`, entityType: 'role' })
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

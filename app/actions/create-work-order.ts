@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activity-log'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -64,6 +65,7 @@ export async function createWorkOrder(payload: {
       activityRows.push({ work_order_id: wo.id, action: `Assigned to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
+    await logActivity(admin, { actorId: user.id, actorName, action: `Created work order ${payload.wo_number}`, entityType: 'work_order', entityId: wo.id })
 
     return { error: null, id: wo.id }
   } catch (e: unknown) {
@@ -85,6 +87,7 @@ export async function updateWorkOrderStatus(id: string, status: string): Promise
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const label: Record<string, string> = { in_progress: 'In Progress', pending: 'Pending', completed: 'Completed' }
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Status updated to ${label[status] || status}`, actor_name: actorName })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated work order status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
@@ -154,6 +157,7 @@ export async function updateWorkOrder(id: string, payload: {
       activityRows.push({ work_order_id: id, action: `${verb} to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated work order ${payload.wo_number}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
@@ -178,6 +182,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string):
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}`, actor_name: actorName })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned work order to ${engName}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {

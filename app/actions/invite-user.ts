@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activity-log'
 import { randomBytes } from 'crypto'
 
 function generateTempPassword(): string {
@@ -50,10 +51,12 @@ export async function inviteUser(payload: {
 
   let createdBy: string | null = null
   let creatorRole: string | null = null
+  let creatorName = 'Admin'
   if (currentUser?.id) {
-    const { data: adminProfile } = await supabase.from('profiles').select('id, role').eq('id', currentUser.id).maybeSingle()
+    const { data: adminProfile } = await supabase.from('profiles').select('id, role, first_name, last_name').eq('id', currentUser.id).maybeSingle()
     createdBy = adminProfile?.id ?? null
     creatorRole = adminProfile?.role ?? null
+    if (adminProfile) creatorName = `${adminProfile.first_name} ${adminProfile.last_name}`
   }
 
   if (payload.role === 'Super Admin' && creatorRole !== null && creatorRole !== 'Super Admin') {
@@ -102,6 +105,14 @@ export async function inviteUser(payload: {
   await supabase.from('user_module_access').insert({
     user_id: userId,
     module: 'field_management',
+  })
+
+  await logActivity(supabase, {
+    actorId: currentUser?.id ?? null,
+    actorName: creatorName,
+    action: `Invited user ${payload.first_name} ${payload.last_name} (${payload.role})`,
+    entityType: 'user',
+    entityId: userId,
   })
 
   return { error: null, tempPassword }

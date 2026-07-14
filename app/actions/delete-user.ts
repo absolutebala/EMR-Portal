@@ -2,6 +2,7 @@
 
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { logActivity } from '@/lib/activity-log'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -17,7 +18,7 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     if (!user) return { error: 'Not authenticated.' }
     if (user.id === targetUserId) return { error: 'You cannot delete your own account.' }
 
-    const { data: currentProfile } = await sSb.from('profiles').select('role').eq('id', user.id).single()
+    const { data: currentProfile } = await sSb.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
     const admin = adminClient()
 
     if (currentProfile?.role === 'Service Manager') {
@@ -25,8 +26,15 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
       if (target?.created_by !== user.id) return { error: 'Permission denied. You can only delete users you created.' }
     }
 
+    const { data: target } = await admin.from('profiles').select('first_name, last_name').eq('id', targetUserId).maybeSingle()
+
     // Deleting the auth user cascades to the profile row
     const { error } = await admin.auth.admin.deleteUser(targetUserId)
+    if (!error) {
+      const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
+      const targetName = target ? `${target.first_name} ${target.last_name}` : targetUserId
+      await logActivity(admin, { actorId: user.id, actorName, action: `Deleted user ${targetName}`, entityType: 'user', entityId: targetUserId })
+    }
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

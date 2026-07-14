@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activity-log'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -27,7 +28,7 @@ export async function updateUser(
     const user = await getAuthedUser(sSb)
     if (!user) return { error: 'Not authenticated.' }
 
-    const { data: currentProfile } = await sSb.from('profiles').select('role').eq('id', user.id).single()
+    const { data: currentProfile } = await sSb.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
 
     const admin = adminClient()
 
@@ -37,6 +38,10 @@ export async function updateUser(
     }
 
     const { error } = await admin.from('profiles').update(fields).eq('id', userId)
+    if (!error) {
+      const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
+      await logActivity(admin, { actorId: user.id, actorName, action: `Updated user ${fields.first_name} ${fields.last_name}`, entityType: 'user', entityId: userId })
+    }
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

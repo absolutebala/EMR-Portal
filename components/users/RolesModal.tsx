@@ -53,6 +53,7 @@ const MODULES = [
   'Product Requests — Approve',
   'Product Requests — Dispatch',
   'MoM — View / Download',
+  'Activities — View',
   'Settings',
 ]
 

@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
+import { logActivity as logSystemActivity } from '@/lib/activity-log'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -360,6 +361,7 @@ async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, 
     action: `${action} by ${actorName}`,
     actor_name: actorName,
   })
+  await logSystemActivity(admin, { actorId: userId, actorName, action, entityType: 'work_order', entityId: woId })
 }
 
 // For screens (check-in, closure) that only need the work order + customer info,
