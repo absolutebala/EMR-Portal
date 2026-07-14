@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
-import { submitCheckIn } from '@/app/actions/mobile-actions'
+import { submitCheckIn, reverseGeocode } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrderWithCustomer } from '@/app/actions/mobile-actions'
 import { compressImage } from '@/lib/mobile/compressImage'
 
@@ -16,6 +16,7 @@ export default function CheckInView({ workOrder }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [placeName, setPlaceName] = useState('')
   const [gpsError, setGpsError] = useState('')
   const [photo, setPhoto] = useState<{ dataUrl: string; mimeType: string; ext: string } | null>(null)
   const [compressing, setCompressing] = useState(false)
@@ -33,6 +34,15 @@ export default function CheckInView({ workOrder }: Props) {
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }, [])
+
+  useEffect(() => {
+    if (!coords) return
+    let cancelled = false
+    reverseGeocode(coords.lat, coords.lng).then(({ label }) => {
+      if (!cancelled && label) setPlaceName(label)
+    })
+    return () => { cancelled = true }
+  }, [coords])
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -54,16 +64,21 @@ export default function CheckInView({ workOrder }: Props) {
     setSubmitting(true)
     setError('')
     try {
-      const { error: err } = await submitCheckIn({
-        workOrderId: workOrder.id,
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lng ?? null,
-        photoBase64: photo.dataUrl,
-        mimeType: photo.mimeType,
-        ext: photo.ext,
-      })
-      if (err) {
-        setError(err)
+      const result = await Promise.race([
+        submitCheckIn({
+          workOrderId: workOrder.id,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
+          photoBase64: photo.dataUrl,
+          mimeType: photo.mimeType,
+          ext: photo.ext,
+        }),
+        new Promise<{ error: string }>(resolve =>
+          setTimeout(() => resolve({ error: 'Check-in is taking too long — check your connection and try again' }), 20000)
+        ),
+      ])
+      if (result.error) {
+        setError(result.error)
         setSubmitting(false)
         return
       }
@@ -100,7 +115,7 @@ export default function CheckInView({ workOrder }: Props) {
             </svg>
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 3 }}>
-            {coords ? 'GPS location captured' : gpsError ? 'GPS unavailable' : 'GPS location capturing...'}
+            {coords ? (placeName || 'GPS location captured') : gpsError ? 'GPS unavailable' : 'GPS location capturing...'}
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
             {coords ? `${coords.lat.toFixed(4)}° N, ${coords.lng.toFixed(4)}° E` : gpsError || 'Locating · please wait'}

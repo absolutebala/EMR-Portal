@@ -1,6 +1,6 @@
 // Downscale + re-encode so photos comfortably fit the server action body limit —
 // raw phone camera photos are routinely several MB and would hang requests otherwise.
-export function compressImage(file: File, maxDimension = 1280, quality = 0.75): Promise<string> {
+export function compressImage(file: File, maxDimension = 1024, quality = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const objectUrl = URL.createObjectURL(file)

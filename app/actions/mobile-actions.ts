@@ -9,6 +9,15 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
+// Storage/network calls have no built-in timeout — a stalled request would otherwise
+// hang the whole server action (and the caller's UI) indefinitely.
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 export interface MobileWorkOrder {
   id: string
   wo_number: string
@@ -323,6 +332,27 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
   }
 }
 
+export async function reverseGeocode(lat: number, lng: number): Promise<{ label: string | null }> {
+  try {
+    const res = await withTimeout(
+      fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+        { headers: { 'User-Agent': 'EMR-Portal-Mobile/1.0 (field service check-in)' } }
+      ),
+      6000
+    )
+    if (!res || !res.ok) return { label: null }
+    const data = await res.json()
+    const addr: Record<string, string> = data.address || {}
+    const locality = addr.suburb || addr.neighbourhood || addr.town || addr.village || addr.city_district
+    const city = addr.city || addr.town || addr.state_district
+    const parts = [locality, city].filter((v, i, arr): v is string => !!v && arr.indexOf(v) === i)
+    return { label: parts.length ? parts.join(', ') : (data.display_name?.split(',').slice(0, 2).join(',').trim() || null) }
+  } catch {
+    return { label: null }
+  }
+}
+
 async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, userId: string, action: string) {
   const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).single()
   const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
@@ -399,8 +429,11 @@ export async function submitCheckIn(params: {
     const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext}`
 
     let photoUrl: string | null = null
-    const { error: upErr } = await admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType })
-    if (!upErr) {
+    const uploadResult = await withTimeout(
+      admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType }),
+      12000
+    )
+    if (uploadResult && !uploadResult.error) {
       photoUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
     }
 
