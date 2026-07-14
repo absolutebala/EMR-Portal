@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
-import WorkOrderDetailModal from '@/components/work-orders/WorkOrderDetailModal'
 import { getWorkOrders, getAssignableEngineers } from '@/app/actions/get-work-orders'
 import type { WorkOrder } from '@/lib/types'
 
@@ -40,6 +40,7 @@ function JobBadge({ type }: { type: string }) {
 }
 
 export default function WorkOrdersPage() {
+  const router = useRouter()
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
   const [engineers, setEngineers] = useState<{ id: string; first_name: string; last_name: string }[]>([])
@@ -50,7 +51,6 @@ export default function WorkOrdersPage() {
   const [engFilter, setEngFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
-  const [detailId, setDetailId] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const loadWorkOrders = useCallback(async () => {
@@ -172,7 +172,7 @@ export default function WorkOrdersPage() {
                     <tr key={wo.id} style={{ borderBottom: '1px solid var(--gm)', cursor: 'pointer' }}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}
-                      onClick={() => setDetailId(wo.id)}>
+                      onClick={() => router.push(`/work-orders/${wo.id}`)}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--m)', whiteSpace: 'nowrap' }}>{wo.wo_number}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', maxWidth: 160 }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -195,7 +195,7 @@ export default function WorkOrdersPage() {
                       </td>
                       <td style={{ padding: '10px 14px' }}><StatusBadge status={wo.status} /></td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={e => { e.stopPropagation(); setDetailId(wo.id) }}
+                        <button onClick={e => { e.stopPropagation(); router.push(`/work-orders/${wo.id}`) }}
                           style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                           <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
@@ -210,7 +210,6 @@ export default function WorkOrdersPage() {
       </div>
 
       <NewWorkOrderModal open={showNew} onClose={() => setShowNew(false)} onSaved={loadWorkOrders} engineers={engineers} />
-      <WorkOrderDetailModal open={!!detailId} onClose={() => setDetailId(null)} onUpdated={loadWorkOrders} workOrderId={detailId} engineers={engineers} />
     </>
   )
 }
