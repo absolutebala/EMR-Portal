@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getMobileWorkOrderDetail } from '@/app/actions/mobile-actions'
+import { getMobileWorkOrderBasic } from '@/app/actions/mobile-actions'
 import ClosureView from './ClosureView'
 
 interface Props {
@@ -15,9 +15,9 @@ export default async function MobileClosurePage({ params }: Props) {
   if (!user) redirect('/mobile/login')
 
   const { id } = await params
-  const { detail, error } = await getMobileWorkOrderDetail(id)
+  const { workOrder, error } = await getMobileWorkOrderBasic(id)
 
-  if (error || !detail) {
+  if (error || !workOrder) {
     return (
       <div style={{ padding: 24, color: '#DC2626', fontFamily: 'Poppins, sans-serif' }}>
         {error || 'Work order not found'}
@@ -25,5 +25,5 @@ export default async function MobileClosurePage({ params }: Props) {
     )
   }
 
-  return <ClosureView workOrder={detail.workOrder} />
+  return <ClosureView workOrder={workOrder} />
 }

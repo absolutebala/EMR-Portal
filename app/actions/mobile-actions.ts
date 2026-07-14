@@ -78,52 +78,49 @@ export interface MobileForm {
   sections: MobileFormSection[]
 }
 
+type WorkOrderEmbed = {
+  id: string; wo_number: string; job_type: string; status: string
+  scheduled_date: string | null; notes: string | null; customer_id: string
+  customers: { name: string; contact_person: string; phone: string } | null
+  work_order_transformers: { transformers: { serial_number: string; customer_sites: { site_name: string; site_address: string } | null } | null }[]
+}
+
+const WORK_ORDER_SELECT = `
+  id, wo_number, job_type, status, scheduled_date, notes, customer_id,
+  customers ( name, contact_person, phone ),
+  work_order_transformers ( transformers ( serial_number, customer_sites ( site_name, site_address ) ) )
+`
+
+function mapWorkOrderEmbed(w: WorkOrderEmbed): MobileWorkOrder {
+  const rows = w.work_order_transformers || []
+  return {
+    id: w.id,
+    wo_number: w.wo_number,
+    job_type: w.job_type,
+    status: w.status,
+    scheduled_date: w.scheduled_date,
+    notes: w.notes,
+    customer_name: w.customers?.name || '',
+    serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
+    site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
+  }
+}
+
+// Single embedded query (work orders + customer + transformers + sites) instead of
+// a main query followed by separate round trips for each related table — those extra
+// round trips were the main reason mobile pages felt slow.
 async function fetchEngineerWorkOrders(
   admin: ReturnType<typeof adminClient>,
   userId: string
 ): Promise<MobileWorkOrder[]> {
-  const { data: wos } = await admin
+  const { data: wos, error } = await admin
     .from('work_orders')
-    .select('*')
+    .select(WORK_ORDER_SELECT)
     .eq('engineer_id', userId)
     .order('scheduled_date', { ascending: true })
 
-  if (!wos?.length) return []
-
-  const woIds = wos.map((w: { id: string }) => w.id)
-  const customerIds = [...new Set(wos.map((w: { customer_id: string }) => w.customer_id))]
-
-  const [{ data: wotRows }, { data: customers }] = await Promise.all([
-    admin.from('work_order_transformers')
-      .select('work_order_id, transformer_id, transformers(serial_number, customer_sites(site_name))')
-      .in('work_order_id', woIds),
-    admin.from('customers').select('id, name').in('id', customerIds),
-  ])
-
-  const custMap: Record<string, string> = {}
-  customers?.forEach((c: { id: string; name: string }) => { custMap[c.id] = c.name })
-
-  type WotRow = { work_order_id: string; transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }
-  const wotByWo: Record<string, WotRow[]> = {}
-  ;(wotRows as unknown as WotRow[])?.forEach((r: WotRow) => {
-    if (!wotByWo[r.work_order_id]) wotByWo[r.work_order_id] = []
-    wotByWo[r.work_order_id].push(r)
-  })
-
-  return wos.map((w: { id: string; wo_number: string; job_type: string; status: string; scheduled_date: string | null; notes: string | null; customer_id: string }) => {
-    const rows = wotByWo[w.id] || []
-    return {
-      id: w.id,
-      wo_number: w.wo_number,
-      job_type: w.job_type,
-      status: w.status,
-      scheduled_date: w.scheduled_date,
-      notes: w.notes,
-      customer_name: custMap[w.customer_id] || '',
-      serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
-      site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
-    }
-  })
+  if (error) console.error('fetchEngineerWorkOrders:', error.message)
+  return ((wos as unknown as WorkOrderEmbed[]) || []).map(mapWorkOrderEmbed)
 }
 
 async function getEngineerName(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ name: string } | null> {
@@ -146,33 +143,23 @@ async function fetchSingleWorkOrder(
   admin: ReturnType<typeof adminClient>,
   woId: string
 ): Promise<MobileWorkOrderWithCustomer | null> {
-  const { data: wo, error: woErr } = await admin.from('work_orders').select('*').eq('id', woId).single()
-  if (woErr || !wo) return null
+  const { data: wo, error } = await admin
+    .from('work_orders')
+    .select(WORK_ORDER_SELECT)
+    .eq('id', woId)
+    .single()
+  if (error) console.error('fetchSingleWorkOrder:', error.message)
+  if (error || !wo) return null
 
-  const [{ data: wotRows }, { data: customer }] = await Promise.all([
-    admin.from('work_order_transformers')
-      .select('transformer_id, transformers(serial_number, customer_sites(site_name, site_address))')
-      .eq('work_order_id', woId),
-    admin.from('customers').select('name, contact_person, phone').eq('id', wo.customer_id).single(),
-  ])
-
-  type WotRow = { transformers: { serial_number: string; customer_sites: { site_name: string; site_address: string } | null } | null }
-  const rows = (wotRows as unknown as WotRow[]) || []
+  const w = wo as unknown as WorkOrderEmbed
+  const rows = w.work_order_transformers || []
 
   return {
-    id: wo.id,
-    wo_number: wo.wo_number,
-    job_type: wo.job_type,
-    status: wo.status,
-    scheduled_date: wo.scheduled_date,
-    notes: wo.notes,
-    customer_id: wo.customer_id,
-    customer_name: customer?.name || '',
-    customer_contact: customer?.contact_person || null,
-    customer_phone: customer?.phone || null,
+    ...mapWorkOrderEmbed(w),
+    customer_id: w.customer_id,
+    customer_contact: w.customers?.contact_person || null,
+    customer_phone: w.customers?.phone || null,
     site_address: rows[0]?.transformers?.customer_sites?.site_address || null,
-    serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
-    site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
   }
 }
 
@@ -281,48 +268,41 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
     let existingSubmission: { id: string; form_data: Record<string, unknown> } | null = null
 
     if (formRow) {
-      // Load sections
-      const { data: secs } = await admin
-        .from('form_sections')
-        .select('*')
-        .eq('form_id', formRow.id)
-        .order('order_index')
-
-      const sections: MobileFormSection[] = []
-      for (const sec of (secs || [])) {
-        const [{ data: fields }, { data: tables }] = await Promise.all([
-          admin.from('form_fields').select('*').eq('section_id', sec.id).order('order_index'),
-          admin.from('form_tables').select('*').eq('section_id', sec.id).order('order_index'),
-        ])
-
-        const tablesWithRows: MobileFormTable[] = []
-        for (const t of (tables || [])) {
-          const { data: tRows } = await admin
-            .from('form_table_rows')
-            .select('*')
-            .eq('table_id', t.id)
-            .order('order_index')
-          tablesWithRows.push({ ...t, rows: tRows || [] })
-        }
-
-        sections.push({
-          id: sec.id,
-          title: sec.title,
-          order_index: sec.order_index,
-          fields: fields || [],
-          tables: tablesWithRows,
-        })
+      // One nested-embed query pulls sections + fields + tables + rows together — the
+      // form used to be loaded with a separate round trip per section and per table,
+      // which for a 5-section form meant ~9 sequential DB calls before the page could render.
+      type SectionEmbed = {
+        id: string; title: string; order_index: number
+        form_fields: MobileFormField[]
+        form_tables: (MobileFormTable & { form_table_rows: MobileFormRow[] })[]
       }
+      const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
+
+      const [{ data: secs, error: secsErr }, { data: sub }] = await Promise.all([
+        admin.from('form_sections')
+          .select('id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
+          .eq('form_id', formRow.id)
+          .order('order_index'),
+        admin.from('form_submissions')
+          .select('id, form_data')
+          .eq('work_order_id', woId)
+          .eq('form_id', formRow.id)
+          .maybeSingle(),
+      ])
+      if (secsErr) console.error('getMobileWorkOrderWithForm sections:', secsErr.message)
+
+      const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
+        id: sec.id,
+        title: sec.title,
+        order_index: sec.order_index,
+        fields: (sec.form_fields || []).slice().sort(byOrder),
+        tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
+          ...t,
+          rows: (t.form_table_rows || []).slice().sort(byOrder),
+        })),
+      }))
 
       form = { id: formRow.id, name: formRow.name, job_type: formRow.job_type, sections }
-
-      // Check for existing submission
-      const { data: sub } = await admin
-        .from('form_submissions')
-        .select('id, form_data')
-        .eq('work_order_id', woId)
-        .eq('form_id', formRow.id)
-        .maybeSingle()
       if (sub) existingSubmission = { id: sub.id, form_data: sub.form_data }
     }
 
@@ -361,6 +341,24 @@ async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, 
     action: `${action} by ${actorName}`,
     actor_name: actorName,
   })
+}
+
+// For screens (check-in, closure) that only need the work order + customer info,
+// not the full hub detail (checkin history, closures, previous visits) — no reason
+// to pay for those extra queries on a page that never renders them.
+export async function getMobileWorkOrderBasic(woId: string): Promise<{ workOrder: MobileWorkOrderWithCustomer | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { workOrder: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const workOrder = await fetchSingleWorkOrder(admin, woId)
+    if (!workOrder) return { workOrder: null, error: 'Work order not found' }
+    return { workOrder, error: null }
+  } catch (e: unknown) {
+    return { workOrder: null, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 export interface MobileWorkOrderDetail {
