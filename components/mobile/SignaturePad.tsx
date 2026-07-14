@@ -12,27 +12,42 @@ export default function SignaturePad({ value, onChange, readOnly }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingRef = useRef(false)
   const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  const commitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hasInk, setHasInk] = useState(!!value)
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.scale(dpr, dpr)
-    ctx.lineWidth = 2.2
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.strokeStyle = '#1C0D14'
+    const canvasEl = canvasRef.current
+    if (!canvasEl) return
+    // Deferred a frame so the canvas's container has finished layout — sizing from
+    // getBoundingClientRect() immediately on mount can read a 0-size box if the
+    // surrounding form hasn't settled yet, making the pad silently unresponsive.
+    const raf = requestAnimationFrame(() => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const rect = canvasEl.getBoundingClientRect()
+      canvasEl.width = rect.width * dpr
+      canvasEl.height = rect.height * dpr
+      const ctx = canvasEl.getContext('2d')
+      if (!ctx) return
+      ctx.scale(dpr, dpr)
+      ctx.lineWidth = 2.2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = '#1C0D14'
 
-    if (value) {
-      const img = new Image()
-      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height)
-      img.src = value
+      if (value) {
+        const img = new Image()
+        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height)
+        img.src = value
+      }
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      // Flush rather than drop — if the pad unmounts (navigating away) while a debounced
+      // commit is pending, the last stroke would otherwise be silently lost.
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+        onChange(canvasEl.toDataURL('image/png'))
+      }
     }
     // Canvas is (re)initialized once on mount to size correctly for the device pixel ratio.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,11 +82,19 @@ export default function SignaturePad({ value, onChange, readOnly }: Props) {
     if (!drawingRef.current) return
     drawingRef.current = false
     lastPointRef.current = null
-    const canvas = canvasRef.current
-    if (canvas) onChange(canvas.toDataURL('image/png'))
+    // Debounce committing to parent state — a signature is usually several strokes
+    // (pen lifted between letters), and calling onChange after every single stroke
+    // forces a full form re-render each time, which is what made the pad feel
+    // laggy/unresponsive mid-signature on a form with many other fields.
+    if (commitTimeoutRef.current) clearTimeout(commitTimeoutRef.current)
+    commitTimeoutRef.current = setTimeout(() => {
+      const canvas = canvasRef.current
+      if (canvas) onChange(canvas.toDataURL('image/png'))
+    }, 400)
   }
 
   function handleClear() {
+    if (commitTimeoutRef.current) clearTimeout(commitTimeoutRef.current)
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)

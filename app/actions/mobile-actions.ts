@@ -92,13 +92,13 @@ type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
   scheduled_date: string | null; notes: string | null; customer_id: string
   customers: { name: string; contact_person: string; phone: string } | null
-  work_order_transformers: { transformers: { serial_number: string; customer_sites: { site_name: string; site_address: string } | null } | null }[]
+  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { site_name: string; site_address: string } | null } | null }[]
 }
 
 const WORK_ORDER_SELECT = `
   id, wo_number, job_type, status, scheduled_date, notes, customer_id,
   customers ( name, contact_person, phone ),
-  work_order_transformers ( transformers ( serial_number, customer_sites ( site_name, site_address ) ) )
+  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( site_name, site_address ) ) )
 `
 
 function mapWorkOrderEmbed(w: WorkOrderEmbed): MobileWorkOrder {
@@ -147,6 +147,8 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   customer_contact: string | null
   customer_phone: string | null
   site_address: string | null
+  rating: string | null
+  manufacturer: string | null
 }
 
 async function fetchSingleWorkOrder(
@@ -170,6 +172,8 @@ async function fetchSingleWorkOrder(
     customer_contact: w.customers?.contact_person || null,
     customer_phone: w.customers?.phone || null,
     site_address: rows[0]?.transformers?.customer_sites?.site_address || null,
+    rating: rows[0]?.transformers?.rating || null,
+    manufacturer: rows[0]?.transformers?.manufacturer || null,
   }
 }
 
@@ -252,7 +256,7 @@ export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder
 }
 
 export async function getMobileWorkOrderWithForm(woId: string): Promise<{
-  workOrder: MobileWorkOrder | null
+  workOrder: MobileWorkOrderWithCustomer | null
   form: MobileForm | null
   existingSubmission: { id: string; form_data: Record<string, unknown> } | null
   error: string | null
@@ -408,13 +412,19 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
         .limit(5),
     ])
 
+    const lastCheckinAt = checkins?.[0]?.checked_in_at || null
+    const latestClosure = closures?.[0] || null
+    // "Checked in" means checked in *since the last closure* — once a visit is closed
+    // (e.g. marked pending), the engineer needs to check in again for the next visit.
+    const hasCheckedIn = !!lastCheckinAt && (!latestClosure || new Date(lastCheckinAt) > new Date(latestClosure.created_at))
+
     return {
       detail: {
         workOrder,
-        hasCheckedIn: !!checkins?.length,
-        lastCheckinAt: checkins?.[0]?.checked_in_at || null,
+        hasCheckedIn,
+        lastCheckinAt,
         hasFormSubmission: !!submission?.length,
-        latestClosure: closures?.[0] || null,
+        latestClosure,
         previousVisits: previous || [],
       },
       error: null,
@@ -464,7 +474,7 @@ export async function submitCheckIn(params: {
     if (insErr) return { error: insErr.message }
 
     const { data: wo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).single()
-    if (wo && (wo.status === 'assigned' || wo.status === 'unassigned')) {
+    if (wo && wo.status !== 'in_progress' && wo.status !== 'completed') {
       await admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId)
     }
 

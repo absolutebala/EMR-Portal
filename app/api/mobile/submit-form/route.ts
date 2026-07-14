@@ -27,15 +27,16 @@ export async function POST(req: NextRequest) {
 
     const admin = adminClient()
 
-    // Save submission
-    const { error: subErr } = await admin.from('form_submissions').insert({
+    // Upsert — a work order can be revisited (e.g. after being marked pending), and the
+    // engineer resubmitting the same form should update the existing row, not duplicate it.
+    const { error: subErr } = await admin.from('form_submissions').upsert({
       work_order_id: workOrderId,
       form_id: formId,
       submitted_by: user.id,
       form_data: formData,
       status: 'submitted',
       submitted_at: new Date().toISOString(),
-    })
+    }, { onConflict: 'work_order_id,form_id' })
 
     if (subErr) return NextResponse.json({ error: subErr.message }, { status: 500 })
 

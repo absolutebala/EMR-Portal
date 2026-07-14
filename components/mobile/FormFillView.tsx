@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { MobileWorkOrder, MobileForm, MobileFormRow } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrderWithCustomer, MobileForm, MobileFormField, MobileFormRow } from '@/app/actions/mobile-actions'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import SignaturePad from './SignaturePad'
 import PhotoField from './PhotoField'
@@ -11,9 +11,22 @@ type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
 
 interface Props {
-  workOrder: MobileWorkOrder
+  workOrder: MobileWorkOrderWithCustomer
   form: MobileForm | null
   existingSubmission: { id: string; form_data: Record<string, unknown> } | null
+}
+
+// Best-effort label -> job-data mapping for fields the Form Builder marked "prefill from job".
+// There's no formal schema linking a field to a specific job attribute, only the label text.
+function getPrefillValue(label: string, wo: MobileWorkOrderWithCustomer): string {
+  const l = label.toLowerCase()
+  if (l.includes('customer') && l.includes('name')) return wo.customer_name
+  if (l.includes('contact')) return wo.customer_contact || ''
+  if (l.includes('installation location') || (l.includes('site') && l.includes('address'))) return wo.site_address || ''
+  if (l.includes('serial')) return wo.serial_numbers.join(', ')
+  if (l.includes('rating')) return wo.rating || ''
+  if (l.includes('manufacturer')) return wo.manufacturer || ''
+  return ''
 }
 
 export default function FormFillView({ workOrder, form, existingSubmission }: Props) {
@@ -31,18 +44,36 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 
   // Load initial state from existing submission or local draft
   useEffect(() => {
+    let loadedFields: FieldValues = {}
+    let loadedRows: RowValues = {}
+
     const localDraft = localStorage.getItem(draftKey)
     if (localDraft) {
       try {
         const parsed = JSON.parse(localDraft)
-        setFieldValues(parsed.fields || {})
-        setRowValues(parsed.table_rows || {})
+        loadedFields = parsed.fields || {}
+        loadedRows = parsed.table_rows || {}
       } catch { /* ignore corrupt drafts */ }
     } else if (existingSubmission?.form_data) {
       const d = existingSubmission.form_data as { fields?: FieldValues; table_rows?: RowValues }
-      setFieldValues(d.fields || {})
-      setRowValues(d.table_rows || {})
+      loadedFields = d.fields || {}
+      loadedRows = d.table_rows || {}
     }
+
+    // Auto-fill "prefill from job" fields that weren't already captured by a draft/submission
+    if (form) {
+      for (const sec of form.sections) {
+        for (const f of sec.fields) {
+          if (f.prefill_from_job && !loadedFields[f.id]) {
+            const v = getPrefillValue(f.label, workOrder)
+            if (v) loadedFields = { ...loadedFields, [f.id]: v }
+          }
+        }
+      }
+    }
+
+    setFieldValues(loadedFields)
+    setRowValues(loadedRows)
 
     setIsOffline(!navigator.onLine)
     const setOnline  = () => { setIsOffline(false); syncPending() }
@@ -56,22 +87,42 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-save draft to localStorage on every change
+  // Autosave every 5s (not on every keystroke — a large form with photo/signature fields
+  // re-serializing and writing to localStorage on every character typed is real,
+  // avoidable work). A ref holds the latest values so the interval always saves current
+  // state without needing to be recreated on every change.
+  const latestValuesRef = useRef({ fieldValues, rowValues })
+  latestValuesRef.current = { fieldValues, rowValues }
+
   useEffect(() => {
-    localStorage.setItem(draftKey, JSON.stringify({ fields: fieldValues, table_rows: rowValues }))
-  }, [fieldValues, rowValues, draftKey])
+    function saveDraft() {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({
+          fields: latestValuesRef.current.fieldValues,
+          table_rows: latestValuesRef.current.rowValues,
+        }))
+      } catch {
+        // Most likely localStorage quota exceeded (signature/photo fields are large
+        // base64 blobs) — nothing useful to do client-side beyond not crashing.
+      }
+    }
+    const interval = setInterval(saveDraft, 5000)
+    return () => { saveDraft(); clearInterval(interval) }
+  }, [draftKey])
 
-  function setField(id: string, value: string) {
+  // Stable across renders (functional updater form) so memoized field/row components
+  // below don't get invalidated just because some unrelated field changed.
+  const setField = useCallback((id: string, value: string) => {
     setFieldValues(prev => ({ ...prev, [id]: value }))
-  }
+  }, [])
 
-  function setRowStatus(rowId: string, status: string) {
+  const setRowStatus = useCallback((rowId: string, status: string) => {
     setRowValues(prev => ({ ...prev, [rowId]: { ...prev[rowId], remarks: prev[rowId]?.remarks || '', status } }))
-  }
+  }, [])
 
-  function setRowRemarks(rowId: string, remarks: string) {
+  const setRowRemarks = useCallback((rowId: string, remarks: string) => {
     setRowValues(prev => ({ ...prev, [rowId]: { ...prev[rowId], status: prev[rowId]?.status || '', remarks } }))
-  }
+  }, [])
 
   async function syncPending() {
     const raw = localStorage.getItem(pendingKey)
@@ -99,8 +150,20 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 
   const handleSubmit = useCallback(async () => {
     if (!form) return
-    setSubmitting(true)
     setSubmitError('')
+
+    const missing: string[] = []
+    for (const sec of form.sections) {
+      for (const f of sec.fields) {
+        if (f.is_required && !fieldValues[f.id]?.trim()) missing.push(f.label)
+      }
+    }
+    if (missing.length > 0) {
+      setSubmitError(`Please fill in: ${missing.join(', ')}`)
+      return
+    }
+
+    setSubmitting(true)
 
     const formData = { fields: fieldValues, table_rows: rowValues }
 
@@ -274,10 +337,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 12 }}>{form.name}</div>
 
             {form.sections.map(section => {
-              // Fields auto-filled from job data are already shown on the job detail hub —
-              // rendering them again here just duplicates that screen for no reason.
-              const visibleFields = section.fields.filter(f => !f.prefill_from_job)
-              if (visibleFields.length === 0 && section.tables.length === 0) return null
+              if (section.fields.length === 0 && section.tables.length === 0) return null
 
               return (
               <div key={section.id} style={{ marginBottom: 16 }}>
@@ -293,57 +353,14 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                 <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', border: '1px solid #E5E0E3', borderTop: 'none', overflow: 'hidden' }}>
 
                   {/* Fields */}
-                  {visibleFields.map((field, fi) => (
-                    <div key={field.id} style={{ padding: '14px 14px', borderTop: fi > 0 ? '1px solid #F5F3F5' : 'none' }}>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                        {field.label}
-                        {field.is_required && <span style={{ color: '#DC2626', marginLeft: 2 }}>*</span>}
-                      </label>
-                      {field.field_type === 'long_text' ? (
-                        <textarea
-                          value={fieldValues[field.id] || ''}
-                          onChange={e => setField(field.id, e.target.value)}
-                          readOnly={field.read_only_on_mobile}
-                          placeholder={field.placeholder || ''}
-                          rows={3}
-                          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
-                        />
-                      ) : field.field_type === 'checkbox' ? (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0' }}>
-                          <input
-                            type="checkbox"
-                            checked={fieldValues[field.id] === 'true'}
-                            onChange={e => setField(field.id, String(e.target.checked))}
-                            style={{ width: 20, height: 20, accentColor: '#7D1D3F' }}
-                          />
-                          <span style={{ fontSize: 14, color: '#1C0D14' }}>Yes</span>
-                        </label>
-                      ) : field.field_type === 'signature' ? (
-                        <SignaturePad
-                          value={fieldValues[field.id] || ''}
-                          onChange={dataUrl => setField(field.id, dataUrl)}
-                          readOnly={field.read_only_on_mobile}
-                        />
-                      ) : field.field_type === 'photo' ? (
-                        <PhotoField
-                          value={fieldValues[field.id] || ''}
-                          onChange={dataUrl => setField(field.id, dataUrl)}
-                          readOnly={field.read_only_on_mobile}
-                        />
-                      ) : (
-                        <input
-                          type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
-                          value={fieldValues[field.id] || ''}
-                          onChange={e => setField(field.id, e.target.value)}
-                          readOnly={field.read_only_on_mobile}
-                          placeholder={field.placeholder || ''}
-                          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
-                        />
-                      )}
-                      {field.help_text && (
-                        <div style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>{field.help_text}</div>
-                      )}
-                    </div>
+                  {section.fields.map((field, fi) => (
+                    <FormFieldRow
+                      key={field.id}
+                      field={field}
+                      value={fieldValues[field.id] || ''}
+                      onChange={setField}
+                      bordered={fi > 0}
+                    />
                   ))}
 
                   {/* Tables */}
@@ -356,7 +373,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                     })
 
                     return (
-                      <div key={table.id} style={{ borderTop: (ti > 0 || visibleFields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
+                      <div key={table.id} style={{ borderTop: (ti > 0 || section.fields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
                         {renderTable(table.status_type, topRows, childMap, rowValues, setRowStatus, setRowRemarks)}
                       </div>
                     )
@@ -401,6 +418,8 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   )
 }
 
+const EMPTY_ROW_VALUE = { status: '', remarks: '' }
+
 function renderTable(
   statusType: string,
   topRows: MobileFormRow[],
@@ -414,9 +433,9 @@ function renderTable(
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <YesNoRow row={row} indent={false} index={i} rowValues={rowValues} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+            <YesNoRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <YesNoRow key={child.id} row={child} indent index={ci} rowValues={rowValues} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+              <YesNoRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
             ))}
           </div>
         ))}
@@ -429,9 +448,9 @@ function renderTable(
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <TestedRow row={row} indent={false} index={i} rowValues={rowValues} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+            <TestedRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <TestedRow key={child.id} row={child} indent index={ci} rowValues={rowValues} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+              <TestedRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
             ))}
           </div>
         ))}
@@ -509,17 +528,87 @@ function renderTable(
   )
 }
 
+// Memoized so typing into one field (or drawing a signature) doesn't re-render every
+// other field/table row in a large form — previously the whole form re-rendered on
+// every keystroke since nothing below FormFillView was isolated.
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered }: {
+  field: MobileFormField
+  value: string
+  onChange: (id: string, value: string) => void
+  bordered: boolean
+}) {
+  return (
+    <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+        {field.label}
+        {field.is_required && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
+        {field.prefill_from_job && (
+          <span style={{ fontSize: 9, background: '#F9EEF2', color: '#7D1D3F', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>Auto-filled</span>
+        )}
+      </label>
+      {field.prefill_from_job ? (
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#1C0D14', background: '#F5F3F5', borderRadius: 10, padding: '10px 12px', border: '1px solid #E5E0E3' }}>
+          {value || '—'}
+        </div>
+      ) : field.field_type === 'long_text' ? (
+        <textarea
+          value={value}
+          onChange={e => onChange(field.id, e.target.value)}
+          readOnly={field.read_only_on_mobile}
+          placeholder={field.placeholder || ''}
+          rows={3}
+          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+        />
+      ) : field.field_type === 'checkbox' ? (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0' }}>
+          <input
+            type="checkbox"
+            checked={value === 'true'}
+            onChange={e => onChange(field.id, String(e.target.checked))}
+            style={{ width: 20, height: 20, accentColor: '#7D1D3F' }}
+          />
+          <span style={{ fontSize: 14, color: '#1C0D14' }}>Yes</span>
+        </label>
+      ) : field.field_type === 'signature' ? (
+        <SignaturePad
+          value={value}
+          onChange={dataUrl => onChange(field.id, dataUrl)}
+          readOnly={field.read_only_on_mobile}
+        />
+      ) : field.field_type === 'photo' ? (
+        <PhotoField
+          value={value}
+          onChange={dataUrl => onChange(field.id, dataUrl)}
+          readOnly={field.read_only_on_mobile}
+        />
+      ) : (
+        <input
+          type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
+          value={value}
+          onChange={e => onChange(field.id, e.target.value)}
+          readOnly={field.read_only_on_mobile}
+          placeholder={field.placeholder || ''}
+          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+        />
+      )}
+      {field.help_text && (
+        <div style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>{field.help_text}</div>
+      )}
+    </div>
+  )
+})
+
 interface RowProps {
   row: MobileFormRow
   indent: boolean
   index: number
-  rowValues: RowValues
+  value: { status: string; remarks: string }
   setRowStatus: (id: string, status: string) => void
   setRowRemarks: (id: string, remarks: string) => void
 }
 
-function YesNoRow({ row, indent, index, rowValues, setRowStatus, setRowRemarks }: RowProps) {
-  const val = rowValues[row.id] || { status: '', remarks: '' }
+const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatus, setRowRemarks }: RowProps) {
+  const val = value
   return (
     <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: indent ? '#FAFAFA' : '#fff' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
@@ -569,10 +658,10 @@ function YesNoRow({ row, indent, index, rowValues, setRowStatus, setRowRemarks }
       )}
     </div>
   )
-}
+})
 
-function TestedRow({ row, indent, index, rowValues, setRowStatus, setRowRemarks }: RowProps) {
-  const val = rowValues[row.id] || { status: '', remarks: '' }
+const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowStatus, setRowRemarks }: RowProps) {
+  const val = value
   return (
     <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: indent ? '#FAFAFA' : '#fff' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
@@ -622,4 +711,4 @@ function TestedRow({ row, indent, index, rowValues, setRowStatus, setRowRemarks 
       )}
     </div>
   )
-}
+})

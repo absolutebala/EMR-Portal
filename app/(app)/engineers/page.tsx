@@ -67,10 +67,6 @@ export default function EngineersPage() {
       <Topbar title="Field Engineers" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
-        <div style={{ background: '#F9EEF2', border: '1px solid #E8C5D0', color: 'var(--m)', borderRadius: 10, padding: '9px 14px', marginBottom: 16, fontSize: 11, lineHeight: 1.5 }}>
-          Status is derived from real job activity (checked in / form submitted / closed) and recent app activity — not continuous GPS tracking, which a mobile web app can&apos;t reliably do in the background. &ldquo;Current location&rdquo; is each engineer&apos;s last site check-in.
-        </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
             { label: 'Available', val: stats.available, color: '#059669' },

@@ -45,21 +45,22 @@ export default function JobDetailClient({ detail }: Props) {
     return () => { clearTimeout(t); window.removeEventListener('emr-checkin-sync', handleSync) }
   }, [wo.id, detail.hasCheckedIn, router])
 
-  const steps = [
-    { label: 'Assigned', done: true },
-    { label: 'Checked In', done: detail.hasCheckedIn },
-    { label: 'Form Filled', done: detail.hasFormSubmission },
-    { label: 'Day Closed', done: !!detail.latestClosure },
-    {
-      label: wo.status === 'pending' ? 'Pending' : 'Completed',
-      done: wo.status === 'completed' || wo.status === 'pending',
-      pending: wo.status === 'pending',
-    },
-  ]
-  const currentIndex = steps.findIndex(s => !s.done)
+  // Ever having gone pending puts "Pending" into the progression permanently for this
+  // work order, even if the engineer has since checked back in and moved past it.
+  const everPending = wo.status === 'pending' || detail.latestClosure?.outcome === 'pending'
+  const STEP_ORDER: { key: string; label: string }[] = everPending
+    ? [{ key: 'assigned', label: 'Assigned' }, { key: 'in_progress', label: 'In Progress' }, { key: 'pending', label: 'Pending' }, { key: 'completed', label: 'Closed' }]
+    : [{ key: 'assigned', label: 'Assigned' }, { key: 'in_progress', label: 'In Progress' }, { key: 'completed', label: 'Closed' }]
+  const statusKey = wo.status === 'unassigned' ? 'assigned' : wo.status
+  const currentIndex = Math.max(0, STEP_ORDER.findIndex(s => s.key === statusKey))
+  const steps = STEP_ORDER.map((s, i) => ({
+    label: s.label,
+    done: i < currentIndex || (i === currentIndex && s.key === 'completed'),
+    pending: s.key === 'pending',
+  }))
 
   const st = STATUS_CONFIG[wo.status] || STATUS_CONFIG.assigned
-  const isClosed = wo.status === 'completed' || wo.status === 'pending'
+  const isClosed = wo.status === 'completed'
 
   function formatDate(d: string | null) {
     if (!d) return '—'
@@ -116,11 +117,14 @@ export default function JobDetailClient({ detail }: Props) {
 
       {/* Action panel */}
       <div style={{ background: '#fff', margin: '10px 16px 0', borderRadius: 12, padding: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+        {!isClosed && wo.status === 'pending' && (
+          <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: '#92400E', marginBottom: 10 }}>
+            Marked pending{detail.latestClosure ? ' — ' + formatDate(detail.latestClosure.created_at) : ''}. Check in again to continue this visit.
+          </div>
+        )}
         {isClosed ? (
-          <div style={{ background: wo.status === 'completed' ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${wo.status === 'completed' ? '#A7F3D0' : '#FCD34D'}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, color: wo.status === 'completed' ? '#065F46' : '#92400E' }}>
-            {wo.status === 'completed'
-              ? 'This visit is marked completed.'
-              : `Marked pending${detail.latestClosure ? ' — ' + formatDate(detail.latestClosure.created_at) : ''}. Check in again to continue.`}
+          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#065F46' }}>
+            This visit is marked completed.
           </div>
         ) : checkInSync?.status === 'pending' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 10, padding: '12px 14px' }}>
