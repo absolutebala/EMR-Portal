@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import {
   getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers,
-  type WorkOrderCheckinInfo, type WorkOrderClosureInfo, type WorkOrderSubmittedForm,
+  type WorkOrderCheckinInfo, type WorkOrderClosureInfo, type WorkOrderSubmittedForm, type WorkOrderVisit,
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
@@ -134,6 +134,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [checkin, setCheckin] = useState<WorkOrderCheckinInfo | null>(null)
   const [closure, setClosure] = useState<WorkOrderClosureInfo | null>(null)
   const [submittedForm, setSubmittedForm] = useState<WorkOrderSubmittedForm | null>(null)
+  const [visits, setVisits] = useState<WorkOrderVisit[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState('')
@@ -146,12 +147,13 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [loadingTransformers, setLoadingTransformers] = useState(false)
 
   async function refreshDetail() {
-    const { workOrder, activity: act, checkin: ci, closure: cl, submittedForm: sf } = await getWorkOrderDetail(workOrderId)
+    const { workOrder, activity: act, checkin: ci, closure: cl, submittedForm: sf, visits: vs } = await getWorkOrderDetail(workOrderId)
     setWo(workOrder)
     setActivity(act as WorkOrderActivity[])
     setCheckin(ci)
     setClosure(cl)
     setSubmittedForm(sf)
+    setVisits(vs)
   }
 
   useEffect(() => {
@@ -412,6 +414,56 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         {' · '}
                         {new Date(closure.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </div>
+                    </div>
+                  )}
+
+                  {visits.length > 0 && (
+                    <div style={card}>
+                      <div style={cardLabel}>Visit history</div>
+                      {visits.map((v, i) => (
+                        <div key={v.id} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid var(--gl)' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600,
+                              background: v.visitType === 'final' ? '#D1FAE5' : '#FEF3C7',
+                              color: v.visitType === 'final' ? '#065F46' : '#92400E',
+                            }}>
+                              {v.visitType === 'final' ? 'Final visit' : 'Follow-up'}
+                            </span>
+                            {v.sentToSap && (
+                              <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 500, background: '#DBEAFE', color: '#1E40AF' }}>
+                                Sent to SAP
+                              </span>
+                            )}
+                            <span style={{ fontSize: 10, color: 'var(--txm)' }}>
+                              {new Date(v.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {' · '}
+                              {new Date(v.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Engineer — {v.engineerName}</div>
+                              {v.engineerSignature && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={v.engineerSignature} alt="Engineer signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
+                              )}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Client — {v.clientName || '—'}</div>
+                              {v.clientSignature && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={v.clientSignature} alt="Client signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
+                              )}
+                            </div>
+                          </div>
+                          {v.pdfUrl && (
+                            <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                              Download visit summary PDF →
+                            </a>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 

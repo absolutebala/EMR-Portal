@@ -36,6 +36,18 @@ export interface WorkOrderSubmittedForm {
   rowValues: Record<string, { status: string; remarks: string }>
 }
 
+export interface WorkOrderVisit {
+  id: string
+  visitType: 'followup' | 'final'
+  engineerName: string
+  clientName: string | null
+  engineerSignature: string | null
+  clientSignature: string | null
+  pdfUrl: string | null
+  sentToSap: boolean
+  createdAt: string
+}
+
 export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
   try {
     const sb = await serverClient()
@@ -112,9 +124,10 @@ export async function getWorkOrderDetail(id: string): Promise<{
   checkin: WorkOrderCheckinInfo | null
   closure: WorkOrderClosureInfo | null
   submittedForm: WorkOrderSubmittedForm | null
+  visits: WorkOrderVisit[]
   error: string | null
 }> {
-  const empty = { workOrder: null, activity: [], checkin: null, closure: null, submittedForm: null }
+  const empty = { workOrder: null, activity: [], checkin: null, closure: null, submittedForm: null, visits: [] }
   try {
     const admin = adminClient()
     const [{ data: wo }, { data: wotRows }, { data: actRows }] = await Promise.all([
@@ -125,13 +138,35 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: visitRows }] = await Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('forms').select('id, name').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('work_order_visits')
+        .select('id, visit_type, client_name, engineer_signature, client_signature, pdf_url, sent_to_sap, created_at, profiles(first_name, last_name)')
+        .eq('work_order_id', id)
+        .order('created_at', { ascending: false }),
     ])
+
+    type VisitEmbed = {
+      id: string; visit_type: 'followup' | 'final'; client_name: string | null
+      engineer_signature: string | null; client_signature: string | null
+      pdf_url: string | null; sent_to_sap: boolean; created_at: string
+      profiles: { first_name: string; last_name: string } | null
+    }
+    const visits: WorkOrderVisit[] = ((visitRows as unknown as VisitEmbed[]) || []).map(v => ({
+      id: v.id,
+      visitType: v.visit_type,
+      engineerName: v.profiles ? `${v.profiles.first_name} ${v.profiles.last_name}` : 'Engineer',
+      clientName: v.client_name,
+      engineerSignature: v.engineer_signature,
+      clientSignature: v.client_signature,
+      pdfUrl: v.pdf_url,
+      sentToSap: v.sent_to_sap,
+      createdAt: v.created_at,
+    }))
 
     type WotRow = { work_order_id: string; transformer_id: string; transformers: { serial_number: string; warranty_status: string; customer_sites: { site_name: string } | null } | null }
     const rows = (wotRows as unknown as WotRow[]) || []
@@ -213,6 +248,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
       checkin,
       closure,
       submittedForm,
+      visits,
       error: null,
     }
   } catch (e: unknown) {
