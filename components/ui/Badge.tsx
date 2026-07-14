@@ -1,7 +1,7 @@
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   'Super Admin': { bg: 'var(--mp)', color: 'var(--m)' },
   'Service Manager': { bg: '#DBEAFE', color: '#1E40AF' },
-  'Service Engineer': { bg: '#D1FAE5', color: '#065F46' },
+  'Field Engineer': { bg: '#D1FAE5', color: '#065F46' },
   'Sales Executive Engineer': { bg: '#EDE9FE', color: '#5B21B6' },
   'Inventory Team': { bg: '#FEF3C7', color: '#92400E' },
   'Dispatch Team': { bg: '#CFFAFE', color: '#164E63' },

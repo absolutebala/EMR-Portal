@@ -23,7 +23,7 @@ const REQUIRES_VIEW: Record<string, string> = {
 const ROLE_ORDER = [
   'Super Admin',
   'Service Manager',
-  'Service Engineer',
+  'Field Engineer',
   'Sales Executive Engineer',
   'Inventory Team',
   'Dispatch Team',

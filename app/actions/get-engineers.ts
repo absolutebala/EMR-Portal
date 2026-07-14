@@ -31,9 +31,9 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
 
     // Build the roster from real activity (assigned work orders, site check-ins) rather
     // than filtering profiles by an exact role name — a role string that doesn't match
-    // literally ("Service Engineer") would otherwise make real engineers vanish entirely.
+    // literally ("Field Engineer") would otherwise make real engineers vanish entirely.
     const [{ data: roleProfiles, error: profErr }, { data: assignedRows }, { data: checkinRows }] = await Promise.all([
-      admin.from('profiles').select('id, first_name, last_name, employee_id, phone, last_active_at').eq('role', 'Service Engineer'),
+      admin.from('profiles').select('id, first_name, last_name, employee_id, phone, last_active_at').eq('role', 'Field Engineer'),
       admin.from('work_orders').select('engineer_id').not('engineer_id', 'is', null),
       admin.from('work_order_checkins').select('engineer_id'),
     ])

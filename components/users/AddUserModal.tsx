@@ -78,8 +78,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.role) { setError('Please select a role'); return }
-    if (form.role === 'Service Engineer' && !form.manager_id) {
-      setError('Please select a Reporting Manager for this Service Engineer')
+    if (form.role === 'Field Engineer' && !form.manager_id) {
+      setError('Please select a Reporting Manager for this Field Engineer')
       return
     }
     setLoading(true)
@@ -93,7 +93,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role as UserRole,
-          manager_id: form.role === 'Service Engineer' ? (form.manager_id || null) : null,
+          manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
           is_active: form.is_active,
         })
         if (error) throw new Error(error)
@@ -107,7 +107,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role,
-          manager_id: form.role === 'Service Engineer' ? (form.manager_id || null) : null,
+          manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
         })
         if (inviteError) throw new Error(inviteError)
         onSaved()

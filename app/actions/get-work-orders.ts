@@ -67,8 +67,8 @@ export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error:
     if (error) return { workOrders: [], error: error.message }
     if (!wos?.length) return { workOrders: [], error: null }
 
-    // Service Engineers see only their assigned work orders
-    const filtered = role === 'Service Engineer'
+    // Field Engineers see only their assigned work orders
+    const filtered = role === 'Field Engineer'
       ? wos.filter(w => w.engineer_id === user.id)
       : wos
 
@@ -283,7 +283,7 @@ export async function getAssignableEngineers(): Promise<{ engineers: { id: strin
   const { data } = await admin
     .from('profiles')
     .select('id, first_name, last_name, role')
-    .eq('role', 'Service Engineer')
+    .eq('role', 'Field Engineer')
     .order('first_name')
   return { engineers: data || [] }
 }

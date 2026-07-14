@@ -133,7 +133,7 @@ export default function UsersPage() {
             </div>
             <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: '7px 12px', border: '1px solid var(--gm)', borderRadius: 8, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', cursor: 'pointer' }}>
               <option value="">All roles</option>
-              {['Super Admin','Service Manager','Service Engineer','Sales Executive Engineer','Inventory Team','Dispatch Team','Reporting Team'].map(r => <option key={r}>{r}</option>)}
+              {['Super Admin','Service Manager','Field Engineer','Sales Executive Engineer','Inventory Team','Dispatch Team','Reporting Team'].map(r => <option key={r}>{r}</option>)}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '7px 12px', border: '1px solid var(--gm)', borderRadius: 8, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', cursor: 'pointer' }}>
               <option value="">All status</option>
