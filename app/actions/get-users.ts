@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 
 function adminClient() {
@@ -16,8 +16,8 @@ export async function getUsers(): Promise<{ users: unknown[]; error: string | nu
     const admin = adminClient()
 
     // Run auth check and admin list in parallel — they don't depend on each other
-    const [{ data: { user } }, { data: authData }] = await Promise.all([
-      sb.auth.getUser(),
+    const [user, { data: authData }] = await Promise.all([
+      getAuthedUser(sb),
       admin.auth.admin.listUsers({ perPage: 1000 }),
     ])
 

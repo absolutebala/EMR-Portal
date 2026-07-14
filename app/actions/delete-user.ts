@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 
 function adminClient() {
@@ -13,7 +13,7 @@ function adminClient() {
 export async function deleteUser(targetUserId: string): Promise<{ error: string | null }> {
   try {
     const sSb = await serverClient()
-    const { data: { user } } = await sSb.auth.getUser()
+    const user = await getAuthedUser(sSb)
     if (!user) return { error: 'Not authenticated.' }
     if (user.id === targetUserId) return { error: 'You cannot delete your own account.' }
 

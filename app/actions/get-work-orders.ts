@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import type { WorkOrder } from '@/lib/types'
 import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/app/actions/mobile-actions'
 
@@ -51,7 +51,7 @@ export interface WorkOrderVisit {
 export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { workOrders: [], error: 'Not authenticated' }
 
     const admin = adminClient()

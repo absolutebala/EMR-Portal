@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { randomBytes } from 'crypto'
 
 function generateTempPassword(): string {
@@ -42,7 +42,7 @@ export async function inviteUser(payload: {
   }
 
   const sSb = await serverClient()
-  const { data: { user: currentUser } } = await sSb.auth.getUser()
+  const currentUser = await getAuthedUser(sSb)
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },

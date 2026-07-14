@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -24,7 +24,7 @@ export async function updateUser(
 ): Promise<{ error: string | null }> {
   try {
     const sSb = await serverClient()
-    const { data: { user } } = await sSb.auth.getUser()
+    const user = await getAuthedUser(sSb)
     if (!user) return { error: 'Not authenticated.' }
 
     const { data: currentProfile } = await sSb.from('profiles').select('role').eq('id', user.id).single()

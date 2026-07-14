@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -18,7 +18,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthedUser(supabase)
 
   if (!user) redirect('/login')
 

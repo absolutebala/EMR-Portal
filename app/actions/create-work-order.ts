@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -20,7 +20,7 @@ export async function createWorkOrder(payload: {
 }): Promise<{ error: string | null; id?: string }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -74,7 +74,7 @@ export async function createWorkOrder(payload: {
 export async function updateWorkOrderStatus(id: string, status: string): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -102,7 +102,7 @@ export async function updateWorkOrder(id: string, payload: {
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -164,7 +164,7 @@ export async function updateWorkOrder(id: string, payload: {
 export async function reassignWorkOrderEngineer(id: string, engineerId: string): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

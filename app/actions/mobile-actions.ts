@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -180,7 +180,7 @@ async function fetchSingleWorkOrder(
 export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -211,7 +211,7 @@ export async function getMobileDashboardData(): Promise<{
 }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -239,7 +239,7 @@ export async function getMobileDashboardData(): Promise<{
 export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -263,7 +263,7 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
 }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -367,7 +367,7 @@ async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, 
 export async function getMobileWorkOrderBasic(woId: string): Promise<{ workOrder: MobileWorkOrderWithCustomer | null; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { workOrder: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -392,7 +392,7 @@ export interface MobileWorkOrderDetail {
 export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: MobileWorkOrderDetail | null; error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { detail: null, error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -445,7 +445,7 @@ export async function submitCheckIn(params: {
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -496,7 +496,7 @@ export async function submitDailyClosure(params: {
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

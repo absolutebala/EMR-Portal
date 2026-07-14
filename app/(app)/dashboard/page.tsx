@@ -1,12 +1,12 @@
 import Topbar from '@/components/layout/Topbar'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getAuthedUser } from '@/lib/supabase/server'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
   // Run auth + all counts in parallel — no sequential waterfall
-  const [{ data: { user } }, { count: userCount }, { count: customerCount }, { count: formCount }] = await Promise.all([
-    supabase.auth.getUser(),
+  const [user, { count: userCount }, { count: customerCount }, { count: formCount }] = await Promise.all([
+    getAuthedUser(supabase),
     supabase.from('profiles').select('*', { count: 'exact', head: true }),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
     supabase.from('forms').select('*', { count: 'exact', head: true }),

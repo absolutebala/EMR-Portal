@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 
 function adminClient() {
@@ -12,7 +12,7 @@ function adminClient() {
 
 export async function completePasswordChange(): Promise<{ error: string | null }> {
   const sb = await serverClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const user = await getAuthedUser(sb)
   if (!user) return { error: 'Not authenticated' }
 
   const admin = adminClient()

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient } from '@/lib/supabase/server'
+import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 
 function adminClient() {
@@ -12,7 +12,7 @@ function adminClient() {
 export async function POST(req: NextRequest) {
   try {
     const sb = await serverClient()
-    const { data: { user } } = await sb.auth.getUser()
+    const user = await getAuthedUser(sb)
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json()
