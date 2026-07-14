@@ -29,13 +29,29 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
   try {
     const admin = adminClient()
 
-    const { data: profiles, error: profErr } = await admin
-      .from('profiles')
-      .select('id, first_name, last_name, employee_id, phone, last_active_at')
-      .eq('role', 'Service Engineer')
-      .order('first_name')
+    // Build the roster from real activity (assigned work orders, site check-ins) rather
+    // than filtering profiles by an exact role name — a role string that doesn't match
+    // literally ("Service Engineer") would otherwise make real engineers vanish entirely.
+    const [{ data: roleProfiles, error: profErr }, { data: assignedRows }, { data: checkinRows }] = await Promise.all([
+      admin.from('profiles').select('id, first_name, last_name, employee_id, phone, last_active_at').eq('role', 'Service Engineer'),
+      admin.from('work_orders').select('engineer_id').not('engineer_id', 'is', null),
+      admin.from('work_order_checkins').select('engineer_id'),
+    ])
     if (profErr) return { engineers: [], error: profErr.message }
-    if (!profiles?.length) return { engineers: [], error: null }
+
+    const activityIds = new Set<string>()
+    ;(assignedRows || []).forEach(r => { if (r.engineer_id) activityIds.add(r.engineer_id) })
+    ;(checkinRows || []).forEach(r => { if (r.engineer_id) activityIds.add(r.engineer_id) })
+
+    const roleProfileIds = new Set((roleProfiles || []).map(p => p.id))
+    const missingIds = [...activityIds].filter(id => !roleProfileIds.has(id))
+
+    const { data: extraProfiles } = missingIds.length
+      ? await admin.from('profiles').select('id, first_name, last_name, employee_id, phone, last_active_at').in('id', missingIds)
+      : { data: [] as typeof roleProfiles }
+
+    const profiles = [...(roleProfiles || []), ...(extraProfiles || [])].sort((a, b) => a.first_name.localeCompare(b.first_name))
+    if (!profiles.length) return { engineers: [], error: null }
 
     const engineerIds = profiles.map(p => p.id)
 
