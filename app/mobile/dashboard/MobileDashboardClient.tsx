@@ -59,6 +59,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         subtitle={firstName ? `${greeting()}, ${firstName}` : undefined}
         rightSlot={
           <button
+            className="mtap"
             onClick={handleLogout}
             style={{
               background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
@@ -82,6 +83,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
           {STAT_CARDS.map(card => (
             <button
               key={card.key}
+              className="mtap"
               onClick={() => router.push('/mobile/jobs')}
               style={{
                 background: '#fff', borderRadius: 12, padding: 12, textAlign: 'left',
@@ -108,6 +110,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
             Recent jobs
           </p>
           <button
+            className="mtap"
             onClick={() => router.push('/mobile/jobs')}
             style={{ background: 'none', border: 'none', fontSize: 11, color: '#7D1D3F', fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
           >

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 
@@ -13,6 +14,10 @@ interface Props {
 export default function MobileHeader({ title, subtitle, backHref, rightSlot }: Props) {
   const router = useRouter()
 
+  useEffect(() => {
+    if (backHref) router.prefetch(backHref)
+  }, [router, backHref])
+
   return (
     <div style={{
       background: '#3A0A1C',
@@ -24,6 +29,7 @@ export default function MobileHeader({ title, subtitle, backHref, rightSlot }: P
     }}>
       {backHref ? (
         <button
+          className="mtap"
           onClick={() => router.push(backHref)}
           style={{
             background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 20,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { submitCheckIn } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrderWithCustomer } from '@/app/actions/mobile-actions'
+import { compressImage } from '@/lib/mobile/compressImage'
 
 interface Props {
   workOrder: MobileWorkOrderWithCustomer
@@ -20,28 +21,6 @@ export default function CheckInView({ workOrder }: Props) {
   const [compressing, setCompressing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-
-  // Downscale + re-encode so the photo comfortably fits the server action body limit —
-  // raw phone camera photos are routinely several MB and hang the check-in request otherwise.
-  function compressImage(file: File, maxDimension = 1280, quality = 0.75): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      const objectUrl = URL.createObjectURL(file)
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl)
-        const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        const ctx = canvas.getContext('2d')
-        if (!ctx) { reject(new Error('Canvas not supported')); return }
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', quality))
-      }
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read photo')) }
-      img.src = objectUrl
-    })
-  }
 
   useEffect(() => {
     if (!('geolocation' in navigator)) {
@@ -154,6 +133,7 @@ export default function CheckInView({ workOrder }: Props) {
             </div>
           ) : !photo ? (
             <div
+              className="mtap"
               onClick={() => fileInputRef.current?.click()}
               style={{ border: '1.5px dashed #E8C5D0', borderRadius: 11, padding: 18, textAlign: 'center', cursor: 'pointer', background: '#F9EEF2' }}
             >
@@ -163,7 +143,7 @@ export default function CheckInView({ workOrder }: Props) {
               <p style={{ fontSize: 11, fontWeight: 500, color: '#7D1D3F', margin: 0 }}>Tap to capture site arrival photo</p>
             </div>
           ) : (
-            <div onClick={() => fileInputRef.current?.click()} style={{ background: '#ECFDF5', border: '1.5px solid #A7F3D0', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', cursor: 'pointer' }}>
+            <div className="mtap" onClick={() => fileInputRef.current?.click()} style={{ background: '#ECFDF5', border: '1.5px solid #A7F3D0', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', cursor: 'pointer' }}>
               <img src={photo.dataUrl} alt="Check-in" style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: 7, flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 11, fontWeight: 500, color: '#065F46' }}>1 photo captured</div>
@@ -180,6 +160,7 @@ export default function CheckInView({ workOrder }: Props) {
         )}
 
         <button
+          className="mtap"
           onClick={handleSubmit}
           disabled={!photo || submitting || compressing}
           style={{

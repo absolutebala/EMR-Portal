@@ -80,6 +80,7 @@ export default function ClosureView({ workOrder }: Props) {
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <div
+              className="mtap"
               onClick={() => setOutcome('completed')}
               style={{
                 flex: 1, border: `2px solid ${outcome === 'completed' ? '#059669' : '#E5E0E3'}`,
@@ -94,6 +95,7 @@ export default function ClosureView({ workOrder }: Props) {
               <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>All work done today</div>
             </div>
             <div
+              className="mtap"
               onClick={() => setOutcome('pending')}
               style={{
                 flex: 1, border: `2px solid ${outcome === 'pending' ? '#D97706' : '#E5E0E3'}`,
@@ -164,6 +166,7 @@ export default function ClosureView({ workOrder }: Props) {
 
         {outcome && (
           <button
+            className="mtap"
             onClick={handleSubmit}
             disabled={submitting}
             style={{

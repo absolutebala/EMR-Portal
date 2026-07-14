@@ -82,6 +82,7 @@ export default function JobsListClient({ workOrders, error }: Props) {
           {TABS.map(t => (
             <button
               key={t.id}
+              className="mtap"
               onClick={() => setTab(t.id)}
               style={{
                 flexShrink: 0, padding: '6px 11px', borderRadius: 7, fontSize: 11, fontWeight: 500,

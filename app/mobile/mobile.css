@@ -1,0 +1,9 @@
+.mtap {
+  -webkit-tap-highlight-color: rgba(125, 29, 63, 0.15);
+  transition: transform 0.08s ease, opacity 0.08s ease;
+  touch-action: manipulation;
+}
+.mtap:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}

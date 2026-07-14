@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
@@ -16,6 +17,10 @@ export default function JobCard({ wo }: { wo: MobileWorkOrder }) {
   const router = useRouter()
   const st = STATUS_CONFIG[wo.status] || STATUS_CONFIG.assigned
 
+  useEffect(() => {
+    router.prefetch(`/mobile/work-orders/${wo.id}`)
+  }, [router, wo.id])
+
   function formatDate(d: string | null) {
     if (!d) return null
     return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -23,6 +28,7 @@ export default function JobCard({ wo }: { wo: MobileWorkOrder }) {
 
   return (
     <button
+      className="mtap"
       onClick={() => router.push(`/mobile/work-orders/${wo.id}`)}
       style={{
         width: '100%', textAlign: 'left', display: 'flex',

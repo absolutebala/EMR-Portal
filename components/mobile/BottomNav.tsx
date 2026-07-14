@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
@@ -29,6 +30,10 @@ const TABS: { id: 'dashboard' | 'jobs'; label: string; href: string; icon: React
 export default function BottomNav({ active }: Props) {
   const router = useRouter()
 
+  useEffect(() => {
+    TABS.forEach(tab => router.prefetch(tab.href))
+  }, [router])
+
   return (
     <div style={{
       background: '#fff', display: 'flex', alignItems: 'center',
@@ -42,6 +47,7 @@ export default function BottomNav({ active }: Props) {
         return (
           <button
             key={tab.id}
+            className="mtap"
             onClick={() => router.push(tab.href)}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

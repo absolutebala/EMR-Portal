@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
@@ -20,6 +21,12 @@ function CheckIcon() {
 export default function JobDetailClient({ detail }: Props) {
   const router = useRouter()
   const { workOrder: wo } = detail
+
+  useEffect(() => {
+    router.prefetch(`/mobile/work-orders/${wo.id}/checkin`)
+    router.prefetch(`/mobile/work-orders/${wo.id}/closure`)
+    router.prefetch(`/mobile/work-orders/${wo.id}/form`)
+  }, [router, wo.id])
 
   const steps = [
     { label: 'Assigned', done: true },
@@ -100,6 +107,7 @@ export default function JobDetailClient({ detail }: Props) {
           </div>
         ) : !detail.hasCheckedIn ? (
           <button
+            className="mtap"
             onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#7D1D3F', border: 'none', borderRadius: 10, padding: '12px 14px', width: '100%', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
           >
@@ -115,6 +123,7 @@ export default function JobDetailClient({ detail }: Props) {
           </button>
         ) : (
           <button
+            className="mtap"
             onClick={() => router.push(`/mobile/work-orders/${wo.id}/closure`)}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#7D1D3F', border: 'none', borderRadius: 10, padding: '12px 14px', width: '100%', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
           >
@@ -131,6 +140,7 @@ export default function JobDetailClient({ detail }: Props) {
         )}
 
         <button
+          className="mtap"
           onClick={() => router.push(`/mobile/work-orders/${wo.id}/form`)}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',

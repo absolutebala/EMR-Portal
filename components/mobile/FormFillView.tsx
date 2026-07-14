@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { MobileWorkOrder, MobileForm, MobileFormRow } from '@/app/actions/mobile-actions'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
+import SignaturePad from './SignaturePad'
+import PhotoField from './PhotoField'
 
 type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
@@ -165,6 +167,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
           The form for {workOrder.wo_number} has been saved. Continue to end-of-day closure to mark the visit done.
         </p>
         <button
+          className="mtap"
           onClick={() => router.push(`/mobile/work-orders/${workOrder.id}`)}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
@@ -187,6 +190,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
           Your submission is queued and will sync automatically when you&apos;re back online.
         </p>
         <button
+          className="mtap"
           onClick={() => router.push('/mobile/dashboard')}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
@@ -208,6 +212,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
         boxShadow: '0 2px 8px rgba(61,10,28,0.25)',
       }}>
         <button
+          className="mtap"
           onClick={() => router.back()}
           style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}
         >
@@ -268,7 +273,13 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
           <>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 12 }}>{form.name}</div>
 
-            {form.sections.map(section => (
+            {form.sections.map(section => {
+              // Fields auto-filled from job data are already shown on the job detail hub —
+              // rendering them again here just duplicates that screen for no reason.
+              const visibleFields = section.fields.filter(f => !f.prefill_from_job)
+              if (visibleFields.length === 0 && section.tables.length === 0) return null
+
+              return (
               <div key={section.id} style={{ marginBottom: 16 }}>
                 {/* Section header */}
                 <div style={{
@@ -282,7 +293,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                 <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', border: '1px solid #E5E0E3', borderTop: 'none', overflow: 'hidden' }}>
 
                   {/* Fields */}
-                  {section.fields.map((field, fi) => (
+                  {visibleFields.map((field, fi) => (
                     <div key={field.id} style={{ padding: '14px 14px', borderTop: fi > 0 ? '1px solid #F5F3F5' : 'none' }}>
                       <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
                         {field.label}
@@ -307,6 +318,18 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                           />
                           <span style={{ fontSize: 14, color: '#1C0D14' }}>Yes</span>
                         </label>
+                      ) : field.field_type === 'signature' ? (
+                        <SignaturePad
+                          value={fieldValues[field.id] || ''}
+                          onChange={dataUrl => setField(field.id, dataUrl)}
+                          readOnly={field.read_only_on_mobile}
+                        />
+                      ) : field.field_type === 'photo' ? (
+                        <PhotoField
+                          value={fieldValues[field.id] || ''}
+                          onChange={dataUrl => setField(field.id, dataUrl)}
+                          readOnly={field.read_only_on_mobile}
+                        />
                       ) : (
                         <input
                           type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
@@ -333,14 +356,15 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                     })
 
                     return (
-                      <div key={table.id} style={{ borderTop: (ti > 0 || section.fields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
+                      <div key={table.id} style={{ borderTop: (ti > 0 || visibleFields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
                         {renderTable(table.status_type, topRows, childMap, rowValues, setRowStatus, setRowRemarks)}
                       </div>
                     )
                   })}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
@@ -357,6 +381,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
             <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 8, textAlign: 'center' }}>{submitError}</div>
           )}
           <button
+            className="mtap"
             onClick={handleSubmit}
             disabled={submitting}
             style={{

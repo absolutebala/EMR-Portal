@@ -1,4 +1,5 @@
 import SwRegister from '@/components/mobile/SwRegister'
+import './mobile.css'
 
 export const metadata = {
   title: 'EMR Field App',
