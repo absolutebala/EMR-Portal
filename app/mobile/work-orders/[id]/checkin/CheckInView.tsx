@@ -17,8 +17,31 @@ export default function CheckInView({ workOrder }: Props) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsError, setGpsError] = useState('')
   const [photo, setPhoto] = useState<{ dataUrl: string; mimeType: string; ext: string } | null>(null)
+  const [compressing, setCompressing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Downscale + re-encode so the photo comfortably fits the server action body limit —
+  // raw phone camera photos are routinely several MB and hang the check-in request otherwise.
+  function compressImage(file: File, maxDimension = 1280, quality = 0.75): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const objectUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+        const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Canvas not supported')); return }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read photo')) }
+      img.src = objectUrl
+    })
+  }
 
   useEffect(() => {
     if (!('geolocation' in navigator)) {
@@ -32,36 +55,45 @@ export default function CheckInView({ workOrder }: Props) {
     )
   }, [])
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-    const reader = new FileReader()
-    reader.onload = () => {
-      setPhoto({ dataUrl: reader.result as string, mimeType: file.type || 'image/jpeg', ext })
+    setError('')
+    setCompressing(true)
+    try {
+      const dataUrl = await compressImage(file)
+      setPhoto({ dataUrl, mimeType: 'image/jpeg', ext: 'jpg' })
+    } catch {
+      setError('Could not process that photo — please try again')
+    } finally {
+      setCompressing(false)
     }
-    reader.readAsDataURL(file)
   }
 
   async function handleSubmit() {
     if (!photo) { setError('Photo proof is required'); return }
     setSubmitting(true)
     setError('')
-    const { error: err } = await submitCheckIn({
-      workOrderId: workOrder.id,
-      latitude: coords?.lat ?? null,
-      longitude: coords?.lng ?? null,
-      photoBase64: photo.dataUrl,
-      mimeType: photo.mimeType,
-      ext: photo.ext,
-    })
-    if (err) {
-      setError(err)
+    try {
+      const { error: err } = await submitCheckIn({
+        workOrderId: workOrder.id,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
+        photoBase64: photo.dataUrl,
+        mimeType: photo.mimeType,
+        ext: photo.ext,
+      })
+      if (err) {
+        setError(err)
+        setSubmitting(false)
+        return
+      }
+      router.push(`/mobile/work-orders/${workOrder.id}`)
+      router.refresh()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Check-in failed — please try again')
       setSubmitting(false)
-      return
     }
-    router.push(`/mobile/work-orders/${workOrder.id}`)
-    router.refresh()
   }
 
   return (
@@ -116,7 +148,11 @@ export default function CheckInView({ workOrder }: Props) {
 
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{ display: 'none' }} />
 
-          {!photo ? (
+          {compressing ? (
+            <div style={{ border: '1.5px dashed #E8C5D0', borderRadius: 11, padding: 18, textAlign: 'center', background: '#F9EEF2' }}>
+              <p style={{ fontSize: 11, fontWeight: 500, color: '#7D1D3F', margin: 0 }}>Processing photo…</p>
+            </div>
+          ) : !photo ? (
             <div
               onClick={() => fileInputRef.current?.click()}
               style={{ border: '1.5px dashed #E8C5D0', borderRadius: 11, padding: 18, textAlign: 'center', cursor: 'pointer', background: '#F9EEF2' }}
@@ -145,11 +181,11 @@ export default function CheckInView({ workOrder }: Props) {
 
         <button
           onClick={handleSubmit}
-          disabled={!photo || submitting}
+          disabled={!photo || submitting || compressing}
           style={{
             width: '100%', padding: '14px', borderRadius: 12, border: 'none',
-            background: !photo || submitting ? '#A8294F' : '#2563EB', color: '#fff',
-            fontSize: 14, fontWeight: 600, cursor: !photo || submitting ? 'not-allowed' : 'pointer',
+            background: !photo || submitting || compressing ? '#A8294F' : '#2563EB', color: '#fff',
+            fontSize: 14, fontWeight: 600, cursor: !photo || submitting || compressing ? 'not-allowed' : 'pointer',
             fontFamily: 'Poppins, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
