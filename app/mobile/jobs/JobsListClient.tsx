@@ -17,7 +17,7 @@ const TABS: { id: TabId; label: string; statuses: string[] }[] = [
   { id: 'all', label: 'All', statuses: [] },
   { id: 'assigned', label: 'Assigned', statuses: ['assigned', 'unassigned'] },
   { id: 'in_progress', label: 'In Progress', statuses: ['in_progress'] },
-  { id: 'pending', label: 'Pending', statuses: ['pending'] },
+  { id: 'pending', label: 'Pending', statuses: ['pending', 'needs_reassignment'] },
   { id: 'completed', label: 'Completed', statuses: ['completed'] },
 ]
 

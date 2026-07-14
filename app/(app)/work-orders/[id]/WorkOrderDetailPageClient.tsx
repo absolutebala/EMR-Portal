@@ -26,6 +26,9 @@ const STATUS_NEXT: Record<string, { label: string; value: string; color: string 
     { label: 'Mark Completed', value: 'completed', color: 'var(--green)' },
   ],
   pending: [{ label: 'Mark In Progress', value: 'in_progress', color: 'var(--amber)' }],
+  // No direct transition button — the exit path is the existing "Reassign engineer"
+  // action, which already flips status back to 'assigned' automatically.
+  needs_reassignment: [],
   completed: [],
 }
 
@@ -36,6 +39,7 @@ function statusBadge(status: string) {
     in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
     pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
     completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+    needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
   }
   const c = cfg[status] || cfg.unassigned
   return <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color }}>{c.label}</span>

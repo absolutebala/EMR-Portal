@@ -89,7 +89,7 @@ export interface AppSettings {
   updated_at: string
 }
 
-export type WorkOrderStatus = 'unassigned' | 'assigned' | 'in_progress' | 'pending' | 'completed'
+export type WorkOrderStatus = 'unassigned' | 'assigned' | 'in_progress' | 'pending' | 'completed' | 'needs_reassignment'
 
 export interface WorkOrder {
   id: string

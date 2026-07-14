@@ -47,11 +47,13 @@ export default function JobDetailClient({ detail }: Props) {
 
   // Ever having gone pending puts "Pending" into the progression permanently for this
   // work order, even if the engineer has since checked back in and moved past it.
-  const everPending = wo.status === 'pending' || detail.latestClosure?.outcome === 'pending'
+  const everPending = wo.status === 'pending' || wo.status === 'needs_reassignment' || detail.latestClosure?.outcome === 'pending'
   const STEP_ORDER: { key: string; label: string }[] = everPending
     ? [{ key: 'assigned', label: 'Assigned' }, { key: 'in_progress', label: 'In Progress' }, { key: 'pending', label: 'Pending' }, { key: 'completed', label: 'Closed' }]
     : [{ key: 'assigned', label: 'Assigned' }, { key: 'in_progress', label: 'In Progress' }, { key: 'completed', label: 'Closed' }]
-  const statusKey = wo.status === 'unassigned' ? 'assigned' : wo.status
+  // needs_reassignment sits at the same stage as pending for the purposes of the bar —
+  // it's a pending visit with an extra flag, not a further-along stage.
+  const statusKey = wo.status === 'unassigned' ? 'assigned' : wo.status === 'needs_reassignment' ? 'pending' : wo.status
   const currentIndex = Math.max(0, STEP_ORDER.findIndex(s => s.key === statusKey))
   const steps = STEP_ORDER.map((s, i) => ({
     label: s.label,
@@ -61,6 +63,7 @@ export default function JobDetailClient({ detail }: Props) {
 
   const st = STATUS_CONFIG[wo.status] || STATUS_CONFIG.assigned
   const isClosed = wo.status === 'completed'
+  const needsReassignment = wo.status === 'needs_reassignment'
 
   function formatDate(d: string | null) {
     if (!d) return '—'
@@ -74,9 +77,16 @@ export default function JobDetailClient({ detail }: Props) {
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title={wo.wo_number} backHref="/mobile/jobs" rightSlot={
-        <span style={{ background: st.bg, color: st.color, fontSize: 10, fontWeight: 600, borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
-          {st.label}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+          <span style={{ background: st.bg, color: st.color, fontSize: 10, fontWeight: 600, borderRadius: 20, padding: '3px 10px' }}>
+            {st.label}
+          </span>
+          {(wo.status === 'pending' || wo.status === 'needs_reassignment') && detail.latestClosure?.revisitDate && (
+            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.55)' }}>
+              Revisit: {formatDate(detail.latestClosure.revisitDate)}
+            </span>
+          )}
+        </div>
       } />
 
       {/* Status progression */}
@@ -117,12 +127,16 @@ export default function JobDetailClient({ detail }: Props) {
 
       {/* Action panel */}
       <div style={{ background: '#fff', margin: '10px 16px 0', borderRadius: 12, padding: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-        {!isClosed && wo.status === 'pending' && (
+        {!isClosed && !needsReassignment && wo.status === 'pending' && (
           <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: '#92400E', marginBottom: 10 }}>
             Marked pending{detail.latestClosure ? ' — ' + formatDate(detail.latestClosure.created_at) : ''}. Check in again to continue this visit.
           </div>
         )}
-        {isClosed ? (
+        {needsReassignment ? (
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#9A3412' }}>
+            This job is flagged for reassignment to a different engineer. It will reappear here once your supervisor assigns it to someone.
+          </div>
+        ) : isClosed ? (
           <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#065F46' }}>
             This visit is marked completed.
           </div>

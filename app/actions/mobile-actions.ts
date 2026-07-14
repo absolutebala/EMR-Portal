@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -190,7 +191,7 @@ export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrd
       fetchEngineerWorkOrders(admin, user.id),
     ])
 
-    return { workOrders: workOrders.filter(w => w.status !== 'completed'), engineer, error: null }
+    return { workOrders: workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment'), engineer, error: null }
   } catch (e: unknown) {
     return { workOrders: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
   }
@@ -228,7 +229,7 @@ export async function getMobileDashboardData(): Promise<{
       completed: workOrders.filter(w => w.status === 'completed').length,
     }
 
-    const recentJobs = workOrders.filter(w => w.status !== 'completed').slice(0, 3)
+    const recentJobs = workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment').slice(0, 3)
 
     return { stats, recentJobs, engineer, error: null }
   } catch (e: unknown) {
@@ -385,7 +386,7 @@ export interface MobileWorkOrderDetail {
   hasCheckedIn: boolean
   lastCheckinAt: string | null
   hasFormSubmission: boolean
-  latestClosure: { outcome: string; created_at: string } | null
+  latestClosure: { outcome: string; created_at: string; revisitDate: string | null; needsReassignment: boolean } | null
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
 }
 
@@ -403,7 +404,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     const [{ data: checkins }, { data: submission }, { data: closures }, { data: previous }] = await Promise.all([
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
       admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
-      admin.from('work_order_daily_closures').select('outcome, created_at').eq('work_order_id', woId).order('created_at', { ascending: false }).limit(1),
+      admin.from('work_order_daily_closures').select('outcome, created_at, revisit_date, needs_reassignment').eq('work_order_id', woId).order('created_at', { ascending: false }).limit(1),
       admin.from('work_orders')
         .select('wo_number, job_type, scheduled_date, status')
         .eq('customer_id', workOrder.customer_id)
@@ -413,7 +414,13 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     ])
 
     const lastCheckinAt = checkins?.[0]?.checked_in_at || null
-    const latestClosure = closures?.[0] || null
+    const closureRow = closures?.[0] || null
+    const latestClosure = closureRow ? {
+      outcome: closureRow.outcome,
+      created_at: closureRow.created_at,
+      revisitDate: closureRow.revisit_date,
+      needsReassignment: closureRow.needs_reassignment,
+    } : null
     // "Checked in" means checked in *since the last closure* — once a visit is closed
     // (e.g. marked pending), the engineer needs to check in again for the next visit.
     const hasCheckedIn = !!lastCheckinAt && (!latestClosure || new Date(lastCheckinAt) > new Date(latestClosure.created_at))
@@ -450,6 +457,12 @@ export async function submitCheckIn(params: {
 
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
+
+    const { data: existingWo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).single()
+    if (existingWo?.status === 'needs_reassignment') {
+      return { error: 'This work order is flagged for reassignment — an admin needs to assign a new engineer before it can be checked into again.' }
+    }
+
     const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
     const buffer = Buffer.from(base64, 'base64')
     const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext}`
@@ -473,8 +486,7 @@ export async function submitCheckIn(params: {
     })
     if (insErr) return { error: insErr.message }
 
-    const { data: wo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).single()
-    if (wo && wo.status !== 'in_progress' && wo.status !== 'completed') {
+    if (existingWo && existingWo.status !== 'in_progress' && existingWo.status !== 'completed') {
       await admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId)
     }
 
@@ -486,6 +498,77 @@ export async function submitCheckIn(params: {
   }
 }
 
+// Builds the visit summary PDF at closure time (not form-submit time) — pulls the
+// job/customer/form structure plus whatever the engineer has saved so far in
+// form_submissions, since the closure screen itself only has the day's outcome fields.
+async function buildVisitPdf(
+  admin: ReturnType<typeof adminClient>,
+  workOrderId: string,
+  engineerName: string,
+  clientName: string | null,
+  engineerSignature: string | null,
+  clientSignature: string | null
+): Promise<{ pdfUrl: string | null }> {
+  const { data: wo } = await admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single()
+  if (!wo) return { pdfUrl: null }
+
+  const [{ data: customer }, { data: wotRows }, { data: formRow }, { data: submission }] = await Promise.all([
+    admin.from('customers').select('name').eq('id', wo.customer_id).single(),
+    admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
+    admin.from('forms').select('id').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).maybeSingle(),
+  ])
+
+  type WotRow = { transformers: { serial_number: string } | null }
+  const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
+  const formData = (submission?.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }) || {}
+
+  let sections: { title: string; fields: { id: string; label: string; field_type: string }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
+  if (formRow) {
+    const { data: secs } = await admin.from('form_sections')
+      .select('title, order_index, form_fields(id, label, field_type, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
+      .eq('form_id', formRow.id)
+      .order('order_index')
+
+    type SectionEmbed = {
+      title: string; order_index: number
+      form_fields: { id: string; label: string; field_type: string; order_index: number }[]
+      form_tables: { order_index: number; form_table_rows: { id: string; row_label: string; sno_label: string | null; order_index: number }[] }[]
+    }
+    const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
+    sections = ((secs as unknown as SectionEmbed[]) || []).slice().sort(byOrder).map(s => ({
+      title: s.title,
+      fields: (s.form_fields || []).slice().sort(byOrder),
+      tables: (s.form_tables || []).slice().sort(byOrder).map(t => ({ rows: (t.form_table_rows || []).slice().sort(byOrder) })),
+    }))
+  }
+
+  try {
+    const pdfBuffer = await generateVisitPdf({
+      woNumber: wo.wo_number,
+      jobType: wo.job_type,
+      customerName: customer?.name || '',
+      serialNumbers,
+      engineerName,
+      clientName,
+      visitType: 'final',
+      sections,
+      fieldValues: formData.fields || {},
+      rowValues: formData.table_rows || {},
+      engineerSignature,
+      clientSignature,
+    })
+
+    const path = `visit-pdfs/${workOrderId}-${Date.now()}.pdf`
+    const { error: upErr } = await admin.storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' })
+    if (upErr) return { pdfUrl: null }
+    return { pdfUrl: admin.storage.from('assets').getPublicUrl(path).data.publicUrl }
+  } catch (e) {
+    console.error('buildVisitPdf failed:', e)
+    return { pdfUrl: null }
+  }
+}
+
 export async function submitDailyClosure(params: {
   workOrderId: string
   outcome: 'completed' | 'pending'
@@ -493,6 +576,10 @@ export async function submitDailyClosure(params: {
   pendingReason: string | null
   materialsRequired: string | null
   revisitDate: string | null
+  needsReassignment: boolean
+  engineerSignature: string
+  clientName: string
+  clientSignature: string
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
@@ -502,6 +589,21 @@ export async function submitDailyClosure(params: {
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
 
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
+    const engineerName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+
+    // Only a completed (final) visit generates a PDF + gets flagged as sent to SAP —
+    // "sent to SAP" is mocked, there is no real SAP integration, but the PDF is real.
+    let pdfUrl: string | null = null
+    let sentToSap = false
+    let sentToSapAt: string | null = null
+    if (params.outcome === 'completed') {
+      const result = await buildVisitPdf(admin, params.workOrderId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
+      pdfUrl = result.pdfUrl
+      sentToSap = !!pdfUrl
+      sentToSapAt = pdfUrl ? new Date().toISOString() : null
+    }
+
     const { error: insErr } = await admin.from('work_order_daily_closures').insert({
       work_order_id: params.workOrderId,
       engineer_id: user.id,
@@ -510,18 +612,41 @@ export async function submitDailyClosure(params: {
       pending_reason: params.pendingReason,
       materials_required: params.materialsRequired,
       revisit_date: params.revisitDate,
+      needs_reassignment: params.outcome === 'pending' ? params.needsReassignment : false,
+      engineer_signature: params.engineerSignature,
+      client_name: params.clientName,
+      client_signature: params.clientSignature,
+      pdf_url: pdfUrl,
+      sent_to_sap: sentToSap,
+      sent_to_sap_at: sentToSapAt,
     })
     if (insErr) return { error: insErr.message }
 
+    await admin.from('work_order_visits').insert({
+      work_order_id: params.workOrderId,
+      engineer_id: user.id,
+      visit_type: params.outcome === 'completed' ? 'final' : 'followup',
+      form_data: {},
+      engineer_signature: params.engineerSignature,
+      client_name: params.clientName,
+      client_signature: params.clientSignature,
+      pdf_url: pdfUrl,
+      sent_to_sap: sentToSap,
+      sent_to_sap_at: sentToSapAt,
+    })
+
+    const newStatus = params.outcome === 'pending' && params.needsReassignment ? 'needs_reassignment' : params.outcome
     await admin.from('work_orders').update({
-      status: params.outcome,
+      status: newStatus,
       updated_at: new Date().toISOString(),
     }).eq('id', params.workOrderId)
 
-    await logActivity(
-      admin, params.workOrderId, user.id,
-      params.outcome === 'completed' ? 'Marked work order completed' : 'Marked work order pending'
-    )
+    const activityMsg = params.outcome === 'completed'
+      ? `Marked work order completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
+      : params.needsReassignment
+        ? 'Marked pending — needs reassignment to a different engineer'
+        : 'Marked work order pending'
+    await logActivity(admin, params.workOrderId, user.id, activityMsg)
 
     return { error: null }
   } catch (e: unknown) {

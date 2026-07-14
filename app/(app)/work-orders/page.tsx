@@ -29,6 +29,7 @@ function StatusBadge({ status }: { status: string }) {
     in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
     pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
     completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+    needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
   }
   const c = cfg[status] || cfg.unassigned
   return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{c.label}</span>
@@ -94,6 +95,7 @@ export default function WorkOrdersPage() {
     unassigned: workOrders.filter(w => w.status === 'unassigned').length,
     completedToday: workOrders.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
     pending: workOrders.filter(w => w.status === 'pending').length,
+    needsReassignment: workOrders.filter(w => w.status === 'needs_reassignment').length,
   }
 
   return (
@@ -102,13 +104,14 @@ export default function WorkOrdersPage() {
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
             { label: 'Open work orders', val: stats.open, sub: 'Total active', color: 'var(--m)' },
             { label: 'Assigned', val: stats.assigned, sub: 'Engineer allocated', color: 'var(--blue)' },
             { label: 'Unassigned', val: stats.unassigned, sub: 'Awaiting assignment', color: 'var(--amber)' },
             { label: 'Completed today', val: stats.completedToday, sub: 'MoM generated', color: 'var(--green)' },
             { label: 'Pending / Incomplete', val: stats.pending, sub: 'Awaiting revisit', color: 'var(--red)' },
+            { label: 'Need Reassign', val: stats.needsReassignment, sub: 'Different engineer needed', color: '#EA580C' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }} />
@@ -131,6 +134,7 @@ export default function WorkOrdersPage() {
             <option value="assigned">Assigned</option>
             <option value="in_progress">In Progress</option>
             <option value="pending">Pending</option>
+            <option value="needs_reassignment">Need Reassign</option>
             <option value="completed">Completed</option>
           </select>
           <select value={jobFilter} onChange={e => setJobFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>

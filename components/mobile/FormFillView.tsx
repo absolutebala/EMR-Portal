@@ -35,15 +35,9 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   const [rowValues, setRowValues] = useState<RowValues>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [lastVisitType, setLastVisitType] = useState<'followup' | 'final'>('final')
   const [isOffline, setIsOffline] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
   const [submitError, setSubmitError] = useState('')
-
-  // Every visit (follow-up or final) needs its own engineer + client sign-off.
-  const [engineerSignature, setEngineerSignature] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [clientSignature, setClientSignature] = useState('')
 
   const draftKey = `emr-draft-${workOrder.id}`
   const pendingKey = 'emr-pending-submissions'
@@ -154,35 +148,25 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
     if (remaining.length < pending.length) router.refresh()
   }
 
-  const handleSubmit = useCallback(async (visitType: 'followup' | 'final') => {
+  const handleSubmit = useCallback(async () => {
     if (!form) return
     setSubmitError('')
 
-    if (visitType === 'final') {
-      const missing: string[] = []
-      for (const sec of form.sections) {
-        for (const f of sec.fields) {
-          if (f.is_required && !fieldValues[f.id]?.trim()) missing.push(f.label)
-        }
-      }
-      if (missing.length > 0) {
-        setSubmitError(`Please fill in: ${missing.join(', ')}`)
-        return
+    const missing: string[] = []
+    for (const sec of form.sections) {
+      for (const f of sec.fields) {
+        if (f.is_required && !fieldValues[f.id]?.trim()) missing.push(f.label)
       }
     }
-
-    if (!engineerSignature) { setSubmitError('Engineer signature is required'); return }
-    if (!clientName.trim()) { setSubmitError('Client name is required'); return }
-    if (!clientSignature) { setSubmitError('Client signature is required'); return }
+    if (missing.length > 0) {
+      setSubmitError(`Please fill in: ${missing.join(', ')}`)
+      return
+    }
 
     setSubmitting(true)
-    setLastVisitType(visitType)
 
     const formData = { fields: fieldValues, table_rows: rowValues }
-    const payload = {
-      workOrderId: workOrder.id, formId: form.id, formData,
-      visitType, engineerSignature, clientName: clientName.trim(), clientSignature,
-    }
+    const payload = { workOrderId: workOrder.id, formId: form.id, formData }
 
     if (!navigator.onLine) {
       // Queue for later sync
@@ -221,7 +205,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
       setSubmitError('Network error. Please try again.')
     }
     setSubmitting(false)
-  }, [form, fieldValues, rowValues, workOrder.id, draftKey, pendingKey, engineerSignature, clientName, clientSignature])
+  }, [form, fieldValues, rowValues, workOrder.id, draftKey, pendingKey])
 
   // Service worker message listener for sync trigger
   useEffect(() => {
@@ -242,13 +226,9 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
             <path d="M20 6L9 17l-5-5"/>
           </svg>
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>
-          {lastVisitType === 'final' ? 'Visit submitted!' : 'Follow-up saved!'}
-        </h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Form submitted!</h2>
         <p style={{ fontSize: 13, color: '#7A6870', textAlign: 'center', margin: '0 0 28px', lineHeight: 1.5 }}>
-          {lastVisitType === 'final'
-            ? `The form for ${workOrder.wo_number} has been saved with signatures, and a summary PDF was sent to SAP. Continue to end-of-day closure to mark the visit done.`
-            : `Progress for ${workOrder.wo_number} has been saved with signatures. Come back and continue when you revisit the site.`}
+          The form for {workOrder.wo_number} has been saved. Continue to end-of-day closure to sign off and mark the visit done.
         </p>
         <button
           className="mtap"
@@ -403,37 +383,6 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
               </div>
               )
             })}
-
-            {/* Visit sign-off — required every visit, follow-up or final */}
-            <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 16, border: '1px solid #E5E0E3' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 12 }}>Visit sign-off</div>
-
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                Engineer signature <span style={{ color: '#DC2626' }}>*</span>
-              </label>
-              <SignaturePad value={engineerSignature} onChange={setEngineerSignature} />
-
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', margin: '16px 0 6px' }}>
-                Client name <span style={{ color: '#DC2626' }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-                placeholder="Name of customer representative"
-                style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }}
-              />
-
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', margin: '16px 0 6px' }}>
-                Client signature <span style={{ color: '#DC2626' }}>*</span>
-              </label>
-              <SignaturePad value={clientSignature} onChange={setClientSignature} />
-
-              <p style={{ fontSize: 10, color: '#7A6870', marginTop: 10, lineHeight: 1.5 }}>
-                Every visit needs both signatures. If work isn&apos;t finished, save as Follow-up and get fresh
-                signatures next visit; once complete, Submit Final generates the summary sent to SAP.
-              </p>
-            </div>
           </>
         )}
       </div>
@@ -445,42 +394,25 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
           background: '#fff', borderTop: '1px solid #E5E0E3',
           padding: '14px 16px',
           boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
-          display: 'flex', flexDirection: 'column', gap: 8,
         }}>
           {submitError && (
-            <div style={{ fontSize: 12, color: '#DC2626', textAlign: 'center' }}>{submitError}</div>
+            <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 8, textAlign: 'center' }}>{submitError}</div>
           )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="mtap"
-              onClick={() => handleSubmit('followup')}
-              disabled={submitting}
-              style={{
-                flex: 1, padding: '14px',
-                background: '#fff', color: '#7D1D3F', border: '1.5px solid #7D1D3F', borderRadius: 12,
-                fontSize: 13, fontWeight: 600,
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                fontFamily: 'Poppins, sans-serif',
-              }}
-            >
-              {isOffline ? 'Save offline' : 'Save as Follow-up'}
-            </button>
-            <button
-              className="mtap"
-              onClick={() => handleSubmit('final')}
-              disabled={submitting}
-              style={{
-                flex: 1, padding: '14px',
-                background: submitting ? '#A8294F' : '#7D1D3F',
-                color: '#fff', border: 'none', borderRadius: 12,
-                fontSize: 13, fontWeight: 600,
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                fontFamily: 'Poppins, sans-serif',
-              }}
-            >
-              {submitting ? 'Submitting…' : 'Submit — Final'}
-            </button>
-          </div>
+          <button
+            className="mtap"
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              width: '100%', padding: '15px',
+              background: submitting ? '#A8294F' : '#7D1D3F',
+              color: '#fff', border: 'none', borderRadius: 12,
+              fontSize: 15, fontWeight: 600,
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              fontFamily: 'Poppins, sans-serif',
+            }}
+          >
+            {submitting ? 'Submitting…' : isOffline ? 'Save offline' : 'Submit form'}
+          </button>
         </div>
       )}
     </div>
