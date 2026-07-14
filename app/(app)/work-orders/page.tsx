@@ -72,6 +72,8 @@ export default function WorkOrdersPage() {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
+    const engineerParam = new URLSearchParams(window.location.search).get('engineer')
+    if (engineerParam) setEngFilter(engineerParam)
   }, [loadWorkOrders, supabase])
 
   const filtered = workOrders.filter(wo => {

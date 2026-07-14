@@ -71,6 +71,7 @@ export default function CheckInView({ workOrder }: Props) {
       workOrderId: workOrder.id,
       latitude: coords?.lat ?? null,
       longitude: coords?.lng ?? null,
+      placeName: placeName || null,
       photoBase64: photo.dataUrl,
       mimeType: photo.mimeType,
       ext: photo.ext,

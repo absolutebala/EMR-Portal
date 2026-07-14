@@ -3,11 +3,37 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient } from '@/lib/supabase/server'
 import type { WorkOrder } from '@/lib/types'
+import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/app/actions/mobile-actions'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
+}
+
+export interface WorkOrderCheckinInfo {
+  latitude: number | null
+  longitude: number | null
+  placeName: string | null
+  photoUrl: string | null
+  checkedInAt: string
+}
+
+export interface WorkOrderClosureInfo {
+  outcome: string
+  summary: string
+  pendingReason: string | null
+  materialsRequired: string | null
+  revisitDate: string | null
+  createdAt: string
+}
+
+export interface WorkOrderSubmittedForm {
+  formName: string
+  submittedAt: string | null
+  sections: MobileFormSection[]
+  fieldValues: Record<string, string>
+  rowValues: Record<string, { status: string; remarks: string }>
 }
 
 export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
@@ -80,7 +106,15 @@ export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error:
   }
 }
 
-export async function getWorkOrderDetail(id: string): Promise<{ workOrder: WorkOrder | null; activity: { action: string; actor_name: string | null; created_at: string }[]; error: string | null }> {
+export async function getWorkOrderDetail(id: string): Promise<{
+  workOrder: WorkOrder | null
+  activity: { action: string; actor_name: string | null; created_at: string }[]
+  checkin: WorkOrderCheckinInfo | null
+  closure: WorkOrderClosureInfo | null
+  submittedForm: WorkOrderSubmittedForm | null
+  error: string | null
+}> {
+  const empty = { workOrder: null, activity: [], checkin: null, closure: null, submittedForm: null }
   try {
     const admin = adminClient()
     const [{ data: wo }, { data: wotRows }, { data: actRows }] = await Promise.all([
@@ -89,11 +123,14 @@ export async function getWorkOrderDetail(id: string): Promise<{ workOrder: WorkO
       admin.from('work_order_activity').select('action, actor_name, created_at').eq('work_order_id', id).order('created_at', { ascending: true }),
     ])
 
-    if (!wo) return { workOrder: null, activity: [], error: 'Not found' }
+    if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }] = await Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
+      admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('forms').select('id, name').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     type WotRow = { work_order_id: string; transformer_id: string; transformers: { serial_number: string; warranty_status: string; customer_sites: { site_name: string } | null } | null }
@@ -101,6 +138,66 @@ export async function getWorkOrderDetail(id: string): Promise<{ workOrder: WorkO
     const serialNumbers = rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[]
     const hasWarranty = rows.some(r => r.transformers?.warranty_status === 'under_warranty')
     const siteName = rows[0]?.transformers?.customer_sites?.site_name || null
+
+    const checkin: WorkOrderCheckinInfo | null = checkinRow ? {
+      latitude: checkinRow.latitude,
+      longitude: checkinRow.longitude,
+      placeName: checkinRow.place_name,
+      photoUrl: checkinRow.photo_url,
+      checkedInAt: checkinRow.checked_in_at,
+    } : null
+
+    const closure: WorkOrderClosureInfo | null = closureRow ? {
+      outcome: closureRow.outcome,
+      summary: closureRow.summary,
+      pendingReason: closureRow.pending_reason,
+      materialsRequired: closureRow.materials_required,
+      revisitDate: closureRow.revisit_date,
+      createdAt: closureRow.created_at,
+    } : null
+
+    let submittedForm: WorkOrderSubmittedForm | null = null
+    if (formRow) {
+      type SectionEmbed = {
+        id: string; title: string; order_index: number
+        form_fields: MobileFormField[]
+        form_tables: (MobileFormTable & { form_table_rows: MobileFormRow[] })[]
+      }
+      const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
+
+      const [{ data: secs }, { data: sub }] = await Promise.all([
+        admin.from('form_sections')
+          .select('id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
+          .eq('form_id', formRow.id)
+          .order('order_index'),
+        admin.from('form_submissions')
+          .select('form_data, submitted_at')
+          .eq('work_order_id', id)
+          .eq('form_id', formRow.id)
+          .maybeSingle(),
+      ])
+
+      if (sub) {
+        const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
+          id: sec.id,
+          title: sec.title,
+          order_index: sec.order_index,
+          fields: (sec.form_fields || []).slice().sort(byOrder),
+          tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
+            ...t,
+            rows: (t.form_table_rows || []).slice().sort(byOrder),
+          })),
+        }))
+        const formData = sub.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }
+        submittedForm = {
+          formName: formRow.name,
+          submittedAt: sub.submitted_at,
+          sections,
+          fieldValues: formData?.fields || {},
+          rowValues: formData?.table_rows || {},
+        }
+      }
+    }
 
     return {
       workOrder: {
@@ -113,10 +210,13 @@ export async function getWorkOrderDetail(id: string): Promise<{ workOrder: WorkO
         has_warranty: hasWarranty,
       },
       activity: actRows || [],
+      checkin,
+      closure,
+      submittedForm,
       error: null,
     }
   } catch (e: unknown) {
-    return { workOrder: null, activity: [], error: e instanceof Error ? e.message : String(e) }
+    return { ...empty, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -147,7 +247,7 @@ export async function getAssignableEngineers(): Promise<{ engineers: { id: strin
   const { data } = await admin
     .from('profiles')
     .select('id, first_name, last_name, role')
-    .eq('role', 'Field Engineer')
+    .eq('role', 'Service Engineer')
     .order('first_name')
   return { engineers: data || [] }
 }

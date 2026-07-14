@@ -18,6 +18,16 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> 
   ])
 }
 
+// Fire-and-forget presence heartbeat — called from the mobile app's main data-fetch
+// entry points so desktop can derive an "Available" vs "Off duty" status from recent
+// app activity, without needing continuous background GPS (not reliable from a PWA).
+function touchHeartbeat(admin: ReturnType<typeof adminClient>, userId: string) {
+  admin.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', userId).then(
+    () => {},
+    () => {}
+  )
+}
+
 export interface MobileWorkOrder {
   id: string
   wo_number: string
@@ -170,6 +180,7 @@ export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrd
     if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const [engineer, workOrders] = await Promise.all([
       getEngineerName(admin, user.id),
       fetchEngineerWorkOrders(admin, user.id),
@@ -200,6 +211,7 @@ export async function getMobileDashboardData(): Promise<{
     if (!user) return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const [engineer, workOrders] = await Promise.all([
       getEngineerName(admin, user.id),
       fetchEngineerWorkOrders(admin, user.id),
@@ -227,6 +239,7 @@ export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder
     if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const [engineer, workOrders] = await Promise.all([
       getEngineerName(admin, user.id),
       fetchEngineerWorkOrders(admin, user.id),
@@ -250,6 +263,7 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
     if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
 
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Work order not found' }
@@ -353,6 +367,7 @@ export async function getMobileWorkOrderBasic(woId: string): Promise<{ workOrder
     if (!user) return { workOrder: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { workOrder: null, error: 'Work order not found' }
     return { workOrder, error: null }
@@ -377,6 +392,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     if (!user) return { detail: null, error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { detail: null, error: 'Work order not found' }
 
@@ -412,6 +428,7 @@ export async function submitCheckIn(params: {
   workOrderId: string
   latitude: number | null
   longitude: number | null
+  placeName: string | null
   photoBase64: string
   mimeType: string
   ext: string
@@ -422,6 +439,7 @@ export async function submitCheckIn(params: {
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
     const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
     const buffer = Buffer.from(base64, 'base64')
     const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext}`
@@ -440,6 +458,7 @@ export async function submitCheckIn(params: {
       engineer_id: user.id,
       latitude: params.latitude,
       longitude: params.longitude,
+      place_name: params.placeName,
       photo_url: photoUrl,
     })
     if (insErr) return { error: insErr.message }
@@ -471,6 +490,7 @@ export async function submitDailyClosure(params: {
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    touchHeartbeat(admin, user.id)
 
     const { error: insErr } = await admin.from('work_order_daily_closures').insert({
       work_order_id: params.workOrderId,

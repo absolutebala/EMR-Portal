@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
-import { getWorkOrderDetail, getTransformersForCustomer } from '@/app/actions/get-work-orders'
+import { getWorkOrderDetail, getTransformersForCustomer, type WorkOrderCheckinInfo, type WorkOrderClosureInfo, type WorkOrderSubmittedForm } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 
@@ -34,6 +34,18 @@ function statusBadge(status: string) {
   }
   const c = cfg[status] || cfg.unassigned
   return <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color }}>{c.label}</span>
+}
+
+function rowStatusTag(status: string) {
+  const cfg: Record<string, { bg: string; color: string; label: string }> = {
+    yes: { bg: '#D1FAE5', color: '#065F46', label: 'Yes' },
+    no: { bg: '#FEE2E2', color: '#991B1B', label: 'No' },
+    tested: { bg: '#DBEAFE', color: '#1E40AF', label: 'Tested' },
+    not_tested: { bg: '#F1F5F9', color: '#475569', label: 'Not tested' },
+  }
+  const c = cfg[status]
+  if (!c) return null
+  return <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: c.bg, color: c.color, fontWeight: 500, flexShrink: 0, whiteSpace: 'nowrap' }}>{c.label}</span>
 }
 
 function TimelineDot({ action }: { action: string }) {
@@ -116,6 +128,9 @@ const inputStyle: React.CSSProperties = {
 export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrderId, engineers }: Props) {
   const [wo, setWo] = useState<WorkOrder | null>(null)
   const [activity, setActivity] = useState<WorkOrderActivity[]>([])
+  const [checkin, setCheckin] = useState<WorkOrderCheckinInfo | null>(null)
+  const [closure, setClosure] = useState<WorkOrderClosureInfo | null>(null)
+  const [submittedForm, setSubmittedForm] = useState<WorkOrderSubmittedForm | null>(null)
   const [loading, setLoading] = useState(false)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState('')
@@ -128,14 +143,19 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
 
+  async function refreshDetail(id: string) {
+    const { workOrder, activity: act, checkin: ci, closure: cl, submittedForm: sf } = await getWorkOrderDetail(id)
+    setWo(workOrder)
+    setActivity(act as WorkOrderActivity[])
+    setCheckin(ci)
+    setClosure(cl)
+    setSubmittedForm(sf)
+  }
+
   useEffect(() => {
-    if (!open || !workOrderId) { setWo(null); setActivity([]); setEditing(false); return }
+    if (!open || !workOrderId) { setWo(null); setActivity([]); setCheckin(null); setClosure(null); setSubmittedForm(null); setEditing(false); return }
     setLoading(true)
-    getWorkOrderDetail(workOrderId).then(({ workOrder, activity: act }) => {
-      setWo(workOrder)
-      setActivity(act as WorkOrderActivity[])
-      setLoading(false)
-    })
+    refreshDetail(workOrderId).then(() => setLoading(false))
   }, [open, workOrderId])
 
   async function enterEditMode() {
@@ -187,8 +207,7 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
       notes: form.notes || null,
     })
     if (err) { setError(err); setActing(false); return }
-    const { workOrder, activity: act } = await getWorkOrderDetail(wo.id)
-    setWo(workOrder); setActivity(act as WorkOrderActivity[])
+    await refreshDetail(wo.id)
     setEditing(false); setActing(false); onUpdated()
   }
 
@@ -197,8 +216,7 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
     setActing(true); setError('')
     const { error: err } = await updateWorkOrderStatus(wo.id, status)
     if (err) { setError(err); setActing(false); return }
-    const { workOrder, activity: act } = await getWorkOrderDetail(wo.id)
-    setWo(workOrder); setActivity(act as WorkOrderActivity[])
+    await refreshDetail(wo.id)
     setActing(false); onUpdated()
   }
 
@@ -207,8 +225,7 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
     setActing(true); setError('')
     const { error: err } = await reassignWorkOrderEngineer(wo.id, reassignId)
     if (err) { setError(err); setActing(false); return }
-    const { workOrder, activity: act } = await getWorkOrderDetail(wo.id)
-    setWo(workOrder); setActivity(act as WorkOrderActivity[])
+    await refreshDetail(wo.id)
     setReassignId(''); setShowReassign(false); setActing(false); onUpdated()
   }
 
@@ -407,6 +424,111 @@ export default function WorkOrderDetailModal({ open, onClose, onUpdated, workOrd
               {wo.notes && row('Notes', wo.notes)}
             </div>
           </div>
+
+          {/* Site check-in (captured on mobile) */}
+          {checkin && (
+            <div style={{ background: 'var(--gl)', border: '1px solid var(--gm)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 14 }}>
+              {checkin.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={checkin.photoUrl} alt="Check-in proof" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid var(--gm)' }} />
+              )}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', marginBottom: 3 }}>Site check-in</div>
+                <div style={{ fontSize: 12, color: 'var(--tx)' }}>{checkin.placeName || 'Location unavailable'}</div>
+                {checkin.latitude != null && checkin.longitude != null && (
+                  <div style={{ fontSize: 10, color: 'var(--txm)' }}>{checkin.latitude.toFixed(4)}° N, {checkin.longitude.toFixed(4)}° E</div>
+                )}
+                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+                  {new Date(checkin.checkedInAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {' · '}
+                  {new Date(checkin.checkedInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Day closure outcome */}
+          {closure && (
+            <div style={{
+              background: closure.outcome === 'completed' ? '#F0FDF4' : '#FFFBEB',
+              border: `1px solid ${closure.outcome === 'completed' ? '#A7F3D0' : '#FCD34D'}`,
+              borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: closure.outcome === 'completed' ? '#065F46' : '#92400E', marginBottom: 6 }}>
+                Day closure — {closure.outcome === 'completed' ? 'Marked completed' : 'Marked pending'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: closure.outcome === 'pending' ? 6 : 0 }}>{closure.summary}</div>
+              {closure.outcome === 'pending' && (
+                <div style={{ fontSize: 11, color: 'var(--tx)' }}>
+                  {closure.pendingReason && <div><span style={{ color: 'var(--txm)' }}>Reason: </span>{closure.pendingReason}</div>}
+                  {closure.materialsRequired && <div><span style={{ color: 'var(--txm)' }}>Materials needed: </span>{closure.materialsRequired}</div>}
+                  {closure.revisitDate && <div><span style={{ color: 'var(--txm)' }}>Expected revisit: </span>{new Date(closure.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 6 }}>
+                {new Date(closure.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {' · '}
+                {new Date(closure.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </div>
+            </div>
+          )}
+
+          {/* Submitted mobile form */}
+          {submittedForm && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>
+                Submitted form — {submittedForm.formName}
+                {submittedForm.submittedAt && (
+                  <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'var(--txm)' }}>
+                    {' · '}{new Date(submittedForm.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <div style={{ border: '1px solid var(--gm)', borderRadius: 10, overflow: 'hidden' }}>
+                {submittedForm.sections.map((sec, si) => {
+                  const visibleFields = sec.fields.filter(f => submittedForm.fieldValues[f.id])
+                  if (visibleFields.length === 0 && sec.tables.length === 0) return null
+                  return (
+                    <div key={sec.id} style={{ borderTop: si > 0 ? '1px solid var(--gm)' : 'none' }}>
+                      <div style={{ background: 'var(--gl)', padding: '7px 14px', fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{sec.title}</div>
+                      {visibleFields.map(f => {
+                        const val = submittedForm.fieldValues[f.id]
+                        return (
+                          <div key={f.id} style={{ padding: '8px 14px', borderTop: '1px solid var(--gl)' }}>
+                            <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>{f.label}</div>
+                            {f.field_type === 'signature' || f.field_type === 'photo' ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={val} alt={f.label} style={{ maxWidth: f.field_type === 'signature' ? 200 : 120, maxHeight: 120, borderRadius: 6, border: '1px solid var(--gm)' }} />
+                            ) : (
+                              <div style={{ fontSize: 12, color: 'var(--tx)' }}>{val}</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {sec.tables.map(t => (
+                        <div key={t.id} style={{ borderTop: '1px solid var(--gl)' }}>
+                          {t.rows.map(r => {
+                            const rv = submittedForm.rowValues[r.id]
+                            if (!rv?.status) return null
+                            return (
+                              <div key={r.id} style={{ padding: '7px 14px', paddingLeft: r.parent_row_id ? 28 : 14, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--gl)' }}>
+                                <div style={{ fontSize: 11, color: 'var(--tx)' }}>
+                                  {r.sno_label && <span style={{ color: 'var(--txm)', marginRight: 4 }}>{r.sno_label}.</span>}
+                                  {r.row_label}
+                                  {rv.remarks && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{rv.remarks}</div>}
+                                </div>
+                                {rowStatusTag(rv.status)}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Activity timeline */}
           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>Activity timeline</div>

@@ -30,6 +30,7 @@ export function startBackgroundCheckIn(params: {
   workOrderId: string
   latitude: number | null
   longitude: number | null
+  placeName: string | null
   photoBase64: string
   mimeType: string
   ext: string
