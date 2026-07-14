@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
-import { submitCheckIn, reverseGeocode } from '@/app/actions/mobile-actions'
+import { reverseGeocode } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrderWithCustomer } from '@/app/actions/mobile-actions'
 import { compressImage } from '@/lib/mobile/compressImage'
+import { startBackgroundCheckIn } from '@/lib/mobile/backgroundCheckIn'
 
 interface Props {
   workOrder: MobileWorkOrderWithCustomer
@@ -59,35 +60,23 @@ export default function CheckInView({ workOrder }: Props) {
     }
   }
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!photo) { setError('Photo proof is required'); return }
     setSubmitting(true)
     setError('')
-    try {
-      const result = await Promise.race([
-        submitCheckIn({
-          workOrderId: workOrder.id,
-          latitude: coords?.lat ?? null,
-          longitude: coords?.lng ?? null,
-          photoBase64: photo.dataUrl,
-          mimeType: photo.mimeType,
-          ext: photo.ext,
-        }),
-        new Promise<{ error: string }>(resolve =>
-          setTimeout(() => resolve({ error: 'Check-in is taking too long — check your connection and try again' }), 20000)
-        ),
-      ])
-      if (result.error) {
-        setError(result.error)
-        setSubmitting(false)
-        return
-      }
-      router.push(`/mobile/work-orders/${workOrder.id}`)
-      router.refresh()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Check-in failed — please try again')
-      setSubmitting(false)
-    }
+
+    // Fire the check-in request in the background and move on immediately — the request
+    // keeps running after navigation and the hub picks up the result (see backgroundCheckIn).
+    startBackgroundCheckIn({
+      workOrderId: workOrder.id,
+      latitude: coords?.lat ?? null,
+      longitude: coords?.lng ?? null,
+      photoBase64: photo.dataUrl,
+      mimeType: photo.mimeType,
+      ext: photo.ext,
+    })
+    router.push(`/mobile/work-orders/${workOrder.id}`)
+    router.refresh()
   }
 
   return (

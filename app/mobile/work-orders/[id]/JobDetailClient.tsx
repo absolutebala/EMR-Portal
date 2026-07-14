@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/app/actions/mobile-actions'
+import { getCheckInSyncStatus, clearCheckInSyncStatus, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
 
 interface Props {
   detail: MobileWorkOrderDetail
@@ -21,12 +22,28 @@ function CheckIcon() {
 export default function JobDetailClient({ detail }: Props) {
   const router = useRouter()
   const { workOrder: wo } = detail
+  const [checkInSync, setCheckInSync] = useState<CheckInSyncStatus | null>(null)
 
   useEffect(() => {
     router.prefetch(`/mobile/work-orders/${wo.id}/checkin`)
     router.prefetch(`/mobile/work-orders/${wo.id}/closure`)
     router.prefetch(`/mobile/work-orders/${wo.id}/form`)
   }, [router, wo.id])
+
+  useEffect(() => {
+    if (detail.hasCheckedIn) { clearCheckInSyncStatus(wo.id); return }
+    const t = setTimeout(() => setCheckInSync(getCheckInSyncStatus(wo.id)), 0)
+
+    function handleSync(e: Event) {
+      const id = (e as CustomEvent<{ workOrderId: string }>).detail?.workOrderId
+      if (id !== wo.id) return
+      const next = getCheckInSyncStatus(wo.id)
+      setCheckInSync(next)
+      if (!next) router.refresh() // background check-in landed — pull the fresh hasCheckedIn state
+    }
+    window.addEventListener('emr-checkin-sync', handleSync)
+    return () => { clearTimeout(t); window.removeEventListener('emr-checkin-sync', handleSync) }
+  }, [wo.id, detail.hasCheckedIn, router])
 
   const steps = [
     { label: 'Assigned', done: true },
@@ -104,6 +121,30 @@ export default function JobDetailClient({ detail }: Props) {
             {wo.status === 'completed'
               ? 'This visit is marked completed.'
               : `Marked pending${detail.latestClosure ? ' — ' + formatDate(detail.latestClosure.created_at) : ''}. Check in again to continue.`}
+          </div>
+        ) : checkInSync?.status === 'pending' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%', border: '2px solid #E8C5D0', borderTopColor: '#7D1D3F',
+              animation: 'checkinspin 0.7s linear infinite', flexShrink: 0,
+            }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#7D1D3F', margin: 0 }}>Checking in…</p>
+              <span style={{ fontSize: 10, color: '#7A6870' }}>Syncing in the background — you can keep working</span>
+            </div>
+            <style>{`@keyframes checkinspin { to { transform: rotate(360deg) } }`}</style>
+          </div>
+        ) : checkInSync?.status === 'error' ? (
+          <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#991B1B', margin: '0 0 3px' }}>Check-in didn&apos;t sync</p>
+            <p style={{ fontSize: 11, color: '#991B1B', margin: '0 0 8px' }}>{checkInSync.message}</p>
+            <button
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
+              style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            >
+              Retry check-in
+            </button>
           </div>
         ) : !detail.hasCheckedIn ? (
           <button
