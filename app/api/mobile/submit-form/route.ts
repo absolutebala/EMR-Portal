@@ -39,18 +39,12 @@ export async function POST(req: NextRequest) {
 
     if (subErr) return NextResponse.json({ error: subErr.message }, { status: 500 })
 
-    // Mark WO as completed
-    await admin.from('work_orders').update({
-      status: 'completed',
-      updated_at: new Date().toISOString(),
-    }).eq('id', workOrderId)
-
-    // Log activity
+    // Log activity — status transitions (completed/pending) are decided by end-of-day closure, not form submission
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     await admin.from('work_order_activity').insert({
       work_order_id: workOrderId,
-      action: `Form submitted and work order completed by ${actorName}`,
+      action: `Form submitted by ${actorName}`,
       actor_name: actorName,
     })
 

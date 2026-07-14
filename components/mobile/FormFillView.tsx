@@ -3,21 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { MobileWorkOrder, MobileForm, MobileFormRow } from '@/app/actions/mobile-actions'
-
-const JOB_TYPE_LABELS: Record<string, string> = {
-  site_inspection: 'Site Inspection',
-  amc: 'AMC',
-  commissioning_activities: 'Commissioning',
-  supervision: 'Supervision',
-}
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  assigned:    { label: 'Assigned',    bg: '#FEF3C7', color: '#92400E' },
-  in_progress: { label: 'In Progress', bg: '#DBEAFE', color: '#1E40AF' },
-  pending:     { label: 'Pending',     bg: '#FEF3C7', color: '#92400E' },
-  unassigned:  { label: 'Unassigned',  bg: '#F3F4F6', color: '#6B7280' },
-  completed:   { label: 'Completed',   bg: '#D1FAE5', color: '#065F46' },
-}
+import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 
 type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
@@ -174,15 +160,15 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
             <path d="M20 6L9 17l-5-5"/>
           </svg>
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Submitted!</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Form submitted!</h2>
         <p style={{ fontSize: 13, color: '#7A6870', textAlign: 'center', margin: '0 0 28px', lineHeight: 1.5 }}>
-          Work order {workOrder.wo_number} has been completed and submitted.
+          The form for {workOrder.wo_number} has been saved. Continue to end-of-day closure to mark the visit done.
         </p>
         <button
-          onClick={() => router.push('/mobile/dashboard')}
+          onClick={() => router.push(`/mobile/work-orders/${workOrder.id}`)}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
-          Back to dashboard
+          Back to job
         </button>
       </div>
     )
@@ -382,7 +368,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            {submitting ? 'Submitting…' : isOffline ? 'Save offline' : 'Submit & complete'}
+            {submitting ? 'Submitting…' : isOffline ? 'Save offline' : 'Submit form'}
           </button>
         </div>
       )}

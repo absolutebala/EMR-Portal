@@ -24,7 +24,10 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
+  // Mobile PWA has its own auth guard per page/route and its own login screen
+  const isMobilePublic = pathname.startsWith('/mobile') || pathname === '/sw.js' || pathname === '/manifest.webmanifest'
+
+  if (!user && !isMobilePublic && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

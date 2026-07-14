@@ -69,6 +69,104 @@ export interface MobileForm {
   sections: MobileFormSection[]
 }
 
+async function fetchEngineerWorkOrders(
+  admin: ReturnType<typeof adminClient>,
+  userId: string
+): Promise<MobileWorkOrder[]> {
+  const { data: wos } = await admin
+    .from('work_orders')
+    .select('*')
+    .eq('engineer_id', userId)
+    .order('scheduled_date', { ascending: true })
+
+  if (!wos?.length) return []
+
+  const woIds = wos.map((w: { id: string }) => w.id)
+  const customerIds = [...new Set(wos.map((w: { customer_id: string }) => w.customer_id))]
+
+  const [{ data: wotRows }, { data: customers }] = await Promise.all([
+    admin.from('work_order_transformers')
+      .select('work_order_id, transformer_id, transformers(serial_number, customer_sites(site_name))')
+      .in('work_order_id', woIds),
+    admin.from('customers').select('id, name').in('id', customerIds),
+  ])
+
+  const custMap: Record<string, string> = {}
+  customers?.forEach((c: { id: string; name: string }) => { custMap[c.id] = c.name })
+
+  type WotRow = { work_order_id: string; transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }
+  const wotByWo: Record<string, WotRow[]> = {}
+  ;(wotRows as unknown as WotRow[])?.forEach((r: WotRow) => {
+    if (!wotByWo[r.work_order_id]) wotByWo[r.work_order_id] = []
+    wotByWo[r.work_order_id].push(r)
+  })
+
+  return wos.map((w: { id: string; wo_number: string; job_type: string; status: string; scheduled_date: string | null; notes: string | null; customer_id: string }) => {
+    const rows = wotByWo[w.id] || []
+    return {
+      id: w.id,
+      wo_number: w.wo_number,
+      job_type: w.job_type,
+      status: w.status,
+      scheduled_date: w.scheduled_date,
+      notes: w.notes,
+      customer_name: custMap[w.customer_id] || '',
+      serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
+      site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
+    }
+  })
+}
+
+async function getEngineerName(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ name: string } | null> {
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('first_name, last_name')
+    .eq('id', userId)
+    .single()
+  return profile ? { name: `${profile.first_name} ${profile.last_name}` } : null
+}
+
+export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
+  customer_id: string
+  customer_contact: string | null
+  customer_phone: string | null
+  site_address: string | null
+}
+
+async function fetchSingleWorkOrder(
+  admin: ReturnType<typeof adminClient>,
+  woId: string
+): Promise<MobileWorkOrderWithCustomer | null> {
+  const { data: wo, error: woErr } = await admin.from('work_orders').select('*').eq('id', woId).single()
+  if (woErr || !wo) return null
+
+  const [{ data: wotRows }, { data: customer }] = await Promise.all([
+    admin.from('work_order_transformers')
+      .select('transformer_id, transformers(serial_number, customer_sites(site_name, site_address))')
+      .eq('work_order_id', woId),
+    admin.from('customers').select('name, contact_person, phone').eq('id', wo.customer_id).single(),
+  ])
+
+  type WotRow = { transformers: { serial_number: string; customer_sites: { site_name: string; site_address: string } | null } | null }
+  const rows = (wotRows as unknown as WotRow[]) || []
+
+  return {
+    id: wo.id,
+    wo_number: wo.wo_number,
+    job_type: wo.job_type,
+    status: wo.status,
+    scheduled_date: wo.scheduled_date,
+    notes: wo.notes,
+    customer_id: wo.customer_id,
+    customer_name: customer?.name || '',
+    customer_contact: customer?.contact_person || null,
+    customer_phone: customer?.phone || null,
+    site_address: rows[0]?.transformers?.customer_sites?.site_address || null,
+    serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
+    site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
+  }
+}
+
 export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
   try {
     const sb = await serverClient()
@@ -76,63 +174,69 @@ export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrd
     if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
-
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('first_name, last_name')
-      .eq('id', user.id)
-      .single()
-
-    const { data: wos, error } = await admin
-      .from('work_orders')
-      .select('*')
-      .eq('engineer_id', user.id)
-      .not('status', 'eq', 'completed')
-      .order('scheduled_date', { ascending: true })
-
-    if (error) return { workOrders: [], engineer: null, error: error.message }
-    if (!wos?.length) return { workOrders: [], engineer: profile ? { name: `${profile.first_name} ${profile.last_name}` } : null, error: null }
-
-    const woIds = wos.map((w: { id: string }) => w.id)
-    const customerIds = [...new Set(wos.map((w: { customer_id: string }) => w.customer_id))]
-
-    const [{ data: wotRows }, { data: customers }] = await Promise.all([
-      admin.from('work_order_transformers')
-        .select('work_order_id, transformer_id, transformers(serial_number, customer_sites(site_name))')
-        .in('work_order_id', woIds),
-      admin.from('customers').select('id, name').in('id', customerIds),
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, user.id),
+      fetchEngineerWorkOrders(admin, user.id),
     ])
 
-    const custMap: Record<string, string> = {}
-    customers?.forEach((c: { id: string; name: string }) => { custMap[c.id] = c.name })
+    return { workOrders: workOrders.filter(w => w.status !== 'completed'), engineer, error: null }
+  } catch (e: unknown) {
+    return { workOrders: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
-    type WotRow = { work_order_id: string; transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }
-    const wotByWo: Record<string, WotRow[]> = {}
-    ;(wotRows as unknown as WotRow[])?.forEach((r: WotRow) => {
-      if (!wotByWo[r.work_order_id]) wotByWo[r.work_order_id] = []
-      wotByWo[r.work_order_id].push(r)
-    })
+export interface MobileDashboardStats {
+  assigned: number
+  inProgress: number
+  pending: number
+  completed: number
+}
 
-    const workOrders: MobileWorkOrder[] = wos.map((w: { id: string; wo_number: string; job_type: string; status: string; scheduled_date: string | null; notes: string | null; customer_id: string }) => {
-      const rows = wotByWo[w.id] || []
-      return {
-        id: w.id,
-        wo_number: w.wo_number,
-        job_type: w.job_type,
-        status: w.status,
-        scheduled_date: w.scheduled_date,
-        notes: w.notes,
-        customer_name: custMap[w.customer_id] || '',
-        serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
-        site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
-      }
-    })
+export async function getMobileDashboardData(): Promise<{
+  stats: MobileDashboardStats
+  recentJobs: MobileWorkOrder[]
+  engineer: { name: string } | null
+  error: string | null
+}> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
 
-    return {
-      workOrders,
-      engineer: profile ? { name: `${profile.first_name} ${profile.last_name}` } : null,
-      error: null,
+    const admin = adminClient()
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, user.id),
+      fetchEngineerWorkOrders(admin, user.id),
+    ])
+
+    const stats: MobileDashboardStats = {
+      assigned: workOrders.filter(w => w.status === 'assigned' || w.status === 'unassigned').length,
+      inProgress: workOrders.filter(w => w.status === 'in_progress').length,
+      pending: workOrders.filter(w => w.status === 'pending').length,
+      completed: workOrders.filter(w => w.status === 'completed').length,
     }
+
+    const recentJobs = workOrders.filter(w => w.status !== 'completed').slice(0, 3)
+
+    return { stats, recentJobs, engineer, error: null }
+  } catch (e: unknown) {
+    return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, user.id),
+      fetchEngineerWorkOrders(admin, user.id),
+    ])
+
+    return { workOrders, engineer, error: null }
   } catch (e: unknown) {
     return { workOrders: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
   }
@@ -151,39 +255,14 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
 
     const admin = adminClient()
 
-    const { data: wo, error: woErr } = await admin
-      .from('work_orders')
-      .select('*')
-      .eq('id', woId)
-      .single()
-    if (woErr || !wo) return { workOrder: null, form: null, existingSubmission: null, error: 'Work order not found' }
-
-    const [{ data: wotRows }, { data: customer }] = await Promise.all([
-      admin.from('work_order_transformers')
-        .select('transformer_id, transformers(serial_number, customer_sites(site_name))')
-        .eq('work_order_id', woId),
-      admin.from('customers').select('name').eq('id', wo.customer_id).single(),
-    ])
-
-    type WotRow = { transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }
-    const rows = (wotRows as unknown as WotRow[]) || []
-    const workOrder: MobileWorkOrder = {
-      id: wo.id,
-      wo_number: wo.wo_number,
-      job_type: wo.job_type,
-      status: wo.status,
-      scheduled_date: wo.scheduled_date,
-      notes: wo.notes,
-      customer_name: customer?.name || '',
-      serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
-      site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
-    }
+    const workOrder = await fetchSingleWorkOrder(admin, woId)
+    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Work order not found' }
 
     // Find the active form for this job type
     const { data: formRow } = await admin
       .from('forms')
       .select('id, name, job_type')
-      .eq('job_type', wo.job_type)
+      .eq('job_type', workOrder.job_type)
       .eq('status', 'active')
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -241,5 +320,150 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
     return { workOrder, form, existingSubmission, error: null }
   } catch (e: unknown) {
     return { workOrder: null, form: null, existingSubmission: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, userId: string, action: string) {
+  const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).single()
+  const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+  await admin.from('work_order_activity').insert({
+    work_order_id: woId,
+    action: `${action} by ${actorName}`,
+    actor_name: actorName,
+  })
+}
+
+export interface MobileWorkOrderDetail {
+  workOrder: MobileWorkOrderWithCustomer
+  hasCheckedIn: boolean
+  lastCheckinAt: string | null
+  hasFormSubmission: boolean
+  latestClosure: { outcome: string; created_at: string } | null
+  previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
+}
+
+export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: MobileWorkOrderDetail | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { detail: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const workOrder = await fetchSingleWorkOrder(admin, woId)
+    if (!workOrder) return { detail: null, error: 'Work order not found' }
+
+    const [{ data: checkins }, { data: submission }, { data: closures }, { data: previous }] = await Promise.all([
+      admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
+      admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
+      admin.from('work_order_daily_closures').select('outcome, created_at').eq('work_order_id', woId).order('created_at', { ascending: false }).limit(1),
+      admin.from('work_orders')
+        .select('wo_number, job_type, scheduled_date, status')
+        .eq('customer_id', workOrder.customer_id)
+        .neq('id', woId)
+        .order('scheduled_date', { ascending: false })
+        .limit(5),
+    ])
+
+    return {
+      detail: {
+        workOrder,
+        hasCheckedIn: !!checkins?.length,
+        lastCheckinAt: checkins?.[0]?.checked_in_at || null,
+        hasFormSubmission: !!submission?.length,
+        latestClosure: closures?.[0] || null,
+        previousVisits: previous || [],
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { detail: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function submitCheckIn(params: {
+  workOrderId: string
+  latitude: number | null
+  longitude: number | null
+  photoBase64: string
+  mimeType: string
+  ext: string
+}): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
+    const buffer = Buffer.from(base64, 'base64')
+    const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext}`
+
+    let photoUrl: string | null = null
+    const { error: upErr } = await admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType })
+    if (!upErr) {
+      photoUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+    }
+
+    const { error: insErr } = await admin.from('work_order_checkins').insert({
+      work_order_id: params.workOrderId,
+      engineer_id: user.id,
+      latitude: params.latitude,
+      longitude: params.longitude,
+      photo_url: photoUrl,
+    })
+    if (insErr) return { error: insErr.message }
+
+    const { data: wo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).single()
+    if (wo && (wo.status === 'assigned' || wo.status === 'unassigned')) {
+      await admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId)
+    }
+
+    await logActivity(admin, params.workOrderId, user.id, 'Checked in at site')
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function submitDailyClosure(params: {
+  workOrderId: string
+  outcome: 'completed' | 'pending'
+  summary: string
+  pendingReason: string | null
+  materialsRequired: string | null
+  revisitDate: string | null
+}): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+
+    const { error: insErr } = await admin.from('work_order_daily_closures').insert({
+      work_order_id: params.workOrderId,
+      engineer_id: user.id,
+      outcome: params.outcome,
+      summary: params.summary,
+      pending_reason: params.pendingReason,
+      materials_required: params.materialsRequired,
+      revisit_date: params.revisitDate,
+    })
+    if (insErr) return { error: insErr.message }
+
+    await admin.from('work_orders').update({
+      status: params.outcome,
+      updated_at: new Date().toISOString(),
+    }).eq('id', params.workOrderId)
+
+    await logActivity(
+      admin, params.workOrderId, user.id,
+      params.outcome === 'completed' ? 'Marked work order completed' : 'Marked work order pending'
+    )
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
   }
 }

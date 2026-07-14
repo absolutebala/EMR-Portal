@@ -3,13 +3,13 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getMobileWorkOrderDetail } from '@/app/actions/mobile-actions'
-import JobDetailClient from './JobDetailClient'
+import ClosureView from './ClosureView'
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-export default async function MobileWorkOrderDetailPage({ params }: Props) {
+export default async function MobileClosurePage({ params }: Props) {
   const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/mobile/login')
@@ -25,5 +25,5 @@ export default async function MobileWorkOrderDetailPage({ params }: Props) {
     )
   }
 
-  return <JobDetailClient detail={detail} />
+  return <ClosureView workOrder={detail.workOrder} />
 }

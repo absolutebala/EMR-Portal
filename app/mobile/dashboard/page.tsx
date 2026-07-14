@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getMobileWorkOrders } from '@/app/actions/mobile-actions'
+import { getMobileDashboardData } from '@/app/actions/mobile-actions'
 import MobileDashboardClient from './MobileDashboardClient'
 
 export default async function MobileDashboardPage() {
@@ -10,7 +10,7 @@ export default async function MobileDashboardPage() {
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/mobile/login')
 
-  const { workOrders, engineer, error } = await getMobileWorkOrders()
+  const { stats, recentJobs, engineer, error } = await getMobileDashboardData()
 
-  return <MobileDashboardClient workOrders={workOrders} engineer={engineer} error={error} />
+  return <MobileDashboardClient stats={stats} recentJobs={recentJobs} engineer={engineer} error={error} />
 }
