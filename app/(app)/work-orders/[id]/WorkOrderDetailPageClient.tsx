@@ -424,50 +424,93 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                   {visits.length > 0 && (
                     <div style={card}>
                       <div style={cardLabel}>Visit history</div>
-                      {visits.map((v, i) => (
-                        <div key={v.id} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid var(--gl)' : 'none' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                            <span style={{
-                              fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600,
-                              background: v.visitType === 'final' ? '#D1FAE5' : '#FEF3C7',
-                              color: v.visitType === 'final' ? '#065F46' : '#92400E',
-                            }}>
-                              {v.visitType === 'final' ? 'Final visit' : 'Follow-up'}
-                            </span>
-                            {v.sentToSap && (
-                              <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 500, background: '#DBEAFE', color: '#1E40AF' }}>
-                                Sent to SAP
+                      {visits.map((v, i) => {
+                        const outcomeCfg = {
+                          completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+                          pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
+                          in_progress: { bg: '#DBEAFE', color: '#1E40AF', label: 'In progress' },
+                        }[v.outcome]
+                        const dateLabel = new Date(v.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                        return (
+                          <div key={v.id} style={{ padding: '12px 0', borderTop: i > 0 ? '1px solid var(--gl)' : 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{dateLabel}</span>
+                              <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600, background: outcomeCfg.bg, color: outcomeCfg.color }}>
+                                {outcomeCfg.label}
                               </span>
+                              {v.needsReassignment && (
+                                <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600, background: '#FED7AA', color: '#9A3412' }}>
+                                  Needs reassignment
+                                </span>
+                              )}
+                              {v.sentToSap && (
+                                <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 500, background: '#DBEAFE', color: '#1E40AF' }}>
+                                  Sent to SAP
+                                </span>
+                              )}
+                            </div>
+
+                            {v.checkin && (
+                              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                                {v.checkin.photoUrl && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={v.checkin.photoUrl} alt="Check-in proof" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 7, flexShrink: 0, border: '1px solid var(--gm)' }} />
+                                )}
+                                <div>
+                                  <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 2 }}>Checked in</div>
+                                  <div style={{ fontSize: 12, color: 'var(--tx)' }}>{v.checkin.placeName || 'Location unavailable'}</div>
+                                  <div style={{ fontSize: 10, color: 'var(--txm)' }}>
+                                    {new Date(v.checkin.checkedInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                    {v.checkin.latitude != null && v.checkin.longitude != null && ` · ${v.checkin.latitude.toFixed(4)}° N, ${v.checkin.longitude.toFixed(4)}° E`}
+                                  </div>
+                                </div>
+                              </div>
                             )}
-                            <span style={{ fontSize: 10, color: 'var(--txm)' }}>
-                              {new Date(v.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                              {' · '}
-                              {new Date(v.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            </span>
+
+                            {v.summary && (
+                              <div style={{ marginBottom: 8 }}>
+                                <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 2 }}>{v.outcome === 'completed' ? 'Work summary' : 'Remarks'}</div>
+                                <div style={{ fontSize: 12, color: 'var(--tx)' }}>{v.summary}</div>
+                              </div>
+                            )}
+
+                            {v.outcome === 'pending' && (v.pendingReason || v.materialsRequired || v.revisitDate) && (
+                              <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                {v.pendingReason && <div><span style={{ color: 'var(--txm)' }}>Reason: </span>{v.pendingReason}</div>}
+                                {v.materialsRequired && <div><span style={{ color: 'var(--txm)' }}>Product/parts requested: </span>{v.materialsRequired}</div>}
+                                {v.revisitDate && <div><span style={{ color: 'var(--txm)' }}>Follow-up date: </span>{new Date(v.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                              </div>
+                            )}
+
+                            {(v.engineerSignature || v.clientSignature) && (
+                              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 8 }}>
+                                <div>
+                                  <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Engineer — {v.engineerName}</div>
+                                  {v.engineerSignature && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={v.engineerSignature} alt="Engineer signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
+                                  )}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Client — {v.clientName || '—'}</div>
+                                  {v.clientSignature && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={v.clientSignature} alt="Client signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {v.pdfUrl ? (
+                              <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                                View form details — visit summary PDF →
+                              </a>
+                            ) : i === 0 && submittedForm ? (
+                              <div style={{ fontSize: 11, color: 'var(--txm)' }}>Form details — see &quot;Submitted form&quot; below</div>
+                            ) : null}
                           </div>
-                          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Engineer — {v.engineerName}</div>
-                              {v.engineerSignature && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={v.engineerSignature} alt="Engineer signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
-                              )}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>Client — {v.clientName || '—'}</div>
-                              {v.clientSignature && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={v.clientSignature} alt="Client signature" style={{ width: 120, height: 50, objectFit: 'contain', background: '#fff', border: '1px solid var(--gm)', borderRadius: 6 }} />
-                              )}
-                            </div>
-                          </div>
-                          {v.pdfUrl && (
-                            <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
-                              Download visit summary PDF →
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
 

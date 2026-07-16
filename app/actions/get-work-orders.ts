@@ -25,6 +25,7 @@ export interface WorkOrderClosureInfo {
   pendingReason: string | null
   materialsRequired: string | null
   revisitDate: string | null
+  needsReassignment: boolean
   createdAt: string
 }
 
@@ -36,9 +37,14 @@ export interface WorkOrderSubmittedForm {
   rowValues: Record<string, { status: string; remarks: string }>
 }
 
+// One entry per check-in → closure cycle, richer than the raw work_order_visits
+// row (which only carries sign-off data) — merges in the matching check-in
+// (time/photo/location) and the daily-closure outcome fields (reason, materials,
+// revisit date, reassignment flag) so the desktop detail page can render a full
+// date-wise visit history in one place.
 export interface WorkOrderVisit {
   id: string
-  visitType: 'followup' | 'final'
+  outcome: 'completed' | 'pending' | 'in_progress'
   engineerName: string
   clientName: string | null
   engineerSignature: string | null
@@ -46,6 +52,18 @@ export interface WorkOrderVisit {
   pdfUrl: string | null
   sentToSap: boolean
   createdAt: string
+  summary: string | null
+  pendingReason: string | null
+  materialsRequired: string | null
+  revisitDate: string | null
+  needsReassignment: boolean
+  checkin: {
+    checkedInAt: string
+    placeName: string | null
+    latitude: number | null
+    longitude: number | null
+    photoUrl: string | null
+  } | null
 }
 
 export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
@@ -138,35 +156,104 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: visitRows }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }] = await Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
-      admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('forms').select('id, name').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      admin.from('work_order_visits')
-        .select('id, visit_type, client_name, engineer_signature, client_signature, pdf_url, sent_to_sap, created_at, profiles(first_name, last_name)')
+      admin.from('work_order_checkins')
+        .select('latitude, longitude, place_name, photo_url, checked_in_at')
         .eq('work_order_id', id)
-        .order('created_at', { ascending: false }),
+        .order('checked_in_at', { ascending: true }),
+      admin.from('work_order_daily_closures')
+        .select('id, outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, engineer_signature, client_name, client_signature, pdf_url, sent_to_sap, engineer_id, created_at')
+        .eq('work_order_id', id)
+        .order('created_at', { ascending: true }),
     ])
 
-    type VisitEmbed = {
-      id: string; visit_type: 'followup' | 'final'; client_name: string | null
-      engineer_signature: string | null; client_signature: string | null
-      pdf_url: string | null; sent_to_sap: boolean; created_at: string
-      profiles: { first_name: string; last_name: string } | null
+    // Build a date-wise visit history: each closure marks the end of a
+    // check-in → closure cycle, so pair every closure with the check-in(s)
+    // that happened before it (most recent one wins). Any check-ins left over
+    // after the last closure represent the visit currently in progress.
+    type CheckinRow = { latitude: number | null; longitude: number | null; place_name: string | null; photo_url: string | null; checked_in_at: string }
+    type ClosureRow = {
+      id: string; outcome: string; summary: string; pending_reason: string | null; materials_required: string | null
+      revisit_date: string | null; needs_reassignment: boolean; engineer_signature: string | null
+      client_name: string | null; client_signature: string | null; pdf_url: string | null; sent_to_sap: boolean
+      engineer_id: string | null; created_at: string
     }
-    const visits: WorkOrderVisit[] = ((visitRows as unknown as VisitEmbed[]) || []).map(v => ({
-      id: v.id,
-      visitType: v.visit_type,
-      engineerName: v.profiles ? `${v.profiles.first_name} ${v.profiles.last_name}` : 'Engineer',
-      clientName: v.client_name,
-      engineerSignature: v.engineer_signature,
-      clientSignature: v.client_signature,
-      pdfUrl: v.pdf_url,
-      sentToSap: v.sent_to_sap,
-      createdAt: v.created_at,
-    }))
+    const sortedCheckins = (allCheckins as CheckinRow[] | null) || []
+    const sortedClosures = (allClosures as ClosureRow[] | null) || []
+
+    const closureEngineerIds = [...new Set(sortedClosures.map(c => c.engineer_id).filter(Boolean))] as string[]
+    const { data: closureEngineers } = closureEngineerIds.length
+      ? await admin.from('profiles').select('id, first_name, last_name').in('id', closureEngineerIds)
+      : { data: [] as { id: string; first_name: string; last_name: string }[] }
+    const engineerNameMap: Record<string, string> = {}
+    ;(closureEngineers || []).forEach(e => { engineerNameMap[e.id] = `${e.first_name} ${e.last_name}` })
+
+    let ci = 0
+    const visits: WorkOrderVisit[] = sortedClosures.map(c => {
+      let matchedCheckin: CheckinRow | null = null
+      while (ci < sortedCheckins.length && sortedCheckins[ci].checked_in_at <= c.created_at) {
+        matchedCheckin = sortedCheckins[ci]
+        ci++
+      }
+      return {
+        id: c.id,
+        outcome: c.outcome as 'completed' | 'pending',
+        engineerName: c.engineer_id ? (engineerNameMap[c.engineer_id] || 'Engineer') : 'Engineer',
+        clientName: c.client_name,
+        engineerSignature: c.engineer_signature,
+        clientSignature: c.client_signature,
+        pdfUrl: c.pdf_url,
+        sentToSap: c.sent_to_sap,
+        createdAt: c.created_at,
+        summary: c.summary,
+        pendingReason: c.pending_reason,
+        materialsRequired: c.materials_required,
+        revisitDate: c.revisit_date,
+        needsReassignment: c.needs_reassignment,
+        checkin: matchedCheckin ? {
+          checkedInAt: matchedCheckin.checked_in_at,
+          placeName: matchedCheckin.place_name,
+          latitude: matchedCheckin.latitude,
+          longitude: matchedCheckin.longitude,
+          photoUrl: matchedCheckin.photo_url,
+        } : null,
+      }
+    })
+
+    // Leftover check-ins after the last closure = the current, still-open visit.
+    if (ci < sortedCheckins.length) {
+      const ongoing = sortedCheckins[sortedCheckins.length - 1]
+      visits.push({
+        id: `ongoing-${ongoing.checked_in_at}`,
+        outcome: 'in_progress',
+        engineerName: engineer ? `${engineer.first_name} ${engineer.last_name}` : 'Engineer',
+        clientName: null,
+        engineerSignature: null,
+        clientSignature: null,
+        pdfUrl: null,
+        sentToSap: false,
+        createdAt: ongoing.checked_in_at,
+        summary: null,
+        pendingReason: null,
+        materialsRequired: null,
+        revisitDate: null,
+        needsReassignment: false,
+        checkin: {
+          checkedInAt: ongoing.checked_in_at,
+          placeName: ongoing.place_name,
+          latitude: ongoing.latitude,
+          longitude: ongoing.longitude,
+          photoUrl: ongoing.photo_url,
+        },
+      })
+    }
+
+    visits.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
     type WotRow = { work_order_id: string; transformer_id: string; transformers: { serial_number: string; warranty_status: string; customer_sites: { site_name: string } | null } | null }
     const rows = (wotRows as unknown as WotRow[]) || []
@@ -188,6 +275,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
       pendingReason: closureRow.pending_reason,
       materialsRequired: closureRow.materials_required,
       revisitDate: closureRow.revisit_date,
+      needsReassignment: closureRow.needs_reassignment,
       createdAt: closureRow.created_at,
     } : null
 
