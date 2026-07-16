@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
+import Modal from '@/components/ui/Modal'
 import {
   getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers,
-  type WorkOrderCheckinInfo, type WorkOrderClosureInfo, type WorkOrderSubmittedForm, type WorkOrderVisit,
+  type WorkOrderSubmittedForm, type WorkOrderVisit,
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
@@ -55,6 +56,59 @@ function rowStatusTag(status: string) {
   const c = cfg[status]
   if (!c) return null
   return <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: c.bg, color: c.color, fontWeight: 500, flexShrink: 0, whiteSpace: 'nowrap' }}>{c.label}</span>
+}
+
+// Shared between the standalone "Submitted form" card and the per-visit "View form"
+// modal — there is only one live form_submissions row per work order (not one per
+// visit), so both surfaces render the same current entries.
+function renderFormSections(sf: WorkOrderSubmittedForm) {
+  return (
+    <div style={{ border: '1px solid var(--gm)', borderRadius: 10, overflow: 'hidden' }}>
+      {sf.sections.map((sec, si) => {
+        const visibleFields = sec.fields.filter(f => sf.fieldValues[f.id])
+        if (visibleFields.length === 0 && sec.tables.length === 0) return null
+        return (
+          <div key={sec.id} style={{ borderTop: si > 0 ? '1px solid var(--gm)' : 'none' }}>
+            <div style={{ background: 'var(--gl)', padding: '7px 14px', fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{sec.title}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+              {visibleFields.map(f => {
+                const val = sf.fieldValues[f.id]
+                return (
+                  <div key={f.id} style={{ padding: '8px 14px', borderTop: '1px solid var(--gl)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>{f.label}</div>
+                    {f.field_type === 'signature' || f.field_type === 'photo' ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={val} alt={f.label} style={{ maxWidth: f.field_type === 'signature' ? 200 : 120, maxHeight: 120, borderRadius: 6, border: '1px solid var(--gm)' }} />
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--tx)' }}>{val}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {sec.tables.map(t => (
+              <div key={t.id} style={{ borderTop: '1px solid var(--gl)' }}>
+                {t.rows.map(r => {
+                  const rv = sf.rowValues[r.id]
+                  if (!rv?.status) return null
+                  return (
+                    <div key={r.id} style={{ padding: '7px 14px', paddingLeft: r.parent_row_id ? 28 : 14, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--gl)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--tx)' }}>
+                        {r.sno_label && <span style={{ color: 'var(--txm)', marginRight: 4 }}>{r.sno_label}.</span>}
+                        {r.row_label}
+                        {rv.remarks && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{rv.remarks}</div>}
+                      </div>
+                      {rowStatusTag(rv.status)}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function TimelineDot({ action }: { action: string }) {
@@ -135,9 +189,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   const [wo, setWo] = useState<WorkOrder | null>(null)
   const [activity, setActivity] = useState<WorkOrderActivity[]>([])
-  const [checkin, setCheckin] = useState<WorkOrderCheckinInfo | null>(null)
-  const [closure, setClosure] = useState<WorkOrderClosureInfo | null>(null)
   const [submittedForm, setSubmittedForm] = useState<WorkOrderSubmittedForm | null>(null)
+  const [formModalOpen, setFormModalOpen] = useState(false)
   const [visits, setVisits] = useState<WorkOrderVisit[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
@@ -151,11 +204,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [loadingTransformers, setLoadingTransformers] = useState(false)
 
   async function refreshDetail() {
-    const { workOrder, activity: act, checkin: ci, closure: cl, submittedForm: sf, visits: vs } = await getWorkOrderDetail(workOrderId)
+    const { workOrder, activity: act, submittedForm: sf, visits: vs } = await getWorkOrderDetail(workOrderId)
     setWo(workOrder)
     setActivity(act as WorkOrderActivity[])
-    setCheckin(ci)
-    setClosure(cl)
     setSubmittedForm(sf)
     setVisits(vs)
   }
@@ -379,47 +430,6 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                     </div>
                   )}
 
-                  {checkin && (
-                    <div style={{ ...card, display: 'flex', gap: 14 }}>
-                      {checkin.photoUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={checkin.photoUrl} alt="Check-in proof" style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid var(--gm)' }} />
-                      )}
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)', marginBottom: 3 }}>Site check-in</div>
-                        <div style={{ fontSize: 13, color: 'var(--tx)' }}>{checkin.placeName || 'Location unavailable'}</div>
-                        {checkin.latitude != null && checkin.longitude != null && (
-                          <div style={{ fontSize: 10, color: 'var(--txm)' }}>{checkin.latitude.toFixed(4)}° N, {checkin.longitude.toFixed(4)}° E</div>
-                        )}
-                        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
-                          {new Date(checkin.checkedInAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          {' · '}
-                          {new Date(checkin.checkedInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {closure && (
-                    <div style={{ ...card, background: closure.outcome === 'completed' ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${closure.outcome === 'completed' ? '#A7F3D0' : '#FCD34D'}` }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: closure.outcome === 'completed' ? '#065F46' : '#92400E', marginBottom: 6 }}>
-                        Day closure — {closure.outcome === 'completed' ? 'Marked completed' : 'Marked pending'}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: closure.outcome === 'pending' ? 6 : 0 }}>{closure.summary}</div>
-                      {closure.outcome === 'pending' && (
-                        <div style={{ fontSize: 11, color: 'var(--tx)' }}>
-                          {closure.pendingReason && <div><span style={{ color: 'var(--txm)' }}>Reason: </span>{closure.pendingReason}</div>}
-                          {closure.materialsRequired && <div><span style={{ color: 'var(--txm)' }}>Materials needed: </span>{closure.materialsRequired}</div>}
-                          {closure.revisitDate && <div><span style={{ color: 'var(--txm)' }}>Expected revisit: </span>{new Date(closure.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 6 }}>
-                        {new Date(closure.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        {' · '}
-                        {new Date(closure.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                      </div>
-                    </div>
-                  )}
 
                   {visits.length > 0 && (
                     <div style={card}>
@@ -501,13 +511,24 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               </div>
                             )}
 
-                            {v.pdfUrl ? (
-                              <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
-                                View form details — visit summary PDF →
-                              </a>
-                            ) : i === 0 && submittedForm ? (
-                              <div style={{ fontSize: 11, color: 'var(--txm)' }}>Form details — see &quot;Submitted form&quot; below</div>
-                            ) : null}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                              {submittedForm && (
+                                <button
+                                  onClick={() => setFormModalOpen(true)}
+                                  style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}
+                                >
+                                  View form
+                                </button>
+                              )}
+                              {v.pdfUrl && (
+                                <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                                  Download visit PDF →
+                                </a>
+                              )}
+                              {!submittedForm && !v.pdfUrl && (
+                                <span style={{ fontSize: 11, color: 'var(--txm)' }}>No form data available</span>
+                              )}
+                            </div>
                           </div>
                         )
                       })}
@@ -524,51 +545,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                           </span>
                         )}
                       </div>
-                      <div style={{ border: '1px solid var(--gm)', borderRadius: 10, overflow: 'hidden' }}>
-                        {submittedForm.sections.map((sec, si) => {
-                          const visibleFields = sec.fields.filter(f => submittedForm.fieldValues[f.id])
-                          if (visibleFields.length === 0 && sec.tables.length === 0) return null
-                          return (
-                            <div key={sec.id} style={{ borderTop: si > 0 ? '1px solid var(--gm)' : 'none' }}>
-                              <div style={{ background: 'var(--gl)', padding: '7px 14px', fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{sec.title}</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-                                {visibleFields.map(f => {
-                                  const val = submittedForm.fieldValues[f.id]
-                                  return (
-                                    <div key={f.id} style={{ padding: '8px 14px', borderTop: '1px solid var(--gl)' }}>
-                                      <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 4 }}>{f.label}</div>
-                                      {f.field_type === 'signature' || f.field_type === 'photo' ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={val} alt={f.label} style={{ maxWidth: f.field_type === 'signature' ? 200 : 120, maxHeight: 120, borderRadius: 6, border: '1px solid var(--gm)' }} />
-                                      ) : (
-                                        <div style={{ fontSize: 12, color: 'var(--tx)' }}>{val}</div>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                              {sec.tables.map(t => (
-                                <div key={t.id} style={{ borderTop: '1px solid var(--gl)' }}>
-                                  {t.rows.map(r => {
-                                    const rv = submittedForm.rowValues[r.id]
-                                    if (!rv?.status) return null
-                                    return (
-                                      <div key={r.id} style={{ padding: '7px 14px', paddingLeft: r.parent_row_id ? 28 : 14, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--gl)' }}>
-                                        <div style={{ fontSize: 11, color: 'var(--tx)' }}>
-                                          {r.sno_label && <span style={{ color: 'var(--txm)', marginRight: 4 }}>{r.sno_label}.</span>}
-                                          {r.row_label}
-                                          {rv.remarks && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{rv.remarks}</div>}
-                                        </div>
-                                        {rowStatusTag(rv.status)}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        })}
-                      </div>
+                      {renderFormSections(submittedForm)}
                     </div>
                   )}
 
@@ -661,6 +638,15 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
           </div>
         )}
       </div>
+
+      <Modal
+        open={formModalOpen && !!submittedForm}
+        onClose={() => setFormModalOpen(false)}
+        title={submittedForm ? `Submitted form — ${submittedForm.formName}` : 'Submitted form'}
+        size="lg"
+      >
+        {submittedForm && renderFormSections(submittedForm)}
+      </Modal>
     </>
   )
 }
