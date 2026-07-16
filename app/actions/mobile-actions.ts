@@ -353,15 +353,31 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
   }
 }
 
+// Fire-and-forget from callers (not awaited) — a logging failure or a slow network
+// must never hold up the check-in/closure response the field engineer is waiting on.
 async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, userId: string, action: string) {
-  const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).single()
-  const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
-  await admin.from('work_order_activity').insert({
-    work_order_id: woId,
-    action: `${action} by ${actorName}`,
-    actor_name: actorName,
-  })
-  await logSystemActivity(admin, { actorId: userId, actorName, action, entityType: 'work_order', entityId: woId })
+  try {
+    const profileResult = await withTimeout(
+      admin.from('profiles').select('first_name, last_name').eq('id', userId).single(),
+      6000
+    )
+    const actor = profileResult?.data
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    await withTimeout(
+      admin.from('work_order_activity').insert({
+        work_order_id: woId,
+        action: `${action} by ${actorName}`,
+        actor_name: actorName,
+      }),
+      6000
+    )
+    await withTimeout(
+      logSystemActivity(admin, { actorId: userId, actorName, action, entityType: 'work_order', entityId: woId }),
+      6000
+    )
+  } catch {
+    // best-effort only
+  }
 }
 
 // For screens (check-in, closure) that only need the work order + customer info,
@@ -460,7 +476,11 @@ export async function submitCheckIn(params: {
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
 
-    const { data: existingWo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).single()
+    const existingWoResult = await withTimeout(
+      admin.from('work_orders').select('status').eq('id', params.workOrderId).single(),
+      8000
+    )
+    const existingWo = existingWoResult?.data
     if (existingWo?.status === 'needs_reassignment') {
       return { error: 'This work order is flagged for reassignment — an admin needs to assign a new engineer before it can be checked into again.' }
     }
@@ -478,21 +498,28 @@ export async function submitCheckIn(params: {
       photoUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
     }
 
-    const { error: insErr } = await admin.from('work_order_checkins').insert({
-      work_order_id: params.workOrderId,
-      engineer_id: user.id,
-      latitude: params.latitude,
-      longitude: params.longitude,
-      place_name: params.placeName,
-      photo_url: photoUrl,
-    })
-    if (insErr) return { error: insErr.message }
+    const insResult = await withTimeout(
+      admin.from('work_order_checkins').insert({
+        work_order_id: params.workOrderId,
+        engineer_id: user.id,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        place_name: params.placeName,
+        photo_url: photoUrl,
+      }),
+      8000
+    )
+    if (!insResult) return { error: 'Check-in is taking longer than expected — please check your connection and try again.' }
+    if (insResult.error) return { error: insResult.error.message }
 
     if (existingWo && existingWo.status !== 'in_progress' && existingWo.status !== 'completed') {
-      await admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId)
+      await withTimeout(
+        admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId),
+        8000
+      )
     }
 
-    await logActivity(admin, params.workOrderId, user.id, 'Checked in at site')
+    logActivity(admin, params.workOrderId, user.id, 'Checked in at site').catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {
@@ -511,15 +538,24 @@ async function buildVisitPdf(
   engineerSignature: string | null,
   clientSignature: string | null
 ): Promise<{ pdfUrl: string | null }> {
-  const { data: wo } = await admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single()
+  const woResult = await withTimeout(
+    admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single(),
+    8000
+  )
+  const wo = woResult?.data
   if (!wo) return { pdfUrl: null }
 
-  const [{ data: customer }, { data: wotRows }, { data: formRow }, { data: submission }] = await Promise.all([
-    admin.from('customers').select('name').eq('id', wo.customer_id).single(),
-    admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
-    admin.from('forms').select('id').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-    admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).maybeSingle(),
-  ])
+  const dataResult = await withTimeout(
+    Promise.all([
+      admin.from('customers').select('name').eq('id', wo.customer_id).single(),
+      admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
+      admin.from('forms').select('id').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).maybeSingle(),
+    ]),
+    8000
+  )
+  if (!dataResult) return { pdfUrl: null }
+  const [{ data: customer }, { data: wotRows }, { data: formRow }, { data: submission }] = dataResult
 
   type WotRow = { transformers: { serial_number: string } | null }
   const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
@@ -527,10 +563,14 @@ async function buildVisitPdf(
 
   let sections: { title: string; fields: { id: string; label: string; field_type: string }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
   if (formRow) {
-    const { data: secs } = await admin.from('form_sections')
-      .select('title, order_index, form_fields(id, label, field_type, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
-      .eq('form_id', formRow.id)
-      .order('order_index')
+    const secsResult = await withTimeout(
+      admin.from('form_sections')
+        .select('title, order_index, form_fields(id, label, field_type, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
+        .eq('form_id', formRow.id)
+        .order('order_index'),
+      8000
+    )
+    const secs = secsResult?.data
 
     type SectionEmbed = {
       title: string; order_index: number
@@ -562,8 +602,11 @@ async function buildVisitPdf(
     })
 
     const path = `visit-pdfs/${workOrderId}-${Date.now()}.pdf`
-    const { error: upErr } = await admin.storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' })
-    if (upErr) return { pdfUrl: null }
+    const upResult = await withTimeout(
+      admin.storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' }),
+      12000
+    )
+    if (!upResult || upResult.error) return { pdfUrl: null }
     return { pdfUrl: admin.storage.from('assets').getPublicUrl(path).data.publicUrl }
   } catch (e) {
     console.error('buildVisitPdf failed:', e)
@@ -591,7 +634,11 @@ export async function submitDailyClosure(params: {
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
 
-    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
+    const actorResult = await withTimeout(
+      admin.from('profiles').select('first_name, last_name').eq('id', user.id).single(),
+      8000
+    )
+    const actor = actorResult?.data
     const engineerName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
 
     // Only a completed (final) visit generates a PDF + gets flagged as sent to SAP —
@@ -606,49 +653,59 @@ export async function submitDailyClosure(params: {
       sentToSapAt = pdfUrl ? new Date().toISOString() : null
     }
 
-    const { error: insErr } = await admin.from('work_order_daily_closures').insert({
-      work_order_id: params.workOrderId,
-      engineer_id: user.id,
-      outcome: params.outcome,
-      summary: params.summary,
-      pending_reason: params.pendingReason,
-      materials_required: params.materialsRequired,
-      revisit_date: params.revisitDate,
-      needs_reassignment: params.outcome === 'pending' ? params.needsReassignment : false,
-      engineer_signature: params.engineerSignature,
-      client_name: params.clientName,
-      client_signature: params.clientSignature,
-      pdf_url: pdfUrl,
-      sent_to_sap: sentToSap,
-      sent_to_sap_at: sentToSapAt,
-    })
-    if (insErr) return { error: insErr.message }
+    const closureResult = await withTimeout(
+      admin.from('work_order_daily_closures').insert({
+        work_order_id: params.workOrderId,
+        engineer_id: user.id,
+        outcome: params.outcome,
+        summary: params.summary,
+        pending_reason: params.pendingReason,
+        materials_required: params.materialsRequired,
+        revisit_date: params.revisitDate,
+        needs_reassignment: params.outcome === 'pending' ? params.needsReassignment : false,
+        engineer_signature: params.engineerSignature,
+        client_name: params.clientName,
+        client_signature: params.clientSignature,
+        pdf_url: pdfUrl,
+        sent_to_sap: sentToSap,
+        sent_to_sap_at: sentToSapAt,
+      }),
+      8000
+    )
+    if (!closureResult) return { error: 'Saving is taking longer than expected — please check your connection and try again.' }
+    if (closureResult.error) return { error: closureResult.error.message }
 
-    await admin.from('work_order_visits').insert({
-      work_order_id: params.workOrderId,
-      engineer_id: user.id,
-      visit_type: params.outcome === 'completed' ? 'final' : 'followup',
-      form_data: {},
-      engineer_signature: params.engineerSignature,
-      client_name: params.clientName,
-      client_signature: params.clientSignature,
-      pdf_url: pdfUrl,
-      sent_to_sap: sentToSap,
-      sent_to_sap_at: sentToSapAt,
-    })
+    await withTimeout(
+      admin.from('work_order_visits').insert({
+        work_order_id: params.workOrderId,
+        engineer_id: user.id,
+        visit_type: params.outcome === 'completed' ? 'final' : 'followup',
+        form_data: {},
+        engineer_signature: params.engineerSignature,
+        client_name: params.clientName,
+        client_signature: params.clientSignature,
+        pdf_url: pdfUrl,
+        sent_to_sap: sentToSap,
+        sent_to_sap_at: sentToSapAt,
+      }),
+      8000
+    )
 
     const newStatus = params.outcome === 'pending' && params.needsReassignment ? 'needs_reassignment' : params.outcome
-    await admin.from('work_orders').update({
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    }).eq('id', params.workOrderId)
+    await withTimeout(
+      admin.from('work_orders').update({
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      }).eq('id', params.workOrderId),
+      8000
+    )
 
     const activityMsg = params.outcome === 'completed'
       ? `Marked work order completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
       : params.needsReassignment
         ? 'Marked pending — needs reassignment to a different engineer'
         : 'Marked work order pending'
-    await logActivity(admin, params.workOrderId, user.id, activityMsg)
+    logActivity(admin, params.workOrderId, user.id, activityMsg).catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {

@@ -53,20 +53,31 @@ export default function ClosureView({ workOrder }: Props) {
 
     setSubmitting(true)
     setError('')
-    const { error: err } = await submitDailyClosure({
-      workOrderId: workOrder.id,
-      outcome,
-      summary: summary.trim(),
-      pendingReason: outcome === 'pending' ? pendingReason : null,
-      materialsRequired: outcome === 'pending' ? (materialsRequired.trim() || null) : null,
-      revisitDate: outcome === 'pending' ? (revisitDate || null) : null,
-      needsReassignment: outcome === 'pending' ? needsReassignment : false,
-      engineerSignature,
-      clientName: clientName.trim(),
-      clientSignature,
-    })
-    if (err) {
-      setError(err)
+
+    // The server action bounds its own DB calls, but the request itself can still
+    // hang client-side on a dropped mobile connection (browser fetch has no default
+    // timeout) — race it so the button always recovers instead of spinning forever.
+    const TIMEOUT_MS = 30000
+    const result = await Promise.race([
+      submitDailyClosure({
+        workOrderId: workOrder.id,
+        outcome,
+        summary: summary.trim(),
+        pendingReason: outcome === 'pending' ? pendingReason : null,
+        materialsRequired: outcome === 'pending' ? (materialsRequired.trim() || null) : null,
+        revisitDate: outcome === 'pending' ? (revisitDate || null) : null,
+        needsReassignment: outcome === 'pending' ? needsReassignment : false,
+        engineerSignature,
+        clientName: clientName.trim(),
+        clientSignature,
+      }),
+      new Promise<{ error: string | null }>(resolve =>
+        setTimeout(() => resolve({ error: 'Network is too slow to save right now — check your connection and try again.' }), TIMEOUT_MS)
+      ),
+    ])
+
+    if (result.error) {
+      setError(result.error)
       setSubmitting(false)
       return
     }
