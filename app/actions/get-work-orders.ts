@@ -366,14 +366,100 @@ export async function searchTransformersBySerial(query: string): Promise<{ resul
   }
 }
 
-export async function getAssignableEngineers(): Promise<{ engineers: { id: string; first_name: string; last_name: string; role: string }[] }> {
+// Storage/network calls have no built-in timeout — bound them so a stalled geocoding
+// request can't hang the whole assign/reassign dropdown load.
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// Coordinates are cached on customer_sites after the first lookup — Nominatim's usage
+// policy expects results to be cached, not re-queried on every dropdown load.
+async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId: string): Promise<{ lat: number; lng: number } | null> {
+  const { data: site } = await admin.from('customer_sites').select('site_address, latitude, longitude').eq('id', siteId).maybeSingle()
+  if (!site) return null
+  if (site.latitude != null && site.longitude != null) return { lat: site.latitude, lng: site.longitude }
+  if (!site.site_address) return null
+
+  const res = await withTimeout(
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(site.site_address)}&limit=1`,
+      { headers: { 'User-Agent': 'EMR-Portal/1.0 (site geocoding for engineer assignment)' } }
+    ),
+    6000
+  )
+  if (!res || !res.ok) return null
+  const results = await res.json().catch(() => null)
+  const first = results?.[0]
+  if (!first) return null
+  const lat = parseFloat(first.lat)
+  const lng = parseFloat(first.lon)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+
+  await admin.from('customer_sites').update({ latitude: lat, longitude: lng }).eq('id', siteId)
+  return { lat, lng }
+}
+
+export async function getAssignableEngineers(workOrderId?: string): Promise<{ engineers: { id: string; first_name: string; last_name: string; role: string; distanceKm: number | null }[] }> {
   const admin = adminClient()
   const { data } = await admin
     .from('profiles')
     .select('id, first_name, last_name, role')
     .eq('role', 'Field Engineer')
     .order('first_name')
-  return { engineers: data || [] }
+  const engineers = (data || []).map(e => ({ ...e, distanceKm: null as number | null }))
+  if (!workOrderId) return { engineers }
+
+  const { data: wotRows } = await admin
+    .from('work_order_transformers')
+    .select('transformers(site_id)')
+    .eq('work_order_id', workOrderId)
+    .limit(1)
+  type Row = { transformers: { site_id: string | null } | null }
+  const siteId = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.site_id
+  if (!siteId) return { engineers }
+
+  const siteCoords = await getSiteCoordinates(admin, siteId)
+  if (!siteCoords) return { engineers }
+
+  // Most recent check-in per engineer, across all their work orders, as a proxy for
+  // "where are they right now" — there's no live GPS tracking (see Field Engineers
+  // page notes), just historical site check-ins.
+  const { data: checkins } = await admin
+    .from('work_order_checkins')
+    .select('engineer_id, latitude, longitude, checked_in_at')
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('checked_in_at', { ascending: false })
+    .limit(500)
+
+  const lastLocation: Record<string, { lat: number; lng: number }> = {}
+  for (const c of checkins || []) {
+    if (!c.engineer_id || lastLocation[c.engineer_id]) continue
+    lastLocation[c.engineer_id] = { lat: c.latitude, lng: c.longitude }
+  }
+
+  const ranked = engineers.map(e => {
+    const loc = lastLocation[e.id]
+    return { ...e, distanceKm: loc ? haversineKm(siteCoords.lat, siteCoords.lng, loc.lat, loc.lng) : null }
+  })
+  ranked.sort((a, b) => {
+    if (a.distanceKm == null && b.distanceKm == null) return 0
+    if (a.distanceKm == null) return 1
+    if (b.distanceKm == null) return -1
+    return a.distanceKm - b.distanceKm
+  })
+  return { engineers: ranked }
 }
 
 export async function getTransformersForCustomer(customerId: string): Promise<{ transformers: { id: string; serial_number: string; warranty_status: string; site_name: string | null }[] }> {

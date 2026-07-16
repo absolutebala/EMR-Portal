@@ -155,7 +155,14 @@ function TimelineDot({ action }: { action: string }) {
   )
 }
 
-interface Engineer { id: string; first_name: string; last_name: string }
+interface Engineer { id: string; first_name: string; last_name: string; distanceKm?: number | null }
+
+function engineerOptionLabel(e: Engineer, nearestId: string | null): string {
+  const name = `${e.first_name} ${e.last_name}`
+  if (e.distanceKm == null) return name
+  const suffix = e.id === nearestId ? ' — Nearest' : ''
+  return `${name} (~${e.distanceKm < 1 ? '<1' : Math.round(e.distanceKm)} km away)${suffix}`
+}
 type CustomerTransformer = { id: string; serial_number: string; warranty_status: string; site_name: string | null }
 
 interface EditForm {
@@ -213,7 +220,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([refreshDetail(), getAssignableEngineers()]).then(([, { engineers: eng }]) => {
+    Promise.all([refreshDetail(), getAssignableEngineers(workOrderId)]).then(([, { engineers: eng }]) => {
       setEngineers(eng)
       setLoading(false)
     })
@@ -307,6 +314,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase' as const, letterSpacing: .5, marginBottom: 4, marginTop: 10 }}>{text}</div>
   )
 
+  const nearestEngineerId = engineers.find(e => e.distanceKm != null)?.id ?? null
+
   return (
     <>
       <Topbar title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Work Order Detail'} userName={currentUser.name} userRole={currentUser.role} />
@@ -354,7 +363,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       {fieldLabel('Assign engineer')}
                       <select style={inputStyle} value={form.engineer_id} onChange={e => setForm(f => ({ ...f, engineer_id: e.target.value }))}>
                         <option value="">Unassigned</option>
-                        {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+                        {engineers.map(e => <option key={e.id} value={e.id}>{engineerOptionLabel(e, nearestEngineerId)}</option>)}
                       </select>
 
                       {fieldLabel('Scheduled date')}
@@ -596,7 +605,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         <select style={{ padding: '8px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }}
                           value={reassignId} onChange={e => setReassignId(e.target.value)}>
                           <option value="">Select engineer…</option>
-                          {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+                          {engineers.map(e => <option key={e.id} value={e.id}>{engineerOptionLabel(e, nearestEngineerId)}</option>)}
                         </select>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={handleReassign} disabled={!reassignId || acting}
