@@ -624,6 +624,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}
                 {row('Scheduled', wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
                 {row('Assigned engineer', wo.engineer_name || <span style={{ color: 'var(--txm)' }}>Unassigned</span>)}
+                {row('Status', statusBadge(wo.status))}
               </div>
 
               <div style={card}>
@@ -631,7 +632,6 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Sold customer', wo.customer_name || '—')}
                 {row('Shipped to', wo.site_name || '—')}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
-                {row('Status', statusBadge(wo.status))}
                 {wo.notes && row('Notes', wo.notes)}
               </div>
             </div>
