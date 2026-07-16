@@ -151,7 +151,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     const [{ data: wo }, { data: wotRows }, { data: actRows }] = await Promise.all([
       admin.from('work_orders').select('*').eq('id', id).single(),
       admin.from('work_order_transformers').select('work_order_id, transformer_id, transformers(serial_number, warranty_status, customer_sites(site_name))').eq('work_order_id', id),
-      admin.from('work_order_activity').select('action, actor_name, created_at').eq('work_order_id', id).order('created_at', { ascending: true }),
+      admin.from('work_order_activity').select('action, actor_name, created_at').eq('work_order_id', id).order('created_at', { ascending: false }),
     ])
 
     if (!wo) return { ...empty, error: 'Not found' }

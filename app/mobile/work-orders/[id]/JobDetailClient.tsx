@@ -237,6 +237,38 @@ export default function JobDetailClient({ detail }: Props) {
           <InfoRow label="Site address" value={wo.site_address || '—'} last />
         </div>
 
+        {detail.handoverFromOtherEngineer && detail.latestClosure && (
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 13, padding: 13, marginBottom: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#9A3412', marginBottom: 8 }}>
+              Handed over from {detail.latestClosure.engineerName}
+            </p>
+            <InfoRow label="Last visited" value={formatDateTime(detail.latestClosure.created_at)} />
+            <InfoRow label="Outcome" value={detail.latestClosure.outcome === 'completed' ? 'Completed' : detail.latestClosure.needsReassignment ? 'Needs reassignment' : 'Pending'} />
+            {detail.latestClosure.pendingReason && <InfoRow label="Reason" value={detail.latestClosure.pendingReason} />}
+            {detail.latestClosure.summary && (
+              <div style={{ padding: '8px 0 0' }}>
+                <div style={{ fontSize: 10, color: '#7A6870', marginBottom: 3 }}>Remarks from {detail.latestClosure.engineerName}</div>
+                <div style={{ fontSize: 12, color: '#1C0D14' }}>{detail.latestClosure.summary}</div>
+              </div>
+            )}
+            {detail.latestClosure.materialsRequired && (
+              <div style={{ padding: '8px 0 0' }}>
+                <div style={{ fontSize: 10, color: '#7A6870', marginBottom: 3 }}>Materials/parts requested</div>
+                <div style={{ fontSize: 12, color: '#1C0D14' }}>{detail.latestClosure.materialsRequired}</div>
+              </div>
+            )}
+            {detail.hasFormSubmission && (
+              <button
+                className="mtap"
+                onClick={() => router.push(`/mobile/work-orders/${wo.id}/form`)}
+                style={{ marginTop: 10, width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #FED7AA', background: '#fff', color: '#9A3412', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                View form entries filled by {detail.latestClosure.engineerName}
+              </button>
+            )}
+          </div>
+        )}
+
         {detail.hasCheckedIn && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Check-in</p>

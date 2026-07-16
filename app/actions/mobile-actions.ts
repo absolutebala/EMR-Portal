@@ -344,9 +344,14 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
     if (!res || !res.ok) return { label: null }
     const data = await res.json()
     const addr: Record<string, string> = data.address || {}
-    const locality = addr.suburb || addr.neighbourhood || addr.town || addr.village || addr.city_district
+    // Indian municipal wards get tagged as `suburb` in OSM (e.g. "Ward 157"), which
+    // isn't a real place name — prefer an actual neighbourhood/locality name and only
+    // fall back to suburb when it doesn't look like a bare ward number.
+    const isWardLike = (v: string | undefined) => !!v && /^ward\b/i.test(v.trim())
+    const locality = addr.neighbourhood || addr.quarter || (!isWardLike(addr.suburb) ? addr.suburb : undefined) || addr.town || addr.village || addr.city_district
     const city = addr.city || addr.town || addr.state_district
-    const parts = [locality, city].filter((v, i, arr): v is string => !!v && arr.indexOf(v) === i)
+    const state = addr.state
+    const parts = [locality, city, state].filter((v, i, arr): v is string => !!v && arr.indexOf(v) === i)
     return { label: parts.length ? parts.join(', ') : (data.display_name?.split(',').slice(0, 2).join(',').trim() || null) }
   } catch {
     return { label: null }
@@ -404,7 +409,13 @@ export interface MobileWorkOrderDetail {
   hasCheckedIn: boolean
   lastCheckinAt: string | null
   hasFormSubmission: boolean
-  latestClosure: { outcome: string; created_at: string; revisitDate: string | null; needsReassignment: boolean } | null
+  latestClosure: {
+    outcome: string; created_at: string; revisitDate: string | null; needsReassignment: boolean
+    engineerId: string | null; engineerName: string; summary: string; pendingReason: string | null; materialsRequired: string | null
+  } | null
+  // Set only when the last closure was made by a different engineer than the one
+  // viewing now — i.e. this job was handed over/reassigned to the current engineer.
+  handoverFromOtherEngineer: boolean
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
 }
 
@@ -422,7 +433,11 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     const [{ data: checkins }, { data: submission }, { data: closures }, { data: previous }] = await Promise.all([
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
       admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
-      admin.from('work_order_daily_closures').select('outcome, created_at, revisit_date, needs_reassignment').eq('work_order_id', woId).order('created_at', { ascending: false }).limit(1),
+      admin.from('work_order_daily_closures')
+        .select('outcome, created_at, revisit_date, needs_reassignment, summary, pending_reason, materials_required, engineer_id')
+        .eq('work_order_id', woId)
+        .order('created_at', { ascending: false })
+        .limit(1),
       admin.from('work_orders')
         .select('wo_number, job_type, scheduled_date, status')
         .eq('customer_id', workOrder.customer_id)
@@ -433,11 +448,23 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
 
     const lastCheckinAt = checkins?.[0]?.checked_in_at || null
     const closureRow = closures?.[0] || null
+
+    let engineerName = 'Engineer'
+    if (closureRow?.engineer_id) {
+      const { data: closureEngineer } = await admin.from('profiles').select('first_name, last_name').eq('id', closureRow.engineer_id).maybeSingle()
+      if (closureEngineer) engineerName = `${closureEngineer.first_name} ${closureEngineer.last_name}`
+    }
+
     const latestClosure = closureRow ? {
       outcome: closureRow.outcome,
       created_at: closureRow.created_at,
       revisitDate: closureRow.revisit_date,
       needsReassignment: closureRow.needs_reassignment,
+      engineerId: closureRow.engineer_id,
+      engineerName,
+      summary: closureRow.summary,
+      pendingReason: closureRow.pending_reason,
+      materialsRequired: closureRow.materials_required,
     } : null
     // "Checked in" means checked in *since the last closure* — once a visit is closed
     // (e.g. marked pending), the engineer needs to check in again for the next visit.
@@ -450,6 +477,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
         lastCheckinAt,
         hasFormSubmission: !!submission?.length,
         latestClosure,
+        handoverFromOtherEngineer: !!(latestClosure?.engineerId && latestClosure.engineerId !== user.id),
         previousVisits: previous || [],
       },
       error: null,
