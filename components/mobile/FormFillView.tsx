@@ -152,14 +152,28 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
     if (!form) return
     setSubmitError('')
 
+    // Every field and every table row must be filled before submit — not just ones
+    // marked required in the form builder. The one carve-out: a field that's both
+    // prefill_from_job and read_only_on_mobile can't be edited by the engineer at all,
+    // so if the auto-fill lookup found no match, blocking submission on it would be a
+    // dead end rather than a real validation.
     const missing: string[] = []
     for (const sec of form.sections) {
       for (const f of sec.fields) {
-        if (f.is_required && !fieldValues[f.id]?.trim()) missing.push(f.label)
+        if (f.prefill_from_job && f.read_only_on_mobile) continue
+        if (!fieldValues[f.id]?.trim()) missing.push(f.label)
+      }
+      for (const t of sec.tables) {
+        for (const row of t.rows) {
+          const filled = t.status_type === 'observation' || t.status_type === 'measurement'
+            ? !!rowValues[row.id]?.remarks?.trim()
+            : !!rowValues[row.id]?.status
+          if (!filled) missing.push(row.row_label)
+        }
       }
     }
     if (missing.length > 0) {
-      setSubmitError(`Please fill in: ${missing.join(', ')}`)
+      setSubmitError(`Please complete all fields before submitting: ${missing.join(', ')}`)
       return
     }
 
@@ -542,7 +556,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
     <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
         {field.label}
-        {field.is_required && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
+        {!(field.prefill_from_job && field.read_only_on_mobile) && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
         {field.prefill_from_job && (
           <span style={{ fontSize: 9, background: '#F9EEF2', color: '#7D1D3F', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>Auto-filled</span>
         )}
