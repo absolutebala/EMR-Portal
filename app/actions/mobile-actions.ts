@@ -337,7 +337,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
   try {
     const res = await withTimeout(
       fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
         { headers: { 'User-Agent': 'EMR-Portal-Mobile/1.0 (field service check-in)' } }
       ),
       6000
