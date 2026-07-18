@@ -35,6 +35,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
     phone: customer.phone, email: customer.email || '',
     whatsapp_number: customer.whatsapp_number || '',
     sap_customer_code: customer.sap_customer_code || '',
+    address: customer.address || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -48,6 +49,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
       name: form.name, type: form.type,
       contact_person: form.contact_person, phone: form.phone,
       email: form.email || null, whatsapp_number: form.whatsapp_number || null,
+      address: form.address || null,
     })
     setSaving(false)
     if (error) { setError(error); return }
@@ -57,6 +59,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
       email: form.email || null, whatsapp_number: form.whatsapp_number || null,
       designation: form.designation || null,
       sap_customer_code: form.sap_customer_code || null,
+      address: form.address || null,
     }))
     setEditing(false)
   }
@@ -112,6 +115,10 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Email</label>
               <input type="email" style={fi} value={form.email} onChange={e => fset('email', e.target.value)} />
             </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Address</label>
+              <input style={fi} value={form.address} onChange={e => fset('address', e.target.value)} placeholder="Customer's business address" />
+            </div>
             <div>
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>WhatsApp</label>
               <input style={fi} value={form.whatsapp_number} onChange={e => fset('whatsapp_number', e.target.value)} />
@@ -139,6 +146,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
             ['Designation', customer.designation || '—'],
             ['Phone', customer.phone],
             ['Email', customer.email || '—'],
+            ['Address', customer.address || '—'],
             ['WhatsApp', customer.whatsapp_number || '—'],
             ['SAP code', customer.sap_customer_code || '—'],
           ].map(([label, value]) => (

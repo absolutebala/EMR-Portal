@@ -16,6 +16,7 @@ export async function addCustomer(payload: {
   phone: string
   email: string | null
   whatsapp_number: string | null
+  address: string | null
   serial_number: string
   year_of_manufacture: string | null
   warranty_status: string
@@ -32,6 +33,7 @@ export async function addCustomer(payload: {
       phone: payload.phone,
       email: payload.email,
       whatsapp_number: payload.whatsapp_number,
+      address: payload.address,
     }).select().single()
     if (ce) return { error: ce.message }
 
@@ -58,6 +60,7 @@ export async function addCustomer(payload: {
       phone: payload.phone,
       email: payload.email,
       whatsapp_number: payload.whatsapp_number,
+      address: payload.address,
       is_primary: true,
     })
 
@@ -76,6 +79,7 @@ export async function updateCustomer(
     phone: string
     email: string | null
     whatsapp_number: string | null
+    address?: string | null
   }
 ): Promise<{ error: string | null }> {
   try {

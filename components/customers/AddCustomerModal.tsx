@@ -18,7 +18,7 @@ interface Props {
 
 export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder }: Props) {
   const [form, setForm] = useState({
-    name: '', type: 'both', contact_person: '', phone: '', email: '',
+    name: '', type: 'both', contact_person: '', phone: '', email: '', address: '',
     whatsapp_number: '', site_name: '', site_address: '',
     serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
   })
@@ -38,12 +38,13 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
         contact_person: editCustomer.contact_person,
         phone: editCustomer.phone,
         email: editCustomer.email || '',
+        address: editCustomer.address || '',
         whatsapp_number: editCustomer.whatsapp_number || '',
         site_name: '', site_address: '',
         serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
       }))
     } else {
-      setForm({ name: '', type: 'both', contact_person: '', phone: '', email: '', whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty' })
+      setForm({ name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty' })
     }
   }, [editCustomer, open])
 
@@ -73,6 +74,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           name: form.name, type: form.type,
           contact_person: form.contact_person, phone: form.phone,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
+          address: form.address || null,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -82,6 +84,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           name: form.name, type: form.type,
           contact_person: form.contact_person, phone: form.phone,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
+          address: form.address || null,
           serial_number: form.serial_number,
           year_of_manufacture: form.year_of_manufacture || null,
           warranty_status: form.warranty_status,
@@ -184,6 +187,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           <div>
             <label style={fl2}>Email</label>
             <input type="email" style={fi2} value={form.email} onChange={e => set('email', e.target.value)} placeholder="contact@customer.com" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={fl2}>Address</label>
+            <input style={fi2} value={form.address} onChange={e => set('address', e.target.value)} placeholder="Customer's business address" />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>WhatsApp number</label>

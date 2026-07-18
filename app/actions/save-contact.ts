@@ -16,6 +16,7 @@ export async function addContact(payload: {
   phone: string | null
   email: string | null
   whatsapp_number: string | null
+  address: string | null
   is_primary: boolean
 }): Promise<{ error: string | null }> {
   try {
@@ -38,6 +39,7 @@ export async function updateContact(
     phone: string | null
     email: string | null
     whatsapp_number: string | null
+    address: string | null
     is_primary: boolean
   },
   customerId: string

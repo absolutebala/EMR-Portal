@@ -38,7 +38,7 @@ function iconBtn(danger = false): React.CSSProperties {
 }
 
 const emptyForm = {
-  name: '', designation: '', phone: '', email: '', whatsapp_number: '', is_primary: false,
+  name: '', designation: '', phone: '', email: '', whatsapp_number: '', address: '', is_primary: false,
 }
 
 interface Props {
@@ -65,7 +65,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
     setEditForm({
       name: c.name, designation: c.designation || '',
       phone: c.phone || '', email: c.email || '',
-      whatsapp_number: c.whatsapp_number || '', is_primary: c.is_primary,
+      whatsapp_number: c.whatsapp_number || '', address: c.address || '', is_primary: c.is_primary,
     })
     setError('')
   }
@@ -83,6 +83,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       phone: editForm.phone || null,
       email: editForm.email || null,
       whatsapp_number: editForm.whatsapp_number || null,
+      address: editForm.address || null,
       is_primary: editForm.is_primary,
     }, customerId)
     setSaving(false)
@@ -94,6 +95,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       phone: editForm.phone || null,
       email: editForm.email || null,
       whatsapp_number: editForm.whatsapp_number || null,
+      address: editForm.address || null,
       is_primary: editForm.is_primary,
     } : editForm.is_primary ? { ...c, is_primary: false } : c))
     setEditingId(null)
@@ -119,6 +121,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       phone: addForm.phone || null,
       email: addForm.email || null,
       whatsapp_number: addForm.whatsapp_number || null,
+      address: addForm.address || null,
       is_primary: addForm.is_primary,
     })
     setAddSaving(false)
@@ -126,7 +129,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
     window.location.reload()
   }
 
-  const COLS = ['Name', 'Designation', 'Phone', 'Email', 'WhatsApp', ...(canEdit ? [''] : [])]
+  const COLS = ['Name', 'Designation', 'Phone', 'Email', 'Address', 'WhatsApp', ...(canEdit ? [''] : [])]
 
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
@@ -167,6 +170,10 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
             <div>
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Email</label>
               <input type="email" style={fi} value={addForm.email as string} onChange={e => afset('email', e.target.value)} placeholder="email@example.com" />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Address</label>
+              <input style={fi} value={addForm.address as string} onChange={e => afset('address', e.target.value)} placeholder="Contact's address" />
             </div>
             <div>
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>WhatsApp</label>
@@ -235,6 +242,11 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
                     {isEditing
                       ? <input type="email" style={{ ...fi, minWidth: 140 }} value={editForm.email} onChange={e => efset('email', e.target.value)} placeholder="email@example.com" />
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{c.email || '—'}</span>}
+                  </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
+                    {isEditing
+                      ? <input style={{ ...fi, minWidth: 140 }} value={editForm.address} onChange={e => efset('address', e.target.value)} placeholder="Contact's address" />
+                      : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{c.address || '—'}</span>}
                   </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing

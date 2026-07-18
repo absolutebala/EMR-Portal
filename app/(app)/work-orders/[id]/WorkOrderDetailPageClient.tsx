@@ -215,6 +215,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [activity, setActivity] = useState<WorkOrderActivity[]>([])
   const [submittedForm, setSubmittedForm] = useState<WorkOrderSubmittedForm | null>(null)
   const [formModalOpen, setFormModalOpen] = useState(false)
+  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [visits, setVisits] = useState<WorkOrderVisit[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
@@ -336,6 +337,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   const nextStatuses = wo ? (STATUS_NEXT[wo.status] || []) : []
   const isComplete = wo?.status === 'completed'
+  // Most recent "completed" closure — visits is already sorted newest-first,
+  // so the first match is the actual completion date (work_orders has no
+  // dedicated completed_at column).
+  const completedAt = visits.find(v => v.outcome === 'completed')?.createdAt ?? null
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', padding: '8px 0', borderBottom: '1px solid var(--gl)' }}>
@@ -507,7 +512,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                                 {v.checkin.photoUrl && (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={v.checkin.photoUrl} alt="Check-in proof" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 7, flexShrink: 0, border: '1px solid var(--gm)' }} />
+                                  <img
+                                    src={v.checkin.photoUrl}
+                                    alt="Check-in proof"
+                                    onClick={() => setEnlargedPhoto(v.checkin!.photoUrl)}
+                                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 7, flexShrink: 0, border: '1px solid var(--gm)', cursor: 'pointer' }}
+                                  />
                                 )}
                                 <div>
                                   <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 2 }}>Checked in</div>
@@ -729,7 +739,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Notification', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
                 {row('Serial number(s)', <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
                 {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}
+                {row('Created', new Date(wo.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}
                 {row('Scheduled', wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
+                {row('Completed', completedAt ? new Date(completedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
                 {row('Assigned engineer', wo.engineer_name || <span style={{ color: 'var(--txm)' }}>Unassigned</span>)}
                 {row('Status', statusBadge(wo.status))}
               </div>
@@ -753,6 +765,13 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
         size="lg"
       >
         {submittedForm && renderFormSections(submittedForm)}
+      </Modal>
+
+      <Modal open={!!enlargedPhoto} onClose={() => setEnlargedPhoto(null)} title="Check-in photo" size="lg">
+        {enlargedPhoto && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={enlargedPhoto} alt="Check-in proof" style={{ width: '100%', height: 'auto', borderRadius: 8, display: 'block' }} />
+        )}
       </Modal>
     </>
   )

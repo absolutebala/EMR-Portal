@@ -39,6 +39,7 @@ export interface Customer {
   email: string | null
   whatsapp_number: string | null
   sap_customer_code: string | null
+  address: string | null
   created_at: string
 }
 
@@ -50,6 +51,7 @@ export interface CustomerContact {
   phone: string | null
   email: string | null
   whatsapp_number: string | null
+  address: string | null
   is_primary: boolean
   created_at: string
 }
