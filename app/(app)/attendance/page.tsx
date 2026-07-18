@@ -63,12 +63,16 @@ export default function AttendancePage() {
           ) : engineers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No field engineers found.</div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse' }}>
+            // Grid scrolls within its own box (both axes) rather than the page, so the
+            // header row (top) and Field Engineer column (left) can use plain
+            // position: sticky relative to a predictable scrollport instead of trying
+            // to track the page's scroll position / Topbar height.
+            <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
                   <tr>
                     <th style={{
-                      position: 'sticky', left: 0, zIndex: 2, minWidth: 170, padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
+                      position: 'sticky', top: 0, left: 0, zIndex: 3, minWidth: 170, padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
                       color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', borderRight: '1px solid var(--gm)',
                       background: '#FAFAFA', whiteSpace: 'nowrap',
                     }}>
@@ -80,7 +84,7 @@ export default function AttendancePage() {
                       const isWeekend = weekday === 'Sun' || weekday === 'Sat'
                       return (
                         <th key={dateStr} style={{
-                          minWidth: 130, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
+                          position: 'sticky', top: 0, zIndex: 2, minWidth: 130, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
                           color: isToday ? 'var(--m)' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
                           background: isToday ? 'var(--mp)' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
                         }}>
@@ -93,10 +97,11 @@ export default function AttendancePage() {
                 </thead>
                 <tbody>
                   {engineers.map((e, ei) => (
-                    <tr key={e.id} style={{ borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none' }}>
+                    <tr key={e.id}>
                       <td style={{
                         position: 'sticky', left: 0, zIndex: 1, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
-                        background: '#fff', borderRight: '1px solid var(--gm)', whiteSpace: 'nowrap',
+                        background: '#fff', borderRight: '1px solid var(--gm)',
+                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap',
                       }}>
                         {e.name}
                       </td>
@@ -107,6 +112,7 @@ export default function AttendancePage() {
                           <td key={dateStr} style={{
                             padding: '8px 10px', fontSize: 11, textAlign: 'center', color: names ? 'var(--tx)' : 'var(--txm)',
                             background: isToday ? '#FDF7F9' : '#fff', verticalAlign: 'top',
+                            borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
                           }}>
                             {names ? names.join(', ') : '—'}
                           </td>
