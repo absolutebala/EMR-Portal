@@ -326,6 +326,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   async function handleReassign() {
     if (!wo || !reassignId) return
+    if (!reassignDate) { setError('Please select a scheduled date.'); return }
     setActing(true); setError('')
     const { error: err } = await reassignWorkOrderEngineer(wo.id, reassignId, reassignDate || null)
     if (err) { setError(err); setActing(false); return }
@@ -668,9 +669,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                           <>
                             <div>
                               <label style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4, display: 'block', marginBottom: 4 }}>
-                                Scheduled date
+                                Scheduled date <span style={{ color: 'var(--m)' }}>*</span>
                               </label>
-                              <input type="date" value={reassignDate} onChange={e => setReassignDate(e.target.value)}
+                              <input type="date" required value={reassignDate} onChange={e => setReassignDate(e.target.value)}
                                 style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }} />
                             </div>
 
@@ -703,8 +704,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         )}
 
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={handleReassign} disabled={!reassignId || acting}
-                            style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: acting ? '#C4B5A0' : 'var(--m)', color: '#fff', cursor: (!reassignId || acting) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: !reassignId ? .5 : 1 }}>
+                          <button onClick={handleReassign} disabled={!reassignId || !reassignDate || acting}
+                            style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: acting ? '#C4B5A0' : 'var(--m)', color: '#fff', cursor: (!reassignId || !reassignDate || acting) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: (!reassignId || !reassignDate) ? .5 : 1 }}>
                             {acting ? 'Assigning…' : 'Assign'}
                           </button>
                           <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]) }} disabled={acting}
