@@ -56,7 +56,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar userName={userName} userRole={userRole} permissions={permissions} modules={modules} userEmail={user.email || ''} />
-      <div style={{ marginLeft: 230, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* minWidth: 0 lets this flex item shrink to the available width instead of
+          growing to fit oversized content (e.g. a wide table) — without it, that
+          content pushes the whole page wider than the viewport and the page itself
+          scrolls horizontally instead of the offending content scrolling internally. */}
+      <div style={{ marginLeft: 230, flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {children}
       </div>
     </div>
