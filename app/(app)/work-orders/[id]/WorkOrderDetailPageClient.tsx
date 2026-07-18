@@ -692,7 +692,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                           {new Date(s.scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                           {conflict ? ' — clashes with picked date' : ''}
                                         </div>
-                                        <div style={{ color: 'var(--txm)' }}>{s.customerName}{s.siteName ? ` · ${s.siteName}` : ''} ({s.woNumber})</div>
+                                        <div style={{ color: 'var(--txm)' }}>{s.customerName}{s.siteName ? ` · ${s.siteName}` : ''}{s.placeLabel ? ` · ${s.placeLabel}` : ''} ({s.woNumber})</div>
                                       </div>
                                     )
                                   })}
@@ -704,10 +704,11 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={handleReassign} disabled={!reassignId || acting}
-                            style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: !reassignId ? .5 : 1 }}>
-                            Assign
+                            style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: acting ? '#C4B5A0' : 'var(--m)', color: '#fff', cursor: (!reassignId || acting) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: !reassignId ? .5 : 1 }}>
+                            {acting ? 'Assigning…' : 'Assign'}
                           </button>
-                          <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]) }} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>✕</button>
+                          <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]) }} disabled={acting}
+                            style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: acting ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: acting ? .5 : 1 }}>✕</button>
                         </div>
                       </div>
                     )}

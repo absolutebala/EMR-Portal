@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import type { WorkOrder } from '@/lib/types'
 import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/app/actions/mobile-actions'
+import { extractPlaceLabel } from '@/lib/geocode'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -404,15 +405,15 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 // Coordinates are cached on customer_sites after the first lookup — Nominatim's usage
 // policy expects results to be cached, not re-queried on every dropdown load.
-async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId: string): Promise<{ lat: number; lng: number } | null> {
-  const { data: site } = await admin.from('customer_sites').select('site_address, latitude, longitude').eq('id', siteId).maybeSingle()
+async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  const { data: site } = await admin.from('customer_sites').select('site_address, latitude, longitude, place_label').eq('id', siteId).maybeSingle()
   if (!site) return null
-  if (site.latitude != null && site.longitude != null) return { lat: site.latitude, lng: site.longitude }
+  if (site.latitude != null && site.longitude != null) return { lat: site.latitude, lng: site.longitude, placeLabel: site.place_label ?? null }
   if (!site.site_address) return null
 
   const res = await withTimeout(
     fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(site.site_address)}&limit=1`,
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(site.site_address)}&limit=1`,
       { headers: { 'User-Agent': 'EMR-Portal/1.0 (site geocoding for engineer assignment)' } }
     ),
     6000
@@ -424,9 +425,10 @@ async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId:
   const lat = parseFloat(first.lat)
   const lng = parseFloat(first.lon)
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  const placeLabel = extractPlaceLabel(first.address || {}, first.display_name)
 
-  await admin.from('customer_sites').update({ latitude: lat, longitude: lng }).eq('id', siteId)
-  return { lat, lng }
+  await admin.from('customer_sites').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', siteId)
+  return { lat, lng, placeLabel }
 }
 
 export interface AssignableEngineer {
@@ -497,18 +499,21 @@ export interface EngineerScheduleEntry {
   status: string
   customerName: string
   siteName: string | null
+  placeLabel: string | null
 }
 
 // Upcoming work already on an engineer's plate, so an admin picking a scheduled
 // date for a new/reassigned job can see what they'd be stacking it against instead
 // of double-booking blind. "Upcoming" = has a scheduled date and isn't done or
 // unassigned yet; excludeWorkOrderId keeps a job being rescheduled from showing up
-// as a conflict against itself.
+// as a conflict against itself. placeLabel is read from customer_sites' cached
+// geocode only (no live lookup here) — it's populated once that site has been
+// geocoded via getSiteCoordinates, e.g. by being assigned through this same flow.
 export async function getEngineerSchedule(engineerId: string, excludeWorkOrderId?: string): Promise<{ entries: EngineerScheduleEntry[] }> {
   const admin = adminClient()
   let query = admin
     .from('work_orders')
-    .select('id, wo_number, scheduled_date, status, customers(name), work_order_transformers(transformers(customer_sites(site_name)))')
+    .select('id, wo_number, scheduled_date, status, customers(name), work_order_transformers(transformers(customer_sites(site_name, place_label)))')
     .eq('engineer_id', engineerId)
     .not('scheduled_date', 'is', null)
     .in('status', ['assigned', 'in_progress', 'pending'])
@@ -521,7 +526,7 @@ export async function getEngineerSchedule(engineerId: string, excludeWorkOrderId
   type Row = {
     id: string; wo_number: string; scheduled_date: string; status: string
     customers: { name: string } | null
-    work_order_transformers: { transformers: { customer_sites: { site_name: string } | null } | null }[]
+    work_order_transformers: { transformers: { customer_sites: { site_name: string; place_label: string | null } | null } | null }[]
   }
   return {
     entries: ((data as unknown as Row[]) || []).map(r => ({
@@ -531,6 +536,7 @@ export async function getEngineerSchedule(engineerId: string, excludeWorkOrderId
       status: r.status,
       customerName: r.customers?.name || '',
       siteName: r.work_order_transformers?.[0]?.transformers?.customer_sites?.site_name || null,
+      placeLabel: r.work_order_transformers?.[0]?.transformers?.customer_sites?.place_label || null,
     })),
   }
 }

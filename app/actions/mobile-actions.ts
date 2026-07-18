@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
+import { extractPlaceLabel } from '@/lib/geocode'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -343,16 +344,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
     )
     if (!res || !res.ok) return { label: null }
     const data = await res.json()
-    const addr: Record<string, string> = data.address || {}
-    // Indian municipal wards get tagged as `suburb` in OSM (e.g. "Ward 157"), which
-    // isn't a real place name — prefer an actual neighbourhood/locality name and only
-    // fall back to suburb when it doesn't look like a bare ward number.
-    const isWardLike = (v: string | undefined) => !!v && /^ward\b/i.test(v.trim())
-    const locality = addr.neighbourhood || addr.quarter || (!isWardLike(addr.suburb) ? addr.suburb : undefined) || addr.town || addr.village || addr.city_district
-    const city = addr.city || addr.town || addr.state_district
-    const state = addr.state
-    const parts = [locality, city, state].filter((v, i, arr): v is string => !!v && arr.indexOf(v) === i)
-    return { label: parts.length ? parts.join(', ') : (data.display_name?.split(',').slice(0, 2).join(',').trim() || null) }
+    return { label: extractPlaceLabel(data.address || {}, data.display_name) }
   } catch {
     return { label: null }
   }
