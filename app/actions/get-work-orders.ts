@@ -429,14 +429,24 @@ async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId:
   return { lat, lng }
 }
 
-export async function getAssignableEngineers(workOrderId?: string): Promise<{ engineers: { id: string; first_name: string; last_name: string; role: string; distanceKm: number | null }[] }> {
+export interface AssignableEngineer {
+  id: string
+  first_name: string
+  last_name: string
+  role: string
+  distanceKm: number | null
+  lastCheckinPlace: string | null
+  lastCheckinAt: string | null
+}
+
+export async function getAssignableEngineers(workOrderId?: string): Promise<{ engineers: AssignableEngineer[] }> {
   const admin = adminClient()
   const { data } = await admin
     .from('profiles')
     .select('id, first_name, last_name, role')
     .eq('role', 'Field Engineer')
     .order('first_name')
-  const engineers = (data || []).map(e => ({ ...e, distanceKm: null as number | null }))
+  const engineers: AssignableEngineer[] = (data || []).map(e => ({ ...e, distanceKm: null, lastCheckinPlace: null, lastCheckinAt: null }))
   if (!workOrderId) return { engineers }
 
   const { data: wotRows } = await admin
@@ -446,31 +456,30 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
     .limit(1)
   type Row = { transformers: { site_id: string | null } | null }
   const siteId = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.site_id
-  if (!siteId) return { engineers }
 
-  const siteCoords = await getSiteCoordinates(admin, siteId)
-  if (!siteCoords) return { engineers }
+  const siteCoords = siteId ? await getSiteCoordinates(admin, siteId) : null
 
   // Most recent check-in per engineer, across all their work orders, as a proxy for
   // "where are they right now" — there's no live GPS tracking (see Field Engineers
   // page notes), just historical site check-ins.
   const { data: checkins } = await admin
     .from('work_order_checkins')
-    .select('engineer_id, latitude, longitude, checked_in_at')
-    .not('latitude', 'is', null)
-    .not('longitude', 'is', null)
+    .select('engineer_id, latitude, longitude, place_name, checked_in_at')
     .order('checked_in_at', { ascending: false })
     .limit(500)
 
-  const lastLocation: Record<string, { lat: number; lng: number }> = {}
+  const lastCheckin: Record<string, { lat: number | null; lng: number | null; placeName: string | null; checkedInAt: string }> = {}
   for (const c of checkins || []) {
-    if (!c.engineer_id || lastLocation[c.engineer_id]) continue
-    lastLocation[c.engineer_id] = { lat: c.latitude, lng: c.longitude }
+    if (!c.engineer_id || lastCheckin[c.engineer_id]) continue
+    lastCheckin[c.engineer_id] = { lat: c.latitude, lng: c.longitude, placeName: c.place_name, checkedInAt: c.checked_in_at }
   }
 
   const ranked = engineers.map(e => {
-    const loc = lastLocation[e.id]
-    return { ...e, distanceKm: loc ? haversineKm(siteCoords.lat, siteCoords.lng, loc.lat, loc.lng) : null }
+    const ci = lastCheckin[e.id]
+    const distanceKm = siteCoords && ci?.lat != null && ci?.lng != null
+      ? haversineKm(siteCoords.lat, siteCoords.lng, ci.lat, ci.lng)
+      : null
+    return { ...e, distanceKm, lastCheckinPlace: ci?.placeName ?? null, lastCheckinAt: ci?.checkedInAt ?? null }
   })
   ranked.sort((a, b) => {
     if (a.distanceKm == null && b.distanceKm == null) return 0
@@ -479,6 +488,51 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
     return a.distanceKm - b.distanceKm
   })
   return { engineers: ranked }
+}
+
+export interface EngineerScheduleEntry {
+  workOrderId: string
+  woNumber: string
+  scheduledDate: string
+  status: string
+  customerName: string
+  siteName: string | null
+}
+
+// Upcoming work already on an engineer's plate, so an admin picking a scheduled
+// date for a new/reassigned job can see what they'd be stacking it against instead
+// of double-booking blind. "Upcoming" = has a scheduled date and isn't done or
+// unassigned yet; excludeWorkOrderId keeps a job being rescheduled from showing up
+// as a conflict against itself.
+export async function getEngineerSchedule(engineerId: string, excludeWorkOrderId?: string): Promise<{ entries: EngineerScheduleEntry[] }> {
+  const admin = adminClient()
+  let query = admin
+    .from('work_orders')
+    .select('id, wo_number, scheduled_date, status, customers(name), work_order_transformers(transformers(customer_sites(site_name)))')
+    .eq('engineer_id', engineerId)
+    .not('scheduled_date', 'is', null)
+    .in('status', ['assigned', 'in_progress', 'pending'])
+    .order('scheduled_date', { ascending: true })
+    .limit(10)
+  if (excludeWorkOrderId) query = query.neq('id', excludeWorkOrderId)
+
+  const { data } = await query
+
+  type Row = {
+    id: string; wo_number: string; scheduled_date: string; status: string
+    customers: { name: string } | null
+    work_order_transformers: { transformers: { customer_sites: { site_name: string } | null } | null }[]
+  }
+  return {
+    entries: ((data as unknown as Row[]) || []).map(r => ({
+      workOrderId: r.id,
+      woNumber: r.wo_number,
+      scheduledDate: r.scheduled_date,
+      status: r.status,
+      customerName: r.customers?.name || '',
+      siteName: r.work_order_transformers?.[0]?.transformers?.customer_sites?.site_name || null,
+    })),
+  }
 }
 
 export async function getTransformersForCustomer(customerId: string): Promise<{ transformers: { id: string; serial_number: string; warranty_status: string; site_name: string | null }[] }> {

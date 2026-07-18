@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import {
-  getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers,
-  type WorkOrderSubmittedForm, type WorkOrderVisit,
+  getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers, getEngineerSchedule,
+  type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
@@ -155,13 +155,30 @@ function TimelineDot({ action }: { action: string }) {
   )
 }
 
-interface Engineer { id: string; first_name: string; last_name: string; distanceKm?: number | null }
+interface Engineer {
+  id: string; first_name: string; last_name: string
+  distanceKm?: number | null
+  lastCheckinPlace?: string | null
+  lastCheckinAt?: string | null
+}
 
 function engineerOptionLabel(e: Engineer, nearestId: string | null): string {
   const name = `${e.first_name} ${e.last_name}`
   if (e.distanceKm == null) return name
   const suffix = e.id === nearestId ? ' — Nearest' : ''
   return `${name} (~${e.distanceKm < 1 ? '<1' : Math.round(e.distanceKm)} km away)${suffix}`
+}
+
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diffMs / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const days = Math.floor(hr / 24)
+  return `${days}d ago`
 }
 type CustomerTransformer = { id: string; serial_number: string; warranty_status: string; site_name: string | null }
 
@@ -204,6 +221,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [error, setError] = useState('')
   const [reassignId, setReassignId] = useState('')
   const [showReassign, setShowReassign] = useState(false)
+  const [reassignDate, setReassignDate] = useState('')
+  const [engineerSchedule, setEngineerSchedule] = useState<EngineerScheduleEntry[]>([])
+  const [loadingSchedule, setLoadingSchedule] = useState(false)
 
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditForm>({ wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '' })
@@ -232,6 +252,19 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrderId])
+
+  useEffect(() => {
+    // engineerSchedule is only ever rendered while reassignId is set (see the
+    // {reassignId && (...)} block below), so there's nothing to clear here when
+    // it's blank — the next selection just overwrites it once fetched.
+    if (!reassignId) return
+    let cancelled = false
+    setLoadingSchedule(true)
+    getEngineerSchedule(reassignId, workOrderId).then(({ entries }) => {
+      if (!cancelled) { setEngineerSchedule(entries); setLoadingSchedule(false) }
+    })
+    return () => { cancelled = true }
+  }, [reassignId, workOrderId])
 
   async function enterEditMode() {
     if (!wo) return
@@ -294,10 +327,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   async function handleReassign() {
     if (!wo || !reassignId) return
     setActing(true); setError('')
-    const { error: err } = await reassignWorkOrderEngineer(wo.id, reassignId)
+    const { error: err } = await reassignWorkOrderEngineer(wo.id, reassignId, reassignDate || null)
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
-    setReassignId(''); setShowReassign(false); setActing(false)
+    setReassignId(''); setReassignDate(''); setEngineerSchedule([]); setShowReassign(false); setActing(false)
   }
 
   const nextStatuses = wo ? (STATUS_NEXT[wo.status] || []) : []
@@ -602,17 +635,79 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                     )}
                     {showReassign && (
                       <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <select style={{ padding: '8px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }}
-                          value={reassignId} onChange={e => setReassignId(e.target.value)}>
-                          <option value="">Select engineer…</option>
-                          {engineers.map(e => <option key={e.id} value={e.id}>{engineerOptionLabel(e, nearestEngineerId)}</option>)}
-                        </select>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4 }}>
+                          Suggested engineers — nearest to site first
+                        </div>
+                        <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {engineers.map(e => {
+                            const selected = e.id === reassignId
+                            return (
+                              <div key={e.id} onClick={() => setReassignId(e.id)}
+                                style={{
+                                  padding: '8px 10px', borderRadius: 7, cursor: 'pointer',
+                                  border: `1.5px solid ${selected ? 'var(--m)' : 'var(--gm)'}`,
+                                  background: selected ? 'var(--mp)' : '#fff',
+                                }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: selected ? 'var(--m)' : 'var(--tx)' }}>{e.first_name} {e.last_name}</span>
+                                  {e.distanceKm != null && (
+                                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, fontWeight: 500, background: e.id === nearestEngineerId ? '#D1FAE5' : 'var(--gl)', color: e.id === nearestEngineerId ? '#065F46' : 'var(--txm)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                      {e.id === nearestEngineerId ? 'Nearest · ' : ''}~{e.distanceKm < 1 ? '<1' : Math.round(e.distanceKm)} km
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+                                  {e.lastCheckinPlace ? `Last seen: ${e.lastCheckinPlace} · ${relativeTime(e.lastCheckinAt)}` : 'No check-in history yet'}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {reassignId && (
+                          <>
+                            <div>
+                              <label style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4, display: 'block', marginBottom: 4 }}>
+                                Scheduled date
+                              </label>
+                              <input type="date" value={reassignDate} onChange={e => setReassignDate(e.target.value)}
+                                style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }} />
+                            </div>
+
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 4 }}>
+                                {engineers.find(e => e.id === reassignId)?.first_name}&apos;s upcoming schedule
+                              </div>
+                              {loadingSchedule ? (
+                                <div style={{ fontSize: 11, color: 'var(--txm)' }}>Loading…</div>
+                              ) : engineerSchedule.length === 0 ? (
+                                <div style={{ fontSize: 11, color: 'var(--txm)' }}>No other upcoming jobs scheduled.</div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {engineerSchedule.map(s => {
+                                    const conflict = !!reassignDate && s.scheduledDate === reassignDate
+                                    return (
+                                      <div key={s.workOrderId} style={{ fontSize: 11, padding: '6px 8px', borderRadius: 6, background: conflict ? '#FEE2E2' : '#fff', border: `1px solid ${conflict ? '#FECACA' : 'var(--gl)'}` }}>
+                                        <div style={{ fontWeight: 500, color: conflict ? '#991B1B' : 'var(--tx)' }}>
+                                          {new Date(s.scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                          {conflict ? ' — clashes with picked date' : ''}
+                                        </div>
+                                        <div style={{ color: 'var(--txm)' }}>{s.customerName}{s.siteName ? ` · ${s.siteName}` : ''} ({s.woNumber})</div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={handleReassign} disabled={!reassignId || acting}
                             style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: !reassignId ? .5 : 1 }}>
                             Assign
                           </button>
-                          <button onClick={() => setShowReassign(false)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>✕</button>
+                          <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]) }} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>✕</button>
                         </div>
                       </div>
                     )}

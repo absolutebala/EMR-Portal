@@ -201,14 +201,19 @@ export async function updateWorkOrder(id: string, payload: {
   }
 }
 
-export async function reassignWorkOrderEngineer(id: string, engineerId: string): Promise<{ error: string | null }> {
+export async function reassignWorkOrderEngineer(id: string, engineerId: string, scheduledDate?: string | null): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
-    const { error } = await admin.from('work_orders').update({ engineer_id: engineerId, status: 'assigned', updated_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await admin.from('work_orders').update({
+      engineer_id: engineerId,
+      status: 'assigned',
+      scheduled_date: scheduledDate || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
     if (error) return { error: error.message }
 
     const [{ data: actor }, { data: eng }] = await Promise.all([
@@ -217,8 +222,9 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string):
     ])
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
-    await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}`, actor_name: actorName })
-    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification to ${engName}`, entityType: 'work_order', entityId: id })
+    const dateSuffix = scheduledDate ? ` for ${new Date(scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''
+    await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}${dateSuffix}`, actor_name: actorName })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification to ${engName}${dateSuffix}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
