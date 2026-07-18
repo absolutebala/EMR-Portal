@@ -37,6 +37,7 @@ const MODULES = [
   'Notifications — Delete',
   'Field Engineers — View',
   'Field Engineers — Manage',
+  'Attendance — View',
   'Users — View',
   'Users — Create / Edit',
   'Users — Roles View',

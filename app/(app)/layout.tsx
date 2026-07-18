@@ -15,6 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/products': 'Products',
   '/requests': 'Product Requests',
   '/activities': 'Activities',
+  '/attendance': 'Attendance',
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
