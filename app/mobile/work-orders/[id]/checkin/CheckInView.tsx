@@ -31,8 +31,18 @@ export default function CheckInView({ workOrder }: Props) {
     }
     navigator.geolocation.getCurrentPosition(
       pos => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setGpsError('Could not get location — you can still check in without it'),
-      { enableHighAccuracy: true, timeout: 10000 }
+      () => {
+        // High-accuracy (GPS hardware) failed or timed out — common indoors or
+        // on a weak signal. Fall back to low-accuracy (WiFi/network-based)
+        // positioning, which resolves faster and more reliably at the cost of
+        // precision, before giving up entirely.
+        navigator.geolocation.getCurrentPosition(
+          pos => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => setGpsError('Could not get location — you can still check in without it'),
+          { enableHighAccuracy: false, timeout: 10000 }
+        )
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
     )
   }, [])
 
