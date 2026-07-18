@@ -25,7 +25,10 @@ export interface AttendanceJob {
 // engineer can have more than one job on the same date).
 export type AttendanceCells = Record<string, Record<string, AttendanceJob[]>>
 
-export async function getAttendanceGrid(): Promise<{
+// from/to are 'YYYY-MM-DD', inclusive on both ends — the caller (the This
+// Week / This Month / Custom filter on the Attendance page) works out the
+// actual range; this just builds the grid for whatever range it's given.
+export async function getAttendanceGrid(from: string, to: string): Promise<{
   engineers: AttendanceEngineer[]
   dates: string[]
   cells: AttendanceCells
@@ -43,17 +46,11 @@ export async function getAttendanceGrid(): Promise<{
 
     const engineers: AttendanceEngineer[] = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }))
 
-    // Full current month — 1st through the last day — so past dates in an
-    // "Attendance" sheet are meaningful (what actually happened), not just
-    // today-forward scheduling.
-    const now = new Date()
-    const todayStr = now.toLocaleDateString('en-CA')
-    const firstDayStr = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA')
-    const lastDayStr = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-CA')
+    const todayStr = new Date().toLocaleDateString('en-CA')
 
     const dates: string[] = []
-    const cursor = new Date(`${firstDayStr}T00:00:00`)
-    const end = new Date(`${lastDayStr}T00:00:00`)
+    const cursor = new Date(`${from}T00:00:00`)
+    const end = new Date(`${to}T00:00:00`)
     while (cursor <= end) {
       dates.push(cursor.toLocaleDateString('en-CA'))
       cursor.setDate(cursor.getDate() + 1)
@@ -66,8 +63,8 @@ export async function getAttendanceGrid(): Promise<{
       .from('work_orders')
       .select('id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(customer_sites(site_address, place_label)))')
       .in('engineer_id', engineerIds)
-      .gte('scheduled_date', firstDayStr)
-      .lte('scheduled_date', lastDayStr)
+      .gte('scheduled_date', from)
+      .lte('scheduled_date', to)
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id).filter(Boolean))]
     const workOrderIds = (wos || []).map(w => w.id)

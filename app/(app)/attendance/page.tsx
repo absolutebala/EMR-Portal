@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceGrid, type AttendanceEngineer, type AttendanceCells } from '@/app/actions/get-attendance'
@@ -15,6 +15,12 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   not_started: { bg: '#F3F4F6', color: '#6B7280', label: 'Not Started' },
 }
 
+type ViewMode = 'week' | 'month' | 'custom'
+
+function toDateStr(d: Date): string {
+  return d.toLocaleDateString('en-CA')
+}
+
 function formatColumnDate(dateStr: string): { weekday: string; dayMonth: string } {
   const d = new Date(`${dateStr}T00:00:00`)
   return {
@@ -22,6 +28,31 @@ function formatColumnDate(dateStr: string): { weekday: string; dayMonth: string 
     dayMonth: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
   }
 }
+
+function getRange(mode: ViewMode, anchor: Date, customFrom: string, customTo: string): { from: string; to: string; label: string } {
+  if (mode === 'week') {
+    const dow = anchor.getDay()
+    const start = new Date(anchor); start.setDate(anchor.getDate() - dow)
+    const end = new Date(start); end.setDate(start.getDate() + 6)
+    return {
+      from: toDateStr(start),
+      to: toDateStr(end),
+      label: `${start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – ${end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+    }
+  }
+  if (mode === 'month') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+    const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
+    return { from: toDateStr(start), to: toDateStr(end), label: start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) }
+  }
+  return { from: customFrom, to: customTo, label: '' }
+}
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${active ? 'var(--m)' : 'var(--gm)'}`,
+  background: active ? 'var(--m)' : '#fff', color: active ? '#fff' : 'var(--tx)',
+  fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
+})
 
 export default function AttendancePage() {
   const [engineers, setEngineers] = useState<AttendanceEngineer[]>([])
@@ -32,9 +63,18 @@ export default function AttendancePage() {
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
-  const load = useCallback(async () => {
+  const [viewMode, setViewMode] = useState<ViewMode>('week')
+  const [anchorDate, setAnchorDate] = useState(new Date())
+  const todayForInputs = toDateStr(new Date())
+  const [customFrom, setCustomFrom] = useState(todayForInputs)
+  const [customTo, setCustomTo] = useState(todayForInputs)
+
+  const range = useMemo(() => getRange(viewMode, anchorDate, customFrom, customTo), [viewMode, anchorDate, customFrom, customTo])
+  const customInvalid = viewMode === 'custom' && (!customFrom || !customTo || customFrom > customTo)
+
+  const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
-    const { engineers: eng, dates: d, cells: c, error: err } = await getAttendanceGrid()
+    const { engineers: eng, dates: d, cells: c, error: err } = await getAttendanceGrid(from, to)
     setEngineers(eng)
     setDates(d)
     setCells(c)
@@ -43,15 +83,33 @@ export default function AttendancePage() {
   }, [])
 
   useEffect(() => {
-    const t = setTimeout(load, 0)
+    if (customInvalid) return
+    load(range.from, range.to)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, customInvalid])
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const userId = session?.user.id
       if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
-    return () => clearTimeout(t)
-  }, [load, supabase])
+  }, [supabase])
+
+  function selectMode(mode: ViewMode) {
+    setViewMode(mode)
+    if (mode !== 'custom') setAnchorDate(new Date())
+  }
+
+  function goPrev() {
+    if (viewMode === 'week') setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+    else if (viewMode === 'month') setAnchorDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+  }
+  function goNext() {
+    if (viewMode === 'week') setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+    else if (viewMode === 'month') setAnchorDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+  }
 
   const todayStr = new Date().toLocaleDateString('en-CA')
 
@@ -64,7 +122,39 @@ export default function AttendancePage() {
           scroll instead of being contained inside the grid's own scrollbox. */}
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
-          Scheduled jobs by field engineer for the current month. Past dates show what actually happened that day; today and upcoming dates show the job&apos;s current status.
+          Scheduled jobs by field engineer. Past dates show what actually happened that day; today and upcoming dates show the job&apos;s current status.
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
+            <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
+            <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
+          </div>
+
+          {viewMode !== 'custom' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={goPrev} aria-label="Previous"
+                style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', minWidth: 160, textAlign: 'center' }}>{range.label}</span>
+              <button onClick={goNext} aria-label="Next"
+                style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>From</label>
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>To</label>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
+              {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
+            </div>
+          )}
         </div>
 
         {error && (
