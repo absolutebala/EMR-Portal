@@ -48,10 +48,11 @@ export default function AttendancePage() {
   return (
     <>
       <Topbar title="Attendance" userName={currentUser.name} userRole={currentUser.role} />
-      {/* minHeight: 0 on every level of this flex chain is load-bearing — without it,
-          a flex item won't shrink below its content size, so the page (not this box)
-          ends up scrolling instead of the grid scrolling internally. */}
-      <div style={{ flex: 1, minHeight: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* min-width/min-height: 0 on every level of this flex chain is load-bearing —
+          without it, a flex item won't shrink below its content's intrinsic size
+          (in either axis), so the wide table forces the page itself to grow and
+          scroll instead of being contained inside the grid's own scrollbox. */}
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
           Scheduled jobs by field engineer, from today through the end of the month.
         </div>
@@ -60,7 +61,7 @@ export default function AttendancePage() {
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{error}</div>
         )}
 
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading attendance…</div>
           ) : engineers.length === 0 ? (
