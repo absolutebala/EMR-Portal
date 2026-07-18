@@ -149,7 +149,7 @@ export default function ClosureView({ workOrder }: Props) {
         {outcome === 'pending' && (
           <>
             <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 10, padding: '9px 12px', marginBottom: 12, fontSize: 11, lineHeight: 1.5 }}>
-              Marking pending will notify your supervisor. Work order stays open for continuation.
+              Marking pending will notify your supervisor. Notification stays open for continuation.
             </div>
             <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
               <div style={{ marginBottom: 12 }}>

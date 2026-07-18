@@ -122,7 +122,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
           <div style={{ background: '#fff', borderRadius: 16, padding: '32px 24px', textAlign: 'center', border: '1px solid #E5E0E3' }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>✓</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#1C0D14' }}>All caught up!</div>
-            <div style={{ fontSize: 12, color: '#7A6870', marginTop: 4 }}>No pending work orders assigned to you.</div>
+            <div style={{ fontSize: 12, color: '#7A6870', marginTop: 4 }}>No pending notifications assigned to you.</div>
           </div>
         )}
 

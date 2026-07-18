@@ -113,7 +113,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
             <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Done</button>
             <button onClick={() => { onCreateWorkOrder!(savedCustomer.id, savedCustomer.name); onClose() }}
               style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-              Create work order
+              Create notification
             </button>
           </div>
         ) : (
@@ -132,7 +132,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
             <svg width="22" height="22" fill="none" stroke="#065F46" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>{savedCustomer.name} added</div>
-          <div style={{ fontSize: 13, color: 'var(--txm)' }}>Would you like to create a work order for this customer?</div>
+          <div style={{ fontSize: 13, color: 'var(--txm)' }}>Would you like to create a notification for this customer?</div>
         </div>
       ) : null}
       {!savedCustomer && error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}

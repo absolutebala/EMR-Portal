@@ -28,7 +28,7 @@ export async function createWorkOrder(payload: {
 
     // Check WO number uniqueness
     const { data: existing } = await admin.from('work_orders').select('id').eq('wo_number', payload.wo_number).maybeSingle()
-    if (existing) return { error: `Work order number "${payload.wo_number}" already exists.` }
+    if (existing) return { error: `Notification number "${payload.wo_number}" already exists.` }
 
     const status = payload.engineer_id ? 'assigned' : 'unassigned'
 
@@ -58,14 +58,14 @@ export async function createWorkOrder(payload: {
     // Log creation activity
     const actorName = creator ? `${creator.first_name} ${creator.last_name}` : 'Admin'
 
-    const activityRows = [{ work_order_id: wo.id, action: `Work order created by ${actorName}`, actor_name: actorName }]
+    const activityRows = [{ work_order_id: wo.id, action: `Notification created by ${actorName}`, actor_name: actorName }]
     if (payload.engineer_id) {
       const { data: eng } = await admin.from('profiles').select('first_name, last_name').eq('id', payload.engineer_id).single()
       const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
       activityRows.push({ work_order_id: wo.id, action: `Assigned to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
-    await logActivity(admin, { actorId: user.id, actorName, action: `Created work order ${payload.wo_number}`, entityType: 'work_order', entityId: wo.id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Created notification ${payload.wo_number}`, entityType: 'work_order', entityId: wo.id })
 
     return { error: null, id: wo.id }
   } catch (e: unknown) {
@@ -87,7 +87,7 @@ export async function updateWorkOrderStatus(id: string, status: string): Promise
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const label: Record<string, string> = { in_progress: 'In Progress', pending: 'Pending', completed: 'Completed' }
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Status updated to ${label[status] || status}`, actor_name: actorName })
-    await logActivity(admin, { actorId: user.id, actorName, action: `Updated work order status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
@@ -112,12 +112,12 @@ export async function updateWorkOrder(id: string, payload: {
 
     // Fetch current WO to detect changes
     const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', id).single()
-    if (!current) return { error: 'Work order not found' }
+    if (!current) return { error: 'Notification not found' }
 
     // Check WO number uniqueness (skip if unchanged)
     if (payload.wo_number !== current.wo_number) {
       const { data: dup } = await admin.from('work_orders').select('id').eq('wo_number', payload.wo_number).maybeSingle()
-      if (dup) return { error: `Work order number "${payload.wo_number}" already exists.` }
+      if (dup) return { error: `Notification number "${payload.wo_number}" already exists.` }
     }
 
     // Adjust status when engineer assignment changes
@@ -148,7 +148,7 @@ export async function updateWorkOrder(id: string, payload: {
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const activityRows: { work_order_id: string; action: string; actor_name: string }[] = [
-      { work_order_id: id, action: `Work order updated by ${actorName}`, actor_name: actorName },
+      { work_order_id: id, action: `Notification updated by ${actorName}`, actor_name: actorName },
     ]
     if (payload.engineer_id && payload.engineer_id !== current.engineer_id) {
       const { data: eng } = await admin.from('profiles').select('first_name, last_name').eq('id', payload.engineer_id).single()
@@ -157,7 +157,7 @@ export async function updateWorkOrder(id: string, payload: {
       activityRows.push({ work_order_id: id, action: `${verb} to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
-    await logActivity(admin, { actorId: user.id, actorName, action: `Updated work order ${payload.wo_number}`, entityType: 'work_order', entityId: id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification ${payload.wo_number}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
@@ -182,7 +182,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string):
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}`, actor_name: actorName })
-    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned work order to ${engName}`, entityType: 'work_order', entityId: id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification to ${engName}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {

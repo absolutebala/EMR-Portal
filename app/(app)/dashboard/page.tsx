@@ -22,7 +22,7 @@ export default async function DashboardPage() {
     { label: 'Total users', val: userCount ?? 0, color: 'var(--m)' },
     { label: 'Customers', val: customerCount ?? 0, color: 'var(--blue)' },
     { label: 'Active forms', val: formCount ?? 0, color: 'var(--green)' },
-    { label: 'Work orders', val: 0, color: 'var(--amber)', stub: true },
+    { label: 'Notifications', val: 0, color: 'var(--amber)', stub: true },
     { label: 'Engineers', val: 0, color: '#7C3AED', stub: true },
   ]
 

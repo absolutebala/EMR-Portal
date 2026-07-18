@@ -11,8 +11,8 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Users — Roles & Permissions Edit': 'Users — Roles & Permissions View',
   'Users — Roles Edit & Add':          'Users — Roles View',
   'Users — Create / Edit':             'Users — View',
-  'Work Orders — Create / Edit':       'Work Orders — View',
-  'Work Orders — Delete':              'Work Orders — View',
+  'Notifications — Create / Edit':     'Notifications — View',
+  'Notifications — Delete':            'Notifications — View',
   'Field Engineers — Manage':          'Field Engineers — View',
   'Customers — Create / Edit':         'Customers — View',
   'Forms — Create / Edit':             'Forms — View',
@@ -32,9 +32,9 @@ const ROLE_ORDER = [
 
 const MODULES = [
   'Dashboard',
-  'Work Orders — View',
-  'Work Orders — Create / Edit',
-  'Work Orders — Delete',
+  'Notifications — View',
+  'Notifications — Create / Edit',
+  'Notifications — Delete',
   'Field Engineers — View',
   'Field Engineers — Manage',
   'Users — View',

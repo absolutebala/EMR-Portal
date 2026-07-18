@@ -266,7 +266,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   async function handleSaveEdit() {
     if (!wo) return
-    if (!form.wo_number.trim()) { setError('Work order number is required.'); return }
+    if (!form.wo_number.trim()) { setError('Notification number is required.'); return }
     if (!form.job_type) { setError('Job type is required.'); return }
     setActing(true); setError('')
     const { error: err } = await updateWorkOrder(wo.id, {
@@ -318,20 +318,20 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   return (
     <>
-      <Topbar title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Work Order Detail'} userName={currentUser.name} userRole={currentUser.role} />
+      <Topbar title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Notification Detail'} userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <button
           onClick={() => router.push('/work-orders')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: 'var(--txm)', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', padding: 0, marginBottom: 16 }}
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-          Back to Work Orders
+          Back to Notifications
         </button>
 
         {loading ? (
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading…</div>
         ) : !wo ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Work order not found.</div>
+          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Notification not found.</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 20, alignItems: 'flex-start' }}>
 
@@ -351,7 +351,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 <div style={card}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div>
-                      {fieldLabel('Work order number')}
+                      {fieldLabel('Notification number')}
                       <input style={inputStyle} value={form.wo_number} onChange={e => setForm(f => ({ ...f, wo_number: e.target.value }))} placeholder="e.g. WO-2024-001" />
 
                       {fieldLabel('Job type')}
@@ -592,7 +592,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <button onClick={enterEditMode}
                       style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-                      Edit work order
+                      Edit notification
                     </button>
                     {!isComplete && (
                       <button onClick={() => setShowReassign(!showReassign)}
@@ -627,8 +627,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
               )}
 
               <div style={card}>
-                <div style={cardLabel}>Work order details</div>
-                {row('Work order', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
+                <div style={cardLabel}>Notification details</div>
+                {row('Notification', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
                 {row('Serial number(s)', <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
                 {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}
                 {row('Scheduled', wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}

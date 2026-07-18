@@ -16,7 +16,7 @@ interface SidebarProps {
 const NAV = [
   { section: 'Main', items: [
     { label: 'Dashboard',       icon: 'dashboard',  path: '/dashboard',    permKey: 'Dashboard' },
-    { label: 'Work Orders',     icon: 'workorders', path: '/work-orders',  permKey: 'Work Orders — View' },
+    { label: 'Notifications',   icon: 'workorders', path: '/work-orders',  permKey: 'Notifications — View' },
     { label: 'Field Engineers', icon: 'engineers',  path: '/engineers',    permKey: 'Field Engineers — View' },
   ]},
   { section: 'Management', items: [
@@ -119,7 +119,7 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>Field Management</div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Work orders, engineers, SAP</div>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,.4)', marginTop: 1 }}>Notifications, engineers, SAP</div>
                   </div>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>

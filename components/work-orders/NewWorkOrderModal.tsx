@@ -116,7 +116,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!woNumber.trim()) { setError('Work order number is required.'); return }
+    if (!woNumber.trim()) { setError('Notification number is required.'); return }
     if (!jobType) { setError('Please select a job type.'); return }
     if (!selectedCustomerId) { setError('Please select at least one serial number.'); return }
     if (!checkedSNs.length) { setError('Please select at least one serial number.'); return }
@@ -137,12 +137,12 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Work Order" size="lg"
+    <Modal open={open} onClose={onClose} title="New Notification" size="lg"
       footer={
         <>
           <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
           <button form="wo-form" type="submit" disabled={loading} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
-            {loading ? 'Creating…' : 'Create work order'}
+            {loading ? 'Creating…' : 'Create notification'}
           </button>
         </>
       }
@@ -151,7 +151,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
       <form id="wo-form" onSubmit={handleSubmit}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
-            <label style={fl2}>Work order number <span style={{ color: 'var(--m)' }}>*</span></label>
+            <label style={fl2}>Notification number <span style={{ color: 'var(--m)' }}>*</span></label>
             <input required style={fi2} value={woNumber} onChange={e => setWoNumber(e.target.value)} placeholder="e.g. WO-2026-0145" />
           </div>
           <div>

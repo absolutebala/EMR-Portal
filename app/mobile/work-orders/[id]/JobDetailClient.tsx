@@ -217,8 +217,8 @@ export default function JobDetailClient({ detail }: Props) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Work order details</p>
-          <InfoRow label="Work order" value={wo.wo_number} highlight />
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Notification details</p>
+          <InfoRow label="Notification" value={wo.wo_number} highlight />
           <InfoRow label="Job type" value={
             <span style={{ background: '#F9EEF2', color: '#7D1D3F', fontSize: 11, fontWeight: 500, borderRadius: 6, padding: '2px 9px' }}>
               {JOB_TYPE_LABELS[wo.job_type] || wo.job_type}

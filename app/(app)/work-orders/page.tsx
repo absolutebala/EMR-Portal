@@ -100,13 +100,13 @@ export default function WorkOrdersPage() {
 
   return (
     <>
-      <Topbar title="Work Orders" userName={currentUser.name} userRole={currentUser.role} />
+      <Topbar title="Notifications" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'Open work orders', val: stats.open, sub: 'Total active', color: 'var(--m)' },
+            { label: 'Open notifications', val: stats.open, sub: 'Total active', color: 'var(--m)' },
             { label: 'Assigned', val: stats.assigned, sub: 'Engineer allocated', color: 'var(--blue)' },
             { label: 'Unassigned', val: stats.unassigned, sub: 'Awaiting assignment', color: 'var(--amber)' },
             { label: 'Completed today', val: stats.completedToday, sub: 'MoM generated', color: 'var(--green)' },
@@ -149,17 +149,17 @@ export default function WorkOrdersPage() {
             style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />
           <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Work Order
+            New Notification
           </button>
         </div>
 
         {/* Table */}
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading work orders…</div>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading notifications…</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>
-              {workOrders.length === 0 ? 'No work orders yet. Click "New Work Order" to create one.' : 'No work orders match your filters.'}
+              {workOrders.length === 0 ? 'No notifications yet. Click "New Notification" to create one.' : 'No notifications match your filters.'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>

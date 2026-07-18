@@ -38,7 +38,7 @@ export function generateVisitPdf(params: VisitPdfParams): Promise<Buffer> {
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    doc.fontSize(17).text('EMR Global — Work Order Summary', { align: 'center' })
+    doc.fontSize(17).text('EMR Global — Notification Summary', { align: 'center' })
     doc.moveDown(0.5)
     doc.fontSize(10).fillColor('#555').text(
       params.visitType === 'final' ? 'Final visit summary' : 'Follow-up visit summary',
@@ -47,7 +47,7 @@ export function generateVisitPdf(params: VisitPdfParams): Promise<Buffer> {
     doc.moveDown(1.2)
 
     doc.fillColor('#000').fontSize(11)
-    doc.text(`Work order: ${params.woNumber}`)
+    doc.text(`Notification: ${params.woNumber}`)
     doc.text(`Job type: ${params.jobType}`)
     doc.text(`Customer: ${params.customerName}`)
     doc.text(`Serial number(s): ${params.serialNumbers || '—'}`)

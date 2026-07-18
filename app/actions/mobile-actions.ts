@@ -272,7 +272,7 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
     touchHeartbeat(admin, user.id)
 
     const workOrder = await fetchSingleWorkOrder(admin, woId)
-    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Work order not found' }
+    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Notification not found' }
 
     // Find the active form for this job type
     const { data: formRow } = await admin
@@ -397,7 +397,7 @@ export async function getMobileWorkOrderBasic(woId: string): Promise<{ workOrder
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
     const workOrder = await fetchSingleWorkOrder(admin, woId)
-    if (!workOrder) return { workOrder: null, error: 'Work order not found' }
+    if (!workOrder) return { workOrder: null, error: 'Notification not found' }
     return { workOrder, error: null }
   } catch (e: unknown) {
     return { workOrder: null, error: e instanceof Error ? e.message : String(e) }
@@ -428,7 +428,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
     const workOrder = await fetchSingleWorkOrder(admin, woId)
-    if (!workOrder) return { detail: null, error: 'Work order not found' }
+    if (!workOrder) return { detail: null, error: 'Notification not found' }
 
     const [{ data: checkins }, { data: submission }, { data: closures }, { data: previous }] = await Promise.all([
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
@@ -510,7 +510,7 @@ export async function submitCheckIn(params: {
     )
     const existingWo = existingWoResult?.data
     if (existingWo?.status === 'needs_reassignment') {
-      return { error: 'This work order is flagged for reassignment — an admin needs to assign a new engineer before it can be checked into again.' }
+      return { error: 'This notification is flagged for reassignment — an admin needs to assign a new engineer before it can be checked into again.' }
     }
 
     const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
@@ -729,10 +729,10 @@ export async function submitDailyClosure(params: {
     )
 
     const activityMsg = params.outcome === 'completed'
-      ? `Marked work order completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
+      ? `Marked notification completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
       : params.needsReassignment
         ? 'Marked pending — needs reassignment to a different engineer'
-        : 'Marked work order pending'
+        : 'Marked notification pending'
     logActivity(admin, params.workOrderId, user.id, activityMsg).catch(() => {})
 
     return { error: null }

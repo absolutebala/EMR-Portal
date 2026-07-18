@@ -112,7 +112,7 @@ export default function AssignModal({ form, open, onClose, onSaved }: Props) {
       }
     >
       <div style={{ background: 'var(--mp)', border: '1px solid var(--mb)', borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: 12, color: 'var(--m)' }}>
-        When a work order of the selected job type is opened on the mobile app, this form will load automatically for the engineer to fill.
+        When a notification of the selected job type is opened on the mobile app, this form will load automatically for the engineer to fill.
       </div>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Currently assigned to</div>

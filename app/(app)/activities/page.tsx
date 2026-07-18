@@ -6,7 +6,7 @@ import Topbar from '@/components/layout/Topbar'
 import { getActivities, getActivityActors, type ActivityLogRow, type ActivityActor } from '@/app/actions/get-activities'
 
 const ENTITY_LABELS: Record<string, string> = {
-  work_order: 'Work Order',
+  work_order: 'Notification',
   user: 'User',
   role: 'Role',
 }

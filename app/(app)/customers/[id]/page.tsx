@@ -46,7 +46,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             {[
               { label: 'Sites', val: sites?.length || 0, color: 'var(--m)' },
               { label: 'Transformers', val: transformers?.length || 0, color: 'var(--blue)' },
-              { label: 'Work orders', val: 0, color: 'var(--amber)', stub: true },
+              { label: 'Notifications', val: 0, color: 'var(--amber)', stub: true },
             ].map(s => (
               <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 16, marginBottom: 10, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }}/>
@@ -77,7 +77,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 32, textAlign: 'center' }}>
           <svg width="40" height="40" fill="none" stroke="var(--gm)" strokeWidth="1.5" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 12px' }}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--txm)' }}>No service history yet</div>
-          <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 4 }}>Work orders will appear here once the Work Orders module is built.</div>
+          <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 4 }}>Notifications will appear here once the Notifications module is built.</div>
         </div>
       </div>
     </>

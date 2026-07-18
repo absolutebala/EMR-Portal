@@ -20,7 +20,7 @@ export default async function MobileWorkOrderFormPage({ params }: Props) {
   if (error || !workOrder) {
     return (
       <div style={{ padding: 24, color: '#DC2626', fontFamily: 'Poppins, sans-serif' }}>
-        {error || 'Work order not found'}
+        {error || 'Notification not found'}
       </div>
     )
   }
