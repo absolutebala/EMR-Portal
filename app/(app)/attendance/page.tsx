@@ -125,7 +125,7 @@ export default function AttendancePage() {
           Scheduled jobs by field engineer. Past dates show what actually happened that day; today and upcoming dates show the job&apos;s current status.
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 14, flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
             <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
