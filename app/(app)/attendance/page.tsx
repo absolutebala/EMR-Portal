@@ -48,16 +48,19 @@ export default function AttendancePage() {
   return (
     <>
       <Topbar title="Attendance" userName={currentUser.name} userRole={currentUser.role} />
-      <div style={{ flex: 1, padding: '22px 24px' }}>
-        <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14 }}>
+      {/* minHeight: 0 on every level of this flex chain is load-bearing — without it,
+          a flex item won't shrink below its content size, so the page (not this box)
+          ends up scrolling instead of the grid scrolling internally. */}
+      <div style={{ flex: 1, minHeight: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
           Scheduled jobs by field engineer, from today through the end of the month.
         </div>
 
         {error && (
-          <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>
+          <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{error}</div>
         )}
 
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading attendance…</div>
           ) : engineers.length === 0 ? (
@@ -67,7 +70,7 @@ export default function AttendancePage() {
             // header row (top) and Field Engineer column (left) can use plain
             // position: sticky relative to a predictable scrollport instead of trying
             // to track the page's scroll position / Topbar height.
-            <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
+            <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
               <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
                   <tr>
