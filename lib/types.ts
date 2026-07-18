@@ -94,6 +94,7 @@ export type WorkOrderStatus = 'unassigned' | 'assigned' | 'in_progress' | 'pendi
 export interface WorkOrder {
   id: string
   wo_number: string
+  ticket_number: string
   job_type: JobType
   customer_id: string
   engineer_id: string | null

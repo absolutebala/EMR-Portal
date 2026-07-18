@@ -628,6 +628,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
               <div style={card}>
                 <div style={cardLabel}>Notification details</div>
+                {row('Ticket number', <span style={{ color: 'var(--m)' }}>{wo.ticket_number}</span>)}
                 {row('Notification', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
                 {row('Serial number(s)', <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
                 {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}

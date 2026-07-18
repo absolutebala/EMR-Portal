@@ -366,6 +366,25 @@ export async function searchTransformersBySerial(query: string): Promise<{ resul
   }
 }
 
+export async function searchCustomersByName(query: string): Promise<{ results: { customer_id: string; name: string; phone: string; contact_person: string }[] }> {
+  if (!query || query.length < 2) return { results: [] }
+  const admin = adminClient()
+  const { data } = await admin
+    .from('customers')
+    .select('id, name, phone, contact_person')
+    .ilike('name', `%${query}%`)
+    .limit(10)
+
+  return {
+    results: (data || []).map(c => ({
+      customer_id: c.id,
+      name: c.name,
+      phone: c.phone,
+      contact_person: c.contact_person,
+    })),
+  }
+}
+
 // Storage/network calls have no built-in timeout — bound them so a stalled geocoding
 // request can't hang the whole assign/reassign dropdown load.
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> {

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
-import { createWorkOrder } from '@/app/actions/create-work-order'
-import { searchTransformersBySerial, getTransformersForCustomer } from '@/app/actions/get-work-orders'
+import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
+import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer } from '@/app/actions/get-work-orders'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
@@ -15,27 +17,32 @@ const JOB_LABELS: Record<string, string> = {
   supervision: 'Supervision',
 }
 
-interface Engineer { id: string; first_name: string; last_name: string }
 interface TransformerResult { transformer_id: string; serial_number: string; customer_id: string; customer_name: string; site_name: string | null; warranty_status: string }
 interface SelectedSN extends TransformerResult { checked: boolean }
+interface CustomerResult { customer_id: string; name: string; phone: string; contact_person: string }
 
 interface Props {
   open: boolean
   onClose: () => void
   onSaved: () => void
-  engineers: Engineer[]
   prefillCustomerId?: string
   prefillCustomerName?: string
 }
 
-export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, prefillCustomerId, prefillCustomerName }: Props) {
+export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCustomerId, prefillCustomerName }: Props) {
+  const router = useRouter()
   const [woNumber, setWoNumber] = useState('')
+  const [ticketNumber, setTicketNumber] = useState('')
   const [jobType, setJobType] = useState('')
-  const [engineerId, setEngineerId] = useState('')
-  const [scheduledDate, setScheduledDate] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Customer name search
+  const [custQuery, setCustQuery] = useState('')
+  const [custResults, setCustResults] = useState<CustomerResult[]>([])
+  const [custSearching, setCustSearching] = useState(false)
+  const custSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Serial number search
   const [snQuery, setSnQuery] = useState('')
@@ -44,16 +51,17 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
   const [selectedCustomerId, setSelectedCustomerId] = useState(prefillCustomerId || '')
   const [selectedCustomerName, setSelectedCustomerName] = useState(prefillCustomerName || '')
   const [selectedSNs, setSelectedSNs] = useState<SelectedSN[]>([])
-  const [customerTransformers, setCustomerTransformers] = useState<{ id: string; serial_number: string; warranty_status: string; site_name: string | null }[]>([])
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!open) {
-      setWoNumber(''); setJobType(''); setEngineerId(''); setScheduledDate(''); setNotes('')
-      setSnQuery(''); setSnResults([]); setError('')
+      setWoNumber(''); setTicketNumber(''); setJobType(''); setNotes('')
+      setSnQuery(''); setSnResults([]); setCustQuery(''); setCustResults([]); setError('')
       if (!prefillCustomerId) {
-        setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([]); setCustomerTransformers([])
+        setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
+    } else {
+      getNextTicketNumberPreview().then(({ ticketNumber: t }) => setTicketNumber(t))
     }
   }, [open, prefillCustomerId])
 
@@ -63,11 +71,33 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
       setSelectedCustomerId(prefillCustomerId)
       setSelectedCustomerName(prefillCustomerName || '')
       getTransformersForCustomer(prefillCustomerId).then(({ transformers }) => {
-        setCustomerTransformers(transformers)
         setSelectedSNs(transformers.map(t => ({ transformer_id: t.id, serial_number: t.serial_number, customer_id: prefillCustomerId, customer_name: prefillCustomerName || '', site_name: t.site_name, warranty_status: t.warranty_status, checked: false })))
       })
     }
   }, [prefillCustomerId, prefillCustomerName, open])
+
+  const selectCustomer = useCallback(async (customerId: string, customerName: string) => {
+    setCustQuery(''); setCustResults([]); setSnQuery(''); setSnResults([]); setError('')
+    setSelectedCustomerId(customerId)
+    setSelectedCustomerName(customerName)
+    const { transformers } = await getTransformersForCustomer(customerId)
+    setSelectedSNs(transformers.map(t => ({
+      transformer_id: t.id, serial_number: t.serial_number, customer_id: customerId,
+      customer_name: customerName, site_name: t.site_name, warranty_status: t.warranty_status, checked: false,
+    })))
+  }, [])
+
+  const handleCustomerSearch = useCallback((q: string) => {
+    setCustQuery(q)
+    if (custSearchTimeout.current) clearTimeout(custSearchTimeout.current)
+    if (q.length < 2) { setCustResults([]); return }
+    setCustSearching(true)
+    custSearchTimeout.current = setTimeout(async () => {
+      const { results } = await searchCustomersByName(q)
+      setCustResults(results)
+      setCustSearching(false)
+    }, 300)
+  }, [])
 
   const handleSnSearch = useCallback((q: string) => {
     setSnQuery(q)
@@ -90,15 +120,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
     }
     setError('')
     if (!selectedCustomerId) {
-      setSelectedCustomerId(result.customer_id)
-      setSelectedCustomerName(result.customer_name)
-      const { transformers } = await getTransformersForCustomer(result.customer_id)
-      setCustomerTransformers(transformers)
-      setSelectedSNs(transformers.map(t => ({
-        transformer_id: t.id, serial_number: t.serial_number, customer_id: result.customer_id,
-        customer_name: result.customer_name, site_name: t.site_name, warranty_status: t.warranty_status,
-        checked: t.id === result.transformer_id,
-      })))
+      await selectCustomer(result.customer_id, result.customer_name)
+      setSelectedSNs(prev => prev.map(s => s.transformer_id === result.transformer_id ? { ...s, checked: true } : s))
     } else {
       setSelectedSNs(prev => prev.map(s => s.transformer_id === result.transformer_id ? { ...s, checked: true } : s))
     }
@@ -109,7 +132,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
   }
 
   function clearCustomer() {
-    setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([]); setCustomerTransformers([]); setError('')
+    setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([]); setError('')
   }
 
   const checkedSNs = selectedSNs.filter(s => s.checked)
@@ -118,22 +141,23 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
     e.preventDefault()
     if (!woNumber.trim()) { setError('Notification number is required.'); return }
     if (!jobType) { setError('Please select a job type.'); return }
-    if (!selectedCustomerId) { setError('Please select at least one serial number.'); return }
+    if (!selectedCustomerId) { setError('Please select a customer.'); return }
     if (!checkedSNs.length) { setError('Please select at least one serial number.'); return }
     setLoading(true); setError('')
-    const { error: err } = await createWorkOrder({
+    const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
       job_type: jobType,
       customer_id: selectedCustomerId,
       transformer_ids: checkedSNs.map(s => s.transformer_id),
-      engineer_id: engineerId || null,
-      scheduled_date: scheduledDate || null,
+      engineer_id: null,
+      scheduled_date: null,
       notes: notes || null,
     })
     setLoading(false)
     if (err) { setError(err); return }
     onSaved()
     onClose()
+    if (id) router.push(`/work-orders/${id}`)
   }
 
   return (
@@ -151,6 +175,10 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
       <form id="wo-form" onSubmit={handleSubmit}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
+            <label style={fl2}>Ticket number</label>
+            <input disabled style={{ ...fi2, background: 'var(--gl)', color: 'var(--txm)' }} value={ticketNumber || 'Generating…'} readOnly />
+          </div>
+          <div>
             <label style={fl2}>Notification number <span style={{ color: 'var(--m)' }}>*</span></label>
             <input required style={fi2} value={woNumber} onChange={e => setWoNumber(e.target.value)} placeholder="e.g. WO-2026-0145" />
           </div>
@@ -161,6 +189,40 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
               {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
+          <div />
+
+          {!selectedCustomerId && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Customer <span style={{ color: 'var(--m)' }}>*</span></label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  style={fi2} value={custQuery}
+                  onChange={e => handleCustomerSearch(e.target.value)}
+                  placeholder="Search by customer name…"
+                />
+                {custSearching && <div style={{ position: 'absolute', right: 10, top: 10, fontSize: 10, color: 'var(--txm)' }}>Searching…</div>}
+                {custResults.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.1)', zIndex: 200, overflow: 'hidden', marginTop: 4 }}>
+                    {custResults.map(c => (
+                      <div key={c.customer_id} onClick={() => selectCustomer(c.customer_id, c.name)}
+                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gm)' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--mp)'}
+                        onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{c.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--txm)' }}>{c.contact_person} · {c.phone}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {custQuery.length >= 2 && !custSearching && custResults.length === 0 && (
+                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>No customer found for &quot;{custQuery}&quot;</span>
+                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>
@@ -170,7 +232,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
                 <input
                   style={fi2} value={snQuery}
                   onChange={e => handleSnSearch(e.target.value)}
-                  placeholder="Search by serial number (e.g. SN-TR-01142)…"
+                  placeholder="Or search by serial number (e.g. SN-TR-01142)…"
                 />
                 {snSearching && <div style={{ position: 'absolute', right: 10, top: 10, fontSize: 10, color: 'var(--txm)' }}>Searching…</div>}
                 {snResults.length > 0 && (
@@ -193,8 +255,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
                 )}
                 {snQuery.length >= 2 && !snSearching && snResults.length === 0 && (
                   <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>No serial number found for "{snQuery}"</span>
-                    <a href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</a>
+                    <span>No serial number found for &quot;{snQuery}&quot;</span>
+                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
                   </div>
                 )}
               </div>
@@ -229,17 +291,6 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, engineers, p
             )}
           </div>
 
-          <div>
-            <label style={fl2}>Assign engineer</label>
-            <select style={fi2} value={engineerId} onChange={e => setEngineerId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={fl2}>Scheduled date</label>
-            <input type="date" style={fi2} value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
-          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Notes</label>
             <textarea style={{ ...fi2, resize: 'vertical' }} rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes or instructions…" />

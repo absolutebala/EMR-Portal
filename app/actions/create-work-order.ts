@@ -10,6 +10,32 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
+function todayDatePrefix(): string {
+  const d = new Date()
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}${mm}${d.getFullYear()}`
+}
+
+// DDMMYYYY-N, N resetting each day. Computed from the highest existing N for
+// today's prefix rather than a plain count, so it stays correct even if a
+// previous attempt failed partway through (see the retry loop below).
+async function nextTicketNumber(admin: ReturnType<typeof adminClient>): Promise<string> {
+  const prefix = todayDatePrefix()
+  const { data } = await admin.from('work_orders').select('ticket_number').like('ticket_number', `${prefix}-%`)
+  let max = 0
+  for (const row of data || []) {
+    const n = parseInt((row.ticket_number || '').split('-')[1] || '0', 10)
+    if (!Number.isNaN(n) && n > max) max = n
+  }
+  return `${prefix}-${max + 1}`
+}
+
+export async function getNextTicketNumberPreview(): Promise<{ ticketNumber: string }> {
+  const admin = adminClient()
+  return { ticketNumber: await nextTicketNumber(admin) }
+}
+
 export async function createWorkOrder(payload: {
   wo_number: string
   job_type: string
@@ -35,18 +61,28 @@ export async function createWorkOrder(payload: {
     // Verify creator profile exists (FK requires profiles.id match)
     const { data: creator } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
 
-    const { data: wo, error } = await admin.from('work_orders').insert({
-      wo_number: payload.wo_number,
-      job_type: payload.job_type,
-      customer_id: payload.customer_id,
-      engineer_id: payload.engineer_id || null,
-      scheduled_date: payload.scheduled_date || null,
-      status,
-      notes: payload.notes || null,
-      created_by: creator ? user.id : null,
-    }).select('id').single()
-
-    if (error) return { error: error.message }
+    // Retry on a rare race against another concurrent create landing the same
+    // ticket_number first — ticket_number has a unique constraint (030 migration).
+    let wo: { id: string } | null = null
+    let insertError: { code?: string; message: string } | null = null
+    for (let attempt = 0; attempt < 5 && !wo; attempt++) {
+      const ticketNumber = await nextTicketNumber(admin)
+      const { data, error } = await admin.from('work_orders').insert({
+        wo_number: payload.wo_number,
+        ticket_number: ticketNumber,
+        job_type: payload.job_type,
+        customer_id: payload.customer_id,
+        engineer_id: payload.engineer_id || null,
+        scheduled_date: payload.scheduled_date || null,
+        status,
+        notes: payload.notes || null,
+        created_by: creator ? user.id : null,
+      }).select('id').single()
+      if (data) { wo = data; break }
+      insertError = error
+      if (error?.code !== '23505') break
+    }
+    if (!wo) return { error: insertError?.message || 'Could not create notification.' }
 
     // Link transformers
     if (payload.transformer_ids.length) {

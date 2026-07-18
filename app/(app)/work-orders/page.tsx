@@ -213,7 +213,7 @@ export default function WorkOrdersPage() {
         </div>
       </div>
 
-      <NewWorkOrderModal open={showNew} onClose={() => setShowNew(false)} onSaved={loadWorkOrders} engineers={engineers} />
+      <NewWorkOrderModal open={showNew} onClose={() => setShowNew(false)} onSaved={loadWorkOrders} />
     </>
   )
 }

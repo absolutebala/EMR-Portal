@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
-import { getAssignableEngineers } from '@/app/actions/get-work-orders'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import type { Customer } from '@/lib/types'
 
@@ -20,7 +19,6 @@ interface CustomerWithCounts extends Customer {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerWithCounts[]>([])
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
-  const [engineers, setEngineers] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
@@ -58,7 +56,6 @@ export default function CustomersPage() {
         if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
       })
     })
-    getAssignableEngineers().then(({ engineers: engData }) => setEngineers(engData))
   }, [loadCustomers, supabase])
 
   const filtered = customers.filter(c => {
@@ -146,7 +143,6 @@ export default function CustomersPage() {
           open={!!woCustomer}
           onClose={() => setWoCustomer(null)}
           onSaved={() => { setWoCustomer(null) }}
-          engineers={engineers}
           prefillCustomerId={woCustomer?.id}
           prefillCustomerName={woCustomer?.name}
         />
