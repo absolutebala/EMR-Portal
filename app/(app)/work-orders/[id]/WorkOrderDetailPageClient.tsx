@@ -770,7 +770,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       <Modal open={!!enlargedPhoto} onClose={() => setEnlargedPhoto(null)} title="Check-in photo" size="lg">
         {enlargedPhoto && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={enlargedPhoto} alt="Check-in proof" style={{ width: '100%', height: 'auto', borderRadius: 8, display: 'block' }} />
+          <img src={enlargedPhoto} alt="Check-in proof" style={{ display: 'block', margin: '0 auto', maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} />
         )}
       </Modal>
     </>
