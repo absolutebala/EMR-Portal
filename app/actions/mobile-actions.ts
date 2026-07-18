@@ -512,10 +512,14 @@ export async function submitCheckIn(params: {
     let photoUrl: string | null = null
     const uploadResult = await withTimeout(
       admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType }),
-      12000
+      25000
     )
     if (uploadResult && !uploadResult.error) {
       photoUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+    } else if (!uploadResult) {
+      console.error(`submitCheckIn: photo upload timed out for work order ${params.workOrderId} (path: ${path})`)
+    } else {
+      console.error(`submitCheckIn: photo upload failed for work order ${params.workOrderId} (path: ${path}):`, uploadResult.error.message)
     }
 
     const insResult = await withTimeout(
