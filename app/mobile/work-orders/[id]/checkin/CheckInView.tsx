@@ -87,7 +87,6 @@ export default function CheckInView({ workOrder }: Props) {
       ext: photo.ext,
     })
     router.push(`/mobile/work-orders/${workOrder.id}`)
-    router.refresh()
   }
 
   return (

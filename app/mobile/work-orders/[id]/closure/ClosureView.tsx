@@ -82,7 +82,6 @@ export default function ClosureView({ workOrder }: Props) {
       return
     }
     router.push(`/mobile/work-orders/${workOrder.id}`)
-    router.refresh()
   }
 
   return (
