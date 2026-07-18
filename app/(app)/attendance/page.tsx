@@ -12,6 +12,7 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
   needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
+  not_started: { bg: '#F3F4F6', color: '#6B7280', label: 'Not Started' },
 }
 
 function formatColumnDate(dateStr: string): { weekday: string; dayMonth: string } {
@@ -63,7 +64,7 @@ export default function AttendancePage() {
           scroll instead of being contained inside the grid's own scrollbox. */}
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
-          Scheduled jobs by field engineer, from today through the end of the month.
+          Scheduled jobs by field engineer for the current month. Past dates show what actually happened that day; today and upcoming dates show the job&apos;s current status.
         </div>
 
         {error && (
@@ -94,12 +95,13 @@ export default function AttendancePage() {
                     {dates.map(dateStr => {
                       const { weekday, dayMonth } = formatColumnDate(dateStr)
                       const isToday = dateStr === todayStr
+                      const isPast = dateStr < todayStr
                       const isWeekend = weekday === 'Sun' || weekday === 'Sat'
                       return (
                         <th key={dateStr} style={{
                           position: 'sticky', top: 0, zIndex: 2, minWidth: 190, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
-                          color: isToday ? 'var(--m)' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
-                          background: isToday ? 'var(--mp)' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
+                          color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
+                          background: isToday ? 'var(--mp)' : isPast ? '#F5F3F5' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
                         }}>
                           <div>{weekday}</div>
                           <div style={{ fontSize: 11, marginTop: 1 }}>{dayMonth}</div>
@@ -121,10 +123,11 @@ export default function AttendancePage() {
                       {dates.map(dateStr => {
                         const jobs = cells[e.id]?.[dateStr]
                         const isToday = dateStr === todayStr
+                        const isPast = dateStr < todayStr
                         return (
                           <td key={dateStr} style={{
                             padding: '8px 8px', fontSize: 11, textAlign: 'left', verticalAlign: 'top',
-                            background: isToday ? '#FDF7F9' : '#fff',
+                            background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
                             borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
                           }}>
                             {jobs && jobs.length > 0 ? (

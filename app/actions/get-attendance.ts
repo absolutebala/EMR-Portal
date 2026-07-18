@@ -43,13 +43,16 @@ export async function getAttendanceGrid(): Promise<{
 
     const engineers: AttendanceEngineer[] = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }))
 
-    // Today through the last day of the current month.
+    // Full current month — 1st through the last day — so past dates in an
+    // "Attendance" sheet are meaningful (what actually happened), not just
+    // today-forward scheduling.
     const now = new Date()
     const todayStr = now.toLocaleDateString('en-CA')
+    const firstDayStr = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA')
     const lastDayStr = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-CA')
 
     const dates: string[] = []
-    const cursor = new Date(`${todayStr}T00:00:00`)
+    const cursor = new Date(`${firstDayStr}T00:00:00`)
     const end = new Date(`${lastDayStr}T00:00:00`)
     while (cursor <= end) {
       dates.push(cursor.toLocaleDateString('en-CA'))
@@ -61,19 +64,45 @@ export async function getAttendanceGrid(): Promise<{
     const engineerIds = engineers.map(e => e.id)
     const { data: wos } = await admin
       .from('work_orders')
-      .select('id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(customer_sites(site_name, place_label)))')
+      .select('id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(customer_sites(site_address, place_label)))')
       .in('engineer_id', engineerIds)
-      .gte('scheduled_date', todayStr)
+      .gte('scheduled_date', firstDayStr)
       .lte('scheduled_date', lastDayStr)
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id).filter(Boolean))]
-    const { data: customers } = customerIds.length
-      ? await admin.from('customers').select('id, name').in('id', customerIds)
-      : { data: [] as { id: string; name: string }[] }
+    const workOrderIds = (wos || []).map(w => w.id)
+
+    const [{ data: customers }, { data: closures }, { data: checkins }] = await Promise.all([
+      customerIds.length
+        ? admin.from('customers').select('id, name').in('id', customerIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      workOrderIds.length
+        ? admin.from('work_order_daily_closures').select('work_order_id, outcome, needs_reassignment, created_at').in('work_order_id', workOrderIds)
+        : Promise.resolve({ data: [] as { work_order_id: string; outcome: string; needs_reassignment: boolean; created_at: string }[] }),
+      workOrderIds.length
+        ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
+        : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
+    ])
+
     const custMap: Record<string, string> = {}
     customers?.forEach(c => { custMap[c.id] = c.name })
 
-    type WotRow = { transformers: { customer_sites: { site_name: string; place_label: string | null } | null } | null }
+    // work_order_id -> 'YYYY-MM-DD' -> outcome status, for reconstructing what
+    // actually happened on a past date rather than showing today's live status.
+    const closuresByWoDate: Record<string, Record<string, string>> = {}
+    for (const c of closures || []) {
+      const day = new Date(c.created_at).toLocaleDateString('en-CA')
+      if (!closuresByWoDate[c.work_order_id]) closuresByWoDate[c.work_order_id] = {}
+      closuresByWoDate[c.work_order_id][day] = c.needs_reassignment ? 'needs_reassignment' : c.outcome
+    }
+    const checkinDaysByWo: Record<string, Set<string>> = {}
+    for (const c of checkins || []) {
+      const day = new Date(c.checked_in_at).toLocaleDateString('en-CA')
+      if (!checkinDaysByWo[c.work_order_id]) checkinDaysByWo[c.work_order_id] = new Set()
+      checkinDaysByWo[c.work_order_id].add(day)
+    }
+
+    type WotRow = { transformers: { customer_sites: { site_address: string; place_label: string | null } | null } | null }
     type Row = {
       id: string; engineer_id: string | null; scheduled_date: string | null; customer_id: string
       wo_number: string; status: string; work_order_transformers: WotRow[]
@@ -86,14 +115,30 @@ export async function getAttendanceGrid(): Promise<{
       if (!cells[w.engineer_id][w.scheduled_date]) cells[w.engineer_id][w.scheduled_date] = []
 
       const site = w.work_order_transformers?.[0]?.transformers?.customer_sites
-      const location = site ? [site.site_name, site.place_label].filter(Boolean).join(', ') || null : null
+      const location = site?.place_label || site?.site_address || null
+
+      // For a date that's already passed, show what actually happened that day
+      // (closure outcome, or "checked in but not closed", or "nothing recorded")
+      // instead of the work order's current live status, which may since have
+      // moved on to a new cycle with a different scheduled_date.
+      let status = w.status
+      if (w.scheduled_date < todayStr && w.status !== 'completed') {
+        const closureOutcome = closuresByWoDate[w.id]?.[w.scheduled_date]
+        if (closureOutcome) {
+          status = closureOutcome
+        } else if (checkinDaysByWo[w.id]?.has(w.scheduled_date)) {
+          status = 'in_progress'
+        } else {
+          status = 'not_started'
+        }
+      }
 
       cells[w.engineer_id][w.scheduled_date].push({
         workOrderId: w.id,
         customerName: custMap[w.customer_id] || 'Unknown customer',
         location,
         woNumber: w.wo_number,
-        status: w.status,
+        status,
       })
     }
 
