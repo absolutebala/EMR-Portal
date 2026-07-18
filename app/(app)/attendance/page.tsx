@@ -5,6 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceGrid, type AttendanceEngineer, type AttendanceCells } from '@/app/actions/get-attendance'
 
+const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  unassigned: { bg: '#F3F4F6', color: '#6B7280', label: 'Unassigned' },
+  assigned: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Assigned' },
+  in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
+  pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
+  completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+  needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
+}
+
 function formatColumnDate(dateStr: string): { weekday: string; dayMonth: string } {
   const d = new Date(`${dateStr}T00:00:00`)
   return {
@@ -88,7 +97,7 @@ export default function AttendancePage() {
                       const isWeekend = weekday === 'Sun' || weekday === 'Sat'
                       return (
                         <th key={dateStr} style={{
-                          position: 'sticky', top: 0, zIndex: 2, minWidth: 130, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
+                          position: 'sticky', top: 0, zIndex: 2, minWidth: 190, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
                           color: isToday ? 'var(--m)' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
                           background: isToday ? 'var(--mp)' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
                         }}>
@@ -105,20 +114,38 @@ export default function AttendancePage() {
                       <td style={{
                         position: 'sticky', left: 0, zIndex: 1, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
                         background: '#fff', borderRight: '1px solid var(--gm)',
-                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap',
+                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
                       }}>
                         {e.name}
                       </td>
                       {dates.map(dateStr => {
-                        const names = cells[e.id]?.[dateStr]
+                        const jobs = cells[e.id]?.[dateStr]
                         const isToday = dateStr === todayStr
                         return (
                           <td key={dateStr} style={{
-                            padding: '8px 10px', fontSize: 11, textAlign: 'center', color: names ? 'var(--tx)' : 'var(--txm)',
-                            background: isToday ? '#FDF7F9' : '#fff', verticalAlign: 'top',
+                            padding: '8px 8px', fontSize: 11, textAlign: 'left', verticalAlign: 'top',
+                            background: isToday ? '#FDF7F9' : '#fff',
                             borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
                           }}>
-                            {names ? names.join(', ') : '—'}
+                            {jobs && jobs.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {jobs.map(job => {
+                                  const cfg = STATUS_CFG[job.status] || STATUS_CFG.unassigned
+                                  return (
+                                    <div key={job.workOrderId} style={{ padding: '6px 8px', borderRadius: 7, background: '#F8F5F6', border: '1px solid var(--gl)' }}>
+                                      <div style={{ fontWeight: 600, color: 'var(--tx)', fontSize: 11 }}>{job.customerName}</div>
+                                      {job.location && <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.location}</div>}
+                                      <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.woNumber}</div>
+                                      <span style={{ display: 'inline-block', marginTop: 4, fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: cfg.bg, color: cfg.color }}>
+                                        {cfg.label}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--txm)' }}>—</span>
+                            )}
                           </td>
                         )
                       })}

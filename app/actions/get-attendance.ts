@@ -13,9 +13,17 @@ export interface AttendanceEngineer {
   name: string
 }
 
-// engineerId -> 'YYYY-MM-DD' -> customer names scheduled that day (usually one,
-// but an engineer can have more than one job on the same date).
-export type AttendanceCells = Record<string, Record<string, string[]>>
+export interface AttendanceJob {
+  workOrderId: string
+  customerName: string
+  location: string | null
+  woNumber: string
+  status: string
+}
+
+// engineerId -> 'YYYY-MM-DD' -> jobs scheduled that day (usually one, but an
+// engineer can have more than one job on the same date).
+export type AttendanceCells = Record<string, Record<string, AttendanceJob[]>>
 
 export async function getAttendanceGrid(): Promise<{
   engineers: AttendanceEngineer[]
@@ -53,7 +61,7 @@ export async function getAttendanceGrid(): Promise<{
     const engineerIds = engineers.map(e => e.id)
     const { data: wos } = await admin
       .from('work_orders')
-      .select('engineer_id, scheduled_date, customer_id')
+      .select('id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(customer_sites(site_name, place_label)))')
       .in('engineer_id', engineerIds)
       .gte('scheduled_date', todayStr)
       .lte('scheduled_date', lastDayStr)
@@ -65,12 +73,28 @@ export async function getAttendanceGrid(): Promise<{
     const custMap: Record<string, string> = {}
     customers?.forEach(c => { custMap[c.id] = c.name })
 
+    type WotRow = { transformers: { customer_sites: { site_name: string; place_label: string | null } | null } | null }
+    type Row = {
+      id: string; engineer_id: string | null; scheduled_date: string | null; customer_id: string
+      wo_number: string; status: string; work_order_transformers: WotRow[]
+    }
+
     const cells: AttendanceCells = {}
-    for (const w of wos || []) {
+    for (const w of (wos as unknown as Row[]) || []) {
       if (!w.engineer_id || !w.scheduled_date) continue
       if (!cells[w.engineer_id]) cells[w.engineer_id] = {}
       if (!cells[w.engineer_id][w.scheduled_date]) cells[w.engineer_id][w.scheduled_date] = []
-      cells[w.engineer_id][w.scheduled_date].push(custMap[w.customer_id] || 'Unknown customer')
+
+      const site = w.work_order_transformers?.[0]?.transformers?.customer_sites
+      const location = site ? [site.site_name, site.place_label].filter(Boolean).join(', ') || null : null
+
+      cells[w.engineer_id][w.scheduled_date].push({
+        workOrderId: w.id,
+        customerName: custMap[w.customer_id] || 'Unknown customer',
+        location,
+        woNumber: w.wo_number,
+        status: w.status,
+      })
     }
 
     return { engineers, dates, cells, error: null }
