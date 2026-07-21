@@ -16,6 +16,7 @@ export interface FieldEngineerOverview {
   employee_id: string
   phone: string | null
   status: EngineerStatus
+  activeCustomerName: string | null
   lastActiveAt: string | null
   lastCheckin: { placeName: string | null; checkedInAt: string } | null
   nextAssigned: { customerName: string; scheduledDate: string | null; woNumber: string } | null
@@ -112,6 +113,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         employee_id: p.employee_id,
         phone: p.phone,
         status,
+        activeCustomerName: activeWO ? (custMap[activeWO.customer_id] || null) : null,
         lastActiveAt: p.last_active_at,
         lastCheckin: latestCheckinByEng[p.id] || null,
         nextAssigned: upcoming ? { customerName: custMap[upcoming.customer_id] || '', scheduledDate: upcoming.scheduled_date, woNumber: upcoming.wo_number } : null,

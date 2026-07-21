@@ -13,21 +13,16 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   off_duty: { label: 'Off duty', bg: '#F1F5F9', color: '#475569' },
 }
 
-function StatusBadge({ status }: { status: EngineerStatus }) {
+function StatusBadge({ status, activeCustomerName }: { status: EngineerStatus; activeCustomerName: string | null }) {
   const c = STATUS_CONFIG[status]
-  return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{c.label}</span>
+  const isCheckedIn = status === 'on_site' || status === 'work_in_progress'
+  const label = isCheckedIn ? `Checked in${activeCustomerName ? ` with ${activeCustomerName}` : ''}` : c.label
+  return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
 }
 
-function relativeTime(iso: string | null): string {
+function formatDateTime(iso: string | null): string {
   if (!iso) return ''
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diffMs / 60000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min} min ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const days = Math.floor(hr / 24)
-  return `${days}d ago`
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function EngineersPage() {
@@ -99,7 +94,7 @@ export default function EngineersPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr>
-                    {['Engineer', 'Employee ID', 'Status', 'Current location', 'Next assigned site', 'Open WOs', 'Completed today', 'Actions'].map(h => (
+                    {['Engineer', 'Employee ID', 'Status', 'Last Seen', 'Next assigned site', 'Open', 'Completed', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -109,12 +104,12 @@ export default function EngineersPage() {
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{e.name}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} /></td>
+                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} activeCustomerName={e.activeCustomerName} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>
                         {e.lastCheckin ? (
                           <>
                             <div>{e.lastCheckin.placeName || 'Location unavailable'}</div>
-                            <div style={{ color: 'var(--txm)', fontSize: 10 }}>{relativeTime(e.lastCheckin.checkedInAt)}</div>
+                            <div style={{ color: 'var(--txm)', fontSize: 10 }}>{formatDateTime(e.lastCheckin.checkedInAt)}</div>
                           </>
                         ) : <span style={{ color: 'var(--txm)' }}>No check-ins yet</span>}
                       </td>
