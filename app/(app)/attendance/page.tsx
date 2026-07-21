@@ -161,7 +161,7 @@ export default function AttendancePage() {
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{error}</div>
         )}
 
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading attendance…</div>
           ) : engineers.length === 0 ? (
@@ -170,8 +170,10 @@ export default function AttendancePage() {
             // Grid scrolls within its own box (both axes) rather than the page, so the
             // header row (top) and Field Engineer column (left) can use plain
             // position: sticky relative to a predictable scrollport instead of trying
-            // to track the page's scroll position / Topbar height.
-            <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+            // to track the page's scroll position / Topbar height. Capped with a
+            // maxHeight (not flex:1) so the card shrink-wraps to its content when
+            // there's little data instead of always stretching to fill the page.
+            <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
               <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
                   <tr>
@@ -216,7 +218,7 @@ export default function AttendancePage() {
                         const isPast = dateStr < todayStr
                         return (
                           <td key={dateStr} style={{
-                            padding: '8px 8px', fontSize: 11, textAlign: 'left', verticalAlign: 'top',
+                            padding: '8px 8px', fontSize: 11, textAlign: jobs && jobs.length > 0 ? 'left' : 'center', verticalAlign: jobs && jobs.length > 0 ? 'top' : 'middle',
                             background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
                             borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
                           }}>
@@ -225,11 +227,11 @@ export default function AttendancePage() {
                                 {jobs.map(job => {
                                   const cfg = STATUS_CFG[job.status] || STATUS_CFG.unassigned
                                   return (
-                                    <div key={job.workOrderId} style={{ padding: '6px 8px', borderRadius: 7, background: '#F8F5F6', border: '1px solid var(--gl)' }}>
+                                    <div key={job.workOrderId} style={{ padding: '6px 8px 6px 9px', borderRadius: 6, background: cfg.bg, borderLeft: `3px solid ${cfg.color}` }}>
                                       <div style={{ fontWeight: 600, color: 'var(--tx)', fontSize: 11 }}>{job.customerName}</div>
                                       {job.location && <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.location}</div>}
                                       <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.woNumber}</div>
-                                      <span style={{ display: 'inline-block', marginTop: 4, fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: cfg.bg, color: cfg.color }}>
+                                      <span style={{ display: 'inline-block', marginTop: 4, fontSize: 9, fontWeight: 700, color: cfg.color }}>
                                         {cfg.label}
                                       </span>
                                     </div>
@@ -237,7 +239,7 @@ export default function AttendancePage() {
                                 })}
                               </div>
                             ) : (
-                              <span style={{ color: 'var(--txm)' }}>—</span>
+                              <span style={{ color: '#D8D2D5' }}>—</span>
                             )}
                           </td>
                         )
