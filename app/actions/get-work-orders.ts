@@ -157,7 +157,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }] = await Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
@@ -171,7 +171,14 @@ export async function getWorkOrderDetail(id: string): Promise<{
         .select('id, outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, engineer_signature, client_name, client_signature, pdf_url, sent_to_sap, engineer_id, created_at')
         .eq('work_order_id', id)
         .order('created_at', { ascending: true }),
+      admin.from('work_order_additional_engineers').select('engineer_id, profiles(first_name, last_name)').eq('work_order_id', id),
     ])
+
+    type AdditionalEngineerRow = { engineer_id: string; profiles: { first_name: string; last_name: string } | null }
+    const additionalEngineers = ((additionalEngineerRows as unknown as AdditionalEngineerRow[]) || []).map(r => ({
+      id: r.engineer_id,
+      name: r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : 'Engineer',
+    }))
 
     // Build a date-wise visit history: each closure marks the end of a
     // check-in → closure cycle, so pair every closure with the check-in(s)
@@ -332,6 +339,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         transformer_ids: rows.map(r => r.transformer_id),
         site_name: siteName,
         has_warranty: hasWarranty,
+        additional_engineers: additionalEngineers,
       },
       activity: actRows || [],
       checkin,

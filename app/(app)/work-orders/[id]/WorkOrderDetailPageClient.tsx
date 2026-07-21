@@ -15,8 +15,25 @@ import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
-  commissioning_activities: 'Commissioning Activities',
+  commissioning_activities: 'Commissioning',
   supervision: 'Supervision',
+  overhauling: 'Overhauling',
+  complaint: 'Complaint',
+  installation: 'Installation',
+  testing: 'Testing',
+  business_opportunity: 'Business Opportunity',
+}
+
+const REPORTED_THROUGH_LABELS: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+  phone: 'Phone',
+  other: 'Other',
+}
+
+const SOLUTION_THROUGH_LABELS: Record<string, string> = {
+  on_site: 'On-Site',
+  virtual: 'Virtual',
 }
 
 const STATUS_NEXT: Record<string, { label: string; value: string; color: string }[]> = {
@@ -189,6 +206,11 @@ interface EditForm {
   engineer_id: string
   scheduled_date: string
   notes: string
+  reported_date: string
+  reported_through: string
+  customer_message: string
+  solution_through: string
+  additional_engineer_ids: string[]
 }
 
 const inputStyle: React.CSSProperties = {
@@ -227,7 +249,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [loadingSchedule, setLoadingSchedule] = useState(false)
 
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<EditForm>({ wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '' })
+  const [form, setForm] = useState<EditForm>({
+    wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
+    reported_date: '', reported_through: '', customer_message: '', solution_through: '', additional_engineer_ids: [],
+  })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
 
@@ -276,6 +301,11 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       engineer_id: wo.engineer_id || '',
       scheduled_date: wo.scheduled_date || '',
       notes: wo.notes || '',
+      reported_date: wo.reported_date || '',
+      reported_through: wo.reported_through || '',
+      customer_message: wo.customer_message || '',
+      solution_through: wo.solution_through || '',
+      additional_engineer_ids: (wo.additional_engineers || []).map(e => e.id),
     })
     setEditing(true)
     setShowReassign(false)
@@ -310,6 +340,11 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       engineer_id: form.engineer_id || null,
       scheduled_date: form.scheduled_date || null,
       notes: form.notes || null,
+      reported_date: form.reported_date || null,
+      reported_through: form.reported_through || null,
+      customer_message: form.customer_message || null,
+      solution_through: form.solution_through || null,
+      additional_engineer_ids: form.solution_through === 'virtual' ? form.additional_engineer_ids : [],
     })
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
@@ -410,6 +445,62 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
                       {fieldLabel('Notes')}
                       <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…" />
+
+                      {fieldLabel('Reported date')}
+                      <input type="date" style={inputStyle} value={form.reported_date} onChange={e => setForm(f => ({ ...f, reported_date: e.target.value }))} />
+
+                      {fieldLabel('Reported through')}
+                      <select style={inputStyle} value={form.reported_through} onChange={e => setForm(f => ({ ...f, reported_through: e.target.value }))}>
+                        <option value="">Select…</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
+                        <option value="phone">Phone</option>
+                        <option value="other">Other</option>
+                      </select>
+
+                      {fieldLabel('Customer message')}
+                      <textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' as const }} value={form.customer_message} onChange={e => setForm(f => ({ ...f, customer_message: e.target.value }))} placeholder="What the customer reported…" />
+
+                      {fieldLabel('Solution through')}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        {[{ value: 'on_site', label: 'On-Site' }, { value: 'virtual', label: 'Virtual' }].map(o => (
+                          <button key={o.value} type="button" onClick={() => setForm(f => ({ ...f, solution_through: o.value }))}
+                            style={{
+                              flex: 1, padding: '8px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                              border: `1.5px solid ${form.solution_through === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                              background: form.solution_through === o.value ? 'var(--mp)' : '#fff',
+                              color: form.solution_through === o.value ? 'var(--m)' : 'var(--tx)',
+                            }}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {form.solution_through === 'virtual' && (
+                        <>
+                          {fieldLabel('Additional engineers (virtual participants)')}
+                          <div style={{ border: '1.5px solid var(--gm)', borderRadius: 7, maxHeight: 150, overflowY: 'auto' }}>
+                            {engineers.length === 0 ? (
+                              <div style={{ padding: 10, fontSize: 12, color: 'var(--txm)' }}>No field engineers found.</div>
+                            ) : engineers.map((e, i) => (
+                              <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderTop: i > 0 ? '1px solid var(--gl)' : 'none' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.additional_engineer_ids.includes(e.id)}
+                                  onChange={() => setForm(f => ({
+                                    ...f,
+                                    additional_engineer_ids: f.additional_engineer_ids.includes(e.id)
+                                      ? f.additional_engineer_ids.filter(id => id !== e.id)
+                                      : [...f.additional_engineer_ids, e.id],
+                                  }))}
+                                  style={{ accentColor: 'var(--m)', width: 14, height: 14 }}
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--tx)' }}>{e.first_name} {e.last_name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div>
@@ -744,6 +835,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Completed', completedAt ? new Date(completedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
                 {row('Assigned engineer', wo.engineer_name || <span style={{ color: 'var(--txm)' }}>Unassigned</span>)}
                 {row('Status', statusBadge(wo.status))}
+                {wo.reported_date && row('Reported date', new Date(wo.reported_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}
+                {wo.reported_through && row('Reported through', REPORTED_THROUGH_LABELS[wo.reported_through] || wo.reported_through)}
+                {wo.solution_through && row('Solution through', SOLUTION_THROUGH_LABELS[wo.solution_through] || wo.solution_through)}
+                {wo.additional_engineers && wo.additional_engineers.length > 0 && row('Additional engineers', wo.additional_engineers.map(e => e.name).join(', '))}
               </div>
 
               <div style={card}>
@@ -752,6 +847,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Shipped to', wo.site_name || '—')}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
                 {wo.notes && row('Notes', wo.notes)}
+                {wo.customer_message && row('Customer message', wo.customer_message)}
               </div>
             </div>
           </div>

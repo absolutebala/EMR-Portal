@@ -3,6 +3,11 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   amc: 'AMC',
   commissioning_activities: 'Commissioning',
   supervision: 'Supervision',
+  overhauling: 'Overhauling',
+  complaint: 'Complaint',
+  installation: 'Installation',
+  testing: 'Testing',
+  business_opportunity: 'Business Opportunity',
 }
 
 export const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {

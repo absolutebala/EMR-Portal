@@ -44,6 +44,11 @@ export async function createWorkOrder(payload: {
   engineer_id: string | null
   scheduled_date: string | null
   notes: string | null
+  reported_date: string | null
+  reported_through: string | null
+  customer_message: string | null
+  solution_through: string | null
+  additional_engineer_ids: string[]
 }): Promise<{ error: string | null; id?: string }> {
   try {
     const sb = await serverClient()
@@ -77,6 +82,10 @@ export async function createWorkOrder(payload: {
         status,
         notes: payload.notes || null,
         created_by: creator ? user.id : null,
+        reported_date: payload.reported_date || null,
+        reported_through: payload.reported_through || null,
+        customer_message: payload.customer_message || null,
+        solution_through: payload.solution_through || null,
       }).select('id').single()
       if (data) { wo = data; break }
       insertError = error
@@ -88,6 +97,14 @@ export async function createWorkOrder(payload: {
     if (payload.transformer_ids.length) {
       await admin.from('work_order_transformers').insert(
         payload.transformer_ids.map(tid => ({ work_order_id: wo.id, transformer_id: tid }))
+      )
+    }
+
+    // Additional (visibility-only) engineers for a Virtual-solution job — see
+    // work_order_additional_engineers comment in migration 035.
+    if (payload.solution_through === 'virtual' && payload.additional_engineer_ids.length) {
+      await admin.from('work_order_additional_engineers').insert(
+        payload.additional_engineer_ids.map(engineerId => ({ work_order_id: wo!.id, engineer_id: engineerId }))
       )
     }
 
@@ -138,6 +155,11 @@ export async function updateWorkOrder(id: string, payload: {
   engineer_id: string | null
   scheduled_date: string | null
   notes: string | null
+  reported_date: string | null
+  reported_through: string | null
+  customer_message: string | null
+  solution_through: string | null
+  additional_engineer_ids: string[]
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
@@ -169,6 +191,10 @@ export async function updateWorkOrder(id: string, payload: {
       notes: payload.notes || null,
       status,
       updated_at: new Date().toISOString(),
+      reported_date: payload.reported_date || null,
+      reported_through: payload.reported_through || null,
+      customer_message: payload.customer_message || null,
+      solution_through: payload.solution_through || null,
     }).eq('id', id)
     if (updateErr) return { error: updateErr.message }
 
@@ -177,6 +203,15 @@ export async function updateWorkOrder(id: string, payload: {
     if (payload.transformer_ids.length) {
       await admin.from('work_order_transformers').insert(
         payload.transformer_ids.map(tid => ({ work_order_id: id, transformer_id: tid }))
+      )
+    }
+
+    // Replace additional (visibility-only) engineers — only meaningful when
+    // the solution is Virtual, so an empty list clears them either way.
+    await admin.from('work_order_additional_engineers').delete().eq('work_order_id', id)
+    if (payload.solution_through === 'virtual' && payload.additional_engineer_ids.length) {
+      await admin.from('work_order_additional_engineers').insert(
+        payload.additional_engineer_ids.map(engineerId => ({ work_order_id: id, engineer_id: engineerId }))
       )
     }
 

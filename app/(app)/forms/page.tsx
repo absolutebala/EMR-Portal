@@ -112,8 +112,13 @@ export default function FormsPage() {
               <option value="">All job types</option>
               <option value="site_inspection">Site Inspection</option>
               <option value="amc">AMC</option>
-              <option value="commissioning_activities">Commissioning Activities</option>
+              <option value="commissioning_activities">Commissioning</option>
               <option value="supervision">Supervision</option>
+              <option value="overhauling">Overhauling</option>
+              <option value="complaint">Complaint</option>
+              <option value="installation">Installation</option>
+              <option value="testing">Testing</option>
+              <option value="business_opportunity">Business Opportunity</option>
             </select>
           </div>
           <button onClick={() => { setEditForm(null); setShowBuilder(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>

@@ -5,7 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
-import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer } from '@/app/actions/get-work-orders'
+import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer, getAssignableEngineers } from '@/app/actions/get-work-orders'
+
+const REPORTED_THROUGH_OPTIONS = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'other', label: 'Other' },
+]
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
@@ -13,13 +20,19 @@ const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#37415
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
-  commissioning_activities: 'Commissioning Activities',
+  commissioning_activities: 'Commissioning',
   supervision: 'Supervision',
+  overhauling: 'Overhauling',
+  complaint: 'Complaint',
+  installation: 'Installation',
+  testing: 'Testing',
+  business_opportunity: 'Business Opportunity',
 }
 
 interface TransformerResult { transformer_id: string; serial_number: string; customer_id: string; customer_name: string; site_name: string | null; warranty_status: string }
 interface SelectedSN extends TransformerResult { checked: boolean }
 interface CustomerResult { customer_id: string; name: string; phone: string; contact_person: string }
+interface Engineer { id: string; first_name: string; last_name: string }
 
 interface Props {
   open: boolean
@@ -37,6 +50,14 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // New intake/coordination fields
+  const [reportedDate, setReportedDate] = useState('')
+  const [reportedThrough, setReportedThrough] = useState('')
+  const [customerMessage, setCustomerMessage] = useState('')
+  const [solutionThrough, setSolutionThrough] = useState('')
+  const [engineers, setEngineers] = useState<Engineer[]>([])
+  const [additionalEngineerIds, setAdditionalEngineerIds] = useState<string[]>([])
 
   // Customer name search
   const [custQuery, setCustQuery] = useState('')
@@ -57,11 +78,13 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     if (!open) {
       setWoNumber(''); setTicketNumber(''); setJobType(''); setNotes('')
       setSnQuery(''); setSnResults([]); setCustQuery(''); setCustResults([]); setError('')
+      setReportedDate(''); setReportedThrough(''); setCustomerMessage(''); setSolutionThrough(''); setAdditionalEngineerIds([])
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
     } else {
       getNextTicketNumberPreview().then(({ ticketNumber: t }) => setTicketNumber(t))
+      getAssignableEngineers().then(({ engineers: eng }) => setEngineers(eng))
     }
   }, [open, prefillCustomerId])
 
@@ -135,6 +158,10 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([]); setError('')
   }
 
+  function toggleAdditionalEngineer(id: string) {
+    setAdditionalEngineerIds(prev => prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id])
+  }
+
   const checkedSNs = selectedSNs.filter(s => s.checked)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -152,6 +179,11 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       engineer_id: null,
       scheduled_date: null,
       notes: notes || null,
+      reported_date: reportedDate || null,
+      reported_through: reportedThrough || null,
+      customer_message: customerMessage || null,
+      solution_through: solutionThrough || null,
+      additional_engineer_ids: solutionThrough === 'virtual' ? additionalEngineerIds : [],
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -290,6 +322,57 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               </div>
             )}
           </div>
+
+          <div>
+            <label style={fl2}>Reported date</label>
+            <input type="date" style={fi2} value={reportedDate} onChange={e => setReportedDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={fl2}>Reported through</label>
+            <select style={fi2} value={reportedThrough} onChange={e => setReportedThrough(e.target.value)}>
+              <option value="">Select…</option>
+              {REPORTED_THROUGH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={fl2}>Customer message</label>
+            <textarea style={{ ...fi2, resize: 'vertical' }} rows={2} value={customerMessage} onChange={e => setCustomerMessage(e.target.value)} placeholder="What the customer reported…" />
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={fl2}>Solution through</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[{ value: 'on_site', label: 'On-Site' }, { value: 'virtual', label: 'Virtual' }].map(o => (
+                <button key={o.value} type="button" onClick={() => setSolutionThrough(o.value)}
+                  style={{
+                    flex: 1, padding: '9px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                    border: `1.5px solid ${solutionThrough === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                    background: solutionThrough === o.value ? 'var(--mp)' : '#fff',
+                    color: solutionThrough === o.value ? 'var(--m)' : 'var(--tx)',
+                  }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {solutionThrough === 'virtual' && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Additional engineers (virtual participants)</label>
+              <div style={{ border: '1.5px solid var(--gm)', borderRadius: 7, maxHeight: 150, overflowY: 'auto' }}>
+                {engineers.length === 0 ? (
+                  <div style={{ padding: 10, fontSize: 12, color: 'var(--txm)' }}>No field engineers found.</div>
+                ) : engineers.map((e, i) => (
+                  <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderTop: i > 0 ? '1px solid var(--gl)' : 'none' }}>
+                    <input type="checkbox" checked={additionalEngineerIds.includes(e.id)} onChange={() => toggleAdditionalEngineer(e.id)} style={{ accentColor: 'var(--m)', width: 14, height: 14 }} />
+                    <span style={{ fontSize: 12, color: 'var(--tx)' }}>{e.first_name} {e.last_name}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>Listed for coordination only — doesn&apos;t affect scheduling or mobile assignment.</div>
+            </div>
+          )}
 
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Notes</label>

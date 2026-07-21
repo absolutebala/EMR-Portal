@@ -11,8 +11,13 @@ import type { WorkOrder } from '@/lib/types'
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
-  commissioning_activities: 'Commissioning Activities',
+  commissioning_activities: 'Commissioning',
   supervision: 'Supervision',
+  overhauling: 'Overhauling',
+  complaint: 'Complaint',
+  installation: 'Installation',
+  testing: 'Testing',
+  business_opportunity: 'Business Opportunity',
 }
 
 const JOB_COLORS: Record<string, string> = {
@@ -20,6 +25,11 @@ const JOB_COLORS: Record<string, string> = {
   amc: '#0891B2',
   commissioning_activities: '#7C3AED',
   supervision: '#D97706',
+  overhauling: '#DC2626',
+  complaint: '#B91C1C',
+  installation: '#059669',
+  testing: '#2563EB',
+  business_opportunity: '#CA8A04',
 }
 
 function StatusBadge({ status }: { status: string }) {

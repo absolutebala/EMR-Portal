@@ -37,6 +37,11 @@ export function JobTypeBadge({ type }: { type: string }) {
     amc: 'AMC',
     commissioning_activities: 'Commissioning',
     supervision: 'Supervision',
+    overhauling: 'Overhauling',
+    complaint: 'Complaint',
+    installation: 'Installation',
+    testing: 'Testing',
+    business_opportunity: 'Business Opportunity',
   }
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: 'var(--gl)', color: 'var(--txm)' }}>

@@ -106,6 +106,10 @@ export interface WorkOrder {
   created_by: string | null
   created_at: string
   updated_at: string
+  reported_date: string | null
+  reported_through: ReportedThrough | null
+  customer_message: string | null
+  solution_through: SolutionThrough | null
   // joined
   customer_name?: string
   engineer_name?: string
@@ -113,7 +117,11 @@ export interface WorkOrder {
   transformer_ids?: string[]
   site_name?: string | null
   has_warranty?: boolean
+  additional_engineers?: { id: string; name: string }[]
 }
+
+export type ReportedThrough = 'whatsapp' | 'email' | 'phone' | 'other'
+export type SolutionThrough = 'virtual' | 'on_site'
 
 export interface WorkOrderActivity {
   id: string
@@ -124,7 +132,9 @@ export interface WorkOrderActivity {
 }
 
 export type FormStatus = 'draft' | 'active'
-export type JobType = 'site_inspection' | 'amc' | 'commissioning_activities' | 'supervision'
+export type JobType =
+  | 'site_inspection' | 'amc' | 'commissioning_activities' | 'supervision'
+  | 'overhauling' | 'complaint' | 'installation' | 'testing' | 'business_opportunity'
 export type FieldType = 'text' | 'long_text' | 'number' | 'date' | 'dropdown' | 'photo' | 'signature' | 'checkbox'
 export type StatusType = 'yes_no' | 'tested_not_tested' | 'checkbox_only' | 'two_party' | 'two_party_exclusive' | 'observation' | 'measurement'
 

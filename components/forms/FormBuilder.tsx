@@ -22,8 +22,13 @@ import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, 
 const JOB_TYPES: { value: JobType; label: string }[] = [
   { value: 'site_inspection', label: 'Site Inspection' },
   { value: 'amc', label: 'AMC' },
-  { value: 'commissioning_activities', label: 'Commissioning Activities' },
+  { value: 'commissioning_activities', label: 'Commissioning' },
   { value: 'supervision', label: 'Supervision' },
+  { value: 'overhauling', label: 'Overhauling' },
+  { value: 'complaint', label: 'Complaint' },
+  { value: 'installation', label: 'Installation' },
+  { value: 'testing', label: 'Testing' },
+  { value: 'business_opportunity', label: 'Business Opportunity' },
 ]
 
 const FIELD_TYPES: { type: FieldType; label: string; icon: React.ReactNode }[] = [
