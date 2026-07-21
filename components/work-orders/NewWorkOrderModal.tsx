@@ -85,6 +85,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     } else {
       getNextTicketNumberPreview().then(({ ticketNumber: t }) => setTicketNumber(t))
       getAssignableEngineers().then(({ engineers: eng }) => setEngineers(eng))
+      setReportedDate(new Date().toLocaleDateString('en-CA'))
     }
   }, [open, prefillCustomerId])
 
@@ -223,39 +224,6 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           </div>
           <div />
 
-          {!selectedCustomerId && (
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={fl2}>Customer <span style={{ color: 'var(--m)' }}>*</span></label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  style={fi2} value={custQuery}
-                  onChange={e => handleCustomerSearch(e.target.value)}
-                  placeholder="Search by customer name…"
-                />
-                {custSearching && <div style={{ position: 'absolute', right: 10, top: 10, fontSize: 10, color: 'var(--txm)' }}>Searching…</div>}
-                {custResults.length > 0 && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.1)', zIndex: 200, overflow: 'hidden', marginTop: 4 }}>
-                    {custResults.map(c => (
-                      <div key={c.customer_id} onClick={() => selectCustomer(c.customer_id, c.name)}
-                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gm)' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--mp)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{c.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--txm)' }}>{c.contact_person} · {c.phone}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {custQuery.length >= 2 && !custSearching && custResults.length === 0 && (
-                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>No customer found for &quot;{custQuery}&quot;</span>
-                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Serial numbers <span style={{ color: 'var(--m)' }}>*</span></label>
@@ -323,9 +291,42 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
             )}
           </div>
 
+          {!selectedCustomerId && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Customer <span style={{ color: 'var(--m)' }}>*</span></label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  style={fi2} value={custQuery}
+                  onChange={e => handleCustomerSearch(e.target.value)}
+                  placeholder="Search by customer name…"
+                />
+                {custSearching && <div style={{ position: 'absolute', right: 10, top: 10, fontSize: 10, color: 'var(--txm)' }}>Searching…</div>}
+                {custResults.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.1)', zIndex: 200, overflow: 'hidden', marginTop: 4 }}>
+                    {custResults.map(c => (
+                      <div key={c.customer_id} onClick={() => selectCustomer(c.customer_id, c.name)}
+                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gm)' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--mp)'}
+                        onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{c.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--txm)' }}>{c.contact_person} · {c.phone}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {custQuery.length >= 2 && !custSearching && custResults.length === 0 && (
+                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>No customer found for &quot;{custQuery}&quot;</span>
+                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div>
             <label style={fl2}>Reported date</label>
-            <input type="date" style={fi2} value={reportedDate} onChange={e => setReportedDate(e.target.value)} />
+            <input type="date" style={fi2} value={reportedDate} onChange={e => setReportedDate(e.target.value)} max={new Date().toLocaleDateString('en-CA')} />
           </div>
           <div>
             <label style={fl2}>Reported through</label>

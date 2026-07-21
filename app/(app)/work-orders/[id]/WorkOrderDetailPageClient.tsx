@@ -447,7 +447,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…" />
 
                       {fieldLabel('Reported date')}
-                      <input type="date" style={inputStyle} value={form.reported_date} onChange={e => setForm(f => ({ ...f, reported_date: e.target.value }))} />
+                      <input type="date" style={inputStyle} value={form.reported_date} onChange={e => setForm(f => ({ ...f, reported_date: e.target.value }))} max={new Date().toLocaleDateString('en-CA')} />
 
                       {fieldLabel('Reported through')}
                       <select style={inputStyle} value={form.reported_through} onChange={e => setForm(f => ({ ...f, reported_through: e.target.value }))}>
