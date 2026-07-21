@@ -617,6 +617,14 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                     {new Date(v.checkin.checkedInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                                     {v.checkin.latitude != null && v.checkin.longitude != null && ` · ${v.checkin.latitude.toFixed(4)}° N, ${v.checkin.longitude.toFixed(4)}° E`}
                                   </div>
+                                  {v.outcome !== 'in_progress' && (
+                                    <>
+                                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 6, marginBottom: 2 }}>Checked out</div>
+                                      <div style={{ fontSize: 10, color: 'var(--txm)' }}>
+                                        {new Date(v.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -669,7 +677,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                   Download visit PDF →
                                 </a>
                               )}
-                              {!submittedForm && !v.pdfUrl && (
+                              {v.wordUrl && (
+                                <a href={v.wordUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                                  Download visit Word doc →
+                                </a>
+                              )}
+                              {!submittedForm && !v.pdfUrl && !v.wordUrl && (
                                 <span style={{ fontSize: 11, color: 'var(--txm)' }}>No form data available</span>
                               )}
                             </div>

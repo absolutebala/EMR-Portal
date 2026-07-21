@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
+import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { extractPlaceLabel } from '@/lib/geocode'
 
@@ -551,23 +552,23 @@ export async function submitCheckIn(params: {
   }
 }
 
-// Builds the visit summary PDF at closure time (not form-submit time) — pulls the
-// job/customer/form structure plus whatever the engineer has saved so far in
-// form_submissions, since the closure screen itself only has the day's outcome fields.
-async function buildVisitPdf(
+// Builds the visit summary PDF + Word doc at closure time (not form-submit time) —
+// pulls the job/customer/form structure plus whatever the engineer has saved so far
+// in form_submissions, since the closure screen itself only has the day's outcome fields.
+async function buildVisitDocs(
   admin: ReturnType<typeof adminClient>,
   workOrderId: string,
   engineerName: string,
   clientName: string | null,
   engineerSignature: string | null,
   clientSignature: string | null
-): Promise<{ pdfUrl: string | null }> {
+): Promise<{ pdfUrl: string | null; wordUrl: string | null }> {
   const woResult = await withTimeout(
     admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single(),
     8000
   )
   const wo = woResult?.data
-  if (!wo) return { pdfUrl: null }
+  if (!wo) return { pdfUrl: null, wordUrl: null }
 
   const dataResult = await withTimeout(
     Promise.all([
@@ -578,7 +579,7 @@ async function buildVisitPdf(
     ]),
     8000
   )
-  if (!dataResult) return { pdfUrl: null }
+  if (!dataResult) return { pdfUrl: null, wordUrl: null }
   const [{ data: customer }, { data: wotRows }, { data: formRow }, { data: submission }] = dataResult
 
   type WotRow = { transformers: { serial_number: string } | null }
@@ -609,33 +610,49 @@ async function buildVisitPdf(
     }))
   }
 
-  try {
-    const pdfBuffer = await generateVisitPdf({
-      woNumber: wo.wo_number,
-      jobType: wo.job_type,
-      customerName: customer?.name || '',
-      serialNumbers,
-      engineerName,
-      clientName,
-      visitType: 'final',
-      sections,
-      fieldValues: formData.fields || {},
-      rowValues: formData.table_rows || {},
-      engineerSignature,
-      clientSignature,
-    })
+  const docParams = {
+    woNumber: wo.wo_number,
+    jobType: wo.job_type,
+    customerName: customer?.name || '',
+    serialNumbers,
+    engineerName,
+    clientName,
+    visitType: 'final' as const,
+    sections,
+    fieldValues: formData.fields || {},
+    rowValues: formData.table_rows || {},
+    engineerSignature,
+    clientSignature,
+  }
+  const stamp = Date.now()
 
-    const path = `visit-pdfs/${workOrderId}-${Date.now()}.pdf`
+  let pdfUrl: string | null = null
+  try {
+    const pdfBuffer = await generateVisitPdf(docParams)
+    const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
     const upResult = await withTimeout(
       admin.storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' }),
       12000
     )
-    if (!upResult || upResult.error) return { pdfUrl: null }
-    return { pdfUrl: admin.storage.from('assets').getPublicUrl(path).data.publicUrl }
+    if (upResult && !upResult.error) pdfUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
   } catch (e) {
-    console.error('buildVisitPdf failed:', e)
-    return { pdfUrl: null }
+    console.error('buildVisitDocs (pdf) failed:', e)
   }
+
+  let wordUrl: string | null = null
+  try {
+    const wordBuffer = await generateVisitWord(docParams)
+    const path = `visit-docs/${workOrderId}-${stamp}.docx`
+    const upResult = await withTimeout(
+      admin.storage.from('assets').upload(path, wordBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      12000
+    )
+    if (upResult && !upResult.error) wordUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+  } catch (e) {
+    console.error('buildVisitDocs (word) failed:', e)
+  }
+
+  return { pdfUrl, wordUrl }
 }
 
 export async function submitDailyClosure(params: {
@@ -665,14 +682,17 @@ export async function submitDailyClosure(params: {
     const actor = actorResult?.data
     const engineerName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
 
-    // Only a completed (final) visit generates a PDF + gets flagged as sent to SAP —
-    // "sent to SAP" is mocked, there is no real SAP integration, but the PDF is real.
+    // Only a completed (final) visit generates a PDF + Word doc and gets flagged as
+    // sent to SAP — "sent to SAP" is mocked, there is no real SAP integration, but
+    // both documents are real.
     let pdfUrl: string | null = null
+    let wordUrl: string | null = null
     let sentToSap = false
     let sentToSapAt: string | null = null
     if (params.outcome === 'completed') {
-      const result = await buildVisitPdf(admin, params.workOrderId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
+      const result = await buildVisitDocs(admin, params.workOrderId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
       pdfUrl = result.pdfUrl
+      wordUrl = result.wordUrl
       sentToSap = !!pdfUrl
       sentToSapAt = pdfUrl ? new Date().toISOString() : null
     }
@@ -691,6 +711,7 @@ export async function submitDailyClosure(params: {
         client_name: params.clientName,
         client_signature: params.clientSignature,
         pdf_url: pdfUrl,
+        word_url: wordUrl,
         sent_to_sap: sentToSap,
         sent_to_sap_at: sentToSapAt,
       }),
@@ -709,6 +730,7 @@ export async function submitDailyClosure(params: {
         client_name: params.clientName,
         client_signature: params.clientSignature,
         pdf_url: pdfUrl,
+        word_url: wordUrl,
         sent_to_sap: sentToSap,
         sent_to_sap_at: sentToSapAt,
       }),

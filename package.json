@@ -12,6 +12,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@types/pdfkit": "^0.17.6",
+    "docx": "^9.7.1",
     "lucide-react": "^1.22.0",
     "next": "16.2.9",
     "pdfkit": "^0.19.1",

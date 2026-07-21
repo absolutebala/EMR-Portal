@@ -51,6 +51,7 @@ export interface WorkOrderVisit {
   engineerSignature: string | null
   clientSignature: string | null
   pdfUrl: string | null
+  wordUrl: string | null
   sentToSap: boolean
   createdAt: string
   summary: string | null
@@ -168,7 +169,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         .eq('work_order_id', id)
         .order('checked_in_at', { ascending: true }),
       admin.from('work_order_daily_closures')
-        .select('id, outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, engineer_signature, client_name, client_signature, pdf_url, sent_to_sap, engineer_id, created_at')
+        .select('id, outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, engineer_signature, client_name, client_signature, pdf_url, word_url, sent_to_sap, engineer_id, created_at')
         .eq('work_order_id', id)
         .order('created_at', { ascending: true }),
       admin.from('work_order_additional_engineers').select('engineer_id, profiles(first_name, last_name)').eq('work_order_id', id),
@@ -188,7 +189,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     type ClosureRow = {
       id: string; outcome: string; summary: string; pending_reason: string | null; materials_required: string | null
       revisit_date: string | null; needs_reassignment: boolean; engineer_signature: string | null
-      client_name: string | null; client_signature: string | null; pdf_url: string | null; sent_to_sap: boolean
+      client_name: string | null; client_signature: string | null; pdf_url: string | null; word_url: string | null; sent_to_sap: boolean
       engineer_id: string | null; created_at: string
     }
     const sortedCheckins = (allCheckins as CheckinRow[] | null) || []
@@ -216,6 +217,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         engineerSignature: c.engineer_signature,
         clientSignature: c.client_signature,
         pdfUrl: c.pdf_url,
+        wordUrl: c.word_url,
         sentToSap: c.sent_to_sap,
         createdAt: c.created_at,
         summary: c.summary,
@@ -244,6 +246,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         engineerSignature: null,
         clientSignature: null,
         pdfUrl: null,
+        wordUrl: null,
         sentToSap: false,
         createdAt: ongoing.checked_in_at,
         summary: null,
