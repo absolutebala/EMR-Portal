@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { getWorkOrders, getAssignableEngineers } from '@/app/actions/get-work-orders'
+import { getWorkOrderAlerts, type WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
+import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import type { WorkOrder } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
@@ -75,6 +77,7 @@ export default function WorkOrdersPage() {
   const [engFilter, setEngFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
+  const [alerts, setAlerts] = useState<WorkOrderAlerts>({ overdue: [], needsReassignment: [], engineerOnLeave: [] })
   const supabase = useMemo(() => createClient(), [])
 
   const loadWorkOrders = useCallback(async () => {
@@ -90,6 +93,7 @@ export default function WorkOrdersPage() {
 
   useEffect(() => {
     loadWorkOrders()
+    getWorkOrderAlerts().then(({ alerts: a }) => setAlerts(a))
     supabase.auth.getSession().then(({ data: { session } }) => {
       const userId = session?.user.id
       if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
@@ -110,37 +114,46 @@ export default function WorkOrdersPage() {
     return matchSearch && matchStatus && matchJob && matchEng && matchDate
   })
 
-  // Stats — "Completed today" uses today's local date
-  const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
-  const stats = {
-    open: workOrders.filter(w => w.status !== 'completed').length,
-    assigned: workOrders.filter(w => w.status === 'assigned').length,
-    unassigned: workOrders.filter(w => w.status === 'unassigned').length,
-    completedToday: workOrders.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
-    needsReassignment: workOrders.filter(w => w.status === 'needs_reassignment').length,
-  }
-
   return (
     <>
       <Topbar title="Notifications" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
-          {[
-            { label: 'Open notifications', val: stats.open, sub: 'Total active', color: 'var(--m)' },
-            { label: 'Assigned', val: stats.assigned, sub: 'Engineer allocated', color: 'var(--blue)' },
-            { label: 'Unassigned', val: stats.unassigned, sub: 'Awaiting assignment', color: 'var(--amber)' },
-            { label: 'Completed today', val: stats.completedToday, sub: 'MoM generated', color: 'var(--green)' },
-            { label: 'Need Reassign', val: stats.needsReassignment, sub: 'Different engineer needed', color: '#EA580C' },
-          ].map(s => (
-            <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }} />
-              <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', lineHeight: 1 }}>{s.val}</div>
-              <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>{s.sub}</div>
-            </div>
-          ))}
+        {/* Alerts */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+          <ListCard title="Overdue" empty="Nothing overdue.">
+            {alerts.overdue.map(a => (
+              <ListRow
+                key={a.id}
+                title={a.woNumber}
+                subtitle={
+                  <>
+                    <div>{a.engineerName}</div>
+                    {a.scheduledDate && <div>{new Date(a.scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                  </>
+                }
+                href={`/work-orders/${a.id}`}
+              >
+                <span style={{ fontSize: 10, color: 'var(--txm)' }}>{a.customerName}</span>
+              </ListRow>
+            ))}
+          </ListCard>
+
+          <ListCard title="Needs reassignment" empty="Nothing needs reassignment.">
+            {alerts.needsReassignment.map(a => (
+              <ListRow key={a.id} title={a.woNumber} subtitle={a.engineerName} href={`/work-orders/${a.id}`}>
+                <span style={{ fontSize: 10, color: 'var(--txm)' }}>{a.customerName}</span>
+              </ListRow>
+            ))}
+          </ListCard>
+
+          <ListCard title="Engineer on leave (scheduled today)" empty="No conflicts today.">
+            {alerts.engineerOnLeave.map(a => (
+              <ListRow key={a.id} title={a.woNumber} subtitle={a.engineerName} href={`/work-orders/${a.id}`}>
+                <Badge bg="#F1F5F9" color="#475569" label="On Leave" />
+              </ListRow>
+            ))}
+          </ListCard>
         </div>
 
         {/* Toolbar */}

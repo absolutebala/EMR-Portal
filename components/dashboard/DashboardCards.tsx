@@ -3,13 +3,13 @@
 // and client-side interactive cards (e.g. AssignableList) can use identical styling.
 import Link from 'next/link'
 
-export function ListCard({ title, viewAllHref, empty, children }: { title: string; viewAllHref: string; empty: string; children: React.ReactNode }) {
+export function ListCard({ title, viewAllHref, empty, children }: { title: string; viewAllHref?: string; empty: string; children: React.ReactNode }) {
   const hasContent = Array.isArray(children) ? children.length > 0 : !!children
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{title}</span>
-        <Link href={viewAllHref} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>View all →</Link>
+        {viewAllHref && <Link href={viewAllHref} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>View all →</Link>}
       </div>
       <div>
         {hasContent ? children : (
