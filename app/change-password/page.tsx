@@ -39,6 +39,14 @@ export default function ChangePasswordPage() {
     const { error: profileError } = await completePasswordChange()
     if (profileError) { setError('Password set but could not update profile. Please contact admin.'); setSaving(false); return }
 
+    // completePasswordChange() clears must_change_password via the admin API, but
+    // that doesn't reissue the browser's already-cached session JWT — its
+    // user_metadata claim still says must_change_password: true until the token is
+    // refreshed. Without this, the (app) layout's gate reads the stale claim and
+    // bounces straight back to this same page after the redirect below, even though
+    // the password/profile update both actually succeeded.
+    await supabase.auth.refreshSession()
+
     // Full page navigation so the server reads fresh session cookies
     window.location.href = '/dashboard'
   }
