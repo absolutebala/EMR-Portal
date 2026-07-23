@@ -1,7 +1,26 @@
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
-import { getFieldEngineersOverview } from '@/app/actions/get-engineers'
+import { getFieldEngineersOverview, type EngineerStatus } from '@/app/actions/get-engineers'
+
+const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; label: string }> = {
+  available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
+  on_leave: { bg: '#F1F5F9', color: '#475569', label: 'On Leave' },
+  on_the_way: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On the way' },
+  travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
+  reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached site' },
+}
+
+const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  unassigned: { bg: '#F3F4F6', color: '#6B7280', label: 'Unassigned' },
+  assigned: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Assigned' },
+  in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
+  pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
+  completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+  needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
+}
+
+interface ApprovalRow { id: string; quantity: number; productName: string; woNumber: string }
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -23,6 +42,8 @@ export default async function DashboardPage() {
     { count: needsReassignCount },
     { count: unassignedCount },
     { count: pendingApprovalCount },
+    { data: recentNotifRows },
+    { data: approvalRowsRaw },
   ] = await Promise.all([
     getAuthedUser(supabase),
     supabase.from('profiles').select('*', { count: 'exact', head: true }),
@@ -34,8 +55,21 @@ export default async function DashboardPage() {
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'needs_reassignment'),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'unassigned'),
     supabase.from('product_request_items').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('work_orders').select('id, wo_number, status, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
+    supabase.from('product_request_items').select('id, quantity, products(name), product_requests(work_orders(wo_number))').eq('status', 'pending').order('created_at', { ascending: false }).limit(6),
   ])
   const engineerCount = engineerRoster.length
+
+  type NotifRow = { id: string; wo_number: string; status: string; customers: { name: string } | null }
+  const recentNotifications = (recentNotifRows as unknown as NotifRow[]) || []
+
+  type ApprovalRowRaw = { id: string; quantity: number; products: { name: string } | null; product_requests: { work_orders: { wo_number: string } | null } | null }
+  const pendingApprovals: ApprovalRow[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || []).map(r => ({
+    id: r.id,
+    quantity: r.quantity,
+    productName: r.products?.name || 'Unknown product',
+    woNumber: r.product_requests?.work_orders?.wo_number || '—',
+  }))
 
   const { data: profile } = await supabase
     .from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
@@ -93,7 +127,77 @@ export default async function DashboardPage() {
             </Link>
           ))}
         </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 24 }}>
+          <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
+            {engineerRoster.slice(0, 6).map(e => {
+              const cfg = ENGINEER_STATUS_CFG[e.status]
+              const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached') && e.statusSiteName
+                ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
+              return (
+                <ListRow key={e.id} title={e.name}>
+                  <Badge bg={cfg.bg} color={cfg.color} label={label} />
+                </ListRow>
+              )
+            })}
+          </ListCard>
+
+          <ListCard title="Notifications" viewAllHref="/work-orders" empty="No open notifications.">
+            {recentNotifications.map(wo => {
+              const cfg = WO_STATUS_CFG[wo.status] || WO_STATUS_CFG.unassigned
+              return (
+                <ListRow key={wo.id} title={wo.wo_number} subtitle={wo.customers?.name || undefined} href={`/work-orders/${wo.id}`}>
+                  <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
+                </ListRow>
+              )
+            })}
+          </ListCard>
+
+          <ListCard title="Product request approvals" viewAllHref="/requests" empty="Nothing pending approval.">
+            {pendingApprovals.map(a => (
+              <ListRow key={a.id} title={`${a.productName} × ${a.quantity}`} subtitle={a.woNumber} href="/requests" />
+            ))}
+          </ListCard>
+        </div>
       </div>
     </>
+  )
+}
+
+function ListCard({ title, viewAllHref, empty, children }: { title: string; viewAllHref: string; empty: string; children: React.ReactNode }) {
+  const hasContent = Array.isArray(children) ? children.length > 0 : !!children
+  return (
+    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{title}</span>
+        <Link href={viewAllHref} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>View all →</Link>
+      </div>
+      <div>
+        {hasContent ? children : (
+          <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>{empty}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ListRow({ title, subtitle, href, children }: { title: string; subtitle?: string; href?: string; children?: React.ReactNode }) {
+  const content = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--gl)' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>{subtitle}</div>}
+      </div>
+      {children && <div style={{ flexShrink: 0 }}>{children}</div>}
+    </div>
+  )
+  return href ? <Link href={href} style={{ textDecoration: 'none', display: 'block' }}>{content}</Link> : content
+}
+
+function Badge({ bg, color, label }: { bg: string; color: string; label: string }) {
+  return (
+    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: bg, color, whiteSpace: 'nowrap' }}>
+      {label}
+    </span>
   )
 }
