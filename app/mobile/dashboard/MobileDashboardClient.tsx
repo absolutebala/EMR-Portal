@@ -160,7 +160,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                 </button>
                 <button
                   className="mtap"
-                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}/checkin`)}
+                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}/form`)}
                   style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                 >
                   Job completed
