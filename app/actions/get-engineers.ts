@@ -109,8 +109,11 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     const engineers: FieldEngineerOverview[] = profiles.map(p => {
       const theirWOs = (wos || []).filter(w => w.engineer_id === p.id)
 
+      // Nearest scheduled_date among anything still open — not restricted to
+      // assigned/unassigned — so this reflects what the engineer is actually busy
+      // with next (including a job already in progress), not just untouched jobs.
       const upcoming = theirWOs
-        .filter(w => (w.status === 'assigned' || w.status === 'unassigned') && w.scheduled_date)
+        .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment' && w.scheduled_date)
         .sort((a, b) => (a.scheduled_date! < b.scheduled_date! ? -1 : 1))[0]
 
       const statusWo = p.engineer_status_work_order_id ? theirWOs.find(w => w.id === p.engineer_status_work_order_id) : null
