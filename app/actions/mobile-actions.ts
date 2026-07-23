@@ -133,20 +133,27 @@ type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
   scheduled_date: string | null; notes: string | null; customer_id: string
   customers: { name: string; contact_person: string; phone: string } | null
-  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { site_name: string; site_address: string; latitude: number | null; longitude: number | null } | null } | null }[]
+  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 const WORK_ORDER_SELECT = `
   id, wo_number, job_type, status, scheduled_date, notes, customer_id,
   customers ( name, contact_person, phone ),
-  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( site_name, site_address, latitude, longitude ) ) )
+  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( id, site_name, site_address ) ) )
 `
 
-function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: number } | null): MobileWorkOrder {
+// Site coordinates are looked up via a separate flat query (like getSiteCoordinates()
+// in get-work-orders.ts already does), not embedded into WORK_ORDER_SELECT above —
+// customer_sites.latitude/longitude inside that 3-levels-deep nested embed
+// (work_orders → work_order_transformers → transformers → customer_sites) failed in
+// production with "column customer_sites_N.latitude does not exist", even though the
+// same columns work fine in a flat, non-embedded query against the same table.
+function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: number } | null, siteCoordsById: Record<string, { lat: number; lng: number }>): MobileWorkOrder {
   const rows = w.work_order_transformers || []
   const site = rows[0]?.transformers?.customer_sites
-  const distanceKm = engineerLoc && site?.latitude != null && site?.longitude != null
-    ? haversineKm(engineerLoc.lat, engineerLoc.lng, site.latitude, site.longitude)
+  const siteCoords = site?.id ? siteCoordsById[site.id] : undefined
+  const distanceKm = engineerLoc && siteCoords
+    ? haversineKm(engineerLoc.lat, engineerLoc.lng, siteCoords.lat, siteCoords.lng)
     : null
   return {
     id: w.id,
@@ -181,7 +188,24 @@ async function fetchEngineerWorkOrders(
     console.error('fetchEngineerWorkOrders:', error.message)
     throw new Error(error.message)
   }
-  return ((wos as unknown as WorkOrderEmbed[]) || []).map(w => mapWorkOrderEmbed(w, engineerLoc))
+  const rows = (wos as unknown as WorkOrderEmbed[]) || []
+
+  let siteCoordsById: Record<string, { lat: number; lng: number }> = {}
+  if (engineerLoc) {
+    try {
+      const siteIds = [...new Set(rows.map(w => w.work_order_transformers?.[0]?.transformers?.customer_sites?.id).filter(Boolean))] as string[]
+      if (siteIds.length) {
+        const { data: sites } = await admin.from('customer_sites').select('id, latitude, longitude').in('id', siteIds)
+        const map: Record<string, { lat: number; lng: number }> = {}
+        ;(sites || []).forEach(s => { if (s.latitude != null && s.longitude != null) map[s.id] = { lat: s.latitude, lng: s.longitude } })
+        siteCoordsById = map
+      }
+    } catch (e) {
+      console.error('fetchEngineerWorkOrders (site coords):', e)
+    }
+  }
+
+  return rows.map(w => mapWorkOrderEmbed(w, engineerLoc, siteCoordsById))
 }
 
 async function getEngineerName(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ name: string } | null> {
@@ -218,7 +242,7 @@ async function fetchSingleWorkOrder(
   const rows = w.work_order_transformers || []
 
   return {
-    ...mapWorkOrderEmbed(w, null),
+    ...mapWorkOrderEmbed(w, null, {}),
     customer_id: w.customer_id,
     customer_contact: w.customers?.contact_person || null,
     customer_phone: w.customers?.phone || null,
