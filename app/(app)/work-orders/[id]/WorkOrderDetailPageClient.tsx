@@ -39,10 +39,11 @@ const SOLUTION_THROUGH_LABELS: Record<string, string> = {
 const STATUS_NEXT: Record<string, { label: string; value: string; color: string }[]> = {
   unassigned: [],
   assigned: [{ label: 'Mark In Progress', value: 'in_progress', color: 'var(--amber)' }],
-  in_progress: [
-    { label: 'Mark Pending', value: 'pending', color: '#EF4444' },
-    { label: 'Mark Completed', value: 'completed', color: 'var(--green)' },
-  ],
+  // A visit that can't be finished in a day stays In Progress with a follow-up date
+  // (set from the mobile closure flow) — there's no manual "Mark Pending" from here
+  // anymore, since that flow also requires capturing the follow-up date/reassignment.
+  in_progress: [{ label: 'Mark Completed', value: 'completed', color: 'var(--green)' }],
+  // Kept only as an escape hatch for any legacy row still sitting in this status.
   pending: [{ label: 'Mark In Progress', value: 'in_progress', color: 'var(--amber)' }],
   // No direct transition button — the exit path is the existing "Reassign engineer"
   // action, which already flips status back to 'assigned' automatically.

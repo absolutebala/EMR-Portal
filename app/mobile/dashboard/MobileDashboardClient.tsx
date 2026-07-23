@@ -36,7 +36,7 @@ const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: strin
     icon: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
   },
   {
-    key: 'pending', label: 'Pending', color: '#DC2626', bg: '#FEE2E2',
+    key: 'needsReassignment', label: 'Needs Reassignment', color: '#EA580C', bg: '#FED7AA',
     icon: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
   },
   {

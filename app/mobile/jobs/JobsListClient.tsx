@@ -11,13 +11,16 @@ interface Props {
   error: string | null
 }
 
-type TabId = 'all' | 'assigned' | 'in_progress' | 'pending' | 'completed'
+// 'pending' is no longer a distinct work-order status — a visit that couldn't be
+// finished in a day just stays In Progress with a follow-up date on the job card —
+// so there's no separate Pending tab anymore, only Needs Reassignment.
+type TabId = 'all' | 'assigned' | 'in_progress' | 'needs_reassignment' | 'completed'
 
 const TABS: { id: TabId; label: string; statuses: string[] }[] = [
   { id: 'all', label: 'All', statuses: [] },
   { id: 'assigned', label: 'Assigned', statuses: ['assigned', 'unassigned'] },
   { id: 'in_progress', label: 'In Progress', statuses: ['in_progress'] },
-  { id: 'pending', label: 'Pending', statuses: ['pending', 'needs_reassignment'] },
+  { id: 'needs_reassignment', label: 'Needs Reassignment', statuses: ['needs_reassignment'] },
   { id: 'completed', label: 'Completed', statuses: ['completed'] },
 ]
 
@@ -26,7 +29,7 @@ export default function JobsListClient({ workOrders, error }: Props) {
   const [search, setSearch] = useState('')
 
   const tabCounts = useMemo(() => {
-    const counts: Record<TabId, number> = { all: workOrders.length, assigned: 0, in_progress: 0, pending: 0, completed: 0 }
+    const counts: Record<TabId, number> = { all: workOrders.length, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0 }
     for (const t of TABS) {
       if (t.id === 'all') continue
       counts[t.id] = workOrders.filter(w => t.statuses.includes(w.status)).length

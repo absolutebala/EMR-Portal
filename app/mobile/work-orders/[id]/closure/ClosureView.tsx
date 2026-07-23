@@ -47,8 +47,8 @@ export default function ClosureView({ workOrder }: Props) {
       setError(outcome === 'completed' ? 'Please describe what was completed today' : 'Please describe what remains to be done')
       return
     }
-    if (outcome === 'pending' && !revisitDate && !needsReassignment) {
-      setError('Please provide a follow-up date or flag this job for reassignment')
+    if (outcome === 'pending' && !revisitDate) {
+      setError('Please provide a follow-up date')
       return
     }
     if (!engineerSignature) { setError('Engineer signature is required'); return }
@@ -152,7 +152,7 @@ export default function ClosureView({ workOrder }: Props) {
         {outcome === 'pending' && (
           <>
             <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 10, padding: '9px 12px', marginBottom: 12, fontSize: 11, lineHeight: 1.5 }}>
-              Marking pending will notify your supervisor. Notification stays open for continuation.
+              This notification stays In Progress with a follow-up date — your supervisor will be notified.
             </div>
             <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
               <div style={{ marginBottom: 12 }}>
@@ -175,15 +175,12 @@ export default function ClosureView({ workOrder }: Props) {
                 </label>
                 <textarea rows={2} value={materialsRequired} onChange={e => setMaterialsRequired(e.target.value)} placeholder="List required parts or materials..." style={{ ...inputStyle, resize: 'none' }} />
               </div>
-              <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-                  Expected revisit date
+                  Follow-up date <span style={{ color: '#7D1D3F' }}>*</span>
                 </label>
-                <input type="date" value={revisitDate} onChange={e => setRevisitDate(e.target.value)} style={inputStyle} />
+                <input type="date" min={new Date().toLocaleDateString('en-CA')} value={revisitDate} onChange={e => setRevisitDate(e.target.value)} style={inputStyle} />
               </div>
-              <p style={{ fontSize: 10, color: '#7A6870', margin: '0 0 12px' }}>
-                A revisit date or a reassignment flag is required <span style={{ color: '#7D1D3F' }}>*</span>
-              </p>
               <label
                 className="mtap"
                 style={{

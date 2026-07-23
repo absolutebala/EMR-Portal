@@ -32,7 +32,11 @@ const JOB_COLORS: Record<string, string> = {
   business_opportunity: '#CA8A04',
 }
 
-function StatusBadge({ status }: { status: string }) {
+// "Pending" is legacy-only now — a visit that couldn't be finished in a day keeps the
+// notification In Progress, with scheduledDate carrying the follow-up date (shown
+// below the badge). The entry stays here only so any stray legacy row still renders
+// sensibly instead of falling through to the "Unassigned" fallback.
+function StatusBadge({ status, scheduledDate }: { status: string; scheduledDate: string | null }) {
   const cfg: Record<string, { bg: string; color: string; label: string }> = {
     unassigned: { bg: '#F3F4F6', color: '#6B7280', label: 'Unassigned' },
     assigned: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Assigned' },
@@ -42,7 +46,16 @@ function StatusBadge({ status }: { status: string }) {
     needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
   }
   const c = cfg[status] || cfg.unassigned
-  return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{c.label}</span>
+  return (
+    <div>
+      <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{c.label}</span>
+      {scheduledDate && (
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>
+          {new Date(scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function JobBadge({ type }: { type: string }) {
@@ -104,7 +117,6 @@ export default function WorkOrdersPage() {
     assigned: workOrders.filter(w => w.status === 'assigned').length,
     unassigned: workOrders.filter(w => w.status === 'unassigned').length,
     completedToday: workOrders.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
-    pending: workOrders.filter(w => w.status === 'pending').length,
     needsReassignment: workOrders.filter(w => w.status === 'needs_reassignment').length,
   }
 
@@ -114,13 +126,12 @@ export default function WorkOrdersPage() {
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
             { label: 'Open notifications', val: stats.open, sub: 'Total active', color: 'var(--m)' },
             { label: 'Assigned', val: stats.assigned, sub: 'Engineer allocated', color: 'var(--blue)' },
             { label: 'Unassigned', val: stats.unassigned, sub: 'Awaiting assignment', color: 'var(--amber)' },
             { label: 'Completed today', val: stats.completedToday, sub: 'MoM generated', color: 'var(--green)' },
-            { label: 'Pending / Incomplete', val: stats.pending, sub: 'Awaiting revisit', color: 'var(--red)' },
             { label: 'Need Reassign', val: stats.needsReassignment, sub: 'Different engineer needed', color: '#EA580C' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
@@ -143,7 +154,6 @@ export default function WorkOrdersPage() {
             <option value="unassigned">Unassigned</option>
             <option value="assigned">Assigned</option>
             <option value="in_progress">In Progress</option>
-            <option value="pending">Pending</option>
             <option value="needs_reassignment">Need Reassign</option>
             <option value="completed">Completed</option>
           </select>
@@ -176,7 +186,7 @@ export default function WorkOrdersPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr>
-                    {['WO ID', 'Serial No(s)', 'Job type', 'Sold customer', 'Shipped to', 'Engineer', 'Warranty', 'Scheduled', 'Status', 'Actions'].map(h => (
+                    {['ID', 'Serial No(s)', 'Job type', 'Sold customer', 'Shipped to', 'Engineer', 'Warranty', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -204,10 +214,7 @@ export default function WorkOrdersPage() {
                           ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
                           : <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
                       </td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>
-                        {wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={wo.status} /></td>
+                      <td style={{ padding: '10px 14px' }}><StatusBadge status={wo.status} scheduledDate={wo.scheduled_date} /></td>
                       <td style={{ padding: '10px 14px' }}>
                         <button onClick={e => { e.stopPropagation(); router.push(`/work-orders/${wo.id}`) }}
                           style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>

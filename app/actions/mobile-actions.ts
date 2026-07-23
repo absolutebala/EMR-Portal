@@ -274,7 +274,7 @@ export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrd
 export interface MobileDashboardStats {
   assigned: number
   inProgress: number
-  pending: number
+  needsReassignment: number
   completed: number
 }
 
@@ -287,7 +287,7 @@ export async function getMobileDashboardData(): Promise<{
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
-    if (!user) return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
+    if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
 
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
@@ -296,10 +296,12 @@ export async function getMobileDashboardData(): Promise<{
       fetchEngineerWorkOrders(admin, user.id),
     ])
 
+    // "Pending" is no longer a distinct status — a visit that couldn't be finished in
+    // a day stays In Progress with a follow-up date, so it's already counted there.
     const stats: MobileDashboardStats = {
       assigned: workOrders.filter(w => w.status === 'assigned' || w.status === 'unassigned').length,
       inProgress: workOrders.filter(w => w.status === 'in_progress').length,
-      pending: workOrders.filter(w => w.status === 'pending').length,
+      needsReassignment: workOrders.filter(w => w.status === 'needs_reassignment').length,
       completed: workOrders.filter(w => w.status === 'completed').length,
     }
 
@@ -307,7 +309,7 @@ export async function getMobileDashboardData(): Promise<{
 
     return { stats, recentJobs, engineer, error: null }
   } catch (e: unknown) {
-    return { stats: { assigned: 0, inProgress: 0, pending: 0, completed: 0 }, recentJobs: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+    return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -1025,6 +1027,13 @@ export async function submitDailyClosure(params: {
     const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
+    // A follow-up date is always required for a pending visit now — it's the only
+    // signal for "when should someone check this again", since the notification no
+    // longer gets its own distinct Pending status (see below).
+    if (params.outcome === 'pending' && !params.revisitDate) {
+      return { error: 'A follow-up date is required' }
+    }
+
     const admin = adminClient()
     touchHeartbeat(admin, user.id)
 
@@ -1090,10 +1099,17 @@ export async function submitDailyClosure(params: {
       8000
     )
 
-    const newStatus = params.outcome === 'pending' && params.needsReassignment ? 'needs_reassignment' : params.outcome
+    // A visit that can't be finished in a day keeps the notification "in_progress" —
+    // 'pending' is no longer a distinct status — with scheduled_date carrying the
+    // follow-up date so "what's next for this job" stays in one consistent field
+    // across every status, not a separate untouched original-assignment date.
+    const newStatus = params.outcome === 'pending'
+      ? (params.needsReassignment ? 'needs_reassignment' : 'in_progress')
+      : params.outcome
     await withTimeout(
       admin.from('work_orders').update({
         status: newStatus,
+        ...(params.outcome === 'pending' ? { scheduled_date: params.revisitDate } : {}),
         updated_at: new Date().toISOString(),
       }).eq('id', params.workOrderId),
       8000
@@ -1103,7 +1119,7 @@ export async function submitDailyClosure(params: {
       ? `Marked notification completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
       : params.needsReassignment
         ? 'Marked pending — needs reassignment to a different engineer'
-        : 'Marked notification pending'
+        : `Marked in progress — follow-up on ${new Date(params.revisitDate!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
     logActivity(admin, params.workOrderId, user.id, activityMsg).catch(() => {})
 
     return { error: null }

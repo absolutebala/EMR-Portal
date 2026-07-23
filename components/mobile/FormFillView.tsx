@@ -38,6 +38,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   const [isOffline, setIsOffline] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [incompleteIds, setIncompleteIds] = useState<Set<string>>(new Set())
 
   const draftKey = `emr-draft-${workOrder.id}`
   const pendingKey = 'emr-pending-submissions'
@@ -114,14 +115,17 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   // below don't get invalidated just because some unrelated field changed.
   const setField = useCallback((id: string, value: string) => {
     setFieldValues(prev => ({ ...prev, [id]: value }))
+    setIncompleteIds(prev => (prev.has(id) && value.trim() ? (() => { const n = new Set(prev); n.delete(id); return n })() : prev))
   }, [])
 
   const setRowStatus = useCallback((rowId: string, status: string) => {
     setRowValues(prev => ({ ...prev, [rowId]: { ...prev[rowId], remarks: prev[rowId]?.remarks || '', status } }))
+    setIncompleteIds(prev => (prev.has(rowId) && status ? (() => { const n = new Set(prev); n.delete(rowId); return n })() : prev))
   }, [])
 
   const setRowRemarks = useCallback((rowId: string, remarks: string) => {
     setRowValues(prev => ({ ...prev, [rowId]: { ...prev[rowId], status: prev[rowId]?.status || '', remarks } }))
+    setIncompleteIds(prev => (prev.has(rowId) && remarks.trim() ? (() => { const n = new Set(prev); n.delete(rowId); return n })() : prev))
   }, [])
 
   async function syncPending() {
@@ -157,25 +161,27 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
     // prefill_from_job and read_only_on_mobile can't be edited by the engineer at all,
     // so if the auto-fill lookup found no match, blocking submission on it would be a
     // dead end rather than a real validation.
-    const missing: string[] = []
+    const missing = new Set<string>()
     for (const sec of form.sections) {
       for (const f of sec.fields) {
         if (f.prefill_from_job && f.read_only_on_mobile) continue
-        if (!fieldValues[f.id]?.trim()) missing.push(f.label)
+        if (!fieldValues[f.id]?.trim()) missing.add(f.id)
       }
       for (const t of sec.tables) {
         for (const row of t.rows) {
           const filled = t.status_type === 'observation' || t.status_type === 'measurement'
             ? !!rowValues[row.id]?.remarks?.trim()
             : !!rowValues[row.id]?.status
-          if (!filled) missing.push(row.row_label)
+          if (!filled) missing.add(row.id)
         }
       }
     }
-    if (missing.length > 0) {
-      setSubmitError(`Please complete all fields before submitting: ${missing.join(', ')}`)
+    if (missing.size > 0) {
+      setIncompleteIds(missing)
+      setSubmitError(`You have ${missing.size} incomplete field${missing.size > 1 ? 's' : ''} — highlighted below.`)
       return
     }
+    setIncompleteIds(new Set())
 
     setSubmitting(true)
 
@@ -375,6 +381,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                       value={fieldValues[field.id] || ''}
                       onChange={setField}
                       bordered={fi > 0}
+                      isIncomplete={incompleteIds.has(field.id)}
                     />
                   ))}
 
@@ -389,7 +396,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 
                     return (
                       <div key={table.id} style={{ borderTop: (ti > 0 || section.fields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
-                        {renderTable(table.status_type, topRows, childMap, rowValues, setRowStatus, setRowRemarks)}
+                        {renderTable(table.status_type, topRows, childMap, rowValues, setRowStatus, setRowRemarks, incompleteIds)}
                       </div>
                     )
                   })}
@@ -441,16 +448,17 @@ function renderTable(
   childMap: Record<string, MobileFormRow[]>,
   rowValues: RowValues,
   setRowStatus: (id: string, status: string) => void,
-  setRowRemarks: (id: string, remarks: string) => void
+  setRowRemarks: (id: string, remarks: string) => void,
+  incompleteIds: Set<string>
 ) {
   if (statusType === 'yes_no') {
     return (
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <YesNoRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+            <YesNoRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <YesNoRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+              <YesNoRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} />
             ))}
           </div>
         ))}
@@ -463,9 +471,9 @@ function renderTable(
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <TestedRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+            <TestedRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <TestedRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} />
+              <TestedRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} />
             ))}
           </div>
         ))}
@@ -476,8 +484,10 @@ function renderTable(
   if (statusType === 'checkbox_only') {
     return (
       <div>
-        {topRows.map((row, i) => (
-          <div key={row.id} style={{ padding: '12px 14px', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        {topRows.map((row, i) => {
+          const isIncomplete = incompleteIds.has(row.id)
+          return (
+          <div key={row.id} style={{ padding: '12px 14px', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10, background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
             <input
               type="checkbox"
               checked={rowValues[row.id]?.status === 'checked'}
@@ -489,7 +499,8 @@ function renderTable(
               {row.row_label}
             </span>
           </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -503,8 +514,10 @@ function renderTable(
           <span style={{ textAlign: 'center' }}>Col 1</span>
           <span style={{ textAlign: 'center' }}>Col 2</span>
         </div>
-        {topRows.map((row, i) => (
-          <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', borderTop: '1px solid #F5F3F5', padding: '10px 14px', alignItems: 'center' }}>
+        {topRows.map((row, i) => {
+          const isIncomplete = incompleteIds.has(row.id)
+          return (
+          <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', borderTop: '1px solid #F5F3F5', padding: '10px 14px', alignItems: 'center', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
             <span style={{ fontSize: 12, color: '#1C0D14', lineHeight: 1.4 }}>
               {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{row.sno_label}.</span>}
               {row.row_label}
@@ -516,7 +529,8 @@ function renderTable(
               <input type="checkbox" checked={rowValues[row.id]?.status === 'col2'} onChange={e => setRowStatus(row.id, e.target.checked ? 'col2' : '')} style={{ width: 20, height: 20, accentColor: '#7D1D3F' }} />
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -524,8 +538,10 @@ function renderTable(
   // observation / measurement: text input per row
   return (
     <div>
-      {topRows.map((row, i) => (
-        <div key={row.id} style={{ padding: '12px 14px', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none' }}>
+      {topRows.map((row, i) => {
+        const isIncomplete = incompleteIds.has(row.id)
+        return (
+        <div key={row.id} style={{ padding: '12px 14px', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
           <div style={{ fontSize: 12, color: '#374151', marginBottom: 6, fontWeight: 500 }}>
             {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{row.sno_label}.</span>}
             {row.row_label}
@@ -535,10 +551,11 @@ function renderTable(
             value={rowValues[row.id]?.remarks || ''}
             onChange={e => setRowRemarks(row.id, e.target.value)}
             placeholder={statusType === 'measurement' ? 'Enter value' : 'Enter observation'}
-            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }}
           />
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -546,14 +563,15 @@ function renderTable(
 // Memoized so typing into one field (or drawing a signature) doesn't re-render every
 // other field/table row in a large form — previously the whole form re-rendered on
 // every keystroke since nothing below FormFillView was isolated.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered }: {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete }: {
   field: MobileFormField
   value: string
   onChange: (id: string, value: string) => void
   bordered: boolean
+  isIncomplete: boolean
 }) {
   return (
-    <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none' }}>
+    <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
         {field.label}
         {!(field.prefill_from_job && field.read_only_on_mobile) && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
@@ -572,7 +590,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           readOnly={field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
           rows={3}
-          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
         />
       ) : field.field_type === 'checkbox' ? (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0' }}>
@@ -603,7 +621,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           onChange={e => onChange(field.id, e.target.value)}
           readOnly={field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
-          style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
         />
       )}
       {field.help_text && (
@@ -620,12 +638,13 @@ interface RowProps {
   value: { status: string; remarks: string }
   setRowStatus: (id: string, status: string) => void
   setRowRemarks: (id: string, remarks: string) => void
+  isIncomplete: boolean
 }
 
-const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatus, setRowRemarks }: RowProps) {
+const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete }: RowProps) {
   const val = value
   return (
-    <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: indent ? '#FAFAFA' : '#fff' }}>
+    <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: isIncomplete ? '#FEF2F2' : indent ? '#FAFAFA' : '#fff', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
         {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{row.sno_label}.</span>}
         {row.row_label}
@@ -675,10 +694,10 @@ const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatu
   )
 })
 
-const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowStatus, setRowRemarks }: RowProps) {
+const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete }: RowProps) {
   const val = value
   return (
-    <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: indent ? '#FAFAFA' : '#fff' }}>
+    <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: isIncomplete ? '#FEF2F2' : indent ? '#FAFAFA' : '#fff', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
         {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{row.sno_label}.</span>}
         {row.row_label}
