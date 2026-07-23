@@ -75,8 +75,18 @@ export default function ChangePasswordPage() {
           ) : (
             <>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)', margin: '0 0 4px' }}>Set your password</h2>
-              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 6 }}>
                 Welcome! Please set a permanent password for <strong>{email}</strong>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 20 }}>
+                Already set your password?{' '}
+                <button
+                  type="button"
+                  onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--m)', fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', fontSize: 11, textDecoration: 'underline' }}
+                >
+                  Sign in
+                </button>
               </div>
               {error && (
                 <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>
