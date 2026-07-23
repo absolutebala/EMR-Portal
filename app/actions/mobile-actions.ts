@@ -244,12 +244,18 @@ export interface OverdueFollowUp {
   workOrderId: string
   woNumber: string
   customerName: string
-  revisitDate: string
+  dueDate: string
+  // 'pending' = closed with a revisit date that's passed. 'stale_in_progress' = still
+  // checked in from a previous day, never closed out (engineer likely forgot).
+  kind: 'pending' | 'stale_in_progress'
 }
 
-// Pending jobs (not flagged for reassignment — those are no longer this engineer's
-// responsibility) whose most recent closure's revisit_date has already passed.
-// Surfaced as a prompt on dashboard load so a missed follow-up doesn't just sit there.
+// Two situations surfaced as a prompt on dashboard load so a job doesn't just sit
+// there unresolved: (1) Pending jobs (not flagged for reassignment — those are no
+// longer this engineer's responsibility) whose most recent closure's revisit_date has
+// already passed, and (2) In-progress jobs checked into on a previous day and never
+// closed out — these otherwise stay stuck forever since there's no closure/revisit
+// date to compare against.
 export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowUp[]; error: string | null }> {
   try {
     const sb = await serverClient()
@@ -259,28 +265,54 @@ export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowU
     const admin = adminClient()
     const workOrders = await fetchEngineerWorkOrders(admin, user.id)
     const pending = workOrders.filter(w => w.status === 'pending')
-    if (!pending.length) return { followUps: [], error: null }
-
-    const woIds = pending.map(w => w.id)
-    const { data: closures } = await admin
-      .from('work_order_daily_closures')
-      .select('work_order_id, revisit_date, created_at')
-      .in('work_order_id', woIds)
-      .order('created_at', { ascending: false })
-
-    // Closures already ordered desc, so the first match per work order is the latest.
-    const latestRevisitByWo: Record<string, string | null> = {}
-    for (const c of closures || []) {
-      if (!(c.work_order_id in latestRevisitByWo)) latestRevisitByWo[c.work_order_id] = c.revisit_date
-    }
+    const inProgress = workOrders.filter(w => w.status === 'in_progress')
+    if (!pending.length && !inProgress.length) return { followUps: [], error: null }
 
     const todayStr = new Date().toLocaleDateString('en-CA')
-    const followUps: OverdueFollowUp[] = pending
-      .filter(w => {
+    const followUps: OverdueFollowUp[] = []
+
+    if (pending.length) {
+      const woIds = pending.map(w => w.id)
+      const { data: closures } = await admin
+        .from('work_order_daily_closures')
+        .select('work_order_id, revisit_date, created_at')
+        .in('work_order_id', woIds)
+        .order('created_at', { ascending: false })
+
+      // Closures already ordered desc, so the first match per work order is the latest.
+      const latestRevisitByWo: Record<string, string | null> = {}
+      for (const c of closures || []) {
+        if (!(c.work_order_id in latestRevisitByWo)) latestRevisitByWo[c.work_order_id] = c.revisit_date
+      }
+
+      for (const w of pending) {
         const rd = latestRevisitByWo[w.id]
-        return !!rd && rd < todayStr
-      })
-      .map(w => ({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, revisitDate: latestRevisitByWo[w.id]! }))
+        if (rd && rd < todayStr) followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: rd, kind: 'pending' })
+      }
+    }
+
+    if (inProgress.length) {
+      const woIds = inProgress.map(w => w.id)
+      const { data: checkins } = await admin
+        .from('work_order_checkins')
+        .select('work_order_id, checked_in_at')
+        .in('work_order_id', woIds)
+        .order('checked_in_at', { ascending: false })
+
+      const latestCheckinByWo: Record<string, string> = {}
+      for (const c of checkins || []) {
+        if (!(c.work_order_id in latestCheckinByWo)) latestCheckinByWo[c.work_order_id] = c.checked_in_at
+      }
+
+      for (const w of inProgress) {
+        const lastCheckin = latestCheckinByWo[w.id]
+        if (!lastCheckin) continue
+        const lastCheckinDateStr = new Date(lastCheckin).toLocaleDateString('en-CA')
+        if (lastCheckinDateStr < todayStr) {
+          followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: lastCheckinDateStr, kind: 'stale_in_progress' })
+        }
+      }
+    }
 
     return { followUps, error: null }
   } catch (e: unknown) {
@@ -289,7 +321,9 @@ export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowU
 }
 
 // Lightweight date-only update — no new sign-off, since nothing about the visit
-// itself changed, just when the engineer expects to come back.
+// itself changed, just when the engineer expects to come back. Pending jobs have a
+// closure to update the revisit_date on; a stale in-progress job was never closed at
+// all, so there's nothing to update but the notification's own scheduled_date.
 export async function rescheduleFollowUp(workOrderId: string, newDate: string): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
@@ -305,26 +339,35 @@ export async function rescheduleFollowUp(workOrderId: string, newDate: string): 
     const wo = woResult?.data
     if (!wo) return { error: 'Notification not found' }
     if (wo.engineer_id !== user.id) return { error: 'Not authorized to reschedule this notification' }
-    if (wo.status !== 'pending') return { error: 'This notification is no longer pending' }
+    if (wo.status !== 'pending' && wo.status !== 'in_progress') return { error: 'This notification no longer needs rescheduling' }
 
-    const closureResult = await withTimeout(
-      admin.from('work_order_daily_closures')
-        .select('id')
-        .eq('work_order_id', workOrderId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      8000
-    )
-    const latestClosureId = closureResult?.data?.id
-    if (!latestClosureId) return { error: 'No closure found to reschedule' }
+    if (wo.status === 'in_progress') {
+      const updateResult = await withTimeout(
+        admin.from('work_orders').update({ scheduled_date: newDate, updated_at: new Date().toISOString() }).eq('id', workOrderId),
+        8000
+      )
+      if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
+      if (updateResult.error) return { error: updateResult.error.message }
+    } else {
+      const closureResult = await withTimeout(
+        admin.from('work_order_daily_closures')
+          .select('id')
+          .eq('work_order_id', workOrderId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        8000
+      )
+      const latestClosureId = closureResult?.data?.id
+      if (!latestClosureId) return { error: 'No closure found to reschedule' }
 
-    const updateResult = await withTimeout(
-      admin.from('work_order_daily_closures').update({ revisit_date: newDate }).eq('id', latestClosureId),
-      8000
-    )
-    if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
-    if (updateResult.error) return { error: updateResult.error.message }
+      const updateResult = await withTimeout(
+        admin.from('work_order_daily_closures').update({ revisit_date: newDate }).eq('id', latestClosureId),
+        8000
+      )
+      if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
+      if (updateResult.error) return { error: updateResult.error.message }
+    }
 
     const formattedDate = new Date(newDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
     logActivity(admin, workOrderId, user.id, `Rescheduled follow-up to ${formattedDate}`).catch(() => {})
@@ -518,7 +561,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { detail: null, error: 'Notification not found' }
 
-    const [{ data: checkins }, { data: submission }, { data: closures }, { data: previous }] = await Promise.all([
+    const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }] = await Promise.all([
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
       admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
       admin.from('work_order_daily_closures')
@@ -526,13 +569,31 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
         .eq('work_order_id', woId)
         .order('created_at', { ascending: false })
         .limit(1),
-      admin.from('work_orders')
-        .select('wo_number, job_type, scheduled_date, status')
-        .eq('customer_id', workOrder.customer_id)
-        .neq('id', woId)
-        .order('scheduled_date', { ascending: false })
-        .limit(5),
+      admin.from('work_order_transformers').select('transformer_id').eq('work_order_id', woId),
     ])
+
+    // "Previous visits" is history for the same equipment (serial number), not the
+    // customer as a whole — a customer can have many sites/transformers, and pulling
+    // in any of their other work orders showed the wrong site's history here.
+    const transformerIds = [...new Set((currentWotRows || []).map(r => r.transformer_id))]
+    let previous: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[] = []
+    if (transformerIds.length) {
+      const { data: relatedWotRows } = await admin
+        .from('work_order_transformers')
+        .select('work_order_id')
+        .in('transformer_id', transformerIds)
+        .neq('work_order_id', woId)
+      const relatedWoIds = [...new Set((relatedWotRows || []).map(r => r.work_order_id))]
+      if (relatedWoIds.length) {
+        const { data: relatedWos } = await admin
+          .from('work_orders')
+          .select('wo_number, job_type, scheduled_date, status')
+          .in('id', relatedWoIds)
+          .order('scheduled_date', { ascending: false })
+          .limit(5)
+        previous = relatedWos || []
+      }
+    }
 
     const lastCheckinAt = checkins?.[0]?.checked_in_at || null
     const closureRow = closures?.[0] || null
@@ -554,9 +615,13 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
       pendingReason: closureRow.pending_reason,
       materialsRequired: closureRow.materials_required,
     } : null
-    // "Checked in" means checked in *since the last closure* — once a visit is closed
-    // (e.g. marked pending), the engineer needs to check in again for the next visit.
-    const hasCheckedIn = !!lastCheckinAt && (!latestClosure || new Date(lastCheckinAt) > new Date(latestClosure.created_at))
+    // "Checked in" means checked in *today* and since the last closure — once a visit
+    // is closed (e.g. marked pending) the engineer needs to check in again for the next
+    // visit, and a check-in from a previous day that was never closed out (engineer
+    // forgot to do end-of-day closure) shouldn't leave the job stuck showing only the
+    // closure button indefinitely — check-in reappears so they can start today's visit.
+    const checkedInToday = !!lastCheckinAt && new Date(lastCheckinAt).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
+    const hasCheckedIn = checkedInToday && (!latestClosure || new Date(lastCheckinAt!) > new Date(latestClosure.created_at))
 
     return {
       detail: {

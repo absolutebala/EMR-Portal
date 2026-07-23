@@ -92,7 +92,9 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
             </div>
             <p style={{ fontSize: 13, color: '#1C0D14', margin: '0 0 4px', fontWeight: 600 }}>{current.customerName}</p>
             <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 16px' }}>
-              {current.woNumber} was due for a follow-up on {formatDate(current.revisitDate)}. Is this job completed, or do you need to reschedule?
+              {current.kind === 'pending'
+                ? <>{current.woNumber} was due for a follow-up on {formatDate(current.dueDate)}. Is this job completed, or do you need to reschedule?</>
+                : <>{current.woNumber} has been in progress since your last check-in on {formatDate(current.dueDate)}, with no update since. Is this job completed, or do you need to reschedule?</>}
             </p>
 
             {reschedulingId === current.workOrderId ? (
