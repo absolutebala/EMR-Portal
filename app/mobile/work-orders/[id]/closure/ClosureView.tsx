@@ -47,6 +47,10 @@ export default function ClosureView({ workOrder }: Props) {
       setError(outcome === 'completed' ? 'Please describe what was completed today' : 'Please describe what remains to be done')
       return
     }
+    if (outcome === 'pending' && !revisitDate && !needsReassignment) {
+      setError('Please provide a follow-up date or flag this job for reassignment')
+      return
+    }
     if (!engineerSignature) { setError('Engineer signature is required'); return }
     if (!clientName.trim()) { setError('Client name is required'); return }
     if (!clientSignature) { setError('Client signature is required'); return }
@@ -171,12 +175,15 @@ export default function ClosureView({ workOrder }: Props) {
                 </label>
                 <textarea rows={2} value={materialsRequired} onChange={e => setMaterialsRequired(e.target.value)} placeholder="List required parts or materials..." style={{ ...inputStyle, resize: 'none' }} />
               </div>
-              <div style={{ marginBottom: 12 }}>
+              <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
                   Expected revisit date
                 </label>
                 <input type="date" value={revisitDate} onChange={e => setRevisitDate(e.target.value)} style={inputStyle} />
               </div>
+              <p style={{ fontSize: 10, color: '#7A6870', margin: '0 0 12px' }}>
+                A revisit date or a reassignment flag is required <span style={{ color: '#7D1D3F' }}>*</span>
+              </p>
               <label
                 className="mtap"
                 style={{

@@ -240,6 +240,101 @@ export async function getMobileDashboardData(): Promise<{
   }
 }
 
+export interface OverdueFollowUp {
+  workOrderId: string
+  woNumber: string
+  customerName: string
+  revisitDate: string
+}
+
+// Pending jobs (not flagged for reassignment — those are no longer this engineer's
+// responsibility) whose most recent closure's revisit_date has already passed.
+// Surfaced as a prompt on dashboard load so a missed follow-up doesn't just sit there.
+export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowUp[]; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { followUps: [], error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const workOrders = await fetchEngineerWorkOrders(admin, user.id)
+    const pending = workOrders.filter(w => w.status === 'pending')
+    if (!pending.length) return { followUps: [], error: null }
+
+    const woIds = pending.map(w => w.id)
+    const { data: closures } = await admin
+      .from('work_order_daily_closures')
+      .select('work_order_id, revisit_date, created_at')
+      .in('work_order_id', woIds)
+      .order('created_at', { ascending: false })
+
+    // Closures already ordered desc, so the first match per work order is the latest.
+    const latestRevisitByWo: Record<string, string | null> = {}
+    for (const c of closures || []) {
+      if (!(c.work_order_id in latestRevisitByWo)) latestRevisitByWo[c.work_order_id] = c.revisit_date
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const followUps: OverdueFollowUp[] = pending
+      .filter(w => {
+        const rd = latestRevisitByWo[w.id]
+        return !!rd && rd < todayStr
+      })
+      .map(w => ({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, revisitDate: latestRevisitByWo[w.id]! }))
+
+    return { followUps, error: null }
+  } catch (e: unknown) {
+    return { followUps: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Lightweight date-only update — no new sign-off, since nothing about the visit
+// itself changed, just when the engineer expects to come back.
+export async function rescheduleFollowUp(workOrderId: string, newDate: string): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+
+    const woResult = await withTimeout(
+      admin.from('work_orders').select('engineer_id, status').eq('id', workOrderId).single(),
+      8000
+    )
+    const wo = woResult?.data
+    if (!wo) return { error: 'Notification not found' }
+    if (wo.engineer_id !== user.id) return { error: 'Not authorized to reschedule this notification' }
+    if (wo.status !== 'pending') return { error: 'This notification is no longer pending' }
+
+    const closureResult = await withTimeout(
+      admin.from('work_order_daily_closures')
+        .select('id')
+        .eq('work_order_id', workOrderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      8000
+    )
+    const latestClosureId = closureResult?.data?.id
+    if (!latestClosureId) return { error: 'No closure found to reschedule' }
+
+    const updateResult = await withTimeout(
+      admin.from('work_order_daily_closures').update({ revisit_date: newDate }).eq('id', latestClosureId),
+      8000
+    )
+    if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
+    if (updateResult.error) return { error: updateResult.error.message }
+
+    const formattedDate = new Date(newDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    logActivity(admin, workOrderId, user.id, `Rescheduled follow-up to ${formattedDate}`).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
   try {
     const sb = await serverClient()

@@ -1,17 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import type { MobileWorkOrder, MobileDashboardStats } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp } from '@/app/actions/mobile-actions'
 
 interface Props {
   stats: MobileDashboardStats
   recentJobs: MobileWorkOrder[]
   engineer: { name: string } | null
   error: string | null
+  overdueFollowUps: OverdueFollowUp[]
 }
 
 const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: string; bg: string; icon: React.ReactNode }[] = [
@@ -40,9 +43,18 @@ function greeting() {
   return 'Good evening'
 }
 
-export default function MobileDashboardClient({ stats, recentJobs, engineer, error }: Props) {
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const [queue, setQueue] = useState(overdueFollowUps)
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null)
+  const [newDate, setNewDate] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [rescheduleError, setRescheduleError] = useState('')
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -50,10 +62,97 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
     router.refresh()
   }
 
+  function dismiss(workOrderId: string) {
+    setQueue(q => q.filter(f => f.workOrderId !== workOrderId))
+    setReschedulingId(null)
+    setNewDate('')
+    setRescheduleError('')
+  }
+
+  async function confirmReschedule(workOrderId: string) {
+    if (!newDate) { setRescheduleError('Pick a new follow-up date'); return }
+    setSaving(true)
+    setRescheduleError('')
+    const result = await rescheduleFollowUp(workOrderId, newDate)
+    setSaving(false)
+    if (result.error) { setRescheduleError(result.error); return }
+    dismiss(workOrderId)
+  }
+
   const firstName = engineer?.name?.split(' ')[0] || ''
+  const current = queue[0]
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
+      {current && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#DC2626', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              Follow-up overdue
+            </div>
+            <p style={{ fontSize: 13, color: '#1C0D14', margin: '0 0 4px', fontWeight: 600 }}>{current.customerName}</p>
+            <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 16px' }}>
+              {current.woNumber} was due for a follow-up on {formatDate(current.revisitDate)}. Is this job completed, or do you need to reschedule?
+            </p>
+
+            {reschedulingId === current.workOrderId ? (
+              <>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={e => setNewDate(e.target.value)}
+                  min={new Date().toLocaleDateString('en-CA')}
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', background: '#fff', boxSizing: 'border-box', marginBottom: 10 }}
+                />
+                {rescheduleError && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{rescheduleError}</p>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="mtap"
+                    onClick={() => { setReschedulingId(null); setRescheduleError('') }}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#7A6870', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    className="mtap"
+                    onClick={() => confirmReschedule(current.workOrderId)}
+                    disabled={saving}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: saving ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    {saving ? 'Saving…' : 'Confirm new date'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="mtap"
+                  onClick={() => setReschedulingId(current.workOrderId)}
+                  style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                >
+                  Reschedule
+                </button>
+                <button
+                  className="mtap"
+                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}`)}
+                  style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                >
+                  Job completed
+                </button>
+              </div>
+            )}
+
+            <button
+              className="mtap"
+              onClick={() => dismiss(current.workOrderId)}
+              style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', fontSize: 11, color: '#7A6870', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            >
+              Remind me later
+            </button>
+          </div>
+        </div>
+      )}
+
       <MobileHeader
         title="EMR Global"
         subtitle={firstName ? `${greeting()}, ${firstName}` : undefined}
