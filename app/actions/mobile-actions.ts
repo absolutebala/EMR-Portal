@@ -308,8 +308,15 @@ export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowU
         const lastCheckin = latestCheckinByWo[w.id]
         if (!lastCheckin) continue
         const lastCheckinDateStr = new Date(lastCheckin).toLocaleDateString('en-CA')
-        if (lastCheckinDateStr < todayStr) {
-          followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: lastCheckinDateStr, kind: 'stale_in_progress' })
+        if (lastCheckinDateStr >= todayStr) continue // checked in today — not stale
+
+        // Overdue is judged against scheduled_date (falling back to the check-in date
+        // if none is set), not the raw check-in date — scheduled_date is exactly what
+        // rescheduleFollowUp() updates for this kind, so pushing it to a future date
+        // correctly stops the prompt from reappearing.
+        const dueDateStr = w.scheduled_date || lastCheckinDateStr
+        if (dueDateStr < todayStr) {
+          followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: dueDateStr, kind: 'stale_in_progress' })
         }
       }
     }

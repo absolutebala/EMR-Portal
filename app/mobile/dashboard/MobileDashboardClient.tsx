@@ -53,6 +53,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const [queue, setQueue] = useState(overdueFollowUps)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [newDate, setNewDate] = useState('')
+  const [dateFocused, setDateFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [rescheduleError, setRescheduleError] = useState('')
 
@@ -99,13 +100,36 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
 
             {reschedulingId === current.workOrderId ? (
               <>
-                <input
-                  type="date"
-                  value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
-                  min={new Date().toLocaleDateString('en-CA')}
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', background: '#fff', boxSizing: 'border-box', marginBottom: 10 }}
-                />
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#7A6870', marginBottom: 6 }}>
+                  New follow-up date
+                </label>
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <svg
+                    width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={dateFocused ? '#7D1D3F' : '#B7A8AF'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="3" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <input
+                    type="date"
+                    className="emr-premium-date"
+                    value={newDate}
+                    onChange={e => setNewDate(e.target.value)}
+                    onFocus={() => setDateFocused(true)}
+                    onBlur={() => setDateFocused(false)}
+                    min={new Date().toLocaleDateString('en-CA')}
+                    style={{
+                      width: '100%', padding: '13px 14px 13px 40px', border: `1.5px solid ${dateFocused ? '#7D1D3F' : '#E5E0E3'}`,
+                      borderRadius: 12, fontSize: 13, fontWeight: 500, color: '#1C0D14', outline: 'none',
+                      fontFamily: 'Poppins, sans-serif', background: dateFocused ? '#fff' : '#FAF7F8', boxSizing: 'border-box',
+                      boxShadow: dateFocused ? '0 0 0 3px rgba(125,29,63,0.12)' : 'none', transition: 'all .15s',
+                    }}
+                  />
+                  <style>{`
+                    .emr-premium-date::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.65; padding: 4px; border-radius: 6px; }
+                    .emr-premium-date::-webkit-calendar-picker-indicator:hover { opacity: 1; background: #F9EEF2; }
+                  `}</style>
+                </div>
                 {rescheduleError && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{rescheduleError}</p>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
@@ -136,7 +160,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                 </button>
                 <button
                   className="mtap"
-                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}`)}
+                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}/checkin`)}
                   style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                 >
                   Job completed
