@@ -8,15 +8,16 @@ import { getFieldEngineersOverview, type FieldEngineerOverview, type EngineerSta
 
 const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: string }> = {
   available: { label: 'Available', bg: '#D1FAE5', color: '#065F46' },
-  on_site: { label: 'On site', bg: '#FEF3C7', color: '#92400E' },
-  work_in_progress: { label: 'Work in progress', bg: '#EDE9FE', color: '#5B21B6' },
-  off_duty: { label: 'Off duty', bg: '#F1F5F9', color: '#475569' },
+  on_leave: { label: 'On Leave', bg: '#F1F5F9', color: '#475569' },
+  on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
+  travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
+  reached: { label: 'Reached site', bg: '#FEF3C7', color: '#92400E' },
 }
 
-function StatusBadge({ status, activeCustomerName }: { status: EngineerStatus; activeCustomerName: string | null }) {
+function StatusBadge({ status, statusSiteName }: { status: EngineerStatus; statusSiteName: string | null }) {
   const c = STATUS_CONFIG[status]
-  const isCheckedIn = status === 'on_site' || status === 'work_in_progress'
-  const label = isCheckedIn ? `Checked in${activeCustomerName ? ` with ${activeCustomerName}` : ''}` : c.label
+  const showsSite = status === 'on_the_way' || status === 'travelling' || status === 'reached'
+  const label = showsSite && statusSiteName ? `${c.label} — ${statusSiteName}` : c.label
   return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
 }
 
@@ -52,9 +53,10 @@ export default function EngineersPage() {
 
   const stats = {
     available: engineers.filter(e => e.status === 'available').length,
-    onSite: engineers.filter(e => e.status === 'on_site').length,
-    wip: engineers.filter(e => e.status === 'work_in_progress').length,
-    offDuty: engineers.filter(e => e.status === 'off_duty').length,
+    onTheWay: engineers.filter(e => e.status === 'on_the_way').length,
+    travelling: engineers.filter(e => e.status === 'travelling').length,
+    reached: engineers.filter(e => e.status === 'reached').length,
+    onLeave: engineers.filter(e => e.status === 'on_leave').length,
   }
 
   return (
@@ -62,12 +64,13 @@ export default function EngineersPage() {
       <Topbar title="Field Engineers" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
             { label: 'Available', val: stats.available, color: '#059669' },
-            { label: 'On site', val: stats.onSite, color: '#D97706' },
-            { label: 'Work in progress', val: stats.wip, color: '#7C3AED' },
-            { label: 'Off duty', val: stats.offDuty, color: '#64748B' },
+            { label: 'On the way', val: stats.onTheWay, color: '#2563EB' },
+            { label: 'Travelling', val: stats.travelling, color: '#7C3AED' },
+            { label: 'Reached site', val: stats.reached, color: '#D97706' },
+            { label: 'On Leave', val: stats.onLeave, color: '#64748B' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }} />
@@ -104,14 +107,14 @@ export default function EngineersPage() {
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{e.name}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} activeCustomerName={e.activeCustomerName} /></td>
+                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>
-                        {e.lastCheckin ? (
+                        {e.lastSeen ? (
                           <>
-                            <div>{e.lastCheckin.placeName || 'Location unavailable'}</div>
-                            <div style={{ color: 'var(--txm)', fontSize: 10 }}>{formatDateTime(e.lastCheckin.checkedInAt)}</div>
+                            <div>{e.lastSeen.placeName || 'Location unavailable'}</div>
+                            <div style={{ color: 'var(--txm)', fontSize: 10 }}>{formatDateTime(e.lastSeen.at)}</div>
                           </>
-                        ) : <span style={{ color: 'var(--txm)' }}>No check-ins yet</span>}
+                        ) : <span style={{ color: 'var(--txm)' }}>No location yet</span>}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>
                         {e.nextAssigned ? (

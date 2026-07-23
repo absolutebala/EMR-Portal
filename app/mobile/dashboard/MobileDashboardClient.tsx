@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import { rescheduleFollowUp } from '@/app/actions/mobile-actions'
-import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp, recordLastSeen, setEngineerStatus } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
 
 interface Props {
   stats: MobileDashboardStats
@@ -15,6 +15,15 @@ interface Props {
   engineer: { name: string } | null
   error: string | null
   overdueFollowUps: OverdueFollowUp[]
+  statusPrompt: EngineerStatusPrompt | null
+}
+
+const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; color: string }> = {
+  available: { label: 'Available', bg: '#D1FAE5', color: '#065F46' },
+  on_leave: { label: 'On Leave', bg: '#F1F5F9', color: '#475569' },
+  on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
+  travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
+  reached: { label: 'Reached site', bg: '#FEF3C7', color: '#92400E' },
 }
 
 const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: string; bg: string; icon: React.ReactNode }[] = [
@@ -47,7 +56,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps }: Props) {
+export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [queue, setQueue] = useState(overdueFollowUps)
@@ -57,11 +66,63 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const [saving, setSaving] = useState(false)
   const [rescheduleError, setRescheduleError] = useState('')
 
+  const [currentStatus, setCurrentStatus] = useState<EngineerStatusValue>(statusPrompt?.currentStatus || 'available')
+  const [showStatusModal, setShowStatusModal] = useState(!!statusPrompt?.needsPrompt)
+  const [statusStep, setStatusStep] = useState<'choose' | 'pick-site'>('choose')
+  const [pendingStatus, setPendingStatus] = useState<EngineerStatusValue | null>(null)
+  const [selectedWorkOrderId, setSelectedWorkOrderId] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusError, setStatusError] = useState('')
+
+  // Passive "last seen" location — a best-effort ping on app open, silently ignored
+  // if permission is denied or unavailable. Not the same as job check-in GPS.
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => { recordLastSeen(pos.coords.latitude, pos.coords.longitude).catch(() => {}) },
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    )
+  }, [])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/mobile/login')
     router.refresh()
   }
+
+  function openStatusModal() {
+    setStatusStep('choose')
+    setPendingStatus(null)
+    setSelectedWorkOrderId('')
+    setStatusError('')
+    setShowStatusModal(true)
+  }
+
+  function chooseStatus(status: EngineerStatusValue) {
+    if (status === 'on_the_way' || status === 'travelling') {
+      setPendingStatus(status)
+      setStatusStep('pick-site')
+      return
+    }
+    confirmStatus(status, null)
+  }
+
+  async function confirmStatus(status: EngineerStatusValue, workOrderId: string | null) {
+    if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
+      setStatusError('Pick a site')
+      return
+    }
+    setStatusSaving(true)
+    setStatusError('')
+    const result = await setEngineerStatus(status, workOrderId)
+    setStatusSaving(false)
+    if (result.error) { setStatusError(result.error); return }
+    setCurrentStatus(status)
+    setShowStatusModal(false)
+  }
+
+  const statusSite = statusPrompt?.assignableSites.find(s => s.workOrderId === selectedWorkOrderId)
 
   function dismiss(workOrderId: string) {
     setQueue(q => q.filter(f => f.workOrderId !== workOrderId))
@@ -85,7 +146,95 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
-      {current && (
+      {showStatusModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 51, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
+            {statusStep === 'choose' ? (
+              <>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#7D1D3F', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                  Set your status
+                </div>
+                <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 16px' }}>
+                  Let your supervisor know where you are before you start your day.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  {(['available', 'on_the_way', 'travelling', 'on_leave'] as EngineerStatusValue[]).map(s => (
+                    <button
+                      key={s}
+                      className="mtap"
+                      onClick={() => chooseStatus(s)}
+                      disabled={statusSaving}
+                      style={{
+                        padding: '14px 10px', borderRadius: 12, border: `1.5px solid ${STATUS_META[s].color}22`,
+                        background: STATUS_META[s].bg, color: STATUS_META[s].color, fontSize: 13, fontWeight: 600,
+                        cursor: statusSaving ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif',
+                      }}
+                    >
+                      {STATUS_META[s].label}
+                    </button>
+                  ))}
+                </div>
+                {statusError && <p style={{ fontSize: 11, color: '#DC2626', margin: '4px 0 0' }}>{statusError}</p>}
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#7D1D3F', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                  {pendingStatus === 'travelling' ? 'Travelling to' : 'On the way to'}
+                </div>
+                <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 12px' }}>Pick which site.</p>
+                {statusPrompt && statusPrompt.assignableSites.length > 0 ? (
+                  <div style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 12 }}>
+                    {statusPrompt.assignableSites.map(s => (
+                      <label
+                        key={s.workOrderId}
+                        className="mtap"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', marginBottom: 6,
+                          borderRadius: 10, border: `1.5px solid ${selectedWorkOrderId === s.workOrderId ? '#7D1D3F' : '#E5E0E3'}`,
+                          background: selectedWorkOrderId === s.workOrderId ? '#F9EEF2' : '#fff', cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          checked={selectedWorkOrderId === s.workOrderId}
+                          onChange={() => setSelectedWorkOrderId(s.workOrderId)}
+                          style={{ accentColor: '#7D1D3F', width: 16, height: 16, flexShrink: 0 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{s.siteName}</div>
+                          <div style={{ fontSize: 10, color: '#7A6870' }}>{s.woNumber}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: '#7A6870', marginBottom: 12 }}>No assigned jobs to pick a site from.</p>
+                )}
+                {statusError && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{statusError}</p>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="mtap"
+                    onClick={() => setStatusStep('choose')}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#7A6870', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    className="mtap"
+                    onClick={() => pendingStatus && confirmStatus(pendingStatus, selectedWorkOrderId || null)}
+                    disabled={statusSaving || !selectedWorkOrderId}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: statusSaving || !selectedWorkOrderId ? '#C9A3B5' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: statusSaving || !selectedWorkOrderId ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    {statusSaving ? 'Saving…' : statusSite ? `Confirm — ${statusSite.siteName}` : 'Confirm'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!showStatusModal && current && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: '#DC2626', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
@@ -203,6 +352,21 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
             {error}
           </div>
         )}
+
+        <button
+          className="mtap"
+          onClick={openStatusModal}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, padding: '6px 12px 6px 6px',
+            borderRadius: 20, border: 'none', background: STATUS_META[currentStatus].bg, cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_META[currentStatus].color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_META[currentStatus].color }}>{STATUS_META[currentStatus].label}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={STATUS_META[currentStatus].color} strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 16 }}>
           {STAT_CARDS.map(card => (

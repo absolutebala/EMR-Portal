@@ -23,13 +23,38 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> 
 }
 
 // Fire-and-forget presence heartbeat — called from the mobile app's main data-fetch
-// entry points so desktop can derive an "Available" vs "Off duty" status from recent
-// app activity, without needing continuous background GPS (not reliable from a PWA).
+// entry points so the desktop Field Engineers page has a general "recently active"
+// signal, independent of the explicit engineer_status the engineer sets themselves.
 function touchHeartbeat(admin: ReturnType<typeof adminClient>, userId: string) {
   admin.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', userId).then(
     () => {},
     () => {}
   )
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// The engineer's current location for "distance to site" purposes — the passive
+// app-open ping if we have one, else their most recent job check-in as a fallback.
+async function getEngineerLocation(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ lat: number; lng: number } | null> {
+  const { data: profile } = await admin.from('profiles').select('last_seen_lat, last_seen_lng').eq('id', userId).maybeSingle()
+  if (profile?.last_seen_lat != null && profile?.last_seen_lng != null) return { lat: profile.last_seen_lat, lng: profile.last_seen_lng }
+
+  const { data: checkin } = await admin
+    .from('work_order_checkins')
+    .select('latitude, longitude')
+    .eq('engineer_id', userId)
+    .order('checked_in_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (checkin?.latitude != null && checkin?.longitude != null) return { lat: checkin.latitude, lng: checkin.longitude }
+  return null
 }
 
 export interface MobileWorkOrder {
@@ -42,6 +67,10 @@ export interface MobileWorkOrder {
   customer_name: string
   serial_numbers: string[]
   site_name: string | null
+  // Approximate straight-line distance from the engineer's current known location
+  // (last-seen ping, falling back to last check-in) to this job's site. Null when
+  // either location isn't known/geocoded yet.
+  distanceKm: number | null
 }
 
 export interface MobileFormRow {
@@ -96,17 +125,21 @@ type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
   scheduled_date: string | null; notes: string | null; customer_id: string
   customers: { name: string; contact_person: string; phone: string } | null
-  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { site_name: string; site_address: string } | null } | null }[]
+  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { site_name: string; site_address: string; latitude: number | null; longitude: number | null } | null } | null }[]
 }
 
 const WORK_ORDER_SELECT = `
   id, wo_number, job_type, status, scheduled_date, notes, customer_id,
   customers ( name, contact_person, phone ),
-  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( site_name, site_address ) ) )
+  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( site_name, site_address, latitude, longitude ) ) )
 `
 
-function mapWorkOrderEmbed(w: WorkOrderEmbed): MobileWorkOrder {
+function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: number } | null): MobileWorkOrder {
   const rows = w.work_order_transformers || []
+  const site = rows[0]?.transformers?.customer_sites
+  const distanceKm = engineerLoc && site?.latitude != null && site?.longitude != null
+    ? haversineKm(engineerLoc.lat, engineerLoc.lng, site.latitude, site.longitude)
+    : null
   return {
     id: w.id,
     wo_number: w.wo_number,
@@ -116,7 +149,8 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed): MobileWorkOrder {
     notes: w.notes,
     customer_name: w.customers?.name || '',
     serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
-    site_name: rows[0]?.transformers?.customer_sites?.site_name || null,
+    site_name: site?.site_name || null,
+    distanceKm,
   }
 }
 
@@ -127,14 +161,13 @@ async function fetchEngineerWorkOrders(
   admin: ReturnType<typeof adminClient>,
   userId: string
 ): Promise<MobileWorkOrder[]> {
-  const { data: wos, error } = await admin
-    .from('work_orders')
-    .select(WORK_ORDER_SELECT)
-    .eq('engineer_id', userId)
-    .order('scheduled_date', { ascending: true })
+  const [{ data: wos, error }, engineerLoc] = await Promise.all([
+    admin.from('work_orders').select(WORK_ORDER_SELECT).eq('engineer_id', userId).order('scheduled_date', { ascending: true }),
+    getEngineerLocation(admin, userId),
+  ])
 
   if (error) console.error('fetchEngineerWorkOrders:', error.message)
-  return ((wos as unknown as WorkOrderEmbed[]) || []).map(mapWorkOrderEmbed)
+  return ((wos as unknown as WorkOrderEmbed[]) || []).map(w => mapWorkOrderEmbed(w, engineerLoc))
 }
 
 async function getEngineerName(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ name: string } | null> {
@@ -171,7 +204,7 @@ async function fetchSingleWorkOrder(
   const rows = w.work_order_transformers || []
 
   return {
-    ...mapWorkOrderEmbed(w),
+    ...mapWorkOrderEmbed(w, null),
     customer_id: w.customer_id,
     customer_contact: w.customers?.contact_person || null,
     customer_phone: w.customers?.phone || null,
@@ -496,6 +529,113 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
   }
 }
 
+// Passive "last seen" location — captured on mobile app open (dashboard mount), not
+// tied to any particular job, so desktop can show where an engineer actually is even
+// between site visits. Silently a no-op on failure (denied permission, no signal,
+// reverse-geocode timeout) — this is a best-effort background ping, never something
+// that should surface an error to the engineer.
+export async function recordLastSeen(lat: number, lng: number): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { label } = await reverseGeocode(lat, lng)
+    await withTimeout(
+      admin.from('profiles').update({
+        last_seen_lat: lat,
+        last_seen_lng: lng,
+        last_seen_place_label: label,
+        last_seen_at: new Date().toISOString(),
+      }).eq('id', user.id),
+      8000
+    )
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export type EngineerStatusValue = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached'
+
+export interface AssignableSite {
+  workOrderId: string
+  woNumber: string
+  siteName: string
+}
+
+export interface EngineerStatusPrompt {
+  // True once per calendar day, until the engineer either sets a status themselves or
+  // checks in somewhere (which auto-sets it to "reached" — see submitCheckIn).
+  needsPrompt: boolean
+  currentStatus: EngineerStatusValue
+  assignableSites: AssignableSite[]
+}
+
+export async function getEngineerStatusPrompt(): Promise<{ prompt: EngineerStatusPrompt | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { prompt: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const [{ data: profile }, workOrders] = await Promise.all([
+      admin.from('profiles').select('engineer_status, engineer_status_updated_at').eq('id', user.id).maybeSingle(),
+      fetchEngineerWorkOrders(admin, user.id),
+    ])
+
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const updatedToday = !!profile?.engineer_status_updated_at && new Date(profile.engineer_status_updated_at).toLocaleDateString('en-CA') === todayStr
+
+    const assignableSites: AssignableSite[] = workOrders
+      .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment')
+      .map(w => ({ workOrderId: w.id, woNumber: w.wo_number, siteName: w.site_name || w.customer_name }))
+
+    return {
+      prompt: {
+        needsPrompt: !updatedToday,
+        currentStatus: (profile?.engineer_status as EngineerStatusValue) || 'available',
+        assignableSites,
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { prompt: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function setEngineerStatus(status: EngineerStatusValue, workOrderId?: string | null): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { error: 'Not authenticated' }
+
+    if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
+      return { error: 'Pick a site' }
+    }
+
+    const admin = adminClient()
+    const { error } = await admin.from('profiles').update({
+      engineer_status: status,
+      engineer_status_work_order_id: status === 'available' || status === 'on_leave' ? null : (workOrderId || null),
+      engineer_status_updated_at: new Date().toISOString(),
+    }).eq('id', user.id)
+    if (error) return { error: error.message }
+
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    const STATUS_LABEL: Record<EngineerStatusValue, string> = {
+      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached site',
+    }
+    logSystemActivity(admin, { actorId: user.id, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: user.id }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 // Fire-and-forget from callers (not awaited) — a logging failure or a slow network
 // must never hold up the check-in/closure response the field engineer is waiting on.
 async function logActivity(admin: ReturnType<typeof adminClient>, woId: string, userId: string, action: string) {
@@ -710,6 +850,14 @@ export async function submitCheckIn(params: {
         8000
       )
     }
+
+    // Checking in supersedes whatever daily status the engineer had (Available, On the
+    // way, Travelling) — they've now actually reached the site.
+    admin.from('profiles').update({
+      engineer_status: 'reached',
+      engineer_status_work_order_id: params.workOrderId,
+      engineer_status_updated_at: new Date().toISOString(),
+    }).eq('id', user.id).then(() => {}, () => {})
 
     logActivity(admin, params.workOrderId, user.id, 'Checked in at site').catch(() => {})
 

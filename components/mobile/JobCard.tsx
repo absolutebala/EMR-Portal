@@ -62,6 +62,11 @@ export default function JobCard({ wo }: { wo: MobileWorkOrder }) {
               {wo.site_name}
             </span>
           )}
+          {wo.distanceKm != null && (
+            <span style={{ fontSize: 10, color: '#7D1D3F', background: '#F9EEF2', borderRadius: 4, padding: '1px 6px', fontWeight: 500 }}>
+              ~{wo.distanceKm < 1 ? '<1' : wo.distanceKm.toFixed(1)} km away
+            </span>
+          )}
           {wo.serial_numbers.map(sn => (
             <span key={sn} style={{ fontSize: 10, color: '#7A6870', background: '#F5F3F5', borderRadius: 4, padding: '1px 6px', fontWeight: 500 }}>
               {sn}

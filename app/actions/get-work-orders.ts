@@ -456,11 +456,15 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
   const admin = adminClient()
   const { data } = await admin
     .from('profiles')
-    .select('id, first_name, last_name, role')
+    .select('id, first_name, last_name, role, last_seen_lat, last_seen_lng, last_seen_at')
+    // An engineer marked On Leave isn't available to take on a new job.
     .eq('role', 'Field Engineer')
+    .neq('engineer_status', 'on_leave')
     .order('first_name')
-  const engineers: AssignableEngineer[] = (data || []).map(e => ({ ...e, distanceKm: null, lastCheckinPlace: null, lastCheckinAt: null }))
+  const engineers: AssignableEngineer[] = (data || []).map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name, role: e.role, distanceKm: null, lastCheckinPlace: null, lastCheckinAt: null }))
   if (!workOrderId) return { engineers }
+  const lastSeenByEng: Record<string, { lat: number | null; lng: number | null; at: string | null }> = {}
+  ;(data || []).forEach(e => { lastSeenByEng[e.id] = { lat: e.last_seen_lat, lng: e.last_seen_lng, at: e.last_seen_at } })
 
   const { data: wotRows } = await admin
     .from('work_order_transformers')
@@ -489,8 +493,15 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
 
   const ranked = engineers.map(e => {
     const ci = lastCheckin[e.id]
-    const distanceKm = siteCoords && ci?.lat != null && ci?.lng != null
-      ? haversineKm(siteCoords.lat, siteCoords.lng, ci.lat, ci.lng)
+    const ping = lastSeenByEng[e.id]
+    // Rank by whichever location is freshest — the passive app-open ping or the last
+    // job check-in — not just the check-in, so an engineer who's moved since their
+    // last visit isn't ranked from a stale position.
+    const pingIsNewer = !!ping?.at && (!ci || new Date(ping.at) > new Date(ci.checkedInAt))
+    const curLat = pingIsNewer ? ping!.lat : ci?.lat
+    const curLng = pingIsNewer ? ping!.lng : ci?.lng
+    const distanceKm = siteCoords && curLat != null && curLng != null
+      ? haversineKm(siteCoords.lat, siteCoords.lng, curLat, curLng)
       : null
     return { ...e, distanceKm, lastCheckinPlace: ci?.placeName ?? null, lastCheckinAt: ci?.checkedInAt ?? null }
   })
