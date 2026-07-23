@@ -42,19 +42,27 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 // The engineer's current location for "distance to site" purposes — the passive
 // app-open ping if we have one, else their most recent job check-in as a fallback.
+// Never throws — this is a distance-display nicety, not something that should be
+// able to take down the whole work-order listing it's called alongside via
+// Promise.all (which fails the entire batch if any one part rejects).
 async function getEngineerLocation(admin: ReturnType<typeof adminClient>, userId: string): Promise<{ lat: number; lng: number } | null> {
-  const { data: profile } = await admin.from('profiles').select('last_seen_lat, last_seen_lng').eq('id', userId).maybeSingle()
-  if (profile?.last_seen_lat != null && profile?.last_seen_lng != null) return { lat: profile.last_seen_lat, lng: profile.last_seen_lng }
+  try {
+    const { data: profile } = await admin.from('profiles').select('last_seen_lat, last_seen_lng').eq('id', userId).maybeSingle()
+    if (profile?.last_seen_lat != null && profile?.last_seen_lng != null) return { lat: profile.last_seen_lat, lng: profile.last_seen_lng }
 
-  const { data: checkin } = await admin
-    .from('work_order_checkins')
-    .select('latitude, longitude')
-    .eq('engineer_id', userId)
-    .order('checked_in_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (checkin?.latitude != null && checkin?.longitude != null) return { lat: checkin.latitude, lng: checkin.longitude }
-  return null
+    const { data: checkin } = await admin
+      .from('work_order_checkins')
+      .select('latitude, longitude')
+      .eq('engineer_id', userId)
+      .order('checked_in_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (checkin?.latitude != null && checkin?.longitude != null) return { lat: checkin.latitude, lng: checkin.longitude }
+    return null
+  } catch (e) {
+    console.error('getEngineerLocation failed:', e)
+    return null
+  }
 }
 
 export interface MobileWorkOrder {
@@ -166,7 +174,13 @@ async function fetchEngineerWorkOrders(
     getEngineerLocation(admin, userId),
   ])
 
-  if (error) console.error('fetchEngineerWorkOrders:', error.message)
+  // Surface real query failures instead of silently returning an empty list — this
+  // used to just log and fall through to [], which read identically to "no jobs
+  // assigned" on every mobile screen (dashboard stats, jobs list) with no visible error.
+  if (error) {
+    console.error('fetchEngineerWorkOrders:', error.message)
+    throw new Error(error.message)
+  }
   return ((wos as unknown as WorkOrderEmbed[]) || []).map(w => mapWorkOrderEmbed(w, engineerLoc))
 }
 
