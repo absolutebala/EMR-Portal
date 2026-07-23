@@ -1,19 +1,24 @@
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getFieldEngineersOverview } from '@/app/actions/get-engineers'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const todayStr = new Date().toLocaleDateString('en-CA')
 
-  // Run auth + all counts in parallel — no sequential waterfall
+  // Run auth + all counts in parallel — no sequential waterfall. Field engineer count
+  // reuses getFieldEngineersOverview() (roster built from real activity, not a naive
+  // role='Field Engineer' filter) — a plain profiles count by role has previously
+  // undercounted engineers whose stored role string didn't match exactly, per the
+  // existing warning comment in get-engineers.ts.
   const [
     user,
     { count: userCount },
     { count: customerCount },
     { count: formCount },
     { count: openNotifCount },
-    { count: engineerCount },
+    { engineers: engineerRoster },
     { count: overdueCount },
     { count: needsReassignCount },
     { count: unassignedCount },
@@ -24,12 +29,13 @@ export default async function DashboardPage() {
     supabase.from('customers').select('*', { count: 'exact', head: true }),
     supabase.from('forms').select('*', { count: 'exact', head: true }),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).neq('status', 'completed'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Field Engineer'),
+    getFieldEngineersOverview(),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'in_progress').lt('scheduled_date', todayStr),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'needs_reassignment'),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'unassigned'),
     supabase.from('product_request_items').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
   ])
+  const engineerCount = engineerRoster.length
 
   const { data: profile } = await supabase
     .from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
@@ -42,7 +48,7 @@ export default async function DashboardPage() {
     { label: 'Customers', val: customerCount ?? 0, color: 'var(--blue)' },
     { label: 'Active forms', val: formCount ?? 0, color: 'var(--green)' },
     { label: 'Open notifications', val: openNotifCount ?? 0, color: 'var(--amber)' },
-    { label: 'Field engineers', val: engineerCount ?? 0, color: '#7C3AED' },
+    { label: 'Field engineers', val: engineerCount, color: '#7C3AED' },
   ]
 
   const attention = [
