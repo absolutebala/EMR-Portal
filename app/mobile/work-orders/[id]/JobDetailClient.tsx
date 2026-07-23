@@ -213,6 +213,22 @@ export default function JobDetailClient({ detail }: Props) {
           </svg>
           {detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}
         </button>
+
+        <button
+          className="mtap"
+          onClick={() => router.push(`/mobile/requests/new?wo=${wo.id}`)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+            padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
+            color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 8,
+            fontFamily: 'Poppins, sans-serif',
+          }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" />
+          </svg>
+          Request products
+        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>

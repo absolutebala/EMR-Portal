@@ -23,11 +23,11 @@ const NAV = [
   { section: 'Management', items: [
     { label: 'Users',      icon: 'users',      path: '/users',     permKey: 'Users — View' },
     { label: 'Customers',  icon: 'customers',  path: '/customers', permKey: 'Customers — View' },
-    { label: 'Products',   icon: 'products',   path: '/products',  permKey: 'Products — View',  stub: true },
+    { label: 'Products',   icon: 'products',   path: '/products',  permKey: 'Products — View' },
   ]},
   { section: 'Operations', items: [
     { label: 'Forms',             icon: 'forms',     path: '/forms',    permKey: 'Forms — View' },
-    { label: 'Product Requests',  icon: 'requests',  path: '/requests', permKey: 'Product Requests — View', stub: true },
+    { label: 'Product Requests',  icon: 'requests',  path: '/requests', permKey: 'Product Requests — View' },
   ]},
   { section: 'System', items: [
     { label: 'Activities', icon: 'activities', path: '/activities', permKey: 'Activities — View' },

@@ -10,6 +10,7 @@ import {
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
+import { getProductRequestsForWorkOrder, type ProductRequestView } from '@/app/actions/products'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
@@ -256,6 +257,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
+  const [productRequests, setProductRequests] = useState<ProductRequestView[]>([])
 
   async function refreshDetail() {
     const { workOrder, activity: act, submittedForm: sf, visits: vs } = await getWorkOrderDetail(workOrderId)
@@ -267,8 +269,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([refreshDetail(), getAssignableEngineers(workOrderId)]).then(([, { engineers: eng }]) => {
+    Promise.all([refreshDetail(), getAssignableEngineers(workOrderId), getProductRequestsForWorkOrder(workOrderId)]).then(([, { engineers: eng }, { requests }]) => {
       setEngineers(eng)
+      setProductRequests(requests)
       setLoading(false)
     })
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -704,6 +707,33 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         )}
                       </div>
                       {renderFormSections(submittedForm)}
+                    </div>
+                  )}
+
+                  {productRequests.length > 0 && (
+                    <div style={card}>
+                      <div style={cardLabel}>Product requests</div>
+                      {productRequests.map((req, ri) => (
+                        <div key={req.id} style={{ padding: '10px 0', borderTop: ri > 0 ? '1px solid var(--gl)' : 'none' }}>
+                          <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 6 }}>
+                            {req.engineerName || 'Engineer'} · {new Date(req.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                          {req.items.map(item => {
+                            const cfg = {
+                              pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending approval' },
+                              approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
+                              rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
+                              dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
+                            }[item.status]
+                            return (
+                              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12 }}>
+                                <span style={{ color: 'var(--tx)' }}>{item.productName} × {item.quantity}</span>
+                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>{cfg.label}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
                     </div>
                   )}
 
