@@ -51,34 +51,10 @@ export default function EngineersPage() {
     return () => clearTimeout(t)
   }, [load, supabase])
 
-  const stats = {
-    available: engineers.filter(e => e.status === 'available').length,
-    onTheWay: engineers.filter(e => e.status === 'on_the_way').length,
-    travelling: engineers.filter(e => e.status === 'travelling').length,
-    reached: engineers.filter(e => e.status === 'reached').length,
-    onLeave: engineers.filter(e => e.status === 'on_leave').length,
-  }
-
   return (
     <>
       <Topbar title="Field Engineers" userName={currentUser.name} userRole={currentUser.role} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
-          {[
-            { label: 'Available', val: stats.available, color: '#059669' },
-            { label: 'On the way', val: stats.onTheWay, color: '#2563EB' },
-            { label: 'Travelling', val: stats.travelling, color: '#7C3AED' },
-            { label: 'Reached site', val: stats.reached, color: '#D97706' },
-            { label: 'On Leave', val: stats.onLeave, color: '#64748B' },
-          ].map(s => (
-            <div key={s.label} style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--gm)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }} />
-              <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', lineHeight: 1 }}>{s.val}</div>
-            </div>
-          ))}
-        </div>
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
