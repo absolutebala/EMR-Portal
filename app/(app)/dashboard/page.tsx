@@ -55,13 +55,23 @@ export default async function DashboardPage() {
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'needs_reassignment'),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('status', 'unassigned'),
     supabase.from('product_request_items').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('work_orders').select('id, wo_number, status, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
+    supabase.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
     supabase.from('product_request_items').select('id, quantity, products(name), product_requests(work_orders(wo_number))').eq('status', 'pending').order('created_at', { ascending: false }).limit(6),
   ])
   const engineerCount = engineerRoster.length
 
-  type NotifRow = { id: string; wo_number: string; status: string; customers: { name: string } | null }
+  // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
+  // profiles(...) directly risks the same "ambiguous relationship" failure a
+  // similarly ambiguous nested embed hit in production before — fetched separately
+  // and joined here instead, same fix pattern used there.
+  type NotifRow = { id: string; wo_number: string; status: string; scheduled_date: string | null; engineer_id: string | null; customers: { name: string } | null }
   const recentNotifications = (recentNotifRows as unknown as NotifRow[]) || []
+  const notifEngineerIds = [...new Set(recentNotifications.map(w => w.engineer_id).filter(Boolean))] as string[]
+  const { data: notifEngineerRows } = notifEngineerIds.length
+    ? await supabase.from('profiles').select('id, first_name, last_name').in('id', notifEngineerIds)
+    : { data: [] as { id: string; first_name: string; last_name: string }[] }
+  const notifEngineerName: Record<string, string> = {}
+  ;(notifEngineerRows || []).forEach(p => { notifEngineerName[p.id] = `${p.first_name} ${p.last_name}` })
 
   type ApprovalRowRaw = { id: string; quantity: number; products: { name: string } | null; product_requests: { work_orders: { wo_number: string } | null } | null }
   const pendingApprovals: ApprovalRow[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || []).map(r => ({
@@ -135,8 +145,11 @@ export default async function DashboardPage() {
               const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached') && e.statusSiteName
                 ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
               return (
-                <ListRow key={e.id} title={e.name}>
-                  <Badge bg={cfg.bg} color={cfg.color} label={label} />
+                <ListRow key={e.id} title={e.name} subtitle={e.lastSeen?.placeName || 'No location yet'}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <Badge bg={cfg.bg} color={cfg.color} label={label} />
+                    <span style={{ fontSize: 10, color: 'var(--txm)' }}>{e.openWorkOrders} open job{e.openWorkOrders !== 1 ? 's' : ''}</span>
+                  </div>
                 </ListRow>
               )
             })}
@@ -145,8 +158,21 @@ export default async function DashboardPage() {
           <ListCard title="Notifications" viewAllHref="/work-orders" empty="No open notifications.">
             {recentNotifications.map(wo => {
               const cfg = WO_STATUS_CFG[wo.status] || WO_STATUS_CFG.unassigned
+              const engineerName = wo.engineer_id ? (notifEngineerName[wo.engineer_id] || 'Engineer') : 'Unassigned'
               return (
-                <ListRow key={wo.id} title={wo.wo_number} subtitle={wo.customers?.name || undefined} href={`/work-orders/${wo.id}`}>
+                <ListRow
+                  key={wo.id}
+                  title={wo.wo_number}
+                  subtitle={
+                    <>
+                      <div>{engineerName}</div>
+                      {wo.scheduled_date && (
+                        <div>{new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                      )}
+                    </>
+                  }
+                  href={`/work-orders/${wo.id}`}
+                >
                   <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
                 </ListRow>
               )
@@ -181,12 +207,12 @@ function ListCard({ title, viewAllHref, empty, children }: { title: string; view
   )
 }
 
-function ListRow({ title, subtitle, href, children }: { title: string; subtitle?: string; href?: string; children?: React.ReactNode }) {
+function ListRow({ title, subtitle, href, children }: { title: string; subtitle?: React.ReactNode; href?: string; children?: React.ReactNode }) {
   const content = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--gl)' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--gl)' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1, lineHeight: 1.5 }}>{subtitle}</div>}
       </div>
       {children && <div style={{ flexShrink: 0 }}>{children}</div>}
     </div>
