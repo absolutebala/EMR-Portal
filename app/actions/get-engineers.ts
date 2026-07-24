@@ -11,7 +11,7 @@ function adminClient() {
 // Explicit, engineer-set status (mobile app) — replaces the old heuristic derived
 // from last_active_at + checkin/form-submission presence, which could only ever
 // guess "on site" vs "off duty" and couldn't represent leave or travel at all.
-export type EngineerStatus = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached'
+export type EngineerStatus = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
 
 export interface FieldEngineerOverview {
   id: string
@@ -19,7 +19,7 @@ export interface FieldEngineerOverview {
   employee_id: string
   phone: string | null
   status: EngineerStatus
-  // Site name the status refers to, for on_the_way / travelling / reached.
+  // Site name the status refers to, for on_the_way / travelling / reached / completed.
   statusSiteName: string | null
   statusUpdatedAt: string | null
   lastActiveAt: string | null

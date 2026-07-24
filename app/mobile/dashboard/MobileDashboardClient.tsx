@@ -24,6 +24,7 @@ const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; colo
   on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
   reached: { label: 'Reached project', bg: '#FEF3C7', color: '#92400E' },
+  completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
 }
 
 const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: string; bg: string; icon: React.ReactNode }[] = [

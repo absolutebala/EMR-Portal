@@ -12,11 +12,12 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
   reached: { label: 'Reached project', bg: '#FEF3C7', color: '#92400E' },
+  completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
 }
 
 function StatusBadge({ status, statusSiteName }: { status: EngineerStatus; statusSiteName: string | null }) {
   const c = STATUS_CONFIG[status]
-  const showsSite = status === 'on_the_way' || status === 'travelling' || status === 'reached'
+  const showsSite = status === 'on_the_way' || status === 'travelling' || status === 'reached' || status === 'completed'
   const label = showsSite && statusSiteName ? `${c.label} — ${statusSiteName}` : c.label
   return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
 }

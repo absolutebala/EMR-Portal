@@ -11,6 +11,7 @@ const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; l
   on_the_way: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On the way' },
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
   reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
+  completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
 }
 
 const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
           <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
             {engineers.slice(0, 6).map(e => {
               const cfg = ENGINEER_STATUS_CFG[e.status]
-              const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached') && e.statusSiteName
+              const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached' || e.status === 'completed') && e.statusSiteName
                 ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
               return (
                 <ListRow key={e.id} title={e.name} subtitle={e.lastSeen?.placeName || 'No location yet'}>

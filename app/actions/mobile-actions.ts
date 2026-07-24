@@ -597,7 +597,7 @@ export async function recordLastSeen(lat: number, lng: number): Promise<{ error:
   }
 }
 
-export type EngineerStatusValue = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached'
+export type EngineerStatusValue = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
 
 export interface AssignableSite {
   workOrderId: string
@@ -666,7 +666,7 @@ export async function setEngineerStatus(status: EngineerStatusValue, workOrderId
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     const STATUS_LABEL: Record<EngineerStatusValue, string> = {
-      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project',
+      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project', completed: 'Completed',
     }
     logSystemActivity(admin, { actorId: user.id, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: user.id }).catch(() => {})
 
@@ -1114,6 +1114,18 @@ export async function submitDailyClosure(params: {
       }).eq('id', params.workOrderId),
       8000
     )
+
+    // Marking the job completed also flips the engineer's live status from
+    // "Reached — <project>" to "Completed — <project>" (same fire-and-forget
+    // pattern as submitCheckIn's "reached" update below) — otherwise status stayed
+    // frozen at "Reached" indefinitely after the visit was actually finished.
+    if (params.outcome === 'completed') {
+      admin.from('profiles').update({
+        engineer_status: 'completed',
+        engineer_status_work_order_id: params.workOrderId,
+        engineer_status_updated_at: new Date().toISOString(),
+      }).eq('id', user.id).then(() => {}, () => {})
+    }
 
     const activityMsg = params.outcome === 'completed'
       ? `Marked notification completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`

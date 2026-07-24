@@ -248,14 +248,14 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
         </div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Form submitted!</h2>
         <p style={{ fontSize: 13, color: '#7A6870', textAlign: 'center', margin: '0 0 28px', lineHeight: 1.5 }}>
-          The form for {workOrder.wo_number} has been saved. Continue to end-of-day closure to sign off and mark the visit done.
+          The form for {workOrder.wo_number} has been saved. Sign off below to mark the visit done.
         </p>
         <button
           className="mtap"
-          onClick={() => router.push(`/mobile/work-orders/${workOrder.id}`)}
+          onClick={() => router.push(`/mobile/work-orders/${workOrder.id}/closure`)}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
-          Back to job
+          Continue to closure
         </button>
       </div>
     )
