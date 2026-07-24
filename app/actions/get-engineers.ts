@@ -109,11 +109,20 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     const engineers: FieldEngineerOverview[] = profiles.map(p => {
       const theirWOs = (wos || []).filter(w => w.engineer_id === p.id)
 
-      // Nearest scheduled_date among anything still open — not restricted to
-      // assigned/unassigned — so this reflects what the engineer is actually busy
-      // with next (including a job already in progress), not just untouched jobs.
+      // The work order the engineer is actively engaged with right now (travelling to /
+      // on the way to / already reached) — already fully represented by the status
+      // badge itself ("Reached — X"), so it's excluded below to avoid "Next assigned
+      // project" redundantly repeating the same project the badge already names.
+      const activeStatusWoId = (p.engineer_status === 'on_the_way' || p.engineer_status === 'travelling' || p.engineer_status === 'reached')
+        ? p.engineer_status_work_order_id
+        : null
+
+      // Nearest scheduled_date among anything still open (excluding the one already
+      // shown via the status badge above) — not restricted to assigned/unassigned, so
+      // this reflects what the engineer is actually busy with next, not just untouched
+      // jobs.
       const upcoming = theirWOs
-        .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment' && w.scheduled_date)
+        .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment' && w.scheduled_date && w.id !== activeStatusWoId)
         .sort((a, b) => (a.scheduled_date! < b.scheduled_date! ? -1 : 1))[0]
 
       const statusWo = p.engineer_status_work_order_id ? theirWOs.find(w => w.id === p.engineer_status_work_order_id) : null
