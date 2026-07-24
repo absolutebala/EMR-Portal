@@ -229,6 +229,22 @@ export default function JobDetailClient({ detail }: Props) {
           </svg>
           Request products
         </button>
+
+        <button
+          className="mtap"
+          onClick={() => router.push(`/mobile/expenses/new?wo=${wo.id}`)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+            padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
+            color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 8,
+            fontFamily: 'Poppins, sans-serif',
+          }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" /><path d="M14.5 9.5a2.5 2.5 0 00-2.5-1H11a2 2 0 000 4h2a2 2 0 010 4h-1a2.5 2.5 0 01-2.5-1M12 6.5v1M12 16.5v1" />
+          </svg>
+          Log expense
+        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>

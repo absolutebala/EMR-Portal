@@ -4,10 +4,10 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
-  active: 'dashboard' | 'jobs' | 'requests'
+  active: 'dashboard' | 'jobs' | 'requests' | 'expenses'
 }
 
-const TABS: { id: 'dashboard' | 'jobs' | 'requests'; label: string; href: string; icon: React.ReactNode }[] = [
+const TABS: { id: 'dashboard' | 'jobs' | 'requests' | 'expenses'; label: string; href: string; icon: React.ReactNode }[] = [
   {
     id: 'dashboard', label: 'Dashboard', href: '/mobile/dashboard',
     icon: (
@@ -30,6 +30,14 @@ const TABS: { id: 'dashboard' | 'jobs' | 'requests'; label: string; href: string
     icon: (
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" />
+      </svg>
+    ),
+  },
+  {
+    id: 'expenses', label: 'Expenses', href: '/mobile/expenses',
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" /><path d="M14.5 9.5a2.5 2.5 0 00-2.5-1H11a2 2 0 000 4h2a2 2 0 010 4h-1a2.5 2.5 0 01-2.5-1M12 6.5v1M12 16.5v1" />
       </svg>
     ),
   },

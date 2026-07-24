@@ -18,6 +18,7 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Forms — Create / Edit':             'Forms — View',
   'Product Requests — Approve':        'Product Requests — View',
   'Product Requests — Dispatch':       'Product Requests — View',
+  'Expenses — Approve':                'Expenses — View',
 }
 
 const ROLE_ORDER = [
@@ -53,6 +54,8 @@ const MODULES = [
   'Product Requests — View',
   'Product Requests — Approve',
   'Product Requests — Dispatch',
+  'Expenses — View',
+  'Expenses — Approve',
   'MoM — View / Download',
   'Activities — View',
   'Settings',
