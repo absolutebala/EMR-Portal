@@ -53,9 +53,11 @@ export async function addCustomer(payload: {
     })
     if (te) return { error: te.message }
 
-    // Create primary contact record
+    // Create primary contact record, linked to the site just created — this is the
+    // on-site contact for that site, not just a general customer-level contact.
     await sb.from('customer_contacts').insert({
       customer_id: cust.id,
+      site_id: site.id,
       name: payload.contact_person,
       phone: payload.phone,
       email: payload.email,

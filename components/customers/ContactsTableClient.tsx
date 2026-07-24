@@ -38,16 +38,19 @@ function iconBtn(danger = false): React.CSSProperties {
 }
 
 const emptyForm = {
-  name: '', designation: '', phone: '', email: '', whatsapp_number: '', address: '', is_primary: false,
+  name: '', designation: '', phone: '', email: '', whatsapp_number: '', address: '', is_primary: false, site_id: '',
 }
+
+interface Site { id: string; site_name: string }
 
 interface Props {
   customerId: string
   contacts: CustomerContact[]
+  sites: Site[]
   canEdit: boolean
 }
 
-export default function ContactsTableClient({ customerId, contacts: init, canEdit }: Props) {
+export default function ContactsTableClient({ customerId, contacts: init, sites, canEdit }: Props) {
   const [contacts, setContacts] = useState(init)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
@@ -66,6 +69,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       name: c.name, designation: c.designation || '',
       phone: c.phone || '', email: c.email || '',
       whatsapp_number: c.whatsapp_number || '', address: c.address || '', is_primary: c.is_primary,
+      site_id: c.site_id || '',
     })
     setError('')
   }
@@ -85,6 +89,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       whatsapp_number: editForm.whatsapp_number || null,
       address: editForm.address || null,
       is_primary: editForm.is_primary,
+      site_id: editForm.site_id || null,
     }, customerId)
     setSaving(false)
     if (error) { setError(error); return }
@@ -97,6 +102,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
       whatsapp_number: editForm.whatsapp_number || null,
       address: editForm.address || null,
       is_primary: editForm.is_primary,
+      site_id: editForm.site_id || null,
     } : editForm.is_primary ? { ...c, is_primary: false } : c))
     setEditingId(null)
   }
@@ -116,6 +122,7 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
     setAddError('')
     const { error } = await addContact({
       customer_id: customerId,
+      site_id: addForm.site_id || null,
       name: addForm.name,
       designation: addForm.designation || null,
       phone: addForm.phone || null,
@@ -129,7 +136,9 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
     window.location.reload()
   }
 
-  const COLS = ['Name', 'Designation', 'Phone', 'Email', 'Address', 'WhatsApp', ...(canEdit ? [''] : [])]
+  const siteName = (id: string | null) => id ? (sites.find(s => s.id === id)?.site_name || '—') : 'General'
+
+  const COLS = ['Name', 'Site', 'Designation', 'Phone', 'Email', 'Address', 'WhatsApp', ...(canEdit ? [''] : [])]
 
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
@@ -158,6 +167,13 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
             <div>
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Name *</label>
               <input required style={fi} value={addForm.name} onChange={e => afset('name', e.target.value)} placeholder="Full name" />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Site</label>
+              <select style={fi} value={addForm.site_id as string} onChange={e => afset('site_id', e.target.value)}>
+                <option value="">General (no specific site)</option>
+                {sites.map(s => <option key={s.id} value={s.id}>{s.site_name}</option>)}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Designation</label>
@@ -227,6 +243,16 @@ export default function ContactsTableClient({ customerId, contacts: init, canEdi
                           )}
                         </div>
                       )}
+                  </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
+                    {isEditing
+                      ? (
+                        <select style={{ ...fi, minWidth: 130 }} value={editForm.site_id} onChange={e => efset('site_id', e.target.value)}>
+                          <option value="">General</option>
+                          {sites.map(s => <option key={s.id} value={s.id}>{s.site_name}</option>)}
+                        </select>
+                      )
+                      : <span style={{ fontSize: 12, color: c.site_id ? 'var(--tx)' : 'var(--txm)' }}>{siteName(c.site_id)}</span>}
                   </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing

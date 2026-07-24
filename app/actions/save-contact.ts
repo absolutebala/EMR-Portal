@@ -11,6 +11,7 @@ function adminClient() {
 
 export async function addContact(payload: {
   customer_id: string
+  site_id: string | null
   name: string
   designation: string | null
   phone: string | null
@@ -34,6 +35,7 @@ export async function addContact(payload: {
 export async function updateContact(
   contactId: string,
   fields: {
+    site_id: string | null
     name: string
     designation: string | null
     phone: string | null

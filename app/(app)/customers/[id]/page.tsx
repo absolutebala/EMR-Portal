@@ -62,6 +62,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <ContactsTableClient
           customerId={customer.id}
           contacts={contacts || []}
+          sites={sites || []}
           canEdit={canEdit}
         />
 
