@@ -37,10 +37,13 @@ export async function addCustomer(payload: {
     }).select().single()
     if (ce) return { error: ce.message }
 
+    // site_address is NOT NULL — falls back to the customer's own general address
+    // (mirroring the site_name -> customer name fallback) since the form only
+    // requires site_address once a site_name has actually been entered.
     const { data: site, error: se } = await sb.from('customer_sites').insert({
       customer_id: cust.id,
       site_name: payload.site_name || payload.name,
-      site_address: payload.site_address,
+      site_address: payload.site_address || payload.address || '',
     }).select().single()
     if (se) return { error: se.message }
 

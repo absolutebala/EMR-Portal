@@ -65,6 +65,12 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!editCustomer && form.site_name.trim() && !form.site_address.trim()) {
+      setError('Site address is required once a site name is entered.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -208,8 +214,8 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
                 <input style={fi2} value={form.site_name} onChange={e => set('site_name', e.target.value)} placeholder="Site / branch name" />
               </div>
               <div>
-                <label style={fl2}>Site address <span style={{ color: 'var(--m)' }}>*</span></label>
-                <input required style={fi2} value={form.site_address} onChange={e => set('site_address', e.target.value)} placeholder="Full site address" />
+                <label style={fl2}>Site address {form.site_name.trim() && <span style={{ color: 'var(--m)' }}>*</span>}</label>
+                <input required={!!form.site_name.trim()} style={fi2} value={form.site_address} onChange={e => set('site_address', e.target.value)} placeholder="Full site address" />
               </div>
             </div>
           </>
