@@ -333,7 +333,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           )}
 
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={fl2}>Customer Type</label>
+            <label style={fl2}>End user type</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: customerType ? 10 : 0 }}>
               {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
                 <button key={o.value} type="button"

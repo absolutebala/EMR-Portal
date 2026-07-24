@@ -517,7 +517,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         </>
                       )}
 
-                      {fieldLabel('Customer Type')}
+                      {fieldLabel('End user type')}
                       <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
                         {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
                           <button key={o.value} type="button"
@@ -918,14 +918,14 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {wo.reported_through && row('Reported through', REPORTED_THROUGH_LABELS[wo.reported_through] || wo.reported_through)}
                 {wo.solution_through && row('Solution through', SOLUTION_THROUGH_LABELS[wo.solution_through] || wo.solution_through)}
                 {wo.additional_engineers && wo.additional_engineers.length > 0 && row('Additional engineers', wo.additional_engineers.map(e => e.name).join(', '))}
-                {wo.customer_type && row('Customer type', wo.customer_type === 'utility' ? 'Utility' : 'Industry')}
-                {wo.customer_category_name && row('Category', wo.customer_category_name)}
               </div>
 
               <div style={card}>
                 <div style={cardLabel}>Customer details</div>
                 {row('Sold customer', wo.customer_name || '—')}
-                {row('Shipped to', wo.site_name || '—')}
+                {row('Project', wo.site_name || '—')}
+                {wo.customer_type && row('End user type', wo.customer_type === 'utility' ? 'Utility' : 'Industry')}
+                {wo.customer_category_name && row('Category', wo.customer_category_name)}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
                 {wo.notes && row('Notes', wo.notes)}
                 {wo.customer_message && row('Customer message', wo.customer_message)}
