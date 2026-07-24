@@ -120,7 +120,6 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const handleCustomerSearch = useCallback((q: string) => {
     setCustQuery(q)
     if (custSearchTimeout.current) clearTimeout(custSearchTimeout.current)
-    if (q.length < 2) { setCustResults([]); return }
     setCustSearching(true)
     custSearchTimeout.current = setTimeout(async () => {
       const { results } = await searchCustomersByName(q)
@@ -306,11 +305,12 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
                 <input
                   style={fi2} value={custQuery}
                   onChange={e => handleCustomerSearch(e.target.value)}
-                  placeholder="Search by customer name…"
+                  onFocus={() => { if (custResults.length === 0 && !custSearching) handleCustomerSearch(custQuery) }}
+                  placeholder="Click to browse or search by customer name…"
                 />
                 {custSearching && <div style={{ position: 'absolute', right: 10, top: 10, fontSize: 10, color: 'var(--txm)' }}>Searching…</div>}
                 {custResults.length > 0 && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.1)', zIndex: 200, overflow: 'hidden', marginTop: 4 }}>
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.1)', zIndex: 200, overflow: 'hidden', overflowY: 'auto', maxHeight: 260, marginTop: 4 }}>
                     {custResults.map(c => (
                       <div key={c.customer_id} onClick={() => selectCustomer(c.customer_id, c.name)}
                         style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gm)' }}
@@ -322,7 +322,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
                     ))}
                   </div>
                 )}
-                {custQuery.length >= 2 && !custSearching && custResults.length === 0 && (
+                {custQuery.length >= 1 && !custSearching && custResults.length === 0 && (
                   <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>No customer found for &quot;{custQuery}&quot;</span>
                     <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>

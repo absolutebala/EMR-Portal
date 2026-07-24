@@ -387,13 +387,13 @@ export async function searchTransformersBySerial(query: string): Promise<{ resul
 }
 
 export async function searchCustomersByName(query: string): Promise<{ results: { customer_id: string; name: string; phone: string; contact_person: string }[] }> {
-  if (!query || query.length < 2) return { results: [] }
   const admin = adminClient()
-  const { data } = await admin
-    .from('customers')
-    .select('id, name, phone, contact_person')
-    .ilike('name', `%${query}%`)
-    .limit(10)
+  const trimmed = query.trim()
+  // Empty query = browse mode (e.g. clicking into the field): list existing
+  // customers instead of requiring the user to type first.
+  let q = admin.from('customers').select('id, name, phone, contact_person').order('name').limit(trimmed ? 10 : 20)
+  if (trimmed) q = q.ilike('name', `%${trimmed}%`)
+  const { data } = await q
 
   return {
     results: (data || []).map(c => ({
