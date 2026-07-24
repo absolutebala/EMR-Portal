@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getMyProductRequests } from '@/app/actions/products'
 import RequestsListClient from './RequestsListClient'
 
@@ -9,6 +10,7 @@ export default async function MobileRequestsPage() {
   const sb = await createClient()
   const user = await getAuthedUser(sb)
   if (!user) redirect('/mobile/login')
+  await requireMobilePasswordChanged(sb, user.id)
 
   const { requests, error } = await getMyProductRequests()
 

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getMobileWorkOrderWithForm } from '@/app/actions/mobile-actions'
 import FormFillView from '@/components/mobile/FormFillView'
 
@@ -13,6 +14,7 @@ export default async function MobileWorkOrderFormPage({ params }: Props) {
   const sb = await createClient()
   const user = await getAuthedUser(sb)
   if (!user) redirect('/mobile/login')
+  await requireMobilePasswordChanged(sb, user.id)
 
   const { id } = await params
   const { workOrder, form, existingSubmission, error } = await getMobileWorkOrderWithForm(id)
