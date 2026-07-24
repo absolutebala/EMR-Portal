@@ -923,9 +923,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
               <div style={card}>
                 <div style={cardLabel}>Customer details</div>
                 {row('Sold customer', wo.customer_name || '—')}
+                {row('Shipped to', wo.site_name || '—')}
                 {row('Project', wo.site_name || '—')}
-                {wo.customer_type && row('End user type', wo.customer_type === 'utility' ? 'Utility' : 'Industry')}
-                {wo.customer_category_name && row('Category', wo.customer_category_name)}
+                {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : '—')}
+                {row('Category', wo.customer_category_name || '—')}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
                 {wo.notes && row('Notes', wo.notes)}
                 {wo.customer_message && row('Customer message', wo.customer_message)}
