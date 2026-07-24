@@ -6,6 +6,8 @@ import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
 import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer, getAssignableEngineers } from '@/app/actions/get-work-orders'
+import CustomerCategoryPicker from './CustomerCategoryPicker'
+import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 
 const REPORTED_THROUGH_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -58,6 +60,9 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [solutionThrough, setSolutionThrough] = useState('')
   const [engineers, setEngineers] = useState<Engineer[]>([])
   const [additionalEngineerIds, setAdditionalEngineerIds] = useState<string[]>([])
+  const [customerType, setCustomerType] = useState<CustomerCategoryType | ''>('')
+  const [customerCategoryId, setCustomerCategoryId] = useState('')
+  const [customerCategoryName, setCustomerCategoryName] = useState('')
 
   // Customer name search
   const [custQuery, setCustQuery] = useState('')
@@ -79,6 +84,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setWoNumber(''); setTicketNumber(''); setJobType(''); setNotes('')
       setSnQuery(''); setSnResults([]); setCustQuery(''); setCustResults([]); setError('')
       setReportedDate(''); setReportedThrough(''); setCustomerMessage(''); setSolutionThrough(''); setAdditionalEngineerIds([])
+      setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
@@ -185,6 +191,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       customer_message: customerMessage || null,
       solution_through: solutionThrough || null,
       additional_engineer_ids: solutionThrough === 'virtual' ? additionalEngineerIds : [],
+      customer_type: customerType || null,
+      customer_category_id: customerCategoryId || null,
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -323,6 +331,32 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               </div>
             </div>
           )}
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={fl2}>Customer Type</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: customerType ? 10 : 0 }}>
+              {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
+                <button key={o.value} type="button"
+                  onClick={() => { setCustomerType(o.value as CustomerCategoryType); setCustomerCategoryId(''); setCustomerCategoryName('') }}
+                  style={{
+                    flex: 1, padding: '9px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                    border: `1.5px solid ${customerType === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                    background: customerType === o.value ? 'var(--mp)' : '#fff',
+                    color: customerType === o.value ? 'var(--m)' : 'var(--tx)',
+                  }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {customerType && (
+              <CustomerCategoryPicker
+                customerType={customerType}
+                valueId={customerCategoryId}
+                valueName={customerCategoryName}
+                onChange={(id, name) => { setCustomerCategoryId(id); setCustomerCategoryName(name) }}
+              />
+            )}
+          </div>
 
           <div>
             <label style={fl2}>Reported date</label>

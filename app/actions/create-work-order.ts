@@ -49,6 +49,8 @@ export async function createWorkOrder(payload: {
   customer_message: string | null
   solution_through: string | null
   additional_engineer_ids: string[]
+  customer_type: string | null
+  customer_category_id: string | null
 }): Promise<{ error: string | null; id?: string }> {
   try {
     const sb = await serverClient()
@@ -86,6 +88,8 @@ export async function createWorkOrder(payload: {
         reported_through: payload.reported_through || null,
         customer_message: payload.customer_message || null,
         solution_through: payload.solution_through || null,
+        customer_type: payload.customer_type || null,
+        customer_category_id: payload.customer_category_id || null,
       }).select('id').single()
       if (data) { wo = data; break }
       insertError = error
@@ -160,6 +164,8 @@ export async function updateWorkOrder(id: string, payload: {
   customer_message: string | null
   solution_through: string | null
   additional_engineer_ids: string[]
+  customer_type: string | null
+  customer_category_id: string | null
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
@@ -195,6 +201,8 @@ export async function updateWorkOrder(id: string, payload: {
       reported_through: payload.reported_through || null,
       customer_message: payload.customer_message || null,
       solution_through: payload.solution_through || null,
+      customer_type: payload.customer_type || null,
+      customer_category_id: payload.customer_category_id || null,
     }).eq('id', id)
     if (updateErr) return { error: updateErr.message }
 

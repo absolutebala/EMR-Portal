@@ -95,11 +95,13 @@ export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error:
     const woIds = filtered.map(w => w.id)
     const customerIds = [...new Set(filtered.map(w => w.customer_id))]
     const engineerIds = [...new Set(filtered.map(w => w.engineer_id).filter(Boolean))]
+    const categoryIds = [...new Set(filtered.map(w => w.customer_category_id).filter(Boolean))]
 
-    const [{ data: wotRows }, { data: customers }, { data: engineers }] = await Promise.all([
+    const [{ data: wotRows }, { data: customers }, { data: engineers }, { data: categories }] = await Promise.all([
       admin.from('work_order_transformers').select('work_order_id, transformer_id, transformers(serial_number, warranty_status, site_id, customer_sites(site_name))').in('work_order_id', woIds),
       admin.from('customers').select('id, name').in('id', customerIds),
       engineerIds.length ? admin.from('profiles').select('id, first_name, last_name').in('id', engineerIds) : Promise.resolve({ data: [] }),
+      categoryIds.length ? admin.from('customer_categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [] }),
     ])
 
     const custMap: Record<string, string> = {}
@@ -107,6 +109,9 @@ export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error:
 
     const engMap: Record<string, string> = {}
     engineers?.forEach((e: { id: string; first_name: string; last_name: string }) => { engMap[e.id] = `${e.first_name} ${e.last_name}` })
+
+    const categoryMap: Record<string, string> = {}
+    categories?.forEach((c: { id: string; name: string }) => { categoryMap[c.id] = c.name })
 
     type WotRow = { work_order_id: string; transformer_id: string; transformers: { serial_number: string; warranty_status: string; site_id: string | null; customer_sites: { site_name: string } | null } | null }
     const wotByWo: Record<string, WotRow[]> = {}
@@ -129,6 +134,7 @@ export async function getWorkOrders(): Promise<{ workOrders: WorkOrder[]; error:
         transformer_ids: transformerIds,
         site_name: siteName,
         has_warranty: hasWarranty,
+        customer_category_name: w.customer_category_id ? (categoryMap[w.customer_category_id] || null) : null,
       }
     })
 
@@ -158,7 +164,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }] = await Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
@@ -173,6 +179,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         .eq('work_order_id', id)
         .order('created_at', { ascending: true }),
       admin.from('work_order_additional_engineers').select('engineer_id, profiles(first_name, last_name)').eq('work_order_id', id),
+      wo.customer_category_id ? admin.from('customer_categories').select('name').eq('id', wo.customer_category_id).maybeSingle() : Promise.resolve({ data: null }),
     ])
 
     type AdditionalEngineerRow = { engineer_id: string; profiles: { first_name: string; last_name: string } | null }
@@ -343,6 +350,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         site_name: siteName,
         has_warranty: hasWarranty,
         additional_engineers: additionalEngineers,
+        customer_category_name: categoryRow?.name || null,
       },
       activity: actRows || [],
       checkin,

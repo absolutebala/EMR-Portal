@@ -11,6 +11,8 @@ import {
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import { getProductRequestsForWorkOrder, type ProductRequestView } from '@/app/actions/products'
+import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
+import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
@@ -213,6 +215,9 @@ interface EditForm {
   customer_message: string
   solution_through: string
   additional_engineer_ids: string[]
+  customer_type: string
+  customer_category_id: string
+  customer_category_name: string
 }
 
 const inputStyle: React.CSSProperties = {
@@ -254,6 +259,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [form, setForm] = useState<EditForm>({
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
     reported_date: '', reported_through: '', customer_message: '', solution_through: '', additional_engineer_ids: [],
+    customer_type: '', customer_category_id: '', customer_category_name: '',
   })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
@@ -310,6 +316,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_message: wo.customer_message || '',
       solution_through: wo.solution_through || '',
       additional_engineer_ids: (wo.additional_engineers || []).map(e => e.id),
+      customer_type: wo.customer_type || '',
+      customer_category_id: wo.customer_category_id || '',
+      customer_category_name: wo.customer_category_name || '',
     })
     setEditing(true)
     setShowReassign(false)
@@ -349,6 +358,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_message: form.customer_message || null,
       solution_through: form.solution_through || null,
       additional_engineer_ids: form.solution_through === 'virtual' ? form.additional_engineer_ids : [],
+      customer_type: form.customer_type || null,
+      customer_category_id: form.customer_category_id || null,
     })
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
@@ -504,6 +515,30 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                             ))}
                           </div>
                         </>
+                      )}
+
+                      {fieldLabel('Customer Type')}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
+                        {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
+                          <button key={o.value} type="button"
+                            onClick={() => setForm(f => ({ ...f, customer_type: o.value, customer_category_id: '', customer_category_name: '' }))}
+                            style={{
+                              flex: 1, padding: '8px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                              border: `1.5px solid ${form.customer_type === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                              background: form.customer_type === o.value ? 'var(--mp)' : '#fff',
+                              color: form.customer_type === o.value ? 'var(--m)' : 'var(--tx)',
+                            }}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                      {form.customer_type && (
+                        <CustomerCategoryPicker
+                          customerType={form.customer_type as CustomerCategoryType}
+                          valueId={form.customer_category_id}
+                          valueName={form.customer_category_name}
+                          onChange={(id, name) => setForm(f => ({ ...f, customer_category_id: id, customer_category_name: name }))}
+                        />
                       )}
                     </div>
 
@@ -883,6 +918,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {wo.reported_through && row('Reported through', REPORTED_THROUGH_LABELS[wo.reported_through] || wo.reported_through)}
                 {wo.solution_through && row('Solution through', SOLUTION_THROUGH_LABELS[wo.solution_through] || wo.solution_through)}
                 {wo.additional_engineers && wo.additional_engineers.length > 0 && row('Additional engineers', wo.additional_engineers.map(e => e.name).join(', '))}
+                {wo.customer_type && row('Customer type', wo.customer_type === 'utility' ? 'Utility' : 'Industry')}
+                {wo.customer_category_name && row('Category', wo.customer_category_name)}
               </div>
 
               <div style={card}>

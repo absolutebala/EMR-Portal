@@ -111,6 +111,8 @@ export interface WorkOrder {
   reported_through: ReportedThrough | null
   customer_message: string | null
   solution_through: SolutionThrough | null
+  customer_type: NotificationCustomerType | null
+  customer_category_id: string | null
   // joined
   customer_name?: string
   engineer_name?: string
@@ -119,7 +121,12 @@ export interface WorkOrder {
   site_name?: string | null
   has_warranty?: boolean
   additional_engineers?: { id: string; name: string }[]
+  customer_category_name?: string | null
 }
+
+// Utility / Industry classification for a notification's customer — distinct from
+// Customer.type ("sold" | "shipped" | "both") above, which is an unrelated concept.
+export type NotificationCustomerType = 'utility' | 'industry'
 
 export type ReportedThrough = 'whatsapp' | 'email' | 'phone' | 'other'
 export type SolutionThrough = 'virtual' | 'on_site'
