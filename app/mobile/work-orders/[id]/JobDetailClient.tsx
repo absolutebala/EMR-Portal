@@ -176,7 +176,7 @@ export default function JobDetailClient({ detail }: Props) {
               </svg>
             </div>
             <div style={{ flex: 1, textAlign: 'left' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>Check in at site</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>Check in at project</p>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Capture GPS + photo to start work</span>
             </div>
           </button>
@@ -249,8 +249,8 @@ export default function JobDetailClient({ detail }: Props) {
           <InfoRow label="Customer" value={wo.customer_name} />
           <InfoRow label="Contact" value={wo.customer_contact || '—'} />
           <InfoRow label="Phone" value={wo.customer_phone || '—'} />
-          <InfoRow label="Site" value={wo.site_name || '—'} />
-          <InfoRow label="Site address" value={wo.site_address || '—'} last />
+          <InfoRow label="Project" value={wo.site_name || '—'} />
+          <InfoRow label="Project address" value={wo.site_address || '—'} last />
         </div>
 
         {detail.handoverFromOtherEngineer && detail.latestClosure && (

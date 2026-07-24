@@ -91,7 +91,7 @@ export default function CheckInView({ workOrder }: Props) {
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
-      <MobileHeader title="Site Check-In" backHref={`/mobile/work-orders/${workOrder.id}`} rightSlot={
+      <MobileHeader title="Project Check-In" backHref={`/mobile/work-orders/${workOrder.id}`} rightSlot={
         <span style={{ background: '#DBEAFE', color: '#1E40AF', fontSize: 10, fontWeight: 600, borderRadius: 20, padding: '3px 10px' }}>
           {workOrder.wo_number}
         </span>
@@ -124,7 +124,7 @@ export default function CheckInView({ workOrder }: Props) {
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Check-in details</p>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12 }}>
-            <span style={{ color: '#7A6870' }}>Customer site</span>
+            <span style={{ color: '#7A6870' }}>Customer project</span>
             <span style={{ fontWeight: 500 }}>{workOrder.site_name || workOrder.customer_name}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12 }}>
@@ -187,7 +187,7 @@ export default function CheckInView({ workOrder }: Props) {
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" />
           </svg>
-          {submitting ? 'Checking in…' : 'Confirm check-in — Reached Site'}
+          {submitting ? 'Checking in…' : 'Confirm check-in — Reached Project'}
         </button>
       </div>
     </div>

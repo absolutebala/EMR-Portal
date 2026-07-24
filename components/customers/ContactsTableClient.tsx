@@ -138,7 +138,7 @@ export default function ContactsTableClient({ customerId, contacts: init, sites,
 
   const siteName = (id: string | null) => id ? (sites.find(s => s.id === id)?.site_name || '—') : 'General'
 
-  const COLS = ['Name', 'Site', 'Designation', 'Phone', 'Email', 'Address', 'WhatsApp', ...(canEdit ? [''] : [])]
+  const COLS = ['Name', 'Project', 'Designation', 'Phone', 'Email', 'Address', 'WhatsApp', ...(canEdit ? [''] : [])]
 
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
@@ -169,9 +169,9 @@ export default function ContactsTableClient({ customerId, contacts: init, sites,
               <input required style={fi} value={addForm.name} onChange={e => afset('name', e.target.value)} placeholder="Full name" />
             </div>
             <div>
-              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Site</label>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Project</label>
               <select style={fi} value={addForm.site_id as string} onChange={e => afset('site_id', e.target.value)}>
-                <option value="">General (no specific site)</option>
+                <option value="">General (no specific project)</option>
                 {sites.map(s => <option key={s.id} value={s.id}>{s.site_name}</option>)}
               </select>
             </div>

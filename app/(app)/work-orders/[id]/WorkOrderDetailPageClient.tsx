@@ -523,7 +523,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                 <div>
                                   <div style={{ fontSize: 12, fontWeight: checked ? 600 : 400, color: checked ? 'var(--m)' : 'var(--tx)' }}>{t.serial_number}</div>
                                   <div style={{ fontSize: 10, color: 'var(--txm)' }}>
-                                    {t.site_name || 'No site'}
+                                    {t.site_name || 'No project'}
                                     {' · '}
                                     <span style={{ color: t.warranty_status === 'under_warranty' ? '#059669' : '#6B7280' }}>
                                       {t.warranty_status === 'under_warranty' ? 'Under warranty' : 'No warranty'}
@@ -782,7 +782,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                     {showReassign && (
                       <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4 }}>
-                          Suggested engineers — nearest to site first
+                          Suggested engineers — nearest to project first
                         </div>
                         <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
                           {engineers.map(e => {

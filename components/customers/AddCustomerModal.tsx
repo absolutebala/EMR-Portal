@@ -67,7 +67,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
     e.preventDefault()
 
     if (!editCustomer && form.site_name.trim() && !form.site_address.trim()) {
-      setError('Site address is required once a site name is entered.')
+      setError('Project address is required once a project name is entered.')
       return
     }
 
@@ -207,15 +207,15 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
         {!isEdit && (
           <>
             <div style={{ height: 1, background: 'var(--gm)', margin: '0 0 14px' }}/>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Site details</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Project details</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
-                <label style={fl2}>Site name</label>
-                <input style={fi2} value={form.site_name} onChange={e => set('site_name', e.target.value)} placeholder="Site / branch name" />
+                <label style={fl2}>Project name</label>
+                <input style={fi2} value={form.site_name} onChange={e => set('site_name', e.target.value)} placeholder="Project / branch name" />
               </div>
               <div>
-                <label style={fl2}>Site address {form.site_name.trim() && <span style={{ color: 'var(--m)' }}>*</span>}</label>
-                <input required={!!form.site_name.trim()} style={fi2} value={form.site_address} onChange={e => set('site_address', e.target.value)} placeholder="Full site address" />
+                <label style={fl2}>Project address {form.site_name.trim() && <span style={{ color: 'var(--m)' }}>*</span>}</label>
+                <input required={!!form.site_name.trim()} style={fi2} value={form.site_address} onChange={e => set('site_address', e.target.value)} placeholder="Full project address" />
               </div>
             </div>
           </>

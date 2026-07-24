@@ -11,7 +11,7 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   on_leave: { label: 'On Leave', bg: '#F1F5F9', color: '#475569' },
   on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
-  reached: { label: 'Reached site', bg: '#FEF3C7', color: '#92400E' },
+  reached: { label: 'Reached project', bg: '#FEF3C7', color: '#92400E' },
 }
 
 function StatusBadge({ status, statusSiteName }: { status: EngineerStatus; statusSiteName: string | null }) {
@@ -73,7 +73,7 @@ export default function EngineersPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr>
-                    {['Engineer', 'Employee ID', 'Status', 'Last Seen', 'Next assigned site', 'Open', 'Completed', 'Actions'].map(h => (
+                    {['Engineer', 'Employee ID', 'Status', 'Last Seen', 'Next assigned project', 'Open', 'Completed', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>

@@ -44,7 +44,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
           <div>
             {[
-              { label: 'Sites', val: sites?.length || 0, color: 'var(--m)' },
+              { label: 'Projects', val: sites?.length || 0, color: 'var(--m)' },
               { label: 'Transformers', val: transformers?.length || 0, color: 'var(--blue)' },
               { label: 'Notifications', val: 0, color: 'var(--amber)', stub: true },
             ].map(s => (

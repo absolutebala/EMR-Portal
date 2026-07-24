@@ -652,7 +652,7 @@ export async function setEngineerStatus(status: EngineerStatusValue, workOrderId
     if (!user) return { error: 'Not authenticated' }
 
     if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
-      return { error: 'Pick a site' }
+      return { error: 'Pick a project' }
     }
 
     const admin = adminClient()
@@ -666,7 +666,7 @@ export async function setEngineerStatus(status: EngineerStatusValue, workOrderId
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     const STATUS_LABEL: Record<EngineerStatusValue, string> = {
-      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached site',
+      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project',
     }
     logSystemActivity(admin, { actorId: user.id, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: user.id }).catch(() => {})
 
@@ -899,7 +899,7 @@ export async function submitCheckIn(params: {
       engineer_status_updated_at: new Date().toISOString(),
     }).eq('id', user.id).then(() => {}, () => {})
 
-    logActivity(admin, params.workOrderId, user.id, 'Checked in at site').catch(() => {})
+    logActivity(admin, params.workOrderId, user.id, 'Checked in at project').catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {

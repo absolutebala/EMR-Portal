@@ -10,7 +10,7 @@ const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; l
   on_leave: { bg: '#F1F5F9', color: '#475569', label: 'On Leave' },
   on_the_way: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On the way' },
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
-  reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached site' },
+  reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
 }
 
 const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {

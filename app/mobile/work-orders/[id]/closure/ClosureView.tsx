@@ -16,7 +16,7 @@ const PENDING_REASONS = [
   'Waiting for parts delivery',
   'Customer not available',
   'Technical dependency',
-  'Site access issue',
+  'Project access issue',
   'Other',
 ]
 

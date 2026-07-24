@@ -131,7 +131,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
 
   async function handleAdd() {
     if (!addForm.serial_number.trim()) { setAddError('Serial number is required'); return }
-    if (isNewSite && !addForm.new_site_address.trim()) { setAddError('Site address is required for new site'); return }
+    if (isNewSite && !addForm.new_site_address.trim()) { setAddError('Project address is required for new project'); return }
     setAddSaving(true)
     setAddError('')
     const { error } = await addTransformer({
@@ -199,21 +199,21 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Site</label>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Project</label>
               <select style={sel} value={addForm.site_id} onChange={e => aset('site_id', e.target.value)}>
                 {sites.map(s => <option key={s.id} value={s.id}>{s.site_name}</option>)}
-                <option value="__new__">+ New site</option>
+                <option value="__new__">+ New project</option>
               </select>
             </div>
             {isNewSite && (
               <>
                 <div>
-                  <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>New site name</label>
-                  <input style={fi} value={addForm.new_site_name} onChange={e => aset('new_site_name', e.target.value)} placeholder="Site / branch name" />
+                  <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>New project name</label>
+                  <input style={fi} value={addForm.new_site_name} onChange={e => aset('new_site_name', e.target.value)} placeholder="Project / branch name" />
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>New site address *</label>
-                  <input required style={fi} value={addForm.new_site_address} onChange={e => aset('new_site_address', e.target.value)} placeholder="Full site address" />
+                  <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>New project address *</label>
+                  <input required style={fi} value={addForm.new_site_address} onChange={e => aset('new_site_address', e.target.value)} placeholder="Full project address" />
                 </div>
               </>
             )}
@@ -237,7 +237,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Site', ...(canEdit ? [''] : [])].map(h => (
+              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Project', ...(canEdit ? [''] : [])].map(h => (
                 <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
               ))}
             </tr>
@@ -282,7 +282,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing
                       ? <select style={{ ...sel, minWidth: 120 }} value={txForm.site_id} onChange={e => tfset('site_id', e.target.value)}>
-                          <option value="">— No site —</option>
+                          <option value="">— No project —</option>
                           {sites.map(s => <option key={s.id} value={s.id}>{s.site_name}</option>)}
                         </select>
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{site?.site_name || '—'}</span>}

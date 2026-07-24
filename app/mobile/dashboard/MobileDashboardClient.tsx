@@ -23,7 +23,7 @@ const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; colo
   on_leave: { label: 'On Leave', bg: '#F1F5F9', color: '#475569' },
   on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
-  reached: { label: 'Reached site', bg: '#FEF3C7', color: '#92400E' },
+  reached: { label: 'Reached project', bg: '#FEF3C7', color: '#92400E' },
 }
 
 const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: string; bg: string; icon: React.ReactNode }[] = [
@@ -110,7 +110,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
 
   async function confirmStatus(status: EngineerStatusValue, workOrderId: string | null) {
     if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
-      setStatusError('Pick a site')
+      setStatusError('Pick a project')
       return
     }
     setStatusSaving(true)
@@ -181,7 +181,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                 <div style={{ fontSize: 10, fontWeight: 600, color: '#7D1D3F', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                   {pendingStatus === 'travelling' ? 'Travelling to' : 'On the way to'}
                 </div>
-                <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 12px' }}>Pick which site.</p>
+                <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 12px' }}>Pick which project.</p>
                 {statusPrompt && statusPrompt.assignableSites.length > 0 ? (
                   <div style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 12 }}>
                     {statusPrompt.assignableSites.map(s => (
@@ -208,7 +208,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                     ))}
                   </div>
                 ) : (
-                  <p style={{ fontSize: 12, color: '#7A6870', marginBottom: 12 }}>No assigned jobs to pick a site from.</p>
+                  <p style={{ fontSize: 12, color: '#7A6870', marginBottom: 12 }}>No assigned jobs to pick a project from.</p>
                 )}
                 {statusError && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{statusError}</p>}
                 <div style={{ display: 'flex', gap: 8 }}>
