@@ -101,7 +101,7 @@ export default function EngineersPage() {
                               {e.nextAssigned.scheduledDate ? new Date(e.nextAssigned.scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
                             </div>
                           </>
-                        ) : <span style={{ color: 'var(--txm)' }}>—</span>}
+                        ) : <span style={{ color: 'var(--txm)' }}>No project assigned</span>}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)', textAlign: 'center' }}>{e.openWorkOrders}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)', textAlign: 'center' }}>{e.completedToday}</td>
