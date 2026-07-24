@@ -823,7 +823,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                           {engineers.map(e => {
                             const selected = e.id === reassignId
                             return (
-                              <div key={e.id} onClick={() => setReassignId(e.id)}
+                              <div key={e.id} onClick={() => { setReassignId(e.id); setReassignDate(prev => prev || new Date().toLocaleDateString('en-CA')) }}
                                 style={{
                                   padding: '8px 10px', borderRadius: 7, cursor: 'pointer',
                                   border: `1.5px solid ${selected ? 'var(--m)' : 'var(--gm)'}`,
@@ -851,7 +851,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               <label style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4, display: 'block', marginBottom: 4 }}>
                                 Scheduled date <span style={{ color: 'var(--m)' }}>*</span>
                               </label>
-                              <input type="date" required value={reassignDate} onChange={e => setReassignDate(e.target.value)}
+                              <input type="date" required value={reassignDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setReassignDate(e.target.value)}
                                 style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }} />
                             </div>
 

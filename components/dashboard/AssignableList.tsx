@@ -32,7 +32,7 @@ export default function AssignableList({ title, viewAllHref, workOrders, empty }
     if (expandedId === wo.id) { setExpandedId(null); return }
     setExpandedId(wo.id)
     setSelectedEngineerId('')
-    setScheduledDate('')
+    setScheduledDate(new Date().toLocaleDateString('en-CA'))
     setError('')
     setLoadingEngineers(true)
     const { engineers: eng } = await getAssignableEngineers(wo.id)
