@@ -453,6 +453,18 @@ export async function rescheduleFollowUp(workOrderId: string, newDate: string): 
       if (updateResult.error) return { error: updateResult.error.message }
     }
 
+    // The engineer confirmed (via the "are you still at the site?" prompt) that they've
+    // actually left — clear "reached" so checkOpenVisitFollowUp() stops re-prompting
+    // them for a job they've already rescheduled. Only touch it if the status still
+    // points at THIS work order, so a status the engineer has since moved on to for a
+    // different job isn't clobbered.
+    admin.from('profiles').update({
+      engineer_status: 'available',
+      engineer_status_work_order_id: null,
+      engineer_status_updated_at: new Date().toISOString(),
+    }).eq('id', user.id).eq('engineer_status', 'reached').eq('engineer_status_work_order_id', workOrderId)
+      .then(() => {}, () => {})
+
     const formattedDate = new Date(newDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
     logActivity(admin, workOrderId, user.id, `Rescheduled follow-up to ${formattedDate}`).catch(() => {})
 

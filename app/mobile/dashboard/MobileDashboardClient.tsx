@@ -61,6 +61,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const router = useRouter()
   const supabase = createClient()
   const [queue, setQueue] = useState(overdueFollowUps)
+  const [askingAtSiteId, setAskingAtSiteId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [newDate, setNewDate] = useState('')
   const [dateFocused, setDateFocused] = useState(false)
@@ -137,6 +138,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
 
   function dismiss(workOrderId: string) {
     setQueue(q => q.filter(f => f.workOrderId !== workOrderId))
+    setAskingAtSiteId(null)
     setReschedulingId(null)
     setNewDate('')
     setRescheduleError('')
@@ -260,7 +262,36 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                   : <>{current.woNumber} has been in progress since your last check-in on {formatDate(current.dueDate)}, with no update since. Is this job completed, or do you need to reschedule?</>}
             </p>
 
-            {reschedulingId === current.workOrderId ? (
+            {askingAtSiteId === current.workOrderId ? (
+              <>
+                <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 12px' }}>
+                  Are you still at the site right now?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="mtap"
+                    onClick={() => setAskingAtSiteId(null)}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#7A6870', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    className="mtap"
+                    onClick={() => { setAskingAtSiteId(null); setReschedulingId(current.workOrderId) }}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    No, I&apos;ve left
+                  </button>
+                  <button
+                    className="mtap"
+                    onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}/closure`)}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Yes, I&apos;m here
+                  </button>
+                </div>
+              </>
+            ) : reschedulingId === current.workOrderId ? (
               <>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#7A6870', marginBottom: 6 }}>
                   New follow-up date
@@ -315,7 +346,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   className="mtap"
-                  onClick={() => setReschedulingId(current.workOrderId)}
+                  onClick={() => setAskingAtSiteId(current.workOrderId)}
                   style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                 >
                   Reschedule
