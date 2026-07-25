@@ -451,18 +451,20 @@ async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; p
 // Indian addresses are typically written most-specific-first (house/street details)
 // down to least-specific (locality, city) — the specific end frequently isn't in
 // OpenStreetMap's data at all, so searching the FULL string as one query often
-// returns zero results even though the locality/city on its own would geocode fine
-// (e.g. "AJ Block 4th Street, 35, 9th Main Rd, A J Block, Shanthi Colony, Anna Nagar"
-// failed whole, but "Shanthi Colony, Anna Nagar" resolves easily). Retries with
-// progressively fewer leading (more specific) comma-segments until a match is found,
-// stopping once only one segment (too generic, e.g. just a city name) would remain.
-// Spaced ~1.1s apart — Nominatim's usage policy caps free-tier use at 1 request/second.
+// returns zero results even though the locality/city on its own would geocode fine.
+// Nominatim is also picky about compound sub-locality names it doesn't have as a
+// distinct tagged place — "Shanthi Colony, Anna Nagar" returned nothing, but the
+// final single segment "Anna Nagar" alone resolved cleanly — so this retries all the
+// way down to that last segment, not just to a 2-segment floor; a coarse match to the
+// city/neighbourhood is still far more useful for ~km-level engineer-distance ranking
+// than no coordinates at all. Spaced ~1.1s apart — Nominatim's usage policy caps
+// free-tier use at 1 request/second.
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
   const full = await geocodeOnce(address)
   if (full) return full
 
   const segments = address.split(',').map(s => s.trim()).filter(Boolean)
-  for (let start = 1; segments.length - start >= 2; start++) {
+  for (let start = 1; segments.length - start >= 1; start++) {
     await sleep(1100)
     const result = await geocodeOnce(segments.slice(start).join(', '))
     if (result) return result
