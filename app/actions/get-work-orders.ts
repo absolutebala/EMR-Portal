@@ -457,7 +457,8 @@ async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId:
 // caching pattern (customers.latitude/longitude/place_label, migration
 // 043_customer_coordinates.sql).
 async function getCustomerCoordinates(admin: ReturnType<typeof adminClient>, customerId: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
-  const { data: customer } = await admin.from('customers').select('address, latitude, longitude, place_label').eq('id', customerId).maybeSingle()
+  const { data: customer, error: selectError } = await admin.from('customers').select('address, latitude, longitude, place_label').eq('id', customerId).maybeSingle()
+  if (selectError) { console.error('getCustomerCoordinates: select failed', selectError.message); return null }
   if (!customer) return null
   if (customer.latitude != null && customer.longitude != null) return { lat: customer.latitude, lng: customer.longitude, placeLabel: customer.place_label ?? null }
   if (!customer.address) return null
@@ -469,16 +470,17 @@ async function getCustomerCoordinates(admin: ReturnType<typeof adminClient>, cus
     ),
     6000
   )
-  if (!res || !res.ok) return null
+  if (!res || !res.ok) { console.error('getCustomerCoordinates: geocode fetch failed', res?.status); return null }
   const results = await res.json().catch(() => null)
   const first = results?.[0]
-  if (!first) return null
+  if (!first) { console.error('getCustomerCoordinates: no geocode results for', customer.address); return null }
   const lat = parseFloat(first.lat)
   const lng = parseFloat(first.lon)
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
   const placeLabel = extractPlaceLabel(first.address || {}, first.display_name)
 
-  await admin.from('customers').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', customerId)
+  const { error: updateError } = await admin.from('customers').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', customerId)
+  if (updateError) console.error('getCustomerCoordinates: cache update failed', updateError.message)
   return { lat, lng, placeLabel }
 }
 
@@ -520,8 +522,10 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
   // perfectly valid.
   let siteCoords = siteId ? await getSiteCoordinates(admin, siteId) : null
   if (!siteCoords) {
-    const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
+    const { data: wo, error: woError } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
+    if (woError) console.error('getAssignableEngineers: work_orders lookup failed', woError.message)
     if (wo?.customer_id) siteCoords = await getCustomerCoordinates(admin, wo.customer_id)
+    if (!siteCoords) console.error('getAssignableEngineers: no coordinates resolved', { workOrderId, siteId, customerId: wo?.customer_id })
   }
 
   // Most recent check-in per engineer, across all their work orders, as a proxy for
