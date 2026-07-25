@@ -27,6 +27,10 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function formatDateTime(d: string) {
+  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
@@ -38,7 +42,7 @@ export default async function DashboardPage() {
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList } = dashboard
+  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates } = dashboard
 
   return (
     <>
@@ -114,6 +118,16 @@ export default async function DashboardPage() {
           <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
 
           <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, marginTop: 14 }}>
+          <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
+            {offSiteUpdates.map(u => (
+              <ListRow key={u.id} title={u.actorName} subtitle={formatDateTime(u.createdAt)}>
+                <span style={{ fontSize: 11, color: 'var(--txm)', textAlign: 'right', maxWidth: 320 }}>{u.action}</span>
+              </ListRow>
+            ))}
+          </ListCard>
         </div>
       </div>
     </>

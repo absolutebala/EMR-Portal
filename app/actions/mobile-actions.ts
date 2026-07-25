@@ -408,7 +408,7 @@ export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowU
 // itself changed, just when the engineer expects to come back. Pending jobs have a
 // closure to update the revisit_date on; a stale in-progress job was never closed at
 // all, so there's nothing to update but the notification's own scheduled_date.
-export async function rescheduleFollowUp(workOrderId: string, newDate: string): Promise<{ error: string | null }> {
+export async function rescheduleFollowUp(workOrderId: string, newDate: string, offSite?: boolean): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
@@ -417,7 +417,7 @@ export async function rescheduleFollowUp(workOrderId: string, newDate: string): 
     const admin = adminClient()
 
     const woResult = await withTimeout(
-      admin.from('work_orders').select('engineer_id, status').eq('id', workOrderId).single(),
+      admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', workOrderId).single(),
       8000
     )
     const wo = woResult?.data
@@ -467,6 +467,16 @@ export async function rescheduleFollowUp(workOrderId: string, newDate: string): 
 
     const formattedDate = new Date(newDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
     logActivity(admin, workOrderId, user.id, `Rescheduled follow-up to ${formattedDate}`).catch(() => {})
+
+    if (offSite) {
+      const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
+      const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+      logSystemActivity(admin, {
+        actorId: user.id, actorName,
+        action: `Rescheduled ${wo.wo_number} without being on-site`,
+        entityType: 'off_site_status_update', entityId: workOrderId,
+      }).catch(() => {})
+    }
 
     return { error: null }
   } catch (e: unknown) {
@@ -1096,6 +1106,11 @@ export async function submitDailyClosure(params: {
   engineerSignature: string
   clientName: string
   clientSignature: string
+  // Self-reported completion from the "still checked in" dashboard prompt when the
+  // engineer says they're no longer at the site — client signature is skipped (they're
+  // not there to get one), everything else (engineer signature, PDF/Word, activity log)
+  // still happens as normal, plus a flagged entry for the manager's Dashboard card.
+  offSite?: boolean
 }): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
@@ -1208,6 +1223,15 @@ export async function submitDailyClosure(params: {
         ? 'Marked pending — needs reassignment to a different engineer'
         : `Marked in progress — follow-up on ${new Date(params.revisitDate!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
     logActivity(admin, params.workOrderId, user.id, activityMsg).catch(() => {})
+
+    if (params.offSite) {
+      const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
+      logSystemActivity(admin, {
+        actorId: user.id, actorName: engineerName,
+        action: `Marked ${wo?.wo_number || 'a notification'} completed without being on-site`,
+        entityType: 'off_site_status_update', entityId: params.workOrderId,
+      }).catch(() => {})
+    }
 
     return { error: null }
   } catch (e: unknown) {

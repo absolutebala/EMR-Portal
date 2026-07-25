@@ -61,7 +61,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const router = useRouter()
   const supabase = createClient()
   const [queue, setQueue] = useState(overdueFollowUps)
-  const [askingAtSiteId, setAskingAtSiteId] = useState<string | null>(null)
+  const [askingAtSite, setAskingAtSite] = useState<{ workOrderId: string; action: 'completed' | 'reschedule' } | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [newDate, setNewDate] = useState('')
   const [dateFocused, setDateFocused] = useState(false)
@@ -138,7 +138,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
 
   function dismiss(workOrderId: string) {
     setQueue(q => q.filter(f => f.workOrderId !== workOrderId))
-    setAskingAtSiteId(null)
+    setAskingAtSite(null)
     setReschedulingId(null)
     setNewDate('')
     setRescheduleError('')
@@ -148,7 +148,10 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
     if (!newDate) { setRescheduleError('Pick a new follow-up date'); return }
     setSaving(true)
     setRescheduleError('')
-    const result = await rescheduleFollowUp(workOrderId, newDate)
+    // Reaching this sub-flow always means the engineer answered "No, I've left" to the
+    // are-you-at-the-site prompt (the only way reschedulingId gets set) — always flag
+    // as an off-site update.
+    const result = await rescheduleFollowUp(workOrderId, newDate, true)
     setSaving(false)
     if (result.error) { setRescheduleError(result.error); return }
     dismiss(workOrderId)
@@ -262,7 +265,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                   : <>{current.woNumber} has been in progress since your last check-in on {formatDate(current.dueDate)}, with no update since. Is this job completed, or do you need to reschedule?</>}
             </p>
 
-            {askingAtSiteId === current.workOrderId ? (
+            {askingAtSite?.workOrderId === current.workOrderId ? (
               <>
                 <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 12px' }}>
                   Are you still at the site right now?
@@ -270,14 +273,17 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     className="mtap"
-                    onClick={() => setAskingAtSiteId(null)}
+                    onClick={() => setAskingAtSite(null)}
                     style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#7A6870', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                   >
                     Back
                   </button>
                   <button
                     className="mtap"
-                    onClick={() => { setAskingAtSiteId(null); setReschedulingId(current.workOrderId) }}
+                    onClick={() => {
+                      if (askingAtSite.action === 'reschedule') { setAskingAtSite(null); setReschedulingId(current.workOrderId) }
+                      else router.push(`/mobile/work-orders/${current.workOrderId}/closure?offsite=1`)
+                    }}
                     style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                   >
                     No, I&apos;ve left
@@ -346,14 +352,14 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   className="mtap"
-                  onClick={() => setAskingAtSiteId(current.workOrderId)}
+                  onClick={() => setAskingAtSite({ workOrderId: current.workOrderId, action: 'reschedule' })}
                   style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                 >
                   Reschedule
                 </button>
                 <button
                   className="mtap"
-                  onClick={() => router.push(`/mobile/work-orders/${current.workOrderId}/form`)}
+                  onClick={() => setAskingAtSite({ workOrderId: current.workOrderId, action: 'completed' })}
                   style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
                 >
                   Job completed

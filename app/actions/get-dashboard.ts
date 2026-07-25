@@ -31,6 +31,13 @@ export interface DashboardApproval {
   woNumber: string
 }
 
+export interface DashboardOffSiteUpdate {
+  id: string
+  actorName: string
+  action: string
+  createdAt: string
+}
+
 export interface DashboardData {
   engineers: FieldEngineerOverview[]
   recentNotifications: DashboardNotification[]
@@ -38,6 +45,7 @@ export interface DashboardData {
   overdueList: DashboardNotification[]
   needsReassignList: DashboardWorkOrderBrief[]
   unassignedList: DashboardWorkOrderBrief[]
+  offSiteUpdates: DashboardOffSiteUpdate[]
 }
 
 type NotifRow = { id: string; wo_number: string; status: string; scheduled_date: string | null; engineer_id: string | null; customers: { name: string } | null }
@@ -59,6 +67,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: overdueRows },
     { data: needsReassignRows },
     { data: unassignedRows },
+    { data: offSiteRows },
   ] = await Promise.all([
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
@@ -66,6 +75,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
+    admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
   ])
 
   // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
@@ -107,5 +117,12 @@ export async function getDashboardData(): Promise<DashboardData> {
     woNumber: r.product_requests?.work_orders?.wo_number || '—',
   }))
 
-  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList }
+  const offSiteUpdates: DashboardOffSiteUpdate[] = ((offSiteRows as unknown as { id: string; actor_name: string; action: string; created_at: string }[]) || []).map(r => ({
+    id: r.id,
+    actorName: r.actor_name,
+    action: r.action,
+    createdAt: r.created_at,
+  }))
+
+  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates }
 }

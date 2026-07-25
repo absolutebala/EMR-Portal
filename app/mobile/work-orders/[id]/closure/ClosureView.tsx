@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import SignaturePad from '@/components/mobile/SignaturePad'
 import { submitDailyClosure } from '@/app/actions/mobile-actions'
@@ -28,8 +28,13 @@ const inputStyle: React.CSSProperties = {
 
 export default function ClosureView({ workOrder }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Reached from the dashboard's "still checked in" prompt when the engineer confirms
+  // they're no longer at the site — self-reports the visit as completed without the
+  // client sign-off (they're not there to get one), flagged for the manager.
+  const offSite = searchParams.get('offsite') === '1'
 
-  const [outcome, setOutcome] = useState<'completed' | 'pending' | null>(null)
+  const [outcome, setOutcome] = useState<'completed' | 'pending' | null>(offSite ? 'completed' : null)
   const [summary, setSummary] = useState('')
   const [pendingReason, setPendingReason] = useState(PENDING_REASONS[0])
   const [materialsRequired, setMaterialsRequired] = useState('')
@@ -53,7 +58,7 @@ export default function ClosureView({ workOrder }: Props) {
     }
     if (!engineerSignature) { setError('Engineer signature is required'); return }
     if (!clientName.trim()) { setError('Client name is required'); return }
-    if (!clientSignature) { setError('Client signature is required'); return }
+    if (!offSite && !clientSignature) { setError('Client signature is required'); return }
 
     setSubmitting(true)
     setError('')
@@ -73,7 +78,8 @@ export default function ClosureView({ workOrder }: Props) {
         needsReassignment: outcome === 'pending' ? needsReassignment : false,
         engineerSignature,
         clientName: clientName.trim(),
-        clientSignature,
+        clientSignature: offSite ? '' : clientSignature,
+        offSite,
       }),
       new Promise<{ error: string | null }>(resolve =>
         setTimeout(() => resolve({ error: 'Network is too slow to save right now — check your connection and try again.' }), TIMEOUT_MS)
@@ -101,43 +107,49 @@ export default function ClosureView({ workOrder }: Props) {
           {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>
-            How did today&apos;s work go? <span style={{ color: '#7D1D3F' }}>*</span>
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div
-              className="mtap"
-              onClick={() => setOutcome('completed')}
-              style={{
-                flex: 1, border: `2px solid ${outcome === 'completed' ? '#059669' : '#E5E0E3'}`,
-                background: outcome === 'completed' ? '#ECFDF5' : '#fff', borderRadius: 10, padding: 12,
-                textAlign: 'center', cursor: 'pointer',
-              }}
-            >
-              <div style={{ width: 28, height: 28, background: '#059669', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
-                <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+        {offSite ? (
+          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 11, lineHeight: 1.5 }}>
+            Marking this complete without being on-site — the customer signature will be skipped, and your manager will be notified.
+          </div>
+        ) : (
+          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>
+              How did today&apos;s work go? <span style={{ color: '#7D1D3F' }}>*</span>
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div
+                className="mtap"
+                onClick={() => setOutcome('completed')}
+                style={{
+                  flex: 1, border: `2px solid ${outcome === 'completed' ? '#059669' : '#E5E0E3'}`,
+                  background: outcome === 'completed' ? '#ECFDF5' : '#fff', borderRadius: 10, padding: 12,
+                  textAlign: 'center', cursor: 'pointer',
+                }}
+              >
+                <div style={{ width: 28, height: 28, background: '#059669', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
+                  <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46' }}>Job completed</div>
+                <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>All work done today</div>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46' }}>Job completed</div>
-              <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>All work done today</div>
-            </div>
-            <div
-              className="mtap"
-              onClick={() => setOutcome('pending')}
-              style={{
-                flex: 1, border: `2px solid ${outcome === 'pending' ? '#D97706' : '#E5E0E3'}`,
-                background: outcome === 'pending' ? '#FEF3C7' : '#fff', borderRadius: 10, padding: 12,
-                textAlign: 'center', cursor: 'pointer',
-              }}
-            >
-              <div style={{ width: 28, height: 28, background: '#D97706', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
-                <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="12 6 12 12 16 14" /></svg>
+              <div
+                className="mtap"
+                onClick={() => setOutcome('pending')}
+                style={{
+                  flex: 1, border: `2px solid ${outcome === 'pending' ? '#D97706' : '#E5E0E3'}`,
+                  background: outcome === 'pending' ? '#FEF3C7' : '#fff', borderRadius: 10, padding: 12,
+                  textAlign: 'center', cursor: 'pointer',
+                }}
+              >
+                <div style={{ width: 28, height: 28, background: '#D97706', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
+                  <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="12 6 12 12 16 14" /></svg>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>Pending — continue</div>
+                <div style={{ fontSize: 10, color: '#D97706', marginTop: 2 }}>Work incomplete today</div>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>Pending — continue</div>
-              <div style={{ fontSize: 10, color: '#D97706', marginTop: 2 }}>Work incomplete today</div>
             </div>
           </div>
-        </div>
+        )}
 
         {outcome === 'completed' && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
@@ -224,10 +236,14 @@ export default function ClosureView({ workOrder }: Props) {
               style={inputStyle}
             />
 
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', margin: '16px 0 6px' }}>
-              Client signature <span style={{ color: '#7D1D3F' }}>*</span>
-            </label>
-            <SignaturePad value={clientSignature} onChange={setClientSignature} />
+            {!offSite && (
+              <>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', margin: '16px 0 6px' }}>
+                  Client signature <span style={{ color: '#7D1D3F' }}>*</span>
+                </label>
+                <SignaturePad value={clientSignature} onChange={setClientSignature} />
+              </>
+            )}
 
             {outcome === 'completed' && (
               <p style={{ fontSize: 10, color: '#7A6870', marginTop: 10, lineHeight: 1.5 }}>
