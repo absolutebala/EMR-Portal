@@ -4,19 +4,24 @@ import Topbar from '@/components/layout/Topbar'
 import CustomerInfoClient from '@/components/customers/CustomerInfoClient'
 import TransformerTableClient from '@/components/customers/TransformerTableClient'
 import ContactsTableClient from '@/components/customers/ContactsTableClient'
+import CustomerNotificationsClient from '@/components/customers/CustomerNotificationsClient'
+import { getWorkOrders } from '@/app/actions/get-work-orders'
 import Link from 'next/link'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user] = await Promise.all([
+  const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user, { workOrders: allWorkOrders }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     supabase.from('customer_sites').select('*').eq('customer_id', id),
     supabase.from('transformers').select('*').eq('customer_id', id),
     supabase.from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
     getAuthedUser(supabase),
+    getWorkOrders(),
   ])
+
+  const notifications = allWorkOrders.filter(w => w.customer_id === id)
 
   if (!customer) notFound()
 
@@ -46,13 +51,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             {[
               { label: 'Projects', val: sites?.length || 0, color: 'var(--m)' },
               { label: 'Transformers', val: transformers?.length || 0, color: 'var(--blue)' },
-              { label: 'Notifications', val: 0, color: 'var(--amber)', stub: true },
+              { label: 'Notifications', val: notifications.length, color: 'var(--amber)' },
             ].map(s => (
               <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 16, marginBottom: 10, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: s.color }}/>
                 <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 }}>{s.label}</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--tx)' }}>{s.val}</div>
-                {s.stub && <div style={{ fontSize: 10, color: 'var(--txm)' }}>Available next sprint</div>}
               </div>
             ))}
           </div>
@@ -74,12 +78,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           canEdit={canEdit}
         />
 
-        {/* Service history placeholder */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 32, textAlign: 'center' }}>
-          <svg width="40" height="40" fill="none" stroke="var(--gm)" strokeWidth="1.5" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 12px' }}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--txm)' }}>No service history yet</div>
-          <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 4 }}>Notifications will appear here once the Notifications module is built.</div>
-        </div>
+        {/* Notifications belonging to this customer */}
+        <CustomerNotificationsClient notifications={notifications} />
       </div>
     </>
   )

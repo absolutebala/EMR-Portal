@@ -407,7 +407,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   return (
     <>
-      <Topbar title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Notification Detail'} userName={currentUser.name} userRole={currentUser.role} />
+      <Topbar
+        title={wo ? `${wo.wo_number} — ${JOB_LABELS[wo.job_type] || wo.job_type}` : 'Notification Detail'}
+        subtitle={wo?.customer_name || undefined}
+        userName={currentUser.name}
+        userRole={currentUser.role}
+      />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <button
           onClick={() => router.push('/work-orders')}

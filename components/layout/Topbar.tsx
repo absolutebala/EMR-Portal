@@ -2,6 +2,7 @@
 
 interface TopbarProps {
   title: string
+  subtitle?: string
   userName: string
   userRole: string
 }
@@ -10,10 +11,13 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-export default function Topbar({ title, userName, userRole }: TopbarProps) {
+export default function Topbar({ title, subtitle, userName, userRole }: TopbarProps) {
   return (
     <div style={{ height: 56, background: '#fff', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)' }}>{title}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 12, color: 'var(--txm)', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Notification bell */}
         <div style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--gm)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
