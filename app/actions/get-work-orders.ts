@@ -518,23 +518,23 @@ export interface AssignableEngineer {
   last_name: string
   role: string
   distanceKm: number | null
-  lastCheckinPlace: string | null
-  lastCheckinAt: string | null
+  lastSeenPlace: string | null
+  lastSeenAt: string | null
 }
 
 export async function getAssignableEngineers(workOrderId?: string): Promise<{ engineers: AssignableEngineer[] }> {
   const admin = adminClient()
   const { data } = await admin
     .from('profiles')
-    .select('id, first_name, last_name, role, last_seen_lat, last_seen_lng, last_seen_at')
+    .select('id, first_name, last_name, role, last_seen_lat, last_seen_lng, last_seen_at, last_seen_place_label')
     // An engineer marked On Leave isn't available to take on a new job.
     .eq('role', 'Field Engineer')
     .neq('engineer_status', 'on_leave')
     .order('first_name')
-  const engineers: AssignableEngineer[] = (data || []).map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name, role: e.role, distanceKm: null, lastCheckinPlace: null, lastCheckinAt: null }))
+  const engineers: AssignableEngineer[] = (data || []).map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name, role: e.role, distanceKm: null, lastSeenPlace: null, lastSeenAt: null }))
   if (!workOrderId) return { engineers }
-  const lastSeenByEng: Record<string, { lat: number | null; lng: number | null; at: string | null }> = {}
-  ;(data || []).forEach(e => { lastSeenByEng[e.id] = { lat: e.last_seen_lat, lng: e.last_seen_lng, at: e.last_seen_at } })
+  const lastSeenByEng: Record<string, { lat: number | null; lng: number | null; at: string | null; placeLabel: string | null }> = {}
+  ;(data || []).forEach(e => { lastSeenByEng[e.id] = { lat: e.last_seen_lat, lng: e.last_seen_lng, at: e.last_seen_at, placeLabel: e.last_seen_place_label } })
 
   const { data: wotRows } = await admin
     .from('work_order_transformers')
@@ -574,16 +574,21 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
   const ranked = engineers.map(e => {
     const ci = lastCheckin[e.id]
     const ping = lastSeenByEng[e.id]
-    // Rank by whichever location is freshest — the passive app-open ping or the last
-    // job check-in — not just the check-in, so an engineer who's moved since their
-    // last visit isn't ranked from a stale position.
+    // Rank (and now also display) by whichever location is freshest — the passive
+    // app-open ping or the last job check-in — not just the check-in, so an engineer
+    // who's moved since their last visit isn't ranked (or shown) from a stale
+    // position. Previously the ranking already used the freshest of the two, but the
+    // displayed "last seen" text only ever showed check-in data, so an engineer with
+    // only a recent ping (no check-in yet) misleadingly showed "no history" here.
     const pingIsNewer = !!ping?.at && (!ci || new Date(ping.at) > new Date(ci.checkedInAt))
     const curLat = pingIsNewer ? ping!.lat : ci?.lat
     const curLng = pingIsNewer ? ping!.lng : ci?.lng
     const distanceKm = siteCoords && curLat != null && curLng != null
       ? haversineKm(siteCoords.lat, siteCoords.lng, curLat, curLng)
       : null
-    return { ...e, distanceKm, lastCheckinPlace: ci?.placeName ?? null, lastCheckinAt: ci?.checkedInAt ?? null }
+    const lastSeenPlace = pingIsNewer ? (ping?.placeLabel ?? null) : (ci?.placeName ?? null)
+    const lastSeenAt = pingIsNewer ? (ping?.at ?? null) : (ci?.checkedInAt ?? null)
+    return { ...e, distanceKm, lastSeenPlace, lastSeenAt }
   })
   ranked.sort((a, b) => {
     if (a.distanceKm == null && b.distanceKm == null) return 0

@@ -179,8 +179,8 @@ function TimelineDot({ action }: { action: string }) {
 interface Engineer {
   id: string; first_name: string; last_name: string
   distanceKm?: number | null
-  lastCheckinPlace?: string | null
-  lastCheckinAt?: string | null
+  lastSeenPlace?: string | null
+  lastSeenAt?: string | null
 }
 
 function engineerOptionLabel(e: Engineer, nearestId: string | null): string {
@@ -843,7 +843,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                   )}
                                 </div>
                                 <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
-                                  {e.lastCheckinPlace ? `Last seen: ${e.lastCheckinPlace} · ${relativeTime(e.lastCheckinAt)}` : 'No check-in history yet'}
+                                  {e.lastSeenAt ? `Last seen: ${e.lastSeenPlace || 'Unknown location'} · ${relativeTime(e.lastSeenAt)}` : 'No location yet'}
                                 </div>
                               </div>
                             )

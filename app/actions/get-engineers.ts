@@ -149,6 +149,13 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         lastSeen = { placeName: checkin.placeName, at: checkin.checkedInAt }
       } else if (pingAt) {
         lastSeen = { placeName: p.last_seen_place_label, at: pingAt }
+      } else if (p.last_active_at) {
+        // No check-in and no GPS-tagged ping (e.g. location permission was denied),
+        // but the app-usage heartbeat still shows they were recently active — surface
+        // that rather than showing "No location yet" for someone who clearly opened
+        // the app today (this is the same last_active_at the Users page's Last Login
+        // column falls back to, so the two should never visibly contradict each other).
+        lastSeen = { placeName: null, at: p.last_active_at }
       }
 
       return {
