@@ -320,7 +320,12 @@ export interface OverdueFollowUp {
   dueDate: string
   // 'pending' = closed with a revisit date that's passed. 'stale_in_progress' = still
   // checked in from a previous day, never closed out (engineer likely forgot).
-  kind: 'pending' | 'stale_in_progress'
+  // 'location_moved' = same-day version of 'stale_in_progress' — the engineer is still
+  // "reached" at a job but their current GPS position has moved away from where they
+  // checked in, so they likely left without closing it out (see
+  // checkLocationMovedFollowUp below; the date-based check above can't catch this until
+  // the next day since it explicitly skips anything checked in today).
+  kind: 'pending' | 'stale_in_progress' | 'location_moved'
 }
 
 // Two situations surfaced as a prompt on dashboard load so a job doesn't just sit
@@ -594,6 +599,70 @@ export async function recordLastSeen(lat: number, lng: number): Promise<{ error:
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Same-day complement to getOverdueFollowUps()'s 'stale_in_progress' case, which only
+// fires the day AFTER a check-in — this catches "checked in, then left without closing
+// out" on the SAME day, using the passive app-open location ping (recordLastSeen)
+// instead of a date comparison. Only fires while the engineer's status is still
+// "reached" for that specific job (submitDailyClosure clears/changes this on either a
+// completed or pending closure), so it stops firing the moment they actually close out.
+const LOCATION_MOVED_THRESHOLD_KM = 1
+
+export async function checkLocationMovedFollowUp(lat: number, lng: number): Promise<{ followUp: OverdueFollowUp | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { followUp: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { data: profile } = await admin.from('profiles').select('engineer_status, engineer_status_work_order_id').eq('id', user.id).maybeSingle()
+    if (profile?.engineer_status !== 'reached' || !profile.engineer_status_work_order_id) {
+      return { followUp: null, error: null }
+    }
+
+    const workOrderId = profile.engineer_status_work_order_id
+    const { data: wo } = await admin.from('work_orders').select('id, wo_number, status, customer_id').eq('id', workOrderId).maybeSingle()
+    if (!wo || wo.status !== 'in_progress') return { followUp: null, error: null }
+
+    const [{ data: checkin }, { data: closure }] = await Promise.all([
+      admin.from('work_order_checkins')
+        .select('latitude, longitude, checked_in_at')
+        .eq('work_order_id', workOrderId)
+        .order('checked_in_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin.from('work_order_daily_closures')
+        .select('created_at')
+        .eq('work_order_id', workOrderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+    if (!checkin || checkin.latitude == null || checkin.longitude == null) return { followUp: null, error: null }
+    // A "pending" (revisit-later) closure keeps work_orders.status as 'in_progress' —
+    // it doesn't get excluded by the status check above — so a closure at or after this
+    // check-in means the visit was already properly closed; don't re-prompt.
+    if (closure && closure.created_at >= checkin.checked_in_at) return { followUp: null, error: null }
+
+    const distanceKm = haversineKm(lat, lng, checkin.latitude, checkin.longitude)
+    if (distanceKm < LOCATION_MOVED_THRESHOLD_KM) return { followUp: null, error: null }
+
+    const { data: customer } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+
+    return {
+      followUp: {
+        workOrderId: wo.id,
+        woNumber: wo.wo_number,
+        customerName: customer?.name || '',
+        dueDate: checkin.checked_in_at,
+        kind: 'location_moved',
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { followUp: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

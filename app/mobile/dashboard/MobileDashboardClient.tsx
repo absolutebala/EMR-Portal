@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import { rescheduleFollowUp, recordLastSeen, setEngineerStatus } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkLocationMovedFollowUp } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
 
 interface Props {
@@ -76,11 +76,20 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const [statusError, setStatusError] = useState('')
 
   // Passive "last seen" location — a best-effort ping on app open, silently ignored
-  // if permission is denied or unavailable. Not the same as job check-in GPS.
+  // if permission is denied or unavailable. Not the same as job check-in GPS. Reused
+  // (not a second geolocation request) to also check whether the engineer has moved
+  // away from a job they're still "reached" at but never closed out — same-day
+  // complement to the date-based overdueFollowUps prompt below.
   useEffect(() => {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
-      pos => { recordLastSeen(pos.coords.latitude, pos.coords.longitude).catch(() => {}) },
+      pos => {
+        recordLastSeen(pos.coords.latitude, pos.coords.longitude).catch(() => {})
+        checkLocationMovedFollowUp(pos.coords.latitude, pos.coords.longitude).then(({ followUp }) => {
+          if (!followUp) return
+          setQueue(q => q.some(f => f.workOrderId === followUp.workOrderId) ? q : [...q, followUp])
+        }).catch(() => {})
+      },
       () => {},
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     )
@@ -239,13 +248,15 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: '#DC2626', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-              Follow-up overdue
+              {current.kind === 'location_moved' ? 'Visit not closed out' : 'Follow-up overdue'}
             </div>
             <p style={{ fontSize: 13, color: '#1C0D14', margin: '0 0 4px', fontWeight: 600 }}>{current.customerName}</p>
             <p style={{ fontSize: 12, color: '#7A6870', margin: '0 0 16px' }}>
               {current.kind === 'pending'
                 ? <>{current.woNumber} was due for a follow-up on {formatDate(current.dueDate)}. Is this job completed, or do you need to reschedule?</>
-                : <>{current.woNumber} has been in progress since your last check-in on {formatDate(current.dueDate)}, with no update since. Is this job completed, or do you need to reschedule?</>}
+                : current.kind === 'location_moved'
+                  ? <>Your location has changed since you checked in for {current.woNumber}, and it&apos;s still marked in progress. Is this job completed, or do you still need more time?</>
+                  : <>{current.woNumber} has been in progress since your last check-in on {formatDate(current.dueDate)}, with no update since. Is this job completed, or do you need to reschedule?</>}
             </p>
 
             {reschedulingId === current.workOrderId ? (
