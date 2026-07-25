@@ -27,7 +27,12 @@ export async function proxy(request: NextRequest) {
   // Mobile PWA has its own auth guard per page/route and its own login screen
   const isMobilePublic = pathname.startsWith('/mobile') || pathname === '/sw.js' || pathname === '/manifest.webmanifest'
 
-  if (!user && !isMobilePublic && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
+  // The bare homepage must reach app/page.tsx even when signed out — it does its own
+  // device check there (mobile UA -> /mobile/install, desktop -> /dashboard). Without
+  // this exemption, every unauthenticated visit to "/" was bounced straight to /login
+  // by this same block before that redirect logic ever got a chance to run, on both
+  // desktop and mobile alike.
+  if (!user && !isMobilePublic && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
