@@ -422,6 +422,45 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  const res = await withTimeout(
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}&limit=1`,
+      { headers: { 'User-Agent': 'EMR-Portal/1.0 (address geocoding for engineer assignment)' } }
+    ),
+    6000
+  )
+  if (!res || !res.ok) { console.error('geocodeOnce: fetch failed', query, res?.status); return null }
+  const results = await res.json().catch(() => null)
+  const first = results?.[0]
+  if (!first) return null
+  const lat = parseFloat(first.lat)
+  const lng = parseFloat(first.lon)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  return { lat, lng, placeLabel: extractPlaceLabel(first.address || {}, first.display_name) }
+}
+
+// Indian addresses are typically written most-specific-first (house/street details)
+// down to least-specific (locality, city) — the specific end frequently isn't in
+// OpenStreetMap's data at all, so searching the FULL string as one query often
+// returns zero results even though the locality/city on its own would geocode fine
+// (e.g. "AJ Block 4th Street, 35, 9th Main Rd, A J Block, Shanthi Colony, Anna Nagar"
+// failed whole, but "Shanthi Colony, Anna Nagar" resolves easily). Retries with
+// progressively fewer leading (more specific) comma-segments until a match is found,
+// stopping once only one segment (too generic, e.g. just a city name) would remain.
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  const full = await geocodeOnce(address)
+  if (full) return full
+
+  const segments = address.split(',').map(s => s.trim()).filter(Boolean)
+  for (let start = 1; segments.length - start >= 2; start++) {
+    const result = await geocodeOnce(segments.slice(start).join(', '))
+    if (result) return result
+  }
+  console.error('geocodeAddress: no results at any specificity for', address)
+  return null
+}
+
 // Coordinates are cached on customer_sites after the first lookup — Nominatim's usage
 // policy expects results to be cached, not re-queried on every dropdown load.
 async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
@@ -430,24 +469,11 @@ async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId:
   if (site.latitude != null && site.longitude != null) return { lat: site.latitude, lng: site.longitude, placeLabel: site.place_label ?? null }
   if (!site.site_address) return null
 
-  const res = await withTimeout(
-    fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(site.site_address)}&limit=1`,
-      { headers: { 'User-Agent': 'EMR-Portal/1.0 (site geocoding for engineer assignment)' } }
-    ),
-    6000
-  )
-  if (!res || !res.ok) return null
-  const results = await res.json().catch(() => null)
-  const first = results?.[0]
-  if (!first) return null
-  const lat = parseFloat(first.lat)
-  const lng = parseFloat(first.lon)
-  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
-  const placeLabel = extractPlaceLabel(first.address || {}, first.display_name)
+  const geocoded = await geocodeAddress(site.site_address)
+  if (!geocoded) return null
 
-  await admin.from('customer_sites').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', siteId)
-  return { lat, lng, placeLabel }
+  await admin.from('customer_sites').update({ latitude: geocoded.lat, longitude: geocoded.lng, place_label: geocoded.placeLabel }).eq('id', siteId)
+  return geocoded
 }
 
 // Fallback for getAssignableEngineers() when the work order's linked transformer has
@@ -463,25 +489,12 @@ async function getCustomerCoordinates(admin: ReturnType<typeof adminClient>, cus
   if (customer.latitude != null && customer.longitude != null) return { lat: customer.latitude, lng: customer.longitude, placeLabel: customer.place_label ?? null }
   if (!customer.address) return null
 
-  const res = await withTimeout(
-    fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(customer.address)}&limit=1`,
-      { headers: { 'User-Agent': 'EMR-Portal/1.0 (customer geocoding for engineer assignment)' } }
-    ),
-    6000
-  )
-  if (!res || !res.ok) { console.error('getCustomerCoordinates: geocode fetch failed', res?.status); return null }
-  const results = await res.json().catch(() => null)
-  const first = results?.[0]
-  if (!first) { console.error('getCustomerCoordinates: no geocode results for', customer.address); return null }
-  const lat = parseFloat(first.lat)
-  const lng = parseFloat(first.lon)
-  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
-  const placeLabel = extractPlaceLabel(first.address || {}, first.display_name)
+  const geocoded = await geocodeAddress(customer.address)
+  if (!geocoded) return null
 
-  const { error: updateError } = await admin.from('customers').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', customerId)
+  const { error: updateError } = await admin.from('customers').update({ latitude: geocoded.lat, longitude: geocoded.lng, place_label: geocoded.placeLabel }).eq('id', customerId)
   if (updateError) console.error('getCustomerCoordinates: cache update failed', updateError.message)
-  return { lat, lng, placeLabel }
+  return geocoded
 }
 
 export interface AssignableEngineer {
