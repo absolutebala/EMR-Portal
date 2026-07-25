@@ -608,7 +608,7 @@ export async function recordLastSeen(lat: number, lng: number): Promise<{ error:
 
     const admin = adminClient()
     const { label } = await reverseGeocode(lat, lng)
-    await withTimeout(
+    const result = await withTimeout(
       admin.from('profiles').update({
         last_seen_lat: lat,
         last_seen_lng: lng,
@@ -617,9 +617,30 @@ export async function recordLastSeen(lat: number, lng: number): Promise<{ error:
       }).eq('id', user.id),
       8000
     )
+    // This update previously wasn't checked for an error at all — a failure here
+    // (RLS, timeout, bad column value) looked identical to the engineer's device
+    // simply never calling this action, making the two cases impossible to tell
+    // apart from Vercel logs alone.
+    if (!result) console.error('recordLastSeen: update timed out', user.id)
+    else if (result.error) console.error('recordLastSeen: update failed', user.id, result.error.message)
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Client-side geolocation failures (permission denied, timeout, position
+// unavailable) were previously completely silent — impossible to distinguish "the
+// engineer denied permission" from "recordLastSeen was never even attempted" just by
+// looking at profiles.last_seen_at staying null. Fire-and-forget from the mobile
+// dashboard's geolocation error callback so the actual reason shows up in server logs.
+export async function logLocationPingIssue(reason: string): Promise<void> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    console.error('mobile geolocation ping failed', { userId: user?.id, reason })
+  } catch {
+    // best-effort only
   }
 }
 

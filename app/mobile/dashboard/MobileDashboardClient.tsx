@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
 
 interface Props {
@@ -96,7 +96,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   // an "I will start by ___" time (see setEngineerStatus) that's now passed while
   // they're still where they were when they set the status.
   useEffect(() => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) { logLocationPingIssue('navigator.geolocation unavailable').catch(() => {}); return }
     navigator.geolocation.getCurrentPosition(
       pos => {
         const { latitude, longitude } = pos.coords
@@ -105,7 +105,13 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
           if (notice) setNotStartedNotice(notice)
         }).catch(() => {})
       },
-      () => {},
+      err => {
+        // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE,
+        // 3 = TIMEOUT. Was previously a silent no-op — with a field engineer reporting
+        // permission was granted but "Last seen" never updates, this is the only way to
+        // tell which of the three is actually happening on their device.
+        logLocationPingIssue(`code=${err.code} message=${err.message}`).catch(() => {})
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     )
   }, [])
