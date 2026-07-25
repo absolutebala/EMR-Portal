@@ -93,6 +93,8 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const [statusError, setStatusError] = useState('')
   const [notStartedNotice, setNotStartedNotice] = useState<{ projectLabel: string } | null>(null)
   const [notStartedDismissed, setNotStartedDismissed] = useState(false)
+  const [locationBlocked, setLocationBlocked] = useState(false)
+  const [locationBannerDismissed, setLocationBannerDismissed] = useState(false)
 
   // Passive "last seen" location — a best-effort ping on app open, silently ignored
   // if permission is denied or unavailable. Not the same as job check-in GPS. Reused
@@ -115,6 +117,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         // permission was granted but "Last seen" never updates, this is the only way to
         // tell which of the three is actually happening on their device.
         logLocationPingIssue(`code=${err.code} message=${err.message}`).catch(() => {})
+        if (err.code === 1) setLocationBlocked(true)
       },
       // timeout bumped from 8s to 20s — confirmed via logLocationPingIssue that this was
       // timing out (code=3) on at least one real device, not a permission denial (code=1).
@@ -465,6 +468,26 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '12px 14px', fontSize: 13, marginBottom: 16 }}>
             {error}
+          </div>
+        )}
+
+        {locationBlocked && !locationBannerDismissed && (
+          <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <p style={{ fontSize: 12, color: '#991B1B', margin: 0, lineHeight: 1.5, fontWeight: 600 }}>
+                Location access is blocked
+              </p>
+              <button
+                className="mtap"
+                onClick={() => setLocationBannerDismissed(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991B1B', fontSize: 16, lineHeight: 1, flexShrink: 0, padding: 0 }}
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: '#991B1B', margin: 0, lineHeight: 1.5 }}>
+              Your supervisor won&apos;t be able to see your last-seen location until you allow it. Open your browser&apos;s Site settings for this app, set Location to Allow, then reload the page.
+            </p>
           </div>
         )}
 
