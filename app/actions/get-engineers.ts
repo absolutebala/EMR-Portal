@@ -70,10 +70,15 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
       admin.from('work_orders')
         .select('id, wo_number, job_type, status, scheduled_date, customer_id, engineer_id, updated_at')
         .in('engineer_id', engineerIds),
+      // Only the most recent checkin per engineer is used (first match wins in the
+      // dedup below) — capped at 500 like the equivalent query in
+      // getAssignableEngineers() (get-work-orders.ts), instead of scanning every
+      // checkin ever logged org-wide on every Dashboard/Field Engineers page load.
       admin.from('work_order_checkins')
         .select('engineer_id, place_name, checked_in_at')
         .in('engineer_id', engineerIds)
-        .order('checked_in_at', { ascending: false }),
+        .order('checked_in_at', { ascending: false })
+        .limit(500),
     ])
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id))]

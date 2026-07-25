@@ -12,16 +12,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user, { workOrders: allWorkOrders }] = await Promise.all([
+  const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user, { workOrders: notifications }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     supabase.from('customer_sites').select('*').eq('customer_id', id),
     supabase.from('transformers').select('*').eq('customer_id', id),
     supabase.from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
     getAuthedUser(supabase),
-    getWorkOrders(),
+    getWorkOrders(id),
   ])
-
-  const notifications = allWorkOrders.filter(w => w.customer_id === id)
 
   if (!customer) notFound()
 
