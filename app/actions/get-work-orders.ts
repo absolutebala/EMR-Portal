@@ -450,6 +450,38 @@ async function getSiteCoordinates(admin: ReturnType<typeof adminClient>, siteId:
   return { lat, lng, placeLabel }
 }
 
+// Fallback for getAssignableEngineers() when the work order's linked transformer has
+// no customer_site (transformers.site_id null — happens when a transformer was
+// registered without being tied to a specific project/site), so getSiteCoordinates()
+// above has nothing to look up. Geocodes the customer's own address instead, same
+// caching pattern (customers.latitude/longitude/place_label, migration
+// 043_customer_coordinates.sql).
+async function getCustomerCoordinates(admin: ReturnType<typeof adminClient>, customerId: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  const { data: customer } = await admin.from('customers').select('address, latitude, longitude, place_label').eq('id', customerId).maybeSingle()
+  if (!customer) return null
+  if (customer.latitude != null && customer.longitude != null) return { lat: customer.latitude, lng: customer.longitude, placeLabel: customer.place_label ?? null }
+  if (!customer.address) return null
+
+  const res = await withTimeout(
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(customer.address)}&limit=1`,
+      { headers: { 'User-Agent': 'EMR-Portal/1.0 (customer geocoding for engineer assignment)' } }
+    ),
+    6000
+  )
+  if (!res || !res.ok) return null
+  const results = await res.json().catch(() => null)
+  const first = results?.[0]
+  if (!first) return null
+  const lat = parseFloat(first.lat)
+  const lng = parseFloat(first.lon)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  const placeLabel = extractPlaceLabel(first.address || {}, first.display_name)
+
+  await admin.from('customers').update({ latitude: lat, longitude: lng, place_label: placeLabel }).eq('id', customerId)
+  return { lat, lng, placeLabel }
+}
+
 export interface AssignableEngineer {
   id: string
   first_name: string
@@ -482,7 +514,15 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
   type Row = { transformers: { site_id: string | null } | null }
   const siteId = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.site_id
 
-  const siteCoords = siteId ? await getSiteCoordinates(admin, siteId) : null
+  // Falls back to the customer's own address when the linked transformer has no
+  // customer_site (site_id null) — otherwise every engineer's distance silently comes
+  // back null with no indication why, even though the transformer/work order is
+  // perfectly valid.
+  let siteCoords = siteId ? await getSiteCoordinates(admin, siteId) : null
+  if (!siteCoords) {
+    const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
+    if (wo?.customer_id) siteCoords = await getCustomerCoordinates(admin, wo.customer_id)
+  }
 
   // Most recent check-in per engineer, across all their work orders, as a proxy for
   // "where are they right now" — there's no live GPS tracking (see Field Engineers
