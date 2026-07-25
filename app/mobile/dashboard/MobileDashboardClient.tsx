@@ -63,7 +63,11 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+      // 8s -> 15s: field sites (substations, transformer yards) are exactly the kind
+      // of metal/concrete environment where network-based location resolution is
+      // slow — confirmed via logLocationPingIssue that the passive ping below was
+      // timing out on a real device with permission genuinely granted.
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 }
     )
   })
 }
@@ -112,7 +116,12 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         // tell which of the three is actually happening on their device.
         logLocationPingIssue(`code=${err.code} message=${err.message}`).catch(() => {})
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+      // timeout bumped from 8s to 20s — confirmed via logLocationPingIssue that this was
+      // timing out (code=3) on at least one real device, not a permission denial (code=1).
+      // Field sites (substations, transformer yards) are exactly the kind of metal/concrete
+      // environment where network-based location takes longer to resolve; this is a passive
+      // background ping with no UI to block, so a longer timeout has no real downside.
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 5 * 60 * 1000 }
     )
   }, [])
 
