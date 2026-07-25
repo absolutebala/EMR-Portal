@@ -148,6 +148,22 @@ export default function ClosureView({ workOrder }: Props) {
                 <div style={{ fontSize: 10, color: '#D97706', marginTop: 2 }}>Work incomplete today</div>
               </div>
             </div>
+
+            <button
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${workOrder.id}/form`)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+                padding: '10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
+                color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 10,
+                fontFamily: 'Poppins, sans-serif',
+              }}
+            >
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+              </svg>
+              Review &amp; submit job form
+            </button>
           </div>
         )}
 
