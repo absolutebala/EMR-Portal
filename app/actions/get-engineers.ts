@@ -21,6 +21,9 @@ export interface FieldEngineerOverview {
   status: EngineerStatus
   // Site name the status refers to, for on_the_way / travelling / reached / completed.
   statusSiteName: string | null
+  // "I will start by ___" commitment, set alongside on_the_way/travelling — null once
+  // status changes to anything else.
+  statusStartBy: string | null
   statusUpdatedAt: string | null
   lastActiveAt: string | null
   // Whichever is more recent: the passive app-open location ping, or the last job
@@ -35,7 +38,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
   try {
     const admin = adminClient()
 
-    const PROFILE_COLS = 'id, first_name, last_name, employee_id, phone, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
+    const PROFILE_COLS = 'id, first_name, last_name, employee_id, phone, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, engineer_status_start_by, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
 
     // Build the roster from real activity (assigned work orders, site check-ins) rather
     // than filtering profiles by an exact role name — a role string that doesn't match
@@ -150,6 +153,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         phone: p.phone,
         status: (p.engineer_status as EngineerStatus) || 'available',
         statusSiteName,
+        statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
         lastActiveAt: p.last_active_at,
         lastSeen,

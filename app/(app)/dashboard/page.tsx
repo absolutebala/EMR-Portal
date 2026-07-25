@@ -31,6 +31,10 @@ function formatDateTime(d: string) {
   return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatTime(d: string) {
+  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
@@ -54,10 +58,12 @@ export default async function DashboardPage() {
               const cfg = ENGINEER_STATUS_CFG[e.status]
               const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached' || e.status === 'completed') && e.statusSiteName
                 ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
+              const showsStartBy = (e.status === 'on_the_way' || e.status === 'travelling') && e.statusStartBy
               return (
                 <ListRow key={e.id} title={e.name} subtitle={e.lastSeen?.placeName || 'No location yet'}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <Badge bg={cfg.bg} color={cfg.color} label={label} />
+                    {showsStartBy && <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(e.statusStartBy!)}</span>}
                     <span style={{ fontSize: 10, color: 'var(--txm)' }}>{e.openWorkOrders} open job{e.openWorkOrders !== 1 ? 's' : ''}</span>
                   </div>
                 </ListRow>

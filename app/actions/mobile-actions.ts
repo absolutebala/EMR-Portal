@@ -730,7 +730,17 @@ export async function getEngineerStatusPrompt(): Promise<{ prompt: EngineerStatu
   }
 }
 
-export async function setEngineerStatus(status: EngineerStatusValue, workOrderId?: string | null): Promise<{ error: string | null }> {
+export async function setEngineerStatus(
+  status: EngineerStatusValue,
+  workOrderId?: string | null,
+  // "I will start by ___" — HH:MM (24h), required for on_the_way/travelling. Combined
+  // with today's date server-side so checkNotStartedFollowUp() can tell once it's
+  // passed. currentLat/currentLng snapshot where the engineer was standing right now,
+  // so that same check can tell whether they've actually moved by then.
+  startByTime?: string | null,
+  currentLat?: number | null,
+  currentLng?: number | null
+): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
@@ -739,12 +749,26 @@ export async function setEngineerStatus(status: EngineerStatusValue, workOrderId
     if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
       return { error: 'Pick a project' }
     }
+    if ((status === 'on_the_way' || status === 'travelling') && !startByTime) {
+      return { error: 'Pick a start time' }
+    }
+
+    const isTravelStatus = status === 'on_the_way' || status === 'travelling'
+    let startBy: string | null = null
+    if (isTravelStatus && startByTime) {
+      const todayStr = new Date().toLocaleDateString('en-CA')
+      const parsed = new Date(`${todayStr}T${startByTime}:00`)
+      startBy = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    }
 
     const admin = adminClient()
     const { error } = await admin.from('profiles').update({
       engineer_status: status,
       engineer_status_work_order_id: status === 'available' || status === 'on_leave' ? null : (workOrderId || null),
       engineer_status_updated_at: new Date().toISOString(),
+      engineer_status_start_by: isTravelStatus ? startBy : null,
+      engineer_status_set_lat: isTravelStatus ? (currentLat ?? null) : null,
+      engineer_status_set_lng: isTravelStatus ? (currentLng ?? null) : null,
     }).eq('id', user.id)
     if (error) return { error: error.message }
 
@@ -758,6 +782,56 @@ export async function setEngineerStatus(status: EngineerStatusValue, workOrderId
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export interface NotStartedNotice {
+  projectLabel: string
+}
+
+const NOT_STARTED_THRESHOLD_KM = 0.3
+
+// Checked on app open (mobile dashboard): if the engineer committed to an "I will
+// start by ___" time (see setEngineerStatus above) and that time has now passed while
+// they're still within ~300m of where they were standing when they set the status,
+// they haven't actually started travelling yet. Surfaced as a dismissible reminder
+// that the delay is visible to their supervisor — not a hard block, and it stops
+// firing the moment either the status changes (e.g. to "reached" on check-in) or they
+// genuinely move.
+export async function checkNotStartedFollowUp(currentLat: number, currentLng: number): Promise<{ notice: NotStartedNotice | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { notice: null, error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { data: profile } = await admin.from('profiles')
+      .select('engineer_status, engineer_status_work_order_id, engineer_status_start_by, engineer_status_set_lat, engineer_status_set_lng')
+      .eq('id', user.id).maybeSingle()
+
+    if (profile?.engineer_status !== 'on_the_way' && profile?.engineer_status !== 'travelling') return { notice: null, error: null }
+    if (!profile.engineer_status_start_by) return { notice: null, error: null }
+    if (new Date(profile.engineer_status_start_by) > new Date()) return { notice: null, error: null }
+    if (profile.engineer_status_set_lat == null || profile.engineer_status_set_lng == null) return { notice: null, error: null }
+
+    const distanceKm = haversineKm(profile.engineer_status_set_lat, profile.engineer_status_set_lng, currentLat, currentLng)
+    if (distanceKm >= NOT_STARTED_THRESHOLD_KM) return { notice: null, error: null }
+
+    let projectLabel = 'your next job'
+    if (profile.engineer_status_work_order_id) {
+      const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', profile.engineer_status_work_order_id).maybeSingle()
+      if (wo) {
+        const { data: wotRows } = await admin.from('work_order_transformers').select('transformers(customer_sites(site_name))').eq('work_order_id', profile.engineer_status_work_order_id).limit(1)
+        type Row = { transformers: { customer_sites: { site_name: string } | null } | null }
+        const siteName = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.customer_sites?.site_name
+        const { data: customer } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+        projectLabel = siteName || customer?.name || projectLabel
+      }
+    }
+
+    return { notice: { projectLabel }, error: null }
+  } catch (e: unknown) {
+    return { notice: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

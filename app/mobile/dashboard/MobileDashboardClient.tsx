@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
 
 interface Props {
@@ -57,6 +57,17 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(null); return }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    )
+  })
+}
+
 export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -73,15 +84,27 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   const [statusStep, setStatusStep] = useState<'choose' | 'pick-site'>('choose')
   const [pendingStatus, setPendingStatus] = useState<EngineerStatusValue | null>(null)
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState('')
+  const [startByTime, setStartByTime] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusError, setStatusError] = useState('')
+  const [notStartedNotice, setNotStartedNotice] = useState<{ projectLabel: string } | null>(null)
+  const [notStartedDismissed, setNotStartedDismissed] = useState(false)
 
   // Passive "last seen" location — a best-effort ping on app open, silently ignored
-  // if permission is denied or unavailable. Not the same as job check-in GPS.
+  // if permission is denied or unavailable. Not the same as job check-in GPS. Reused
+  // (not a second geolocation request) to also check whether the engineer committed to
+  // an "I will start by ___" time (see setEngineerStatus) that's now passed while
+  // they're still where they were when they set the status.
   useEffect(() => {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
-      pos => { recordLastSeen(pos.coords.latitude, pos.coords.longitude).catch(() => {}) },
+      pos => {
+        const { latitude, longitude } = pos.coords
+        recordLastSeen(latitude, longitude).catch(() => {})
+        checkNotStartedFollowUp(latitude, longitude).then(({ notice }) => {
+          if (notice) setNotStartedNotice(notice)
+        }).catch(() => {})
+      },
       () => {},
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     )
@@ -107,6 +130,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
     setStatusStep('choose')
     setPendingStatus(null)
     setSelectedWorkOrderId('')
+    setStartByTime('')
     setStatusError('')
     setShowStatusModal(true)
   }
@@ -121,17 +145,25 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   }
 
   async function confirmStatus(status: EngineerStatusValue, workOrderId: string | null) {
-    if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
+    const isTravelStatus = status === 'on_the_way' || status === 'travelling'
+    if (isTravelStatus && !workOrderId) {
       setStatusError('Pick a project')
+      return
+    }
+    if (isTravelStatus && !startByTime) {
+      setStatusError('Pick a start time')
       return
     }
     setStatusSaving(true)
     setStatusError('')
-    const result = await setEngineerStatus(status, workOrderId)
+    const loc = isTravelStatus ? await getCurrentPositionAsync() : null
+    const result = await setEngineerStatus(status, workOrderId, isTravelStatus ? startByTime : null, loc?.lat ?? null, loc?.lng ?? null)
     setStatusSaving(false)
     if (result.error) { setStatusError(result.error); return }
     setCurrentStatus(status)
     setShowStatusModal(false)
+    setNotStartedNotice(null)
+    setNotStartedDismissed(false)
   }
 
   const statusSite = statusPrompt?.assignableSites.find(s => s.workOrderId === selectedWorkOrderId)
@@ -226,6 +258,24 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                 ) : (
                   <p style={{ fontSize: 12, color: '#7A6870', marginBottom: 12 }}>No assigned jobs to pick a project from.</p>
                 )}
+
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#7A6870', marginBottom: 6 }}>
+                  I will start by
+                </label>
+                <input
+                  type="time"
+                  value={startByTime}
+                  onChange={e => setStartByTime(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px 14px', border: '1.5px solid #E5E0E3', borderRadius: 10,
+                    fontSize: 14, fontWeight: 500, color: '#1C0D14', outline: 'none',
+                    fontFamily: 'Poppins, sans-serif', marginBottom: 12, boxSizing: 'border-box',
+                  }}
+                />
+                <p style={{ fontSize: 10, color: '#7A6870', margin: '-6px 0 12px' }}>
+                  If you&apos;re still in the same place after this time, your supervisor will be able to see you haven&apos;t started.
+                </p>
+
                 {statusError && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{statusError}</p>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
@@ -238,8 +288,8 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
                   <button
                     className="mtap"
                     onClick={() => pendingStatus && confirmStatus(pendingStatus, selectedWorkOrderId || null)}
-                    disabled={statusSaving || !selectedWorkOrderId}
-                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: statusSaving || !selectedWorkOrderId ? '#C9A3B5' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: statusSaving || !selectedWorkOrderId ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                    disabled={statusSaving || !selectedWorkOrderId || !startByTime}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: (statusSaving || !selectedWorkOrderId || !startByTime) ? '#C9A3B5' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: (statusSaving || !selectedWorkOrderId || !startByTime) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}
                   >
                     {statusSaving ? 'Saving…' : statusSite ? `Confirm — ${statusSite.siteName}` : 'Confirm'}
                   </button>
@@ -400,6 +450,30 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '12px 14px', fontSize: 13, marginBottom: 16 }}>
             {error}
+          </div>
+        )}
+
+        {notStartedNotice && !notStartedDismissed && (
+          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <p style={{ fontSize: 12, color: '#92400E', margin: 0, lineHeight: 1.5 }}>
+                You committed to a start time for {notStartedNotice.projectLabel}, but your location hasn&apos;t changed — your supervisor will be able to see you haven&apos;t started yet.
+              </p>
+              <button
+                className="mtap"
+                onClick={() => setNotStartedDismissed(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', fontSize: 16, lineHeight: 1, flexShrink: 0, padding: 0 }}
+              >
+                ×
+              </button>
+            </div>
+            <button
+              className="mtap"
+              onClick={openStatusModal}
+              style={{ alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 8, border: 'none', background: '#92400E', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            >
+              Update status
+            </button>
           </div>
         )}
 

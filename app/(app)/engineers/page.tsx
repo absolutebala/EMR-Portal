@@ -15,16 +15,28 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
 }
 
-function StatusBadge({ status, statusSiteName }: { status: EngineerStatus; statusSiteName: string | null }) {
+function StatusBadge({ status, statusSiteName, statusStartBy }: { status: EngineerStatus; statusSiteName: string | null; statusStartBy: string | null }) {
   const c = STATUS_CONFIG[status]
   const showsSite = status === 'on_the_way' || status === 'travelling' || status === 'reached' || status === 'completed'
   const label = showsSite && statusSiteName ? `${c.label} — ${statusSiteName}` : c.label
-  return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
+  const showsStartBy = (status === 'on_the_way' || status === 'travelling') && statusStartBy
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+      <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
+      {showsStartBy && (
+        <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(statusStartBy)}</span>
+      )}
+    </div>
+  )
 }
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return ''
   return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
 
 export default function EngineersPage() {
@@ -84,7 +96,7 @@ export default function EngineersPage() {
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{e.name}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} /></td>
+                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} statusStartBy={e.statusStartBy} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>
                         {e.lastSeen ? (
                           <>
