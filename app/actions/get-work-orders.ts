@@ -422,10 +422,18 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// countrycodes=in — every address in this app is in India (EMR Global's field
+// operations); without it Nominatim searches globally and can fail to disambiguate a
+// bare locality/neighbourhood name (e.g. "Shanthi Colony, Anna Nagar" with no city or
+// state mentioned) even though it's a real, well-known place.
 async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
   const res = await withTimeout(
     fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}&limit=1`,
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=in&q=${encodeURIComponent(query)}&limit=1`,
       { headers: { 'User-Agent': 'EMR-Portal/1.0 (address geocoding for engineer assignment)' } }
     ),
     6000
@@ -433,7 +441,7 @@ async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; p
   if (!res || !res.ok) { console.error('geocodeOnce: fetch failed', query, res?.status); return null }
   const results = await res.json().catch(() => null)
   const first = results?.[0]
-  if (!first) return null
+  if (!first) { console.error('geocodeOnce: empty results for', query); return null }
   const lat = parseFloat(first.lat)
   const lng = parseFloat(first.lon)
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
@@ -448,12 +456,14 @@ async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; p
 // failed whole, but "Shanthi Colony, Anna Nagar" resolves easily). Retries with
 // progressively fewer leading (more specific) comma-segments until a match is found,
 // stopping once only one segment (too generic, e.g. just a city name) would remain.
+// Spaced ~1.1s apart — Nominatim's usage policy caps free-tier use at 1 request/second.
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
   const full = await geocodeOnce(address)
   if (full) return full
 
   const segments = address.split(',').map(s => s.trim()).filter(Boolean)
   for (let start = 1; segments.length - start >= 2; start++) {
+    await sleep(1100)
     const result = await geocodeOnce(segments.slice(start).join(', '))
     if (result) return result
   }
