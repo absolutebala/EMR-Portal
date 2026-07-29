@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
+import { notifyUsers } from '@/lib/notifications'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -124,6 +125,15 @@ export async function createWorkOrder(payload: {
     await admin.from('work_order_activity').insert(activityRows)
     await logActivity(admin, { actorId: user.id, actorName, action: `Created notification ${payload.wo_number}`, entityType: 'work_order', entityId: wo.id })
 
+    if (payload.engineer_id) {
+      notifyUsers(admin, [{ userId: payload.engineer_id }], {
+        type: 'work_order_assigned',
+        title: `New notification assigned: ${payload.wo_number}`,
+        body: `${actorName} assigned you a new notification.`,
+        entityType: 'work_order', entityId: wo.id, linkPath: `/mobile/work-orders/${wo.id}`,
+      }).catch(() => {})
+    }
+
     return { error: null, id: wo.id }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -234,6 +244,24 @@ export async function updateWorkOrder(id: string, payload: {
       const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
       const verb = current.engineer_id ? 'Reassigned' : 'Assigned'
       activityRows.push({ work_order_id: id, action: `${verb} to ${engName}`, actor_name: actorName })
+
+      notifyUsers(admin, [{ userId: payload.engineer_id }], {
+        type: 'work_order_assigned',
+        title: `${verb === 'Reassigned' ? 'Notification reassigned to you' : 'New notification assigned'}: ${payload.wo_number}`,
+        body: `${actorName} ${verb.toLowerCase()} you this notification.`,
+        entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+      }).catch(() => {})
+
+      // The previous engineer flagged this job "needs reassignment" during closure —
+      // let them know it's been picked up now that someone else has it.
+      if (current.status === 'needs_reassignment' && current.engineer_id) {
+        notifyUsers(admin, [{ userId: current.engineer_id }], {
+          type: 'work_order_reassignment_completed',
+          title: `Reassignment completed: ${payload.wo_number}`,
+          body: `${engName} has been assigned to take over this notification.`,
+          entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+        }).catch(() => {})
+      }
     }
     await admin.from('work_order_activity').insert(activityRows)
     await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification ${payload.wo_number}`, entityType: 'work_order', entityId: id })
@@ -251,6 +279,8 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', id).maybeSingle()
+
     const { error } = await admin.from('work_orders').update({
       engineer_id: engineerId,
       status: 'assigned',
@@ -268,6 +298,24 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     const dateSuffix = scheduledDate ? ` for ${new Date(scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}${dateSuffix}`, actor_name: actorName })
     await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification to ${engName}${dateSuffix}`, entityType: 'work_order', entityId: id })
+
+    if (engineerId !== current?.engineer_id) {
+      notifyUsers(admin, [{ userId: engineerId }], {
+        type: 'work_order_assigned',
+        title: `Notification reassigned to you${current?.wo_number ? `: ${current.wo_number}` : ''}`,
+        body: `${actorName} reassigned you this notification.`,
+        entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+      }).catch(() => {})
+
+      if (current?.status === 'needs_reassignment' && current.engineer_id) {
+        notifyUsers(admin, [{ userId: current.engineer_id }], {
+          type: 'work_order_reassignment_completed',
+          title: `Reassignment completed${current.wo_number ? `: ${current.wo_number}` : ''}`,
+          body: `${engName} has been assigned to take over this notification.`,
+          entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+        }).catch(() => {})
+      }
+    }
 
     return { error: null }
   } catch (e: unknown) {

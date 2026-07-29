@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
+import { notifyUsers } from '@/lib/notifications'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -307,6 +308,8 @@ export async function updateProductRequestItemStatus(
     if (extra?.deliveryEstimate !== undefined) patch.delivery_estimate = extra.deliveryEstimate
     if (extra?.notes !== undefined) patch.admin_notes = extra.notes
 
+    const { data: item } = await admin.from('product_request_items').select('request_id').eq('id', itemId).maybeSingle()
+
     const { error } = await admin.from('product_request_items').update(patch).eq('id', itemId)
     if (error) return { error: error.message }
 
@@ -314,6 +317,19 @@ export async function updateProductRequestItemStatus(
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const label: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched for' }
     logActivity(admin, { actorId: user.id, actorName, action: `${label[status]} product request item`, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
+
+    if (item?.request_id) {
+      const { data: reqRow } = await admin.from('product_requests').select('engineer_id, work_order_id').eq('id', item.request_id).maybeSingle()
+      if (reqRow?.engineer_id) {
+        notifyUsers(admin, [{ userId: reqRow.engineer_id }], {
+          type: 'product_request_status',
+          title: `Product request ${status}`,
+          body: `${actorName} ${label[status].toLowerCase()} an item in your product request.`,
+          entityType: 'product_request_item', entityId: itemId,
+          linkPath: reqRow.work_order_id ? `/mobile/work-orders/${reqRow.work_order_id}` : '/mobile/requests',
+        }).catch(() => {})
+      }
+    }
 
     return { error: null }
   } catch (e: unknown) {

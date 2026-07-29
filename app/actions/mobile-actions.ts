@@ -6,6 +6,7 @@ import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { extractPlaceLabel } from '@/lib/geocode'
+import { notifyUsers } from '@/lib/notifications'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -1319,13 +1320,25 @@ export async function submitDailyClosure(params: {
         : `Marked in progress — follow-up on ${new Date(params.revisitDate!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
     logActivity(admin, params.workOrderId, user.id, activityMsg).catch(() => {})
 
-    if (params.offSite) {
+    if (params.offSite || params.needsReassignment) {
       const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
-      logSystemActivity(admin, {
-        actorId: user.id, actorName: engineerName,
-        action: `Marked ${wo?.wo_number || 'a notification'} completed without being on-site`,
-        entityType: 'off_site_status_update', entityId: params.workOrderId,
-      }).catch(() => {})
+
+      if (params.offSite) {
+        logSystemActivity(admin, {
+          actorId: user.id, actorName: engineerName,
+          action: `Marked ${wo?.wo_number || 'a notification'} completed without being on-site`,
+          entityType: 'off_site_status_update', entityId: params.workOrderId,
+        }).catch(() => {})
+      }
+
+      if (params.needsReassignment) {
+        notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Service Manager' }], {
+          type: 'work_order_needs_reassignment',
+          title: `Reassignment needed: ${wo?.wo_number || 'a notification'}`,
+          body: `${engineerName} marked this notification as needing reassignment to a different engineer.`,
+          entityType: 'work_order', entityId: params.workOrderId, linkPath: `/work-orders/${params.workOrderId}`,
+        }).catch(() => {})
+      }
     }
 
     return { error: null }

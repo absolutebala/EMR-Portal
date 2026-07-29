@@ -16,6 +16,7 @@ interface Props {
   error: string | null
   overdueFollowUps: OverdueFollowUp[]
   statusPrompt: EngineerStatusPrompt | null
+  unreadAlerts: number
 }
 
 const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; color: string }> = {
@@ -72,7 +73,7 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
   })
 }
 
-export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt }: Props) {
+export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [queue, setQueue] = useState(overdueFollowUps)
@@ -450,17 +451,34 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
         title="EMR Global"
         subtitle={firstName ? `${greeting()}, ${firstName}` : undefined}
         rightSlot={
-          <button
-            className="mtap"
-            onClick={handleLogout}
-            style={{
-              background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
-              padding: '7px 12px', fontSize: 11, color: '#fff', cursor: 'pointer',
-              fontFamily: 'Poppins, sans-serif', fontWeight: 500,
-            }}
-          >
-            Sign out
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="mtap"
+              onClick={() => router.push('/mobile/alerts')}
+              style={{
+                position: 'relative', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
+                width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}
+            >
+              <svg width="15" height="15" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+              {unreadAlerts > 0 && (
+                <div style={{ position: 'absolute', top: 3, right: 3, minWidth: 13, height: 13, padding: '0 2px', background: '#A8294F', borderRadius: 7, border: '1.5px solid #3A0A1C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff' }}>
+                  {unreadAlerts > 9 ? '9+' : unreadAlerts}
+                </div>
+              )}
+            </button>
+            <button
+              className="mtap"
+              onClick={handleLogout}
+              style={{
+                background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
+                padding: '7px 12px', fontSize: 11, color: '#fff', cursor: 'pointer',
+                fontFamily: 'Poppins, sans-serif', fontWeight: 500,
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         }
       />
 

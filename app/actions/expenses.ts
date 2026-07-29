@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
+import { notifyUsers } from '@/lib/notifications'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -237,9 +238,9 @@ export async function updateExpenseLogStatus(id: string, status: 'approved' | 'r
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
-    const { error } = await admin.from('expense_logs').update({
+    const { data: updated, error } = await admin.from('expense_logs').update({
       status, reviewed_by: user.id, reviewed_at: new Date().toISOString(),
-    }).eq('id', id)
+    }).eq('id', id).select('engineer_id, work_order_id').maybeSingle()
     if (error) return { error: error.message }
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
@@ -249,6 +250,16 @@ export async function updateExpenseLogStatus(id: string, status: 'approved' | 'r
       action: `${status === 'approved' ? 'Approved' : 'Rejected'} expense log`,
       entityType: 'expense_log', entityId: id,
     }).catch(() => {})
+
+    if (updated?.engineer_id) {
+      notifyUsers(admin, [{ userId: updated.engineer_id }], {
+        type: 'expense_status',
+        title: `Expense ${status}`,
+        body: `${actorName} ${status} your expense.`,
+        entityType: 'expense_log', entityId: id,
+        linkPath: updated.work_order_id ? `/mobile/work-orders/${updated.work_order_id}` : '/mobile/expenses',
+      }).catch(() => {})
+    }
 
     return { error: null }
   } catch (e: unknown) {

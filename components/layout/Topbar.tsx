@@ -1,5 +1,7 @@
 'use client'
 
+import NotificationBell from './NotificationBell'
+
 interface TopbarProps {
   title: string
   subtitle?: string
@@ -19,11 +21,7 @@ export default function Topbar({ title, subtitle, userName, userRole }: TopbarPr
         {subtitle && <div style={{ fontSize: 12, color: 'var(--txm)', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Notification bell */}
-        <div style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--gm)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
-          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-          <div style={{ position: 'absolute', top: 8, right: 8, width: 7, height: 7, background: 'var(--m)', borderRadius: '50%', border: '1.5px solid #fff' }}/>
-        </div>
+        <NotificationBell />
 
         {/* User chip */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
