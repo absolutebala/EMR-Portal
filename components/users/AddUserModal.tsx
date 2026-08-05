@@ -6,6 +6,7 @@ import { inviteUser } from '@/app/actions/invite-user'
 import { updateUser } from '@/app/actions/update-user'
 import { getRoles, type RoleWithCount } from '@/app/actions/roles-actions'
 import type { UserRole, Profile } from '@/lib/types'
+import { GRADES } from '@/lib/travelGuidelines'
 
 interface Props {
   open: boolean
@@ -29,6 +30,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
     role: (editUser?.role || '') as UserRole | '',
     manager_id: editUser?.manager_id || '',
     is_active: editUser?.is_active ?? true,
+    grade: editUser?.grade || '',
   })
   const [roles, setRoles] = useState<RoleWithCount[]>([])
   const [loading, setLoading] = useState(false)
@@ -53,6 +55,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
       role: (editUser?.role || '') as UserRole | '',
       manager_id: editUser?.manager_id || '',
       is_active: editUser?.is_active ?? true,
+      grade: editUser?.grade || '',
     })
   }, [editUser])
 
@@ -95,6 +98,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           role: form.role as UserRole,
           manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
           is_active: form.is_active,
+          grade: form.grade || null,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -108,6 +112,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           phone: form.phone || null,
           role: form.role,
           manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
+          grade: form.grade || null,
         })
         if (inviteError) throw new Error(inviteError)
         onSaved()
@@ -210,6 +215,16 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
               {assignableRoles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
             </select>
           </div>
+
+          {isEngineer && (
+            <div>
+              <label style={fl2}>Grade</label>
+              <select style={fi2} value={form.grade} onChange={e => set('grade', e.target.value)}>
+                <option value="">Not set</option>
+                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          )}
 
           {isEngineer && (
             <div style={{ gridColumn: '1 / -1' }}>

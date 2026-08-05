@@ -34,6 +34,7 @@ export async function inviteUser(payload: {
   phone: string | null
   role: string
   manager_id: string | null
+  grade: string | null
 }): Promise<{ error: string | null; tempPassword?: string }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -95,6 +96,7 @@ export async function inviteUser(payload: {
     phone: payload.phone,
     role: payload.role,
     manager_id: payload.manager_id,
+    grade: payload.grade,
     created_by: createdBy,
     invite_pending: true,
     must_change_password: true,

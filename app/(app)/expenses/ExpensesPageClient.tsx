@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import { updateExpenseLogStatus, type ExpenseLogView } from '@/app/actions/expenses'
+import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
@@ -94,14 +95,30 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
               <tbody>
                 {filtered.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid var(--gm)' }}>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{log.engineerName || '—'}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ fontSize: 12, color: 'var(--tx)' }}>{log.engineerName || '—'}</div>
+                      {log.engineerGrade && <div style={{ fontSize: 10, color: 'var(--txm)' }}>{log.engineerGrade}</div>}
+                    </td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{log.projectLabel}</div>
                       <div style={{ fontSize: 10, color: 'var(--txm)' }}>{log.woNumber} · {log.customerName}</div>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{log.expenseTypeName}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{formatDate(log.expenseDate)}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{formatAmount(log.amount)}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: log.overLimit ? '#991B1B' : 'var(--tx)' }}>{formatAmount(log.amount)}</div>
+                      {log.claimType && (
+                        <div style={{ fontSize: 9, color: 'var(--txm)', marginTop: 2 }}>
+                          {log.claimType === 'flat' ? 'Flat' : 'Actuals'}{log.cityTier ? ` · ${CITY_TIER_LABEL[log.cityTier]}` : ''}
+                          {log.eligibleLimit != null && ` · Eligible ${formatAmount(log.eligibleLimit)}`}
+                        </div>
+                      )}
+                      {log.overLimit && (
+                        <span style={{ display: 'inline-block', marginTop: 3, fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600, background: '#FEE2E2', color: '#991B1B' }}>
+                          Over limit
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 14px' }}>
                       {log.photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element

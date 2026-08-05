@@ -17,6 +17,7 @@ export interface Profile {
   created_at: string
   last_login_at: string | null
   manager_id: string | null
+  grade: string | null
 }
 
 export interface UserModuleAccess {

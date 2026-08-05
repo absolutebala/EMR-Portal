@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import PhotoField from '@/components/mobile/PhotoField'
 import ExpenseTypePicker from '@/components/mobile/ExpenseTypePicker'
-import { submitExpenseLog } from '@/app/actions/expenses'
+import { submitExpenseLog, getExpenseEligibility, type BLEligibility } from '@/app/actions/expenses'
+import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
+import type { ClaimType } from '@/lib/travelGuidelines'
 
 interface Props {
   workOrders: MobileWorkOrder[]
@@ -39,6 +41,32 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
 
+  const isLodging = /lodging|boarding/i.test(expenseTypeName)
+  const [claimType, setClaimType] = useState<ClaimType>('flat')
+  const [eligibility, setEligibility] = useState<BLEligibility | null>(null)
+
+  useEffect(() => {
+    if (!workOrderId || !isLodging) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEligibility(null)
+      return
+    }
+    getExpenseEligibility(workOrderId).then(({ eligibility: e }) => {
+      setEligibility(e)
+      if (e?.grade) {
+        const preferFlat = e.flatAvailable
+        setClaimType(preferFlat ? 'flat' : 'actual')
+        if (preferFlat && e.flatLimit != null && !amount) setAmount(String(e.flatLimit))
+      }
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workOrderId, isLodging])
+
+  function handleClaimTypeChange(type: ClaimType) {
+    setClaimType(type)
+    if (type === 'flat' && eligibility?.flatLimit != null) setAmount(String(eligibility.flatLimit))
+  }
+
   async function handleSubmit() {
     setSubmitError('')
     if (!workOrderId) { setSubmitError('Select the project'); return }
@@ -47,12 +75,18 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
     const amountNum = parseFloat(amount)
     if (!amountNum || amountNum <= 0) { setSubmitError('Enter a valid amount'); return }
 
+    if (isLodging && eligibility?.grade && claimType === 'actual' && !photo) {
+      setSubmitError('A bill/receipt photo is required for an actuals claim')
+      return
+    }
+
     setSubmitting(true)
     const result = await submitExpenseLog({
       workOrderId,
       expenseTypeId,
       expenseDate,
       amount: amountNum,
+      claimType: isLodging && eligibility?.grade ? claimType : undefined,
       photo: photo ? { base64: photo, mimeType: 'image/jpeg', ext: 'jpg' } : undefined,
     })
     setSubmitting(false)
@@ -115,6 +149,49 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
           <ExpenseTypePicker valueId={expenseTypeId} valueName={expenseTypeName} onChange={(id, name) => { setExpenseTypeId(id); setExpenseTypeName(name) }} />
         </div>
 
+        {isLodging && eligibility?.grade && (
+          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            <label style={labelStyle}>Claim type</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              {eligibility.flatAvailable && (
+                <button
+                  type="button"
+                  className="mtap"
+                  onClick={() => handleClaimTypeChange('flat')}
+                  style={{
+                    flex: 1, padding: '9px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    border: `1.5px solid ${claimType === 'flat' ? '#7D1D3F' : '#E5E0E3'}`,
+                    background: claimType === 'flat' ? '#F9EEF2' : '#fff', color: claimType === 'flat' ? '#7D1D3F' : '#7A6870',
+                    fontFamily: 'Poppins, sans-serif',
+                  }}
+                >
+                  Flat allowance
+                </button>
+              )}
+              <button
+                type="button"
+                className="mtap"
+                onClick={() => handleClaimTypeChange('actual')}
+                style={{
+                  flex: 1, padding: '9px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  border: `1.5px solid ${claimType === 'actual' ? '#7D1D3F' : '#E5E0E3'}`,
+                  background: claimType === 'actual' ? '#F9EEF2' : '#fff', color: claimType === 'actual' ? '#7D1D3F' : '#7A6870',
+                  fontFamily: 'Poppins, sans-serif',
+                }}
+              >
+                Actuals (bill required)
+              </button>
+            </div>
+            <p style={{ fontSize: 10, color: '#7A6870', margin: 0, lineHeight: 1.5 }}>
+              {eligibility.grade} · {CITY_TIER_LABEL[eligibility.cityTier]}
+              {claimType === 'flat' && eligibility.flatLimit != null && ` · Eligible up to ₹${eligibility.flatLimit}, no bill needed`}
+              {claimType === 'actual' && (eligibility.actualLimit != null
+                ? ` · Eligible up to ₹${eligibility.actualLimit} against bills`
+                : ' · No fixed cap — reimbursed against bills')}
+            </p>
+          </div>
+        )}
+
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)', display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Date <span style={{ color: '#7D1D3F' }}>*</span></label>
@@ -127,7 +204,12 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
         </div>
 
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>Receipt photo <span style={{ fontSize: 10, fontWeight: 400, color: '#7A6870' }}>(optional)</span></p>
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>
+            Receipt photo{' '}
+            {isLodging && eligibility?.grade && claimType === 'actual'
+              ? <span style={{ fontSize: 10, fontWeight: 400, color: '#7D1D3F' }}>(required for actuals)</span>
+              : <span style={{ fontSize: 10, fontWeight: 400, color: '#7A6870' }}>(optional)</span>}
+          </p>
           <PhotoField value={photo} onChange={setPhoto} />
         </div>
 

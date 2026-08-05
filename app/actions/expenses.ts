@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
+import { classifyCityTier, getEligibleLimit, isFlatAvailable, type CityTier, type ClaimType, type Grade } from '@/lib/travelGuidelines'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -21,6 +22,57 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> 
 export interface ExpenseType {
   id: string
   name: string
+}
+
+export interface BLEligibility {
+  grade: string | null
+  cityTier: CityTier
+  flatLimit: number | null
+  actualLimit: number | null
+  flatAvailable: boolean
+}
+
+// Boarding & Lodging eligibility for a given engineer + work order site, per the
+// travel guideline grade table. grade === null means the engineer has no grade set,
+// so the caller should skip any limit check entirely.
+async function resolveBLEligibility(admin: ReturnType<typeof adminClient>, userId: string, workOrderId: string): Promise<BLEligibility> {
+  const [{ data: profile }, { data: wo }] = await Promise.all([
+    admin.from('profiles').select('grade').eq('id', userId).maybeSingle(),
+    admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle(),
+  ])
+
+  if (!profile?.grade) return { grade: null, cityTier: 'other', flatLimit: null, actualLimit: null, flatAvailable: false }
+
+  let placeLabel: string | null = null
+  if (wo?.customer_id) {
+    const { data: customer } = await admin.from('customers').select('place_label').eq('id', wo.customer_id).maybeSingle()
+    placeLabel = customer?.place_label ?? null
+  }
+
+  const grade = profile.grade as Grade
+  const cityTier = classifyCityTier(placeLabel)
+  return {
+    grade,
+    cityTier,
+    flatLimit: getEligibleLimit(grade, cityTier, 'flat'),
+    actualLimit: getEligibleLimit(grade, cityTier, 'actual'),
+    flatAvailable: isFlatAvailable(grade, cityTier),
+  }
+}
+
+export async function getExpenseEligibility(workOrderId: string): Promise<{ eligibility: BLEligibility | null; error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { eligibility: null, error: 'Not authenticated' }
+    if (!workOrderId) return { eligibility: null, error: null }
+
+    const admin = adminClient()
+    const eligibility = await resolveBLEligibility(admin, user.id, workOrderId)
+    return { eligibility, error: null }
+  } catch (e: unknown) {
+    return { eligibility: null, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 // ---------- Expense type catalog (admin-managed, inline-create) ----------
@@ -69,15 +121,21 @@ export interface ExpenseLogView {
   status: 'pending' | 'approved' | 'rejected'
   engineerId: string | null
   engineerName: string | null
+  engineerGrade: string | null
   reviewedByName: string | null
   reviewedAt: string | null
   createdAt: string
+  claimType: ClaimType | null
+  eligibleLimit: number | null
+  cityTier: CityTier | null
+  overLimit: boolean
 }
 
 type RawExpenseLog = {
   id: string; work_order_id: string; engineer_id: string | null; expense_type_id: string
   expense_date: string; amount: number; photo_url: string | null; status: string
   reviewed_by: string | null; reviewed_at: string | null; created_at: string
+  claim_type: string | null; eligible_limit: number | null; city_tier: string | null
 }
 
 async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows: RawExpenseLog[]): Promise<ExpenseLogView[]> {
@@ -90,7 +148,7 @@ async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows:
   const [{ data: wos }, { data: types }, { data: people }, { data: wotRows }] = await Promise.all([
     admin.from('work_orders').select('id, wo_number, customer_id').in('id', woIds),
     admin.from('expense_types').select('id, name').in('id', typeIds),
-    peopleIds.length ? admin.from('profiles').select('id, first_name, last_name').in('id', peopleIds) : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
+    peopleIds.length ? admin.from('profiles').select('id, first_name, last_name, grade').in('id', peopleIds) : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; grade: string | null }[] }),
     admin.from('work_order_transformers').select('work_order_id, transformers(customer_sites(site_name))').in('work_order_id', woIds),
   ])
 
@@ -108,7 +166,8 @@ async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows:
   const typeMap: Record<string, string> = {}
   ;(types || []).forEach(t => { typeMap[t.id] = t.name })
   const nameMap: Record<string, string> = {}
-  ;(people || []).forEach(p => { nameMap[p.id] = `${p.first_name} ${p.last_name}` })
+  const gradeMap: Record<string, string | null> = {}
+  ;(people || []).forEach(p => { nameMap[p.id] = `${p.first_name} ${p.last_name}`; gradeMap[p.id] = p.grade ?? null })
 
   type WotRow = { work_order_id: string; transformers: { customer_sites: { site_name: string } | null } | null }
   const siteMap: Record<string, string> = {}
@@ -136,9 +195,14 @@ async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows:
         status: r.status as ExpenseLogView['status'],
         engineerId: r.engineer_id,
         engineerName: r.engineer_id ? (nameMap[r.engineer_id] || 'Engineer') : null,
+        engineerGrade: r.engineer_id ? (gradeMap[r.engineer_id] ?? null) : null,
         reviewedByName: r.reviewed_by ? (nameMap[r.reviewed_by] || null) : null,
         reviewedAt: r.reviewed_at,
         createdAt: r.created_at,
+        claimType: (r.claim_type as ClaimType) || null,
+        eligibleLimit: r.eligible_limit,
+        cityTier: (r.city_tier as CityTier) || null,
+        overLimit: r.eligible_limit != null && Number(r.amount) > Number(r.eligible_limit),
       }
     })
     .sort((a, b) => (a.expenseDate < b.expenseDate ? 1 : a.expenseDate > b.expenseDate ? -1 : (a.createdAt < b.createdAt ? 1 : -1)))
@@ -149,6 +213,7 @@ export async function submitExpenseLog(params: {
   expenseTypeId: string
   expenseDate: string
   amount: number
+  claimType?: ClaimType
   photo?: { base64: string; mimeType: string; ext: string }
 }): Promise<{ error: string | null }> {
   try {
@@ -159,8 +224,26 @@ export async function submitExpenseLog(params: {
     if (!params.expenseTypeId) return { error: 'Select an expense type' }
     if (!params.expenseDate) return { error: 'Select a date' }
     if (!params.amount || params.amount <= 0) return { error: 'Enter a valid amount' }
+    if (params.claimType === 'actual' && !params.photo) return { error: 'A bill/receipt photo is required for an actuals claim' }
 
     const admin = adminClient()
+
+    // Only persisted for Boarding & Lodging-type claims from an engineer with a grade
+    // set — re-derived server-side rather than trusted from the client.
+    let claimType: ClaimType | null = null
+    let eligibleLimit: number | null = null
+    let cityTier: CityTier | null = null
+    if (params.claimType) {
+      const { data: expType } = await admin.from('expense_types').select('name').eq('id', params.expenseTypeId).maybeSingle()
+      if (expType?.name && /lodging|boarding/i.test(expType.name)) {
+        const eligibility = await resolveBLEligibility(admin, user.id, params.workOrderId)
+        if (eligibility.grade) {
+          claimType = params.claimType
+          cityTier = eligibility.cityTier
+          eligibleLimit = params.claimType === 'flat' ? eligibility.flatLimit : eligibility.actualLimit
+        }
+      }
+    }
 
     let photoUrl: string | null = null
     if (params.photo) {
@@ -185,6 +268,9 @@ export async function submitExpenseLog(params: {
       expense_date: params.expenseDate,
       amount: params.amount,
       photo_url: photoUrl,
+      claim_type: claimType,
+      eligible_limit: eligibleLimit,
+      city_tier: cityTier,
     }).select('id').single()
     if (error) return { error: error.message }
 
