@@ -52,6 +52,12 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
   const filtered = tab === 'all' ? logs : logs.filter(l => l.status === tab)
   const filteredTotal = filtered.reduce((sum, l) => sum + l.amount, 0)
 
+  // Only meaningful for B&L claims from a graded engineer (claimType set) — most
+  // claims won't have this until more engineers get a grade assigned.
+  const gradedClaims = filtered.filter(l => l.claimType)
+  const overLimitCount = gradedClaims.filter(l => l.overLimit).length
+  const flatCount = gradedClaims.filter(l => l.claimType === 'flat').length
+
   return (
     <>
       <Topbar title="Expenses" userName={userName} userRole={userRole} />
@@ -72,9 +78,27 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
               </button>
             ))}
           </div>
-          <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '8px 16px' }}>
-            <span style={{ fontSize: 11, color: 'var(--txm)' }}>Total{tab !== 'all' ? ` (${STATUS_CFG[tab]?.label || tab})` : ''}: </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tx)' }}>{formatAmount(filteredTotal)}</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '8px 16px' }}>
+              <span style={{ fontSize: 11, color: 'var(--txm)' }}>Total{tab !== 'all' ? ` (${STATUS_CFG[tab]?.label || tab})` : ''}: </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tx)' }}>{formatAmount(filteredTotal)}</span>
+            </div>
+            {gradedClaims.length > 0 && (
+              <>
+                <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '8px 16px' }}>
+                  <span style={{ fontSize: 11, color: 'var(--txm)' }}>Over policy limit: </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: overLimitCount > 0 ? '#991B1B' : 'var(--tx)' }}>
+                    {overLimitCount} of {gradedClaims.length} ({Math.round((overLimitCount / gradedClaims.length) * 100)}%)
+                  </span>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '8px 16px' }}>
+                  <span style={{ fontSize: 11, color: 'var(--txm)' }}>Flat / Actuals: </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tx)' }}>
+                    {Math.round((flatCount / gradedClaims.length) * 100)}% / {Math.round(((gradedClaims.length - flatCount) / gradedClaims.length) * 100)}%
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
