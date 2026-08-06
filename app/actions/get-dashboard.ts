@@ -72,7 +72,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
     admin.from('product_request_items').select('id, quantity, products(name), product_requests(work_orders(wo_number))').eq('status', 'pending').order('created_at', { ascending: false }).limit(6),
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
+    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'assigned').eq('scheduled_date', todayStr).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
@@ -82,13 +82,26 @@ export async function getDashboardData(): Promise<DashboardData> {
   // profiles(...) directly risks an "ambiguous relationship" failure — a similarly
   // ambiguous nested embed broke in production before. Fetched separately instead.
   const notifRows = (recentNotifRows as unknown as NotifRow[]) || []
-  const overdueRowsTyped = (overdueRows as unknown as NotifRow[]) || []
-  const engineerIds = [...new Set([...notifRows, ...overdueRowsTyped].map(w => w.engineer_id).filter(Boolean))] as string[]
+  const overdueRowsRaw = (overdueRows as unknown as NotifRow[]) || []
+  const engineerIds = [...new Set([...notifRows, ...overdueRowsRaw].map(w => w.engineer_id).filter(Boolean))] as string[]
   const { data: engineerRows } = engineerIds.length
-    ? await admin.from('profiles').select('id, first_name, last_name').in('id', engineerIds)
-    : { data: [] as { id: string; first_name: string; last_name: string }[] }
+    ? await admin.from('profiles').select('id, first_name, last_name, engineer_status, engineer_status_work_order_id').in('id', engineerIds)
+    : { data: [] as { id: string; first_name: string; last_name: string; engineer_status: string | null; engineer_status_work_order_id: string | null }[] }
   const engineerNameById: Record<string, string> = {}
   ;(engineerRows || []).forEach(p => { engineerNameById[p.id] = `${p.first_name} ${p.last_name}` })
+
+  // "Scheduled today, not yet started" should exclude a job the engineer has already
+  // begun acting on — on_the_way/travelling/reached — even though only checking in
+  // (reached) actually flips work_orders.status to in_progress; on_the_way/travelling
+  // are a separate live-status signal that doesn't touch work_orders.status at all.
+  const STARTED_STATUSES = new Set(['on_the_way', 'travelling', 'reached'])
+  const overdueRowsTyped = overdueRowsRaw.filter(w => {
+    if (!w.engineer_id) return true
+    const eng = (engineerRows || []).find(p => p.id === w.engineer_id)
+    if (!eng) return true
+    const started = eng.engineer_status_work_order_id === w.id && STARTED_STATUSES.has(eng.engineer_status || '')
+    return !started
+  })
 
   const toNotification = (w: NotifRow): DashboardNotification => ({
     id: w.id,

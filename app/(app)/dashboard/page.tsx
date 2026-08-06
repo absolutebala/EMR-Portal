@@ -103,7 +103,7 @@ export default async function DashboardPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-          <ListCard title="Overdue follow-ups" viewAllHref="/work-orders" empty="Nothing overdue.">
+          <ListCard title="Scheduled today — not started" viewAllHref="/work-orders" empty="Nothing scheduled today is waiting to start.">
             {overdueList.map(wo => (
               <ListRow
                 key={wo.id}
