@@ -8,6 +8,12 @@ import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import type { WorkOrder, WarrantyStatus } from '@/lib/types'
 
+const WARRANTY_FILTER_LABEL: Record<string, string> = {
+  under_warranty: 'under warranty',
+  expired: 'AMC Expired',
+  amc: 'under AMC',
+}
+
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
@@ -170,6 +176,12 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             New Notification
           </button>
         </div>
+
+        {warrantyFilter && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 10 }}>
+            List of projects that are {WARRANTY_FILTER_LABEL[warrantyFilter] || warrantyFilter}
+          </div>
+        )}
 
         {/* Table */}
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
