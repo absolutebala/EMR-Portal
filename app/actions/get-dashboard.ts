@@ -77,9 +77,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     // Genuinely missed: still in_progress (was checked into / had a follow-up) but the
     // follow-up date has already passed with no closure since.
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
-    // At risk: scheduled for today, still un-started — an early warning before it
-    // becomes a "missed" one above.
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'assigned').eq('scheduled_date', todayStr).limit(6),
+    // At risk: scheduled for today (either a first visit still 'assigned', or a
+    // follow-up on an already-'in_progress' job) with nothing done on it yet today —
+    // an early warning before it becomes a "missed" one above.
+    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').in('status', ['assigned', 'in_progress']).eq('scheduled_date', todayStr).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
