@@ -132,7 +132,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const requiresManager = selectedRole?.requires_manager ?? false
   const MANAGER_ROLES_FOR: Record<string, string[]> = {
     'Field Engineer': ['Service Manager'],
-    'Service Manager': ['Head of Service', 'Super Admin'],
+    'Service Manager': ['Head of Service'],
+    'Head of Service': ['Super Admin'],
   }
   const expectedManagerRoles = MANAGER_ROLES_FOR[form.role] || []
   const applicableManagers = managers.filter(m => expectedManagerRoles.includes(m.role))
