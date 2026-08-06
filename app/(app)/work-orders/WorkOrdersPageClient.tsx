@@ -179,7 +179,12 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
 
         {warrantyFilter && (
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 10 }}>
-            List of projects that are {WARRANTY_FILTER_LABEL[warrantyFilter] || warrantyFilter}
+            List of notifications that are {WARRANTY_FILTER_LABEL[warrantyFilter] || warrantyFilter}
+          </div>
+        )}
+        {jobFilter && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 10 }}>
+            List of {JOB_LABELS[jobFilter] || jobFilter} notifications
           </div>
         )}
 
