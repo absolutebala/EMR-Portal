@@ -1,9 +1,23 @@
+import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
 import type { EngineerStatus } from '@/app/actions/get-engineers'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import AssignableList from '@/components/dashboard/AssignableList'
+import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
+
+const KPI_CARDS: { key: 'inProgressCount' | 'unassignedCount' | 'pendingProductRequestsCount'; label: string; href: string; color: string; bg: string }[] = [
+  { key: 'inProgressCount', label: 'In Progress', href: '/work-orders?status=in_progress', color: '#D97706', bg: '#FEF3C7' },
+  { key: 'unassignedCount', label: 'Unassigned', href: '/work-orders?status=unassigned', color: '#6B7280', bg: '#F3F4F6' },
+  { key: 'pendingProductRequestsCount', label: 'Pending Product Requests', href: '/requests', color: '#7D1D3F', bg: '#F9EEF2' },
+]
+
+const WARRANTY_TIER_CFG: { key: 'under_warranty' | 'expired' | 'amc'; label: string; color: string }[] = [
+  { key: 'under_warranty', label: 'Under Warranty', color: '#065F46' },
+  { key: 'expired', label: 'Expired', color: '#991B1B' },
+  { key: 'amc', label: 'AMC', color: '#1D4ED8' },
+]
 
 const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; label: string }> = {
   available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
@@ -46,12 +60,52 @@ export default async function DashboardPage() {
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates } = dashboard
+  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, kpis } = dashboard
+  const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
 
   return (
     <>
       <Topbar title="Dashboard" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
+          {KPI_CARDS.map(card => (
+            <Link key={card.key} href={card.href} style={{ textDecoration: 'none', background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: `3px solid ${card.color}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', lineHeight: 1 }}>{kpis[card.key]}</div>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 6, fontWeight: 500 }}>{card.label}</div>
+            </Link>
+          ))}
+
+          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: '3px solid #7D1D3F', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 500 }}>Warranty Status ({warrantyTotal})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {WARRANTY_TIER_CFG.map(tier => (
+                <Link key={tier.key} href="/work-orders" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                  <span style={{ color: 'var(--txm)' }}>{tier.label}</span>
+                  <span style={{ fontWeight: 700, color: tier.color }}>{kpis.warrantyBreakdown[tier.key]}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {kpis.jobTypeBreakdown.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Open notifications by job type</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {kpis.jobTypeBreakdown.map(jt => (
+                <Link
+                  key={jt.jobType}
+                  href={`/work-orders?job=${jt.jobType}`}
+                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}
+                >
+                  <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{JOB_TYPE_LABELS[jt.jobType] || jt.jobType}</span>
+                  <span style={{ fontSize: 12, color: '#fff', background: 'var(--m)', borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{jt.count}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
           <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
             {engineers.slice(0, 6).map(e => {

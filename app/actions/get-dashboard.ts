@@ -39,6 +39,17 @@ export interface DashboardOffSiteUpdate {
   createdAt: string
 }
 
+export interface DashboardKpis {
+  inProgressCount: number
+  unassignedCount: number
+  pendingProductRequestsCount: number
+  // Open (non-completed) notifications by their linked transformer's warranty tier —
+  // counted per transformer link, so a notification covering multiple transformers
+  // contributes to each tier its transformers fall into.
+  warrantyBreakdown: { under_warranty: number; expired: number; amc: number }
+  jobTypeBreakdown: { jobType: string; count: number }[]
+}
+
 export interface DashboardData {
   engineers: FieldEngineerOverview[]
   recentNotifications: DashboardNotification[]
@@ -47,6 +58,7 @@ export interface DashboardData {
   needsReassignList: DashboardWorkOrderBrief[]
   unassignedList: DashboardWorkOrderBrief[]
   offSiteUpdates: DashboardOffSiteUpdate[]
+  kpis: DashboardKpis
 }
 
 type NotifRow = { id: string; wo_number: string; status: string; scheduled_date: string | null; engineer_id: string | null; customers: { name: string } | null }
@@ -70,6 +82,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: needsReassignRows },
     { data: unassignedRows },
     { data: offSiteRows },
+    { data: openWorkOrderRows },
+    { count: pendingProductRequestsCount },
   ] = await Promise.all([
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
@@ -84,6 +98,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
+    // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown, and
+    // warranty-tier breakdown all derived from one pass over every open notification.
+    admin.from('work_orders').select('id, status, job_type, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
+    admin.from('product_request_items').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ])
 
   // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
@@ -150,5 +168,32 @@ export async function getDashboardData(): Promise<DashboardData> {
     createdAt: r.created_at,
   }))
 
-  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates }
+  type OpenWoRow = { id: string; status: string; job_type: string; work_order_transformers: { transformers: { warranty_status: string } | null }[] }
+  const openWoRows = (openWorkOrderRows as unknown as OpenWoRow[]) || []
+  const inProgressCount = openWoRows.filter(w => w.status === 'in_progress').length
+  const unassignedCount = openWoRows.filter(w => w.status === 'unassigned').length
+
+  const jobTypeCounts: Record<string, number> = {}
+  openWoRows.forEach(w => { jobTypeCounts[w.job_type] = (jobTypeCounts[w.job_type] || 0) + 1 })
+  const jobTypeBreakdown = Object.entries(jobTypeCounts)
+    .map(([jobType, count]) => ({ jobType, count }))
+    .sort((a, b) => b.count - a.count)
+
+  const warrantyBreakdown = { under_warranty: 0, expired: 0, amc: 0 }
+  openWoRows.forEach(w => {
+    w.work_order_transformers.forEach(wot => {
+      const tier = wot.transformers?.warranty_status
+      if (tier === 'under_warranty' || tier === 'expired' || tier === 'amc') warrantyBreakdown[tier]++
+    })
+  })
+
+  const kpis: DashboardKpis = {
+    inProgressCount,
+    unassignedCount,
+    pendingProductRequestsCount: pendingProductRequestsCount || 0,
+    warrantyBreakdown,
+    jobTypeBreakdown,
+  }
+
+  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, kpis }
 }
