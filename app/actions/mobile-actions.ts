@@ -1332,7 +1332,7 @@ export async function submitDailyClosure(params: {
       }
 
       if (params.needsReassignment) {
-        notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Service Manager' }], {
+        notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Head of Service' }, { role: 'Service Manager' }], {
           type: 'work_order_needs_reassignment',
           title: `Reassignment needed: ${wo?.wo_number || 'a notification'}`,
           body: `${engineerName} marked this notification as needing reassignment to a different engineer.`,

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Service Manager' }
+type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Head of Service' | 'Service Manager' }
 
 // Fire-and-forget per-user alert feed, alongside logActivity's system-wide feed.
 // Never throws — a notification failure must not break the calling action.

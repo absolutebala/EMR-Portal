@@ -48,7 +48,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
   const [resetCopied, setResetCopied] = useState<string | null>(null)
 
   function can(key: string) {
-    if (userRole === 'Super Admin') return true
+    if (userRole === 'Super Admin' || userRole === 'Head of Service') return true
     const hasPerms = Object.keys(permissions).length > 0
     if (!hasPerms) return true
     return permissions[key] === true
@@ -110,7 +110,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
             </div>
             <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: '7px 12px', border: '1px solid var(--gm)', borderRadius: 8, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', cursor: 'pointer' }}>
               <option value="">All roles</option>
-              {['Super Admin', 'Service Manager', 'Field Engineer', 'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team'].map(r => <option key={r}>{r}</option>)}
+              {['Super Admin', 'Head of Service', 'Service Manager', 'Field Engineer', 'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team'].map(r => <option key={r}>{r}</option>)}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '7px 12px', border: '1px solid var(--gm)', borderRadius: 8, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', cursor: 'pointer' }}>
               <option value="">All status</option>
@@ -253,7 +253,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
           )}
         </div>
 
-        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager')} currentUserRole={userRole} />
+        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service')} currentUserRole={userRole} />
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={() => router.refresh()} />
         <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)} canEdit={can('Users — Roles Edit & Add')} />
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)} canEdit={can('Users — Roles & Permissions Edit')} />

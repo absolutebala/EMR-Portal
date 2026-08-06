@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import Modal from '@/components/ui/Modal'
 import { bulkInviteUsers, type BulkUserRow, type BulkInviteResult } from '@/app/actions/bulk-invite'
 
-const VALID_ROLES = ['Super Admin', 'Service Manager', 'Field Engineer', 'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team']
+const VALID_ROLES = ['Super Admin', 'Head of Service', 'Service Manager', 'Field Engineer', 'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team']
 
 const TEMPLATE_HEADERS = ['First Name', 'Last Name', 'Employee ID', 'Email', 'Phone', 'Role']
 const TEMPLATE_EXAMPLE = [

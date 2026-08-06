@@ -118,10 +118,12 @@ export interface ExpenseLogView {
   expenseDate: string
   amount: number
   photoUrl: string | null
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'manager_approved' | 'approved' | 'rejected'
   engineerId: string | null
   engineerName: string | null
   engineerGrade: string | null
+  managerApprovedByName: string | null
+  managerApprovedAt: string | null
   reviewedByName: string | null
   reviewedAt: string | null
   createdAt: string
@@ -136,6 +138,7 @@ type RawExpenseLog = {
   expense_date: string; amount: number; photo_url: string | null; status: string
   reviewed_by: string | null; reviewed_at: string | null; created_at: string
   claim_type: string | null; eligible_limit: number | null; city_tier: string | null
+  manager_approved_by: string | null; manager_approved_at: string | null
 }
 
 async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows: RawExpenseLog[]): Promise<ExpenseLogView[]> {
@@ -143,7 +146,7 @@ async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows:
 
   const woIds = [...new Set(rows.map(r => r.work_order_id))]
   const typeIds = [...new Set(rows.map(r => r.expense_type_id))]
-  const peopleIds = [...new Set([...rows.map(r => r.engineer_id), ...rows.map(r => r.reviewed_by)].filter(Boolean))] as string[]
+  const peopleIds = [...new Set([...rows.map(r => r.engineer_id), ...rows.map(r => r.reviewed_by), ...rows.map(r => r.manager_approved_by)].filter(Boolean))] as string[]
 
   const [{ data: wos }, { data: types }, { data: people }, { data: wotRows }] = await Promise.all([
     admin.from('work_orders').select('id, wo_number, customer_id').in('id', woIds),
@@ -196,6 +199,8 @@ async function buildExpenseLogViews(admin: ReturnType<typeof adminClient>, rows:
         engineerId: r.engineer_id,
         engineerName: r.engineer_id ? (nameMap[r.engineer_id] || 'Engineer') : null,
         engineerGrade: r.engineer_id ? (gradeMap[r.engineer_id] ?? null) : null,
+        managerApprovedByName: r.manager_approved_by ? (nameMap[r.manager_approved_by] || null) : null,
+        managerApprovedAt: r.manager_approved_at,
         reviewedByName: r.reviewed_by ? (nameMap[r.reviewed_by] || null) : null,
         reviewedAt: r.reviewed_at,
         createdAt: r.created_at,
@@ -317,23 +322,86 @@ export async function getAllExpenseLogs(): Promise<{ logs: ExpenseLogView[]; err
   }
 }
 
-export async function updateExpenseLogStatus(id: string, status: 'approved' | 'rejected'): Promise<{ error: string | null }> {
+async function getActorName(admin: ReturnType<typeof adminClient>, userId: string): Promise<string> {
+  const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+  return actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
+}
+
+// Stage 1: Service Manager (or anyone with "Expenses — Approve"). Approving moves
+// the claim to 'manager_approved' — it does NOT finalize it, even for a Super Admin
+// / Head of Service acting here; rejecting is final at either stage.
+export async function submitManagerDecision(id: string, decision: 'approve' | 'reject'): Promise<{ error: string | null }> {
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    const { data: current } = await admin.from('expense_logs').select('status').eq('id', id).maybeSingle()
+    if (current?.status !== 'pending') return { error: 'This expense is no longer awaiting first-level approval.' }
+
+    const actorName = await getActorName(admin, user.id)
+    const now = new Date().toISOString()
+    const patch = decision === 'approve'
+      ? { status: 'manager_approved', manager_approved_by: user.id, manager_approved_at: now }
+      : { status: 'rejected', reviewed_by: user.id, reviewed_at: now }
+
+    const { data: updated, error } = await admin.from('expense_logs').update(patch).eq('id', id).select('engineer_id, work_order_id').maybeSingle()
+    if (error) return { error: error.message }
+
+    logActivity(admin, {
+      actorId: user.id, actorName,
+      action: decision === 'approve' ? 'Approved expense log (first level)' : 'Rejected expense log',
+      entityType: 'expense_log', entityId: id,
+    }).catch(() => {})
+
+    if (decision === 'approve') {
+      notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Head of Service' }], {
+        type: 'expense_status',
+        title: 'Expense awaiting your final approval',
+        body: `${actorName} approved an expense at the first level — it now needs your final approval.`,
+        entityType: 'expense_log', entityId: id,
+        linkPath: '/expenses',
+      }).catch(() => {})
+    } else if (updated?.engineer_id) {
+      notifyUsers(admin, [{ userId: updated.engineer_id }], {
+        type: 'expense_status',
+        title: 'Expense rejected',
+        body: `${actorName} rejected your expense.`,
+        entityType: 'expense_log', entityId: id,
+        linkPath: updated.work_order_id ? `/mobile/work-orders/${updated.work_order_id}` : '/mobile/expenses',
+      }).catch(() => {})
+    }
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Stage 2: Super Admin / Head of Service only, and only once a claim has already
+// cleared stage 1 — this is the final decision either way.
+export async function submitHeadDecision(id: string, decision: 'approve' | 'reject'): Promise<{ error: string | null }> {
+  try {
+    const sb = await serverClient()
+    const user = await getAuthedUser(sb)
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { data: current } = await admin.from('expense_logs').select('status').eq('id', id).maybeSingle()
+    if (current?.status !== 'manager_approved') return { error: 'This expense is not awaiting final approval.' }
+
+    const actorName = await getActorName(admin, user.id)
+    const status = decision === 'approve' ? 'approved' : 'rejected'
+
     const { data: updated, error } = await admin.from('expense_logs').update({
       status, reviewed_by: user.id, reviewed_at: new Date().toISOString(),
     }).eq('id', id).select('engineer_id, work_order_id').maybeSingle()
     if (error) return { error: error.message }
 
-    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
-    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     logActivity(admin, {
       actorId: user.id, actorName,
-      action: `${status === 'approved' ? 'Approved' : 'Rejected'} expense log`,
+      action: `${decision === 'approve' ? 'Approved' : 'Rejected'} expense log (final)`,
       entityType: 'expense_log', entityId: id,
     }).catch(() => {})
 

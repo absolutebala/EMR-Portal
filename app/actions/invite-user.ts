@@ -60,8 +60,9 @@ export async function inviteUser(payload: {
     if (adminProfile) creatorName = `${adminProfile.first_name} ${adminProfile.last_name}`
   }
 
-  if (payload.role === 'Super Admin' && creatorRole !== null && creatorRole !== 'Super Admin') {
-    return { error: 'Only Super Admins can assign the Super Admin role.' }
+  const ADMIN_ROLES = ['Super Admin', 'Head of Service']
+  if (ADMIN_ROLES.includes(payload.role) && creatorRole !== null && !ADMIN_ROLES.includes(creatorRole)) {
+    return { error: 'Only a Super Admin or Head of Service can assign that role.' }
   }
 
   // Check for duplicate employee ID

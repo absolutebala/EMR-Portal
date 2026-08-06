@@ -81,8 +81,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.role) { setError('Please select a role'); return }
-    if (form.role === 'Field Engineer' && !form.manager_id) {
-      setError('Please select a Reporting Manager for this Field Engineer')
+    if (requiresManager && !form.manager_id) {
+      setError('Please select a Reporting Manager')
       return
     }
     setLoading(true)
@@ -96,7 +96,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role as UserRole,
-          manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
+          manager_id: requiresManager ? (form.manager_id || null) : null,
           is_active: form.is_active,
           grade: form.grade || null,
         })
@@ -111,7 +111,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role,
-          manager_id: form.role === 'Field Engineer' ? (form.manager_id || null) : null,
+          manager_id: requiresManager ? (form.manager_id || null) : null,
           grade: form.grade || null,
         })
         if (inviteError) throw new Error(inviteError)
@@ -129,7 +129,13 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const isEdit = !!editUser
   const assignableRoles = roles
   const selectedRole = roles.find(r => r.name === form.role)
-  const isEngineer = selectedRole?.requires_manager ?? false
+  const requiresManager = selectedRole?.requires_manager ?? false
+  const MANAGER_ROLE_FOR: Record<string, string> = {
+    'Field Engineer': 'Service Manager',
+    'Service Manager': 'Head of Service',
+  }
+  const expectedManagerRole = MANAGER_ROLE_FOR[form.role] || ''
+  const applicableManagers = managers.filter(m => m.role === expectedManagerRole)
 
   // Success state — show temporary password
   if (tempPassword) {
@@ -216,7 +222,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </select>
           </div>
 
-          {isEngineer && (
+          {requiresManager && (
             <div>
               <label style={fl2}>Grade</label>
               <select style={fi2} value={form.grade} onChange={e => set('grade', e.target.value)}>
@@ -226,14 +232,14 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </div>
           )}
 
-          {isEngineer && (
+          {requiresManager && (
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={fl2}>
                 Reporting Manager <span style={{ color: 'var(--m)' }}>*</span>
               </label>
-              {managers.length === 0 ? (
+              {applicableManagers.length === 0 ? (
                 <div style={{ padding: '9px 12px', border: '1.5px solid #FCA5A5', borderRadius: 7, fontSize: 12, color: '#DC2626', background: '#FEF2F2' }}>
-                  No Service Managers found. Please add a Service Manager first.
+                  No {expectedManagerRole || 'eligible manager'} found. Please add one first.
                 </div>
               ) : (
                 <select
@@ -243,7 +249,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
                   required
                 >
                   <option value="">Select reporting manager</option>
-                  {managers.map(m => (
+                  {applicableManagers.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.first_name} {m.last_name} ({m.employee_id})
                     </option>

@@ -17,7 +17,9 @@ export default async function ExpensesPage() {
   const userRole = profile?.role || role || 'User'
 
   const hasPerms = Object.keys(permissions).length > 0
-  const canApprove = userRole === 'Super Admin' || !hasPerms || permissions['Expenses — Approve'] === true
+  const isAdmin = userRole === 'Super Admin' || userRole === 'Head of Service'
+  const canApproveAsManager = isAdmin || !hasPerms || permissions['Expenses — Approve'] === true
+  const canApproveAsHead = isAdmin || !hasPerms || permissions['Expenses — Final Approve'] === true
 
-  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApprove={canApprove} />
+  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
 }

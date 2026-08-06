@@ -19,10 +19,12 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Product Requests — Approve':        'Product Requests — View',
   'Product Requests — Dispatch':       'Product Requests — View',
   'Expenses — Approve':                'Expenses — View',
+  'Expenses — Final Approve':          'Expenses — View',
 }
 
 const ROLE_ORDER = [
   'Super Admin',
+  'Head of Service',
   'Service Manager',
   'Field Engineer',
   'Sales Executive Engineer',
@@ -56,6 +58,7 @@ const MODULES = [
   'Product Requests — Dispatch',
   'Expenses — View',
   'Expenses — Approve',
+  'Expenses — Final Approve',
   'MoM — View / Download',
   'Activities — View',
   'Settings',

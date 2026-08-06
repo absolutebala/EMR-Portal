@@ -17,7 +17,7 @@ export default async function RequestsPage() {
   const userRole = profile?.role || role || 'User'
 
   const hasPerms = Object.keys(permissions).length > 0
-  const can = (key: string) => userRole === 'Super Admin' || !hasPerms || permissions[key] === true
+  const can = (key: string) => userRole === 'Super Admin' || userRole === 'Head of Service' || !hasPerms || permissions[key] === true
 
   return (
     <RequestsPageClient

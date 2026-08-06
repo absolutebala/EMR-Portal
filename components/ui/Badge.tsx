@@ -1,5 +1,6 @@
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   'Super Admin': { bg: 'var(--mp)', color: 'var(--m)' },
+  'Head of Service': { bg: '#FCE7F3', color: '#9D174D' },
   'Service Manager': { bg: '#DBEAFE', color: '#1E40AF' },
   'Field Engineer': { bg: '#D1FAE5', color: '#065F46' },
   'Sales Executive Engineer': { bg: '#EDE9FE', color: '#5B21B6' },

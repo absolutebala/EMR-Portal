@@ -4,16 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
-import { updateExpenseLogStatus, type ExpenseLogView } from '@/app/actions/expenses'
+import { submitManagerDecision, submitHeadDecision, type ExpenseLogView } from '@/app/actions/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
+  manager_approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Awaiting final approval' },
   approved: { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
   rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
 }
 
-type TabId = 'all' | 'pending' | 'approved' | 'rejected'
+type TabId = 'all' | 'pending' | 'manager_approved' | 'approved' | 'rejected'
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -27,18 +28,26 @@ interface Props {
   logs: ExpenseLogView[]
   userName: string
   userRole: string
-  canApprove: boolean
+  canApproveAsManager: boolean
+  canApproveAsHead: boolean
 }
 
-export default function ExpensesPageClient({ logs, userName, userRole, canApprove }: Props) {
+export default function ExpensesPageClient({ logs, userName, userRole, canApproveAsManager, canApproveAsHead }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<TabId>('all')
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
 
-  async function act(id: string, status: 'approved' | 'rejected') {
+  async function actManager(id: string, decision: 'approve' | 'reject') {
     setActingId(id)
-    await updateExpenseLogStatus(id, status)
+    await submitManagerDecision(id, decision)
+    setActingId(null)
+    router.refresh()
+  }
+
+  async function actHead(id: string, decision: 'approve' | 'reject') {
+    setActingId(id)
+    await submitHeadDecision(id, decision)
     setActingId(null)
     router.refresh()
   }
@@ -46,6 +55,7 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
   const counts: Record<TabId, number> = {
     all: logs.length,
     pending: logs.filter(l => l.status === 'pending').length,
+    manager_approved: logs.filter(l => l.status === 'manager_approved').length,
     approved: logs.filter(l => l.status === 'approved').length,
     rejected: logs.filter(l => l.status === 'rejected').length,
   }
@@ -64,7 +74,7 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['all', 'pending', 'approved', 'rejected'] as TabId[]).map(t => (
+            {(['all', 'pending', 'manager_approved', 'approved', 'rejected'] as TabId[]).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -156,18 +166,38 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px' }}>
-                      {log.status === 'pending' && canApprove ? (
+                      {log.status === 'pending' && canApproveAsManager ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button disabled={actingId === log.id} onClick={() => act(log.id, 'approved')}
+                          <button disabled={actingId === log.id} onClick={() => actManager(log.id, 'approve')}
                             style={{ border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: actingId === log.id ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>
                             Approve
                           </button>
-                          <button disabled={actingId === log.id} onClick={() => act(log.id, 'rejected')}
+                          <button disabled={actingId === log.id} onClick={() => actManager(log.id, 'reject')}
                             style={{ border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: actingId === log.id ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', background: '#FEE2E2', color: '#991B1B', whiteSpace: 'nowrap' }}>
                             Reject
                           </button>
                         </div>
-                      ) : log.status !== 'pending' && log.reviewedByName ? (
+                      ) : log.status === 'manager_approved' && canApproveAsHead ? (
+                        <div>
+                          {log.managerApprovedByName && (
+                            <div style={{ fontSize: 9, color: 'var(--txm)', marginBottom: 4 }}>Approved by {log.managerApprovedByName}</div>
+                          )}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button disabled={actingId === log.id} onClick={() => actHead(log.id, 'approve')}
+                              style={{ border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: actingId === log.id ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>
+                              Final approve
+                            </button>
+                            <button disabled={actingId === log.id} onClick={() => actHead(log.id, 'reject')}
+                              style={{ border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: actingId === log.id ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', background: '#FEE2E2', color: '#991B1B', whiteSpace: 'nowrap' }}>
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ) : log.status === 'manager_approved' ? (
+                        <span style={{ fontSize: 10, color: 'var(--txm)' }}>
+                          {log.managerApprovedByName ? `Approved by ${log.managerApprovedByName}, ` : ''}awaiting final approval
+                        </span>
+                      ) : (log.status === 'approved' || log.status === 'rejected') && log.reviewedByName ? (
                         <span style={{ fontSize: 10, color: 'var(--txm)' }}>by {log.reviewedByName}</span>
                       ) : null}
                     </td>
