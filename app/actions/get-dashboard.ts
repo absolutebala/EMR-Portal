@@ -44,8 +44,8 @@ export interface DashboardKpis {
   unassignedCount: number
   pendingProductRequestsCount: number
   // Open (non-completed) notifications by their linked transformer's warranty tier —
-  // counted per transformer link, so a notification covering multiple transformers
-  // contributes to each tier its transformers fall into.
+  // counted per notification (matches /work-orders?warranty=<tier>), so one covering
+  // multiple transformers in the same tier still only counts once.
   warrantyBreakdown: { under_warranty: number; expired: number; amc: number }
   jobTypeBreakdown: { jobType: string; count: number }[]
 }
@@ -179,10 +179,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     .map(([jobType, count]) => ({ jobType, count }))
     .sort((a, b) => b.count - a.count)
 
+  // Counted per notification (not per transformer link) so this matches what clicking
+  // through to /work-orders?warranty=<tier> actually shows — a notification with two
+  // transformers in the same tier still only counts once.
   const warrantyBreakdown = { under_warranty: 0, expired: 0, amc: 0 }
   openWoRows.forEach(w => {
-    w.work_order_transformers.forEach(wot => {
-      const tier = wot.transformers?.warranty_status
+    const tiers = new Set(w.work_order_transformers.map(wot => wot.transformers?.warranty_status).filter(Boolean))
+    tiers.forEach(tier => {
       if (tier === 'under_warranty' || tier === 'expired' || tier === 'amc') warrantyBreakdown[tier]++
     })
   })

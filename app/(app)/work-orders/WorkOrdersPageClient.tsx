@@ -6,7 +6,7 @@ import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
-import type { WorkOrder } from '@/lib/types'
+import type { WorkOrder, WarrantyStatus } from '@/lib/types'
 
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
@@ -79,6 +79,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [jobFilter, setJobFilter] = useState(searchParams.get('job') || '')
   const [engFilter, setEngFilter] = useState(searchParams.get('engineer') || '')
   const [dateFilter, setDateFilter] = useState('')
+  const [warrantyFilter, setWarrantyFilter] = useState(searchParams.get('warranty') || '')
   const [showNew, setShowNew] = useState(false)
 
   const filtered = useMemo(() => workOrders.filter(wo => {
@@ -88,8 +89,9 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
     const matchDate = !dateFilter || wo.scheduled_date === dateFilter
-    return matchSearch && matchStatus && matchJob && matchEng && matchDate
-  }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter])
+    const matchWarranty = !warrantyFilter || (wo.warranty_tiers || []).includes(warrantyFilter as WarrantyStatus)
+    return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty
+  }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter])
 
   return (
     <>
@@ -154,6 +156,12 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
           <select value={engFilter} onChange={e => setEngFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
             <option value="">All engineers</option>
             {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+          </select>
+          <select value={warrantyFilter} onChange={e => setWarrantyFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
+            <option value="">All warranty</option>
+            <option value="under_warranty">Under Warranty</option>
+            <option value="expired">Expired</option>
+            <option value="amc">AMC</option>
           </select>
           <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />

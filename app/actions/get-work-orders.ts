@@ -128,6 +128,7 @@ export async function getWorkOrders(customerId?: string): Promise<{ workOrders: 
       const serialNumbers = rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[]
       const transformerIds = rows.map(r => r.transformer_id)
       const hasWarranty = rows.some(r => r.transformers?.warranty_status === 'under_warranty')
+      const warrantyTiers = [...new Set(rows.map(r => r.transformers?.warranty_status).filter(Boolean))] as WorkOrder['warranty_tiers']
       const siteName = rows[0]?.transformers?.customer_sites?.site_name || null
       return {
         ...w,
@@ -137,6 +138,7 @@ export async function getWorkOrders(customerId?: string): Promise<{ workOrders: 
         transformer_ids: transformerIds,
         site_name: siteName,
         has_warranty: hasWarranty,
+        warranty_tiers: warrantyTiers,
         customer_category_name: w.customer_category_id ? (categoryMap[w.customer_category_id] || null) : null,
       }
     })
@@ -280,6 +282,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     const rows = (wotRows as unknown as WotRow[]) || []
     const serialNumbers = rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[]
     const hasWarranty = rows.some(r => r.transformers?.warranty_status === 'under_warranty')
+    const warrantyTiers = [...new Set(rows.map(r => r.transformers?.warranty_status).filter(Boolean))] as WorkOrder['warranty_tiers']
     const siteName = rows[0]?.transformers?.customer_sites?.site_name || null
 
     const checkin: WorkOrderCheckinInfo | null = checkinRow ? {
@@ -352,6 +355,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         transformer_ids: rows.map(r => r.transformer_id),
         site_name: siteName,
         has_warranty: hasWarranty,
+        warranty_tiers: warrantyTiers,
         additional_engineers: additionalEngineers,
         customer_category_name: categoryRow?.name || null,
       },

@@ -121,6 +121,7 @@ export interface WorkOrder {
   transformer_ids?: string[]
   site_name?: string | null
   has_warranty?: boolean
+  warranty_tiers?: WarrantyStatus[]
   additional_engineers?: { id: string; name: string }[]
   customer_category_name?: string | null
 }

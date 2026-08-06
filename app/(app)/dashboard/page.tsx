@@ -79,7 +79,7 @@ export default async function DashboardPage() {
             <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 500 }}>Warranty Status ({warrantyTotal})</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {WARRANTY_TIER_CFG.map(tier => (
-                <Link key={tier.key} href="/work-orders" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <Link key={tier.key} href={`/work-orders?warranty=${tier.key}`} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                   <span style={{ color: 'var(--txm)' }}>{tier.label}</span>
                   <span style={{ fontWeight: 700, color: tier.color }}>{kpis.warrantyBreakdown[tier.key]}</span>
                 </Link>
