@@ -130,12 +130,12 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const assignableRoles = roles
   const selectedRole = roles.find(r => r.name === form.role)
   const requiresManager = selectedRole?.requires_manager ?? false
-  const MANAGER_ROLE_FOR: Record<string, string> = {
-    'Field Engineer': 'Service Manager',
-    'Service Manager': 'Head of Service',
+  const MANAGER_ROLES_FOR: Record<string, string[]> = {
+    'Field Engineer': ['Service Manager'],
+    'Service Manager': ['Head of Service', 'Super Admin'],
   }
-  const expectedManagerRole = MANAGER_ROLE_FOR[form.role] || ''
-  const applicableManagers = managers.filter(m => m.role === expectedManagerRole)
+  const expectedManagerRoles = MANAGER_ROLES_FOR[form.role] || []
+  const applicableManagers = managers.filter(m => expectedManagerRoles.includes(m.role))
 
   // Success state — show temporary password
   if (tempPassword) {
@@ -239,7 +239,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
               </label>
               {applicableManagers.length === 0 ? (
                 <div style={{ padding: '9px 12px', border: '1.5px solid #FCA5A5', borderRadius: 7, fontSize: 12, color: '#DC2626', background: '#FEF2F2' }}>
-                  No {expectedManagerRole || 'eligible manager'} found. Please add one first.
+                  No {expectedManagerRoles.length ? expectedManagerRoles.join(' or ') : 'eligible manager'} found. Please add one first.
                 </div>
               ) : (
                 <select

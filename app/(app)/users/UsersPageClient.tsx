@@ -253,7 +253,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
           )}
         </div>
 
-        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service')} currentUserRole={userRole} />
+        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service' || u.role === 'Super Admin')} currentUserRole={userRole} />
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={() => router.refresh()} />
         <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)} canEdit={can('Users — Roles Edit & Add')} />
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)} canEdit={can('Users — Roles & Permissions Edit')} />
