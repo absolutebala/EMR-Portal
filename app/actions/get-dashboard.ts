@@ -16,6 +16,7 @@ export interface DashboardNotification {
   scheduledDate: string | null
   engineerName: string
   customerName: string
+  alertReason?: 'missed' | 'at_risk_today'
 }
 
 export interface DashboardWorkOrderBrief {
@@ -64,7 +65,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     { engineers },
     { data: recentNotifRows },
     { data: approvalRowsRaw },
-    { data: overdueRows },
+    { data: missedRows },
+    { data: atRiskRows },
     { data: needsReassignRows },
     { data: unassignedRows },
     { data: offSiteRows },
@@ -72,6 +74,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
     admin.from('product_request_items').select('id, quantity, products(name), product_requests(work_orders(wo_number))').eq('status', 'pending').order('created_at', { ascending: false }).limit(6),
+    // Genuinely missed: still in_progress (was checked into / had a follow-up) but the
+    // follow-up date has already passed with no closure since.
+    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
+    // At risk: scheduled for today, still un-started — an early warning before it
+    // becomes a "missed" one above.
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'assigned').eq('scheduled_date', todayStr).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
@@ -82,20 +89,21 @@ export async function getDashboardData(): Promise<DashboardData> {
   // profiles(...) directly risks an "ambiguous relationship" failure — a similarly
   // ambiguous nested embed broke in production before. Fetched separately instead.
   const notifRows = (recentNotifRows as unknown as NotifRow[]) || []
-  const overdueRowsRaw = (overdueRows as unknown as NotifRow[]) || []
-  const engineerIds = [...new Set([...notifRows, ...overdueRowsRaw].map(w => w.engineer_id).filter(Boolean))] as string[]
+  const missedRowsTyped = (missedRows as unknown as NotifRow[]) || []
+  const atRiskRowsRaw = (atRiskRows as unknown as NotifRow[]) || []
+  const engineerIds = [...new Set([...notifRows, ...missedRowsTyped, ...atRiskRowsRaw].map(w => w.engineer_id).filter(Boolean))] as string[]
   const { data: engineerRows } = engineerIds.length
     ? await admin.from('profiles').select('id, first_name, last_name, engineer_status, engineer_status_work_order_id').in('id', engineerIds)
     : { data: [] as { id: string; first_name: string; last_name: string; engineer_status: string | null; engineer_status_work_order_id: string | null }[] }
   const engineerNameById: Record<string, string> = {}
   ;(engineerRows || []).forEach(p => { engineerNameById[p.id] = `${p.first_name} ${p.last_name}` })
 
-  // "Scheduled today, not yet started" should exclude a job the engineer has already
-  // begun acting on — on_the_way/travelling/reached — even though only checking in
-  // (reached) actually flips work_orders.status to in_progress; on_the_way/travelling
-  // are a separate live-status signal that doesn't touch work_orders.status at all.
+  // "At risk today" should exclude a job the engineer has already begun acting on —
+  // on_the_way/travelling/reached — even though only checking in (reached) actually
+  // flips work_orders.status to in_progress; on_the_way/travelling are a separate
+  // live-status signal that doesn't touch work_orders.status at all.
   const STARTED_STATUSES = new Set(['on_the_way', 'travelling', 'reached'])
-  const overdueRowsTyped = overdueRowsRaw.filter(w => {
+  const atRiskRowsTyped = atRiskRowsRaw.filter(w => {
     if (!w.engineer_id) return true
     const eng = (engineerRows || []).find(p => p.id === w.engineer_id)
     if (!eng) return true
@@ -103,13 +111,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     return !started
   })
 
-  const toNotification = (w: NotifRow): DashboardNotification => ({
+  const toNotification = (w: NotifRow, alertReason?: 'missed' | 'at_risk_today'): DashboardNotification => ({
     id: w.id,
     woNumber: w.wo_number,
     status: w.status,
     scheduledDate: w.scheduled_date,
     engineerName: w.engineer_id ? (engineerNameById[w.engineer_id] || 'Engineer') : 'Unassigned',
     customerName: w.customers?.name || 'Unknown customer',
+    alertReason,
   })
   const toBrief = (w: BriefRow): DashboardWorkOrderBrief => ({
     id: w.id,
@@ -117,8 +126,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     customerName: w.customers?.name || 'Unknown customer',
   })
 
-  const recentNotifications = notifRows.map(toNotification)
-  const overdueList = overdueRowsTyped.map(toNotification)
+  const recentNotifications = notifRows.map(w => toNotification(w))
+  const overdueList = [
+    ...missedRowsTyped.map(w => toNotification(w, 'missed')),
+    ...atRiskRowsTyped.map(w => toNotification(w, 'at_risk_today')),
+  ].slice(0, 6)
   const needsReassignList = ((needsReassignRows as unknown as BriefRow[]) || []).map(toBrief)
   const unassignedList = ((unassignedRows as unknown as BriefRow[]) || []).map(toBrief)
 

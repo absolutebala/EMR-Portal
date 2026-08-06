@@ -103,7 +103,7 @@ export default async function DashboardPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-          <ListCard title="Scheduled today — not started" viewAllHref="/work-orders" empty="Nothing scheduled today is waiting to start.">
+          <ListCard title="Missed & at-risk follow-ups" viewAllHref="/work-orders" empty="Nothing missed or at risk.">
             {overdueList.map(wo => (
               <ListRow
                 key={wo.id}
@@ -116,7 +116,16 @@ export default async function DashboardPage() {
                 }
                 href={`/work-orders/${wo.id}`}
               >
-                <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                  <span style={{
+                    fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600,
+                    background: wo.alertReason === 'missed' ? '#FEE2E2' : '#FEF3C7',
+                    color: wo.alertReason === 'missed' ? '#991B1B' : '#92400E',
+                  }}>
+                    {wo.alertReason === 'missed' ? 'Missed' : 'Due today'}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
+                </div>
               </ListRow>
             ))}
           </ListCard>
