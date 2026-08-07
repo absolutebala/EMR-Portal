@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
+import { ListCard } from '@/components/dashboard/DashboardCards'
 import { submitManagerDecision, submitHeadDecision, type ExpenseLogView } from '@/app/actions/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 
@@ -22,6 +23,21 @@ function formatDate(d: string) {
 
 function formatAmount(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function BarRow({ label, amount, max, color }: { label: string; amount: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.max(4, Math.round((amount / max) * 100)) : 0
+  return (
+    <div style={{ padding: '9px 14px', borderTop: '1px solid var(--gl)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{formatAmount(amount)}</div>
+      </div>
+      <div style={{ height: 5, borderRadius: 3, background: 'var(--gl)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, background: color }} />
+      </div>
+    </div>
+  )
 }
 
 interface Props {
@@ -61,10 +77,56 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
   }
   const filtered = tab === 'all' ? logs : logs.filter(l => l.status === tab)
 
+  // Spend charts count only approved claims — pending/rejected amounts aren't real
+  // company spend yet.
+  const approvedLogs = logs.filter(l => l.status === 'approved')
+  const typeSpend = Object.entries(
+    approvedLogs.reduce((acc, l) => { acc[l.expenseTypeName] = (acc[l.expenseTypeName] || 0) + l.amount; return acc }, {} as Record<string, number>)
+  ).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount)
+  const engineerSpend = Object.entries(
+    approvedLogs.reduce((acc, l) => {
+      const name = l.engineerName || 'Unassigned'
+      acc[name] = (acc[name] || 0) + l.amount
+      return acc
+    }, {} as Record<string, number>)
+  ).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount)
+  const typeMax = typeSpend[0]?.amount || 0
+  const engineerMax = engineerSpend[0]?.amount || 0
+
+  // Over-limit shown regardless of status — including already-decided claims — so
+  // this is a full risk picture, not just what's still awaiting a decision.
+  const overLimitLogs = logs.filter(l => l.overLimit).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+
   return (
     <>
       <Topbar title="Expenses" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 16 }}>
+          <ListCard title="Spend by expense type" empty="No approved expenses yet.">
+            {typeSpend.map(t => <BarRow key={t.name} label={t.name} amount={t.amount} max={typeMax} color="#7D1D3F" />)}
+          </ListCard>
+
+          <ListCard title="Spend by field engineer" empty="No approved expenses yet.">
+            {engineerSpend.map(e => <BarRow key={e.name} label={e.name} amount={e.amount} max={engineerMax} color="#1D4ED8" />)}
+          </ListCard>
+
+          <ListCard title="Over policy limit" empty="No claims over their eligible limit.">
+            {overLimitLogs.map(l => (
+              <div key={l.id} style={{ padding: '9px 14px', borderTop: '1px solid var(--gl)' }}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{l.engineerName || '—'}</div>
+                {l.engineerGrade && <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 3 }}>{l.engineerGrade}</div>}
+                <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 2 }}>{l.expenseTypeName}</div>
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: '#991B1B', fontWeight: 600 }}>{formatAmount(l.amount)}</span>
+                  <span style={{ color: 'var(--txm)' }}> requested vs </span>
+                  <span style={{ color: 'var(--tx)', fontWeight: 600 }}>{l.eligibleLimit != null ? formatAmount(l.eligibleLimit) : '—'}</span>
+                  <span style={{ color: 'var(--txm)' }}> eligible</span>
+                </div>
+              </div>
+            ))}
+          </ListCard>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['all', 'pending', 'manager_approved', 'approved', 'rejected'] as TabId[]).map(t => (
