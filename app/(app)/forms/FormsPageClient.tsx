@@ -106,17 +106,12 @@ export default function FormsPageClient({ forms, userName, userRole }: Props) {
               <option value="business_opportunity">Business Opportunity</option>
             </select>
           </div>
-          <button onClick={() => { setEditForm(null); setShowBuilder(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            Create Form
-          </button>
         </div>
 
         {filtered.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--txm)' }}>
             <svg width="48" height="48" fill="none" stroke="var(--gm)" strokeWidth="1.5" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 12px' }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No forms yet</div>
-            <div style={{ fontSize: 12 }}>Create your first form to get started</div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
