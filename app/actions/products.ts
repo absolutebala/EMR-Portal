@@ -177,16 +177,15 @@ async function fetchRequestViews(admin: ReturnType<typeof adminClient>, requestI
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }
 
+// Empty/blank query returns an initial browse list (e.g. on tapping the field before
+// typing anything) instead of nothing — only an actual query string filters it down.
 export async function searchProducts(query: string): Promise<{ products: Product[]; error: string | null }> {
   try {
-    if (query.trim().length < 2) return { products: [], error: null }
     const admin = adminClient()
-    const { data, error } = await admin
-      .from('products')
-      .select('id, name, sap_code, stock_qty')
-      .or(`name.ilike.%${query}%,sap_code.ilike.%${query}%`)
-      .order('name')
-      .limit(20)
+    let q = admin.from('products').select('id, name, sap_code, stock_qty').order('name').limit(20)
+    const trimmed = query.trim()
+    if (trimmed) q = q.or(`name.ilike.%${trimmed}%,sap_code.ilike.%${trimmed}%`)
+    const { data, error } = await q
     if (error) return { products: [], error: error.message }
     return { products: data || [], error: null }
   } catch (e: unknown) {
