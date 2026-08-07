@@ -77,14 +77,12 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
   }
   const filtered = tab === 'all' ? logs : logs.filter(l => l.status === tab)
 
-  // Spend charts count only approved claims — pending/rejected amounts aren't real
-  // company spend yet.
-  const approvedLogs = logs.filter(l => l.status === 'approved')
+  // Spend charts count all claims regardless of status.
   const typeSpend = Object.entries(
-    approvedLogs.reduce((acc, l) => { acc[l.expenseTypeName] = (acc[l.expenseTypeName] || 0) + l.amount; return acc }, {} as Record<string, number>)
+    logs.reduce((acc, l) => { acc[l.expenseTypeName] = (acc[l.expenseTypeName] || 0) + l.amount; return acc }, {} as Record<string, number>)
   ).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount)
   const engineerSpend = Object.entries(
-    approvedLogs.reduce((acc, l) => {
+    logs.reduce((acc, l) => {
       const name = l.engineerName || 'Unassigned'
       acc[name] = (acc[name] || 0) + l.amount
       return acc
@@ -102,28 +100,41 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
       <Topbar title="Expenses" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 16 }}>
-          <ListCard title="Spend by expense type" empty="No approved expenses yet.">
+          <ListCard title="Spend by expense type" empty="No expenses yet.">
             {typeSpend.map(t => <BarRow key={t.name} label={t.name} amount={t.amount} max={typeMax} color="#7D1D3F" />)}
           </ListCard>
 
-          <ListCard title="Spend by field engineer" empty="No approved expenses yet.">
+          <ListCard title="Spend by field engineer" empty="No expenses yet.">
             {engineerSpend.map(e => <BarRow key={e.name} label={e.name} amount={e.amount} max={engineerMax} color="#1D4ED8" />)}
           </ListCard>
 
           <ListCard title="Over policy limit" empty="No claims over their eligible limit.">
-            {overLimitLogs.map(l => (
-              <div key={l.id} style={{ padding: '9px 14px', borderTop: '1px solid var(--gl)' }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{l.engineerName || '—'}</div>
-                {l.engineerGrade && <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 3 }}>{l.engineerGrade}</div>}
-                <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 2 }}>{l.expenseTypeName}</div>
-                <div style={{ fontSize: 11 }}>
-                  <span style={{ color: '#991B1B', fontWeight: 600 }}>{formatAmount(l.amount)}</span>
-                  <span style={{ color: 'var(--txm)' }}> requested vs </span>
-                  <span style={{ color: 'var(--tx)', fontWeight: 600 }}>{l.eligibleLimit != null ? formatAmount(l.eligibleLimit) : '—'}</span>
-                  <span style={{ color: 'var(--txm)' }}> eligible</span>
-                </div>
-              </div>
-            ))}
+            {overLimitLogs.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Name', 'Expense Type', 'Amount'].map(h => (
+                      <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {overLimitLogs.map(l => (
+                    <tr key={l.id} style={{ borderTop: '1px solid var(--gl)' }}>
+                      <td style={{ padding: '8px 14px', verticalAlign: 'top' }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{l.engineerName || '—'}</div>
+                        {l.engineerGrade && <div style={{ fontSize: 10, color: 'var(--txm)' }}>{l.engineerGrade}</div>}
+                      </td>
+                      <td style={{ padding: '8px 14px', fontSize: 11, color: 'var(--tx)', verticalAlign: 'top' }}>{l.expenseTypeName}</td>
+                      <td style={{ padding: '8px 14px', verticalAlign: 'top' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#991B1B' }}>{formatAmount(l.amount)}</div>
+                        <div style={{ fontSize: 10, color: 'var(--txm)' }}>{l.eligibleLimit != null ? `Eligible ${formatAmount(l.eligibleLimit)}` : ''}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </ListCard>
         </div>
 
