@@ -1,4 +1,5 @@
 import SwRegister from '@/components/mobile/SwRegister'
+import LocationGate from '@/components/mobile/LocationGate'
 import './mobile.css'
 
 export const metadata = {
@@ -13,7 +14,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   return (
     <div style={{ minHeight: '100dvh', background: '#F8F5F6', fontFamily: 'Poppins, sans-serif' }}>
       <SwRegister />
-      {children}
+      <LocationGate>{children}</LocationGate>
     </div>
   )
 }

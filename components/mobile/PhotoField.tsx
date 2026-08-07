@@ -47,6 +47,7 @@ export default function PhotoField({ value, onChange, readOnly }: Props) {
             <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" />
           </svg>
           <p style={{ fontSize: 11, fontWeight: 500, color: '#7D1D3F', margin: 0 }}>Tap to capture photo</p>
+          <p style={{ fontSize: 9, color: '#A0708A', margin: '4px 0 0' }}>If the camera doesn&apos;t open, check that camera access is allowed for this site in your browser settings</p>
         </div>
       ) : (
         <div
