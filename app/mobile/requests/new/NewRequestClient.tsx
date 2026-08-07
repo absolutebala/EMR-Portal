@@ -25,11 +25,13 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const searchBoxRef = useRef<HTMLDivElement>(null)
 
   const [selectedWoId, setSelectedWoId] = useState(searchParams.get('wo') || '')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [cart, setCart] = useState<Record<string, CartItem>>({})
   const [damagePhotos, setDamagePhotos] = useState<DamagePhoto[]>([])
   const [compressing, setCompressing] = useState(false)
@@ -40,6 +42,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
 
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q)
+    setDropdownOpen(true)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
     if (q.trim().length < 2) { setResults([]); setSearching(false); return }
     setSearching(true)
@@ -52,9 +55,26 @@ export default function NewRequestClient({ workOrders, error }: Props) {
 
   useEffect(() => () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }, [])
 
+  // Close the suggestions dropdown when tapping anywhere outside it.
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [dropdownOpen])
+
   function addToCart(product: Product) {
     if (product.stock_qty === 0) return
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity || 0) + 1 } }))
+    setDropdownOpen(false)
+    setQuery('')
+    setResults([])
   }
 
   function changeQty(productId: string, delta: number) {
@@ -154,43 +174,53 @@ export default function NewRequestClient({ workOrders, error }: Props) {
 
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Products</p>
-          <div style={{ position: 'relative', marginBottom: 10 }}>
+          <div ref={searchBoxRef} style={{ position: 'relative' }}>
             <input
               value={query}
               onChange={e => handleQueryChange(e.target.value)}
+              onFocus={() => setDropdownOpen(true)}
               placeholder="Search by product name or SAP code…"
               style={inputStyle}
             />
             {searching && <div style={{ position: 'absolute', right: 10, top: 11, fontSize: 10, color: '#7A6870' }}>Searching…</div>}
-          </div>
-          {results.map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid #F5F3F5' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#1C0D14' }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: '#7A6870' }}>
-                  {p.sap_code ? `SAP: ${p.sap_code} · ` : ''}
-                  <span style={{ color: p.stock_qty === 0 ? '#DC2626' : p.stock_qty <= 3 ? '#D97706' : '#059669', fontWeight: 500 }}>
-                    {p.stock_qty === 0 ? 'Out of stock' : `In stock: ${p.stock_qty}`}
-                  </span>
-                </div>
+
+            {dropdownOpen && (query.trim().length >= 2 || results.length > 0) && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20,
+                background: '#fff', border: '1px solid #E5E0E3', borderRadius: 10,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.12)', maxHeight: 280, overflowY: 'auto',
+              }}>
+                {results.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: '1px solid #F5F3F5' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#1C0D14' }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: '#7A6870' }}>
+                        {p.sap_code ? `SAP: ${p.sap_code} · ` : ''}
+                        <span style={{ color: p.stock_qty === 0 ? '#DC2626' : p.stock_qty <= 3 ? '#D97706' : '#059669', fontWeight: 500 }}>
+                          {p.stock_qty === 0 ? 'Out of stock' : `In stock: ${p.stock_qty}`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="mtap"
+                      onClick={() => addToCart(p)}
+                      disabled={p.stock_qty === 0}
+                      style={{
+                        flexShrink: 0, border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins, sans-serif',
+                        background: p.stock_qty === 0 ? '#E5E0E3' : '#7D1D3F', color: p.stock_qty === 0 ? '#7A6870' : '#fff',
+                        cursor: p.stock_qty === 0 ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+                {query.trim().length >= 2 && !searching && results.length === 0 && (
+                  <p style={{ fontSize: 11, color: '#7A6870', margin: 0, padding: '10px 12px' }}>No products found for &quot;{query}&quot;</p>
+                )}
               </div>
-              <button
-                className="mtap"
-                onClick={() => addToCart(p)}
-                disabled={p.stock_qty === 0}
-                style={{
-                  border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins, sans-serif',
-                  background: p.stock_qty === 0 ? '#E5E0E3' : '#7D1D3F', color: p.stock_qty === 0 ? '#7A6870' : '#fff',
-                  cursor: p.stock_qty === 0 ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Add
-              </button>
-            </div>
-          ))}
-          {query.trim().length >= 2 && !searching && results.length === 0 && (
-            <p style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>No products found for &quot;{query}&quot;</p>
-          )}
+            )}
+          </div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>

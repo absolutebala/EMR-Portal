@@ -208,21 +208,22 @@ export async function submitProductRequest(params: {
 
     const admin = adminClient()
 
-    const photoUrls: string[] = []
-    for (const photo of params.damagePhotos) {
+    // Uploaded in parallel — this used to be a sequential for-loop, so N damage photos
+    // meant N uploads back-to-back (each with up to a 25s timeout), which is what made
+    // submission feel like it hung on a slow connection with more than one photo.
+    const uploadResults = await Promise.all(params.damagePhotos.map(async (photo, i) => {
       const base64 = photo.base64.split(',')[1] ?? photo.base64
       const buffer = Buffer.from(base64, 'base64')
-      const path = `product-requests/${params.workOrderId}-${Date.now()}-${photoUrls.length}.${photo.ext}`
+      const path = `product-requests/${params.workOrderId}-${Date.now()}-${i}.${photo.ext}`
       const upResult = await withTimeout(
         admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: photo.mimeType }),
         25000
       )
-      if (upResult && !upResult.error) {
-        photoUrls.push(admin.storage.from('assets').getPublicUrl(path).data.publicUrl)
-      } else {
-        console.error('submitProductRequest: damage photo upload failed', upResult?.error)
-      }
-    }
+      if (upResult && !upResult.error) return admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+      console.error('submitProductRequest: damage photo upload failed', upResult?.error)
+      return null
+    }))
+    const photoUrls = uploadResults.filter((u): u is string => !!u)
     if (!photoUrls.length) return { error: 'Photo upload failed — please check your connection and try again.' }
 
     const { data: request, error: reqError } = await admin.from('product_requests').insert({
@@ -232,14 +233,16 @@ export async function submitProductRequest(params: {
     }).select('id').single()
     if (reqError || !request) return { error: reqError?.message || 'Could not create request' }
 
-    const { error: itemsError } = await admin.from('product_request_items').insert(
-      params.items.map(i => ({ request_id: request.id, product_id: i.productId, quantity: i.quantity }))
-    )
+    const [{ error: itemsError }, { data: actor }, { data: wo }] = await Promise.all([
+      admin.from('product_request_items').insert(
+        params.items.map(i => ({ request_id: request.id, product_id: i.productId, quantity: i.quantity }))
+      ),
+      admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle(),
+      admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle(),
+    ])
     if (itemsError) return { error: itemsError.message }
 
-    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
-    const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
     logActivity(admin, {
       actorId: user.id, actorName,
       action: `Requested ${params.items.length} product${params.items.length > 1 ? 's' : ''} for notification ${wo?.wo_number || ''}`,
