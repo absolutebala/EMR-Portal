@@ -225,6 +225,7 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   site_address: string | null
   rating: string | null
   manufacturer: string | null
+  engineer_name?: string | null
 }
 
 async function fetchSingleWorkOrder(
@@ -520,6 +521,9 @@ export async function getMobileWorkOrderWithForm(woId: string): Promise<{
 
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Notification not found' }
+
+    const { data: engineerProfile } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
+    workOrder.engineer_name = engineerProfile ? `${engineerProfile.first_name} ${engineerProfile.last_name}` : null
 
     // Find the active form for this job type
     const { data: formRow } = await admin

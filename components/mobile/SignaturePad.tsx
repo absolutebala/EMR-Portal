@@ -97,9 +97,15 @@ function FullscreenSignaturePad({ initialValue, onCancel, onSave }: {
     if (!canvas) return
     const raf = requestAnimationFrame(() => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const rect = canvas.getBoundingClientRect()
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
+      // offsetWidth/Height (the element's own local, pre-transform layout size) — NOT
+      // getBoundingClientRect(), which reports the box AFTER the parent's -90deg CSS
+      // rotation and is width/height-swapped relative to the canvas's own drawing
+      // surface. Sizing the bitmap from the rotated rect made every stroke land
+      // somewhere other than where the finger touched.
+      const width = canvas.offsetWidth
+      const height = canvas.offsetHeight
+      canvas.width = width * dpr
+      canvas.height = height * dpr
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.scale(dpr, dpr)
@@ -109,7 +115,7 @@ function FullscreenSignaturePad({ initialValue, onCancel, onSave }: {
       ctx.strokeStyle = '#1C0D14'
       if (initialValue) {
         const img = new Image()
-        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height)
+        img.onload = () => ctx.drawImage(img, 0, 0, width, height)
         img.src = initialValue
       }
     })
@@ -125,8 +131,15 @@ function FullscreenSignaturePad({ initialValue, onCancel, onSave }: {
   }, [])
 
   function getPoint(e: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    const canvas = e.currentTarget
+    const rect = canvas.getBoundingClientRect() // rendered (rotated) box, in screen space
+    const sx = e.clientX - rect.left
+    const sy = e.clientY - rect.top
+    // Undo the parent's -90deg CSS rotation: a point at rendered-screen offset (sx,sy)
+    // maps back to the canvas's own local drawing coordinates as (W - sy, sx), where W
+    // is the canvas's local (pre-rotation) width. See sizing effect above for why
+    // getBoundingClientRect() alone isn't usable here.
+    return { x: canvas.offsetWidth - sy, y: sx }
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {

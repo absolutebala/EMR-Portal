@@ -20,6 +20,7 @@ interface Props {
 // There's no formal schema linking a field to a specific job attribute, only the label text.
 function getPrefillValue(label: string, wo: MobileWorkOrderWithCustomer): string {
   const l = label.toLowerCase()
+  if (l.includes('engineer') && l.includes('name')) return wo.engineer_name || ''
   if (l.includes('customer') && l.includes('name')) return wo.customer_name
   if (l.includes('contact')) return wo.customer_contact || ''
   if (l.includes('installation location') || (l.includes('site') && l.includes('address'))) return wo.site_address || ''
