@@ -34,12 +34,12 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   const router = useRouter()
   const [tab, setTab] = useState<TabId>('all')
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
-  const [actingId, setActingId] = useState<string | null>(null)
+  const [acting, setActing] = useState<{ id: string; status: string } | null>(null)
 
   async function act(itemId: string, status: 'approved' | 'rejected' | 'dispatched' | 'delivered') {
-    setActingId(itemId)
+    setActing({ id: itemId, status })
     await updateProductRequestItemStatus(itemId, status)
-    setActingId(null)
+    setActing(null)
     router.refresh()
   }
 
@@ -114,7 +114,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
                   <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: STATUS_CFG[item.status].bg, color: STATUS_CFG[item.status].color, whiteSpace: 'nowrap' }}>
                     {STATUS_CFG[item.status].label}
                   </span>
-                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} acting={actingId === item.id} onAct={status => act(item.id, status)} />
+                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} actingStatus={acting?.id === item.id ? acting.status : null} onAct={status => act(item.id, status)} />
                 </div>
               ))}
             </div>
@@ -132,29 +132,30 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   )
 }
 
-function ItemActions({ item, canApprove, canDispatch, canDeliver, acting, onAct }: {
+function ItemActions({ item, canApprove, canDispatch, canDeliver, actingStatus, onAct }: {
   item: ProductRequestItemView
   canApprove: boolean
   canDispatch: boolean
   canDeliver: boolean
-  acting: boolean
+  actingStatus: string | null
   onAct: (status: 'approved' | 'rejected' | 'dispatched' | 'delivered') => void
 }) {
-  const btnStyle: React.CSSProperties = { border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }
+  const isActing = actingStatus !== null
+  const btnStyle: React.CSSProperties = { border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: isActing ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap', opacity: isActing ? 0.6 : 1, transition: 'opacity .1s' }
 
   if (item.status === 'pending' && canApprove) {
     return (
       <div style={{ display: 'flex', gap: 6 }}>
-        <button disabled={acting} onClick={() => onAct('approved')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Approve</button>
-        <button disabled={acting} onClick={() => onAct('rejected')} style={{ ...btnStyle, background: '#FEE2E2', color: '#991B1B' }}>Reject</button>
+        <button disabled={isActing} onClick={() => onAct('approved')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>{actingStatus === 'approved' ? 'Approving…' : 'Approve'}</button>
+        <button disabled={isActing} onClick={() => onAct('rejected')} style={{ ...btnStyle, background: '#FEE2E2', color: '#991B1B' }}>{actingStatus === 'rejected' ? 'Rejecting…' : 'Reject'}</button>
       </div>
     )
   }
   if (item.status === 'approved' && canDispatch) {
-    return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>Mark dispatched</button>
+    return <button disabled={isActing} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>{actingStatus === 'dispatched' ? 'Marking dispatched…' : 'Mark dispatched'}</button>
   }
   if (item.status === 'dispatched' && canDeliver) {
-    return <button disabled={acting} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Mark delivered</button>
+    return <button disabled={isActing} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>{actingStatus === 'delivered' ? 'Marking delivered…' : 'Mark delivered'}</button>
   }
   return null
 }
