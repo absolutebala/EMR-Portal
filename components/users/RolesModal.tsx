@@ -18,6 +18,7 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Forms — Create / Edit':             'Forms — View',
   'Product Requests — Approve':        'Product Requests — View',
   'Product Requests — Dispatch':       'Product Requests — View',
+  'Product Requests — Deliver':        'Product Requests — View',
   'Expenses — Approve':                'Expenses — View',
   'Expenses — Final Approve':          'Expenses — View',
 }
@@ -56,6 +57,7 @@ const MODULES = [
   'Product Requests — View',
   'Product Requests — Approve',
   'Product Requests — Dispatch',
+  'Product Requests — Deliver',
   'Expenses — View',
   'Expenses — Approve',
   'Expenses — Final Approve',

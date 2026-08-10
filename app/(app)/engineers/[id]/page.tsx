@@ -75,6 +75,7 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
   const canApproveAsHead = isAdmin || !hasPerms || permissions['Expenses — Final Approve'] === true
   const canApproveRequests = isAdmin || !hasPerms || permissions['Product Requests — Approve'] === true
   const canDispatchRequests = isAdmin || !hasPerms || permissions['Product Requests — Dispatch'] === true
+  const canDeliverRequests = isAdmin || !hasPerms || permissions['Product Requests — Deliver'] === true
 
   const openNotifications = notifications.filter(w => w.status !== 'completed').length
   const closedNotifications = notifications.filter(w => w.status === 'completed').length
@@ -179,7 +180,7 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
         <EngineerExpensesTable expenses={expenses} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
 
         {/* Product requests */}
-        <EngineerProductRequestsTable requests={productRequests} canApprove={canApproveRequests} canDispatch={canDispatchRequests} />
+        <EngineerProductRequestsTable requests={productRequests} canApprove={canApproveRequests} canDispatch={canDispatchRequests} canDeliver={canDeliverRequests} />
       </div>
     </>
   )

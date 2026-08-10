@@ -21,12 +21,14 @@ interface Props {
   requests: ProductRequestView[]
   canApprove: boolean
   canDispatch: boolean
+  canDeliver: boolean
 }
 
-function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
+function ItemActions({ item, canApprove, canDispatch, canDeliver, acting, onAct }: {
   item: ProductRequestItemView
   canApprove: boolean
   canDispatch: boolean
+  canDeliver: boolean
   acting: boolean
   onAct: (status: 'approved' | 'rejected' | 'dispatched' | 'delivered') => void
 }) {
@@ -43,13 +45,13 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
   if (item.status === 'approved' && canDispatch) {
     return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>Mark dispatched</button>
   }
-  if (item.status === 'dispatched' && canDispatch) {
+  if (item.status === 'dispatched' && canDeliver) {
     return <button disabled={acting} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Mark delivered</button>
   }
   return null
 }
 
-export default function EngineerProductRequestsTable({ requests, canApprove, canDispatch }: Props) {
+export default function EngineerProductRequestsTable({ requests, canApprove, canDispatch, canDeliver }: Props) {
   const router = useRouter()
   const [actingId, setActingId] = useState<string | null>(null)
 
@@ -97,7 +99,7 @@ export default function EngineerProductRequestsTable({ requests, canApprove, can
                 <td style={{ padding: '10px 14px' }}>
                   {r.items.map(item => (
                     <div key={item.id} style={{ marginBottom: 6, minHeight: 22, display: 'flex', alignItems: 'center' }}>
-                      <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} acting={actingId === item.id} onAct={status => act(item.id, status)} />
+                      <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} acting={actingId === item.id} onAct={status => act(item.id, status)} />
                     </div>
                   ))}
                 </td>

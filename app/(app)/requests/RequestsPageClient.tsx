@@ -27,9 +27,10 @@ interface Props {
   userRole: string
   canApprove: boolean
   canDispatch: boolean
+  canDeliver: boolean
 }
 
-export default function RequestsPageClient({ requests, userName, userRole, canApprove, canDispatch }: Props) {
+export default function RequestsPageClient({ requests, userName, userRole, canApprove, canDispatch, canDeliver }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<TabId>('all')
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
@@ -113,7 +114,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
                   <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: STATUS_CFG[item.status].bg, color: STATUS_CFG[item.status].color, whiteSpace: 'nowrap' }}>
                     {STATUS_CFG[item.status].label}
                   </span>
-                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} acting={actingId === item.id} onAct={status => act(item.id, status)} />
+                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} acting={actingId === item.id} onAct={status => act(item.id, status)} />
                 </div>
               ))}
             </div>
@@ -131,10 +132,11 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   )
 }
 
-function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
+function ItemActions({ item, canApprove, canDispatch, canDeliver, acting, onAct }: {
   item: ProductRequestItemView
   canApprove: boolean
   canDispatch: boolean
+  canDeliver: boolean
   acting: boolean
   onAct: (status: 'approved' | 'rejected' | 'dispatched' | 'delivered') => void
 }) {
@@ -151,7 +153,7 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
   if (item.status === 'approved' && canDispatch) {
     return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>Mark dispatched</button>
   }
-  if (item.status === 'dispatched' && canDispatch) {
+  if (item.status === 'dispatched' && canDeliver) {
     return <button disabled={acting} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Mark delivered</button>
   }
   return null

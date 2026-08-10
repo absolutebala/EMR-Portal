@@ -26,6 +26,7 @@ export default async function RequestsPage() {
       userRole={userRole}
       canApprove={can('Product Requests — Approve')}
       canDispatch={can('Product Requests — Dispatch')}
+      canDeliver={can('Product Requests — Deliver')}
     />
   )
 }
