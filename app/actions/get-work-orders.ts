@@ -72,7 +72,7 @@ export interface WorkOrderVisit {
 // Notifications section) instead of always pulling every notification company-wide —
 // without it, a page that only needs a handful of rows for one customer still paid for
 // fetching + joining every work order, every referenced customer/engineer/category.
-export async function getWorkOrders(customerId?: string): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
+export async function getWorkOrders(customerId?: string, engineerId?: string): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
   try {
     const sb = await serverClient()
     const user = await getAuthedUser(sb)
@@ -85,6 +85,7 @@ export async function getWorkOrders(customerId?: string): Promise<{ workOrders: 
 
     let query = admin.from('work_orders').select('*').order('created_at', { ascending: false })
     if (customerId) query = query.eq('customer_id', customerId)
+    if (engineerId) query = query.eq('engineer_id', engineerId)
     const { data: wos, error } = await query
 
     if (error) return { workOrders: [], error: error.message }

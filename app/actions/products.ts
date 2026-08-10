@@ -282,6 +282,17 @@ export async function getProductRequestsForWorkOrder(workOrderId: string): Promi
   }
 }
 
+export async function getProductRequestsForEngineer(engineerId: string): Promise<{ requests: ProductRequestView[]; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const { data: reqIds } = await admin.from('product_requests').select('id').eq('engineer_id', engineerId).order('created_at', { ascending: false })
+    const requests = await fetchRequestViews(admin, (reqIds || []).map(r => r.id))
+    return { requests, error: null }
+  } catch (e: unknown) {
+    return { requests: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function getAllProductRequests(): Promise<{ requests: ProductRequestView[]; error: string | null }> {
   try {
     const admin = adminClient()

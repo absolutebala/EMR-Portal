@@ -310,6 +310,18 @@ export async function getMyExpenseLogs(): Promise<{ logs: ExpenseLogView[]; erro
   }
 }
 
+export async function getExpenseLogsForEngineer(engineerId: string): Promise<{ logs: ExpenseLogView[]; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const { data: rows, error } = await admin.from('expense_logs').select('*').eq('engineer_id', engineerId).order('created_at', { ascending: false })
+    if (error) return { logs: [], error: error.message }
+    const logs = await buildExpenseLogViews(admin, (rows as RawExpenseLog[]) || [])
+    return { logs, error: null }
+  } catch (e: unknown) {
+    return { logs: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function getAllExpenseLogs(): Promise<{ logs: ExpenseLogView[]; error: string | null }> {
   try {
     const admin = adminClient()

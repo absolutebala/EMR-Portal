@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import type { FieldEngineerOverview, EngineerStatus } from '@/app/actions/get-engineers'
 
@@ -74,7 +75,9 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
                 <tbody>
                   {engineers.map(e => (
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
-                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{e.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <Link href={`/engineers/${e.id}`} style={{ color: 'var(--m)', textDecoration: 'none' }}>{e.name}</Link>
+                      </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
                       <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} statusStartBy={e.statusStartBy} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>

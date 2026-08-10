@@ -180,3 +180,89 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     return { engineers: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+export interface EngineerProfileDetail {
+  id: string
+  name: string
+  employeeId: string
+  phone: string | null
+  email: string | null
+  grade: string | null
+  role: string
+  managerName: string | null
+  status: EngineerStatus
+  statusSiteName: string | null
+  statusStartBy: string | null
+  statusUpdatedAt: string | null
+  lastSeen: { placeName: string | null; at: string } | null
+  lastActiveAt: string | null
+}
+
+export async function getEngineerProfile(id: string): Promise<{ profile: EngineerProfileDetail | null; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const { data: p, error } = await admin.from('profiles')
+      .select('id, first_name, last_name, employee_id, phone, email, grade, role, manager_id, engineer_status, engineer_status_work_order_id, engineer_status_start_by, engineer_status_updated_at, last_active_at, last_seen_place_label, last_seen_at')
+      .eq('id', id).maybeSingle()
+    if (error) return { profile: null, error: error.message }
+    if (!p) return { profile: null, error: 'Engineer not found' }
+
+    let managerName: string | null = null
+    if (p.manager_id) {
+      const { data: mgr } = await admin.from('profiles').select('first_name, last_name').eq('id', p.manager_id).maybeSingle()
+      if (mgr) managerName = `${mgr.first_name} ${mgr.last_name}`
+    }
+
+    let statusSiteName: string | null = null
+    if (p.engineer_status_work_order_id) {
+      const { data: wotRows } = await admin.from('work_order_transformers')
+        .select('transformers(customer_sites(site_name))')
+        .eq('work_order_id', p.engineer_status_work_order_id)
+      type Row = { transformers: { customer_sites: { site_name: string } | null } | null }
+      statusSiteName = ((wotRows as unknown as Row[]) || []).map(r => r.transformers?.customer_sites?.site_name).find(Boolean) || null
+    }
+
+    // Same freshest-wins logic as getFieldEngineersOverview — the passive location
+    // ping and the last job check-in are two independent "where were they last"
+    // signals, falling back to the generic app-usage heartbeat if neither has GPS.
+    const { data: checkinRows } = await admin.from('work_order_checkins')
+      .select('place_name, checked_in_at').eq('engineer_id', id)
+      .order('checked_in_at', { ascending: false }).limit(1)
+    const checkin = checkinRows?.[0]
+    const pingAt = p.last_seen_at
+    let lastSeen: { placeName: string | null; at: string } | null = null
+    if (checkin && pingAt) {
+      lastSeen = new Date(pingAt) > new Date(checkin.checked_in_at)
+        ? { placeName: p.last_seen_place_label, at: pingAt }
+        : { placeName: checkin.place_name, at: checkin.checked_in_at }
+    } else if (checkin) {
+      lastSeen = { placeName: checkin.place_name, at: checkin.checked_in_at }
+    } else if (pingAt) {
+      lastSeen = { placeName: p.last_seen_place_label, at: pingAt }
+    } else if (p.last_active_at) {
+      lastSeen = { placeName: null, at: p.last_active_at }
+    }
+
+    return {
+      profile: {
+        id: p.id,
+        name: `${p.first_name} ${p.last_name}`,
+        employeeId: p.employee_id,
+        phone: p.phone,
+        email: p.email,
+        grade: p.grade,
+        role: p.role,
+        managerName,
+        status: (p.engineer_status as EngineerStatus) || 'available',
+        statusSiteName,
+        statusStartBy: p.engineer_status_start_by,
+        statusUpdatedAt: p.engineer_status_updated_at,
+        lastSeen,
+        lastActiveAt: p.last_active_at,
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { profile: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
