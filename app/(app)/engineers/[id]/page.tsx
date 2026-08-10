@@ -6,7 +6,10 @@ import { getEngineerProfile } from '@/app/actions/get-engineers'
 import { getWorkOrders } from '@/app/actions/get-work-orders'
 import { getExpenseLogsForEngineer } from '@/app/actions/expenses'
 import { getProductRequestsForEngineer } from '@/app/actions/products'
+import { getMyPermissions } from '@/app/actions/roles-actions'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
+import EngineerExpensesTable from '@/components/engineers/EngineerExpensesTable'
+import EngineerProductRequestsTable from '@/components/engineers/EngineerProductRequestsTable'
 
 const ENGINEER_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
@@ -23,20 +26,6 @@ const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }
   in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
   needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
-}
-
-const EXPENSE_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
-  pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
-  manager_approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Awaiting final approval' },
-  approved: { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
-  rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-}
-
-const REQUEST_ITEM_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
-  pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
-  approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
-  rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-  dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
 }
 
 function formatDate(d: string) {
@@ -65,19 +54,27 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ profile }, user, { workOrders: notifications }, { logs: expenses }, { requests: productRequests }] = await Promise.all([
+  const [{ profile }, user, { workOrders: notifications }, { logs: expenses }, { requests: productRequests }, { permissions, role }] = await Promise.all([
     getEngineerProfile(id),
     getAuthedUser(supabase),
     getWorkOrders(undefined, id),
     getExpenseLogsForEngineer(id),
     getProductRequestsForEngineer(id),
+    getMyPermissions(),
   ])
 
   if (!profile) notFound()
 
   const { data: viewerProfile } = await supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
   const userName = viewerProfile ? `${viewerProfile.first_name} ${viewerProfile.last_name}` : 'User'
-  const userRole = viewerProfile?.role || 'User'
+  const userRole = viewerProfile?.role || role || 'User'
+
+  const hasPerms = Object.keys(permissions).length > 0
+  const isAdmin = userRole === 'Super Admin' || userRole === 'Head of Service'
+  const canApproveAsManager = isAdmin || !hasPerms || permissions['Expenses — Approve'] === true
+  const canApproveAsHead = isAdmin || !hasPerms || permissions['Expenses — Final Approve'] === true
+  const canApproveRequests = isAdmin || !hasPerms || permissions['Product Requests — Approve'] === true
+  const canDispatchRequests = isAdmin || !hasPerms || permissions['Product Requests — Dispatch'] === true
 
   const openNotifications = notifications.filter(w => w.status !== 'completed').length
   const closedNotifications = notifications.filter(w => w.status === 'completed').length
@@ -179,87 +176,10 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
         </div>
 
         {/* Expenses */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>Expense requests</div>
-          {expenses.length === 0 ? (
-            <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>No expense requests yet.</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Project', 'Type', 'Date', 'Amount', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map(e => {
-                  const cfg = EXPENSE_STATUS_CFG[e.status]
-                  return (
-                    <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{e.projectLabel}</div>
-                        <div style={{ fontSize: 10, color: 'var(--txm)' }}>{e.woNumber}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{e.expenseTypeName}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{formatDate(e.expenseDate)}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: e.overLimit ? '#991B1B' : 'var(--tx)' }}>{formatAmount(e.amount)}</div>
-                        {e.eligibleLimit != null && <div style={{ fontSize: 9, color: 'var(--txm)' }}>Eligible {formatAmount(e.eligibleLimit)}</div>}
-                        {e.overLimit && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 9, padding: '2px 6px', borderRadius: 20, fontWeight: 600, background: '#FEE2E2', color: '#991B1B' }}>Over limit</span>}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>{cfg.label}</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <EngineerExpensesTable expenses={expenses} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
 
         {/* Product requests */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>Product requests</div>
-          {productRequests.length === 0 ? (
-            <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>No product requests yet.</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Notification', 'Date', 'Items', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {productRequests.map(r => (
-                  <tr key={r.id} style={{ borderBottom: '1px solid var(--gm)' }}>
-                    <td style={{ padding: '10px 14px' }}>
-                      <Link href={`/work-orders/${r.workOrderId}`} style={{ fontSize: 12, fontWeight: 500, color: 'var(--m)', textDecoration: 'none' }}>{r.woNumber}</Link>
-                    </td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{formatDate(r.createdAt)}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      {r.items.map(item => (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                          <span style={{ fontSize: 12, color: 'var(--tx)' }}>{item.productName} × {item.quantity}</span>
-                          <span style={{
-                            fontSize: 9, padding: '1px 7px', borderRadius: 20, fontWeight: 600,
-                            background: REQUEST_ITEM_STATUS_CFG[item.status].bg, color: REQUEST_ITEM_STATUS_CFG[item.status].color,
-                          }}>
-                            {REQUEST_ITEM_STATUS_CFG[item.status].label}
-                          </span>
-                        </div>
-                      ))}
-                    </td>
-                    <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{r.items.length} item{r.items.length !== 1 ? 's' : ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <EngineerProductRequestsTable requests={productRequests} canApprove={canApproveRequests} canDispatch={canDispatchRequests} />
       </div>
     </>
   )
