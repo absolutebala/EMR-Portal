@@ -8,7 +8,7 @@ import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
-import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
 
 interface Props {
   stats: MobileDashboardStats

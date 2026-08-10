@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import SignaturePad from '@/components/mobile/SignaturePad'
 import { submitDailyClosure } from '@/app/actions/mobile-actions'
-import type { MobileWorkOrderWithCustomer } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 
 interface Props {
   workOrder: MobileWorkOrderWithCustomer

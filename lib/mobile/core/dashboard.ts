@@ -1,0 +1,374 @@
+import { logActivity as logSystemActivity } from '@/lib/activity-log'
+import {
+  type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
+  type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice,
+  withTimeout, touchHeartbeat, haversineKm, fetchEngineerWorkOrders, getEngineerName, reverseGeocodeCore,
+  logActivity,
+} from './shared'
+
+export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
+  try {
+    touchHeartbeat(admin, userId)
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, userId),
+      fetchEngineerWorkOrders(admin, userId),
+    ])
+    return { workOrders: workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment'), engineer, error: null }
+  } catch (e: unknown) {
+    return { workOrders: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMobileDashboardDataCore(admin: AdminClient, userId: string): Promise<{
+  stats: MobileDashboardStats
+  recentJobs: MobileWorkOrder[]
+  engineer: { name: string } | null
+  error: string | null
+}> {
+  try {
+    touchHeartbeat(admin, userId)
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, userId),
+      fetchEngineerWorkOrders(admin, userId),
+    ])
+
+    // "Pending" is no longer a distinct status — a visit that couldn't be finished in
+    // a day stays In Progress with a follow-up date, so it's already counted there.
+    const stats: MobileDashboardStats = {
+      assigned: workOrders.filter(w => w.status === 'assigned' || w.status === 'unassigned').length,
+      inProgress: workOrders.filter(w => w.status === 'in_progress').length,
+      needsReassignment: workOrders.filter(w => w.status === 'needs_reassignment').length,
+      completed: workOrders.filter(w => w.status === 'completed').length,
+    }
+
+    const recentJobs = workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment').slice(0, 3)
+
+    return { stats, recentJobs, engineer, error: null }
+  } catch (e: unknown) {
+    return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Two situations surfaced as a prompt on dashboard load so a job doesn't just sit
+// there unresolved: (1) Pending jobs whose most recent closure's revisit_date has
+// already passed, and (2) In-progress jobs checked into on a previous day and never
+// closed out.
+export async function getOverdueFollowUpsCore(admin: AdminClient, userId: string): Promise<{ followUps: OverdueFollowUp[]; error: string | null }> {
+  try {
+    const workOrders = await fetchEngineerWorkOrders(admin, userId)
+    const pending = workOrders.filter(w => w.status === 'pending')
+    const inProgress = workOrders.filter(w => w.status === 'in_progress')
+    if (!pending.length && !inProgress.length) return { followUps: [], error: null }
+
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const followUps: OverdueFollowUp[] = []
+
+    if (pending.length) {
+      const woIds = pending.map(w => w.id)
+      const { data: closures } = await admin
+        .from('work_order_daily_closures')
+        .select('work_order_id, revisit_date, created_at')
+        .in('work_order_id', woIds)
+        .order('created_at', { ascending: false })
+
+      const latestRevisitByWo: Record<string, string | null> = {}
+      for (const c of closures || []) {
+        if (!(c.work_order_id in latestRevisitByWo)) latestRevisitByWo[c.work_order_id] = c.revisit_date
+      }
+
+      for (const w of pending) {
+        const rd = latestRevisitByWo[w.id]
+        if (rd && rd < todayStr) followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: rd, kind: 'pending' })
+      }
+    }
+
+    if (inProgress.length) {
+      const woIds = inProgress.map(w => w.id)
+      const { data: checkins } = await admin
+        .from('work_order_checkins')
+        .select('work_order_id, checked_in_at')
+        .in('work_order_id', woIds)
+        .order('checked_in_at', { ascending: false })
+
+      const latestCheckinByWo: Record<string, string> = {}
+      for (const c of checkins || []) {
+        if (!(c.work_order_id in latestCheckinByWo)) latestCheckinByWo[c.work_order_id] = c.checked_in_at
+      }
+
+      for (const w of inProgress) {
+        const lastCheckin = latestCheckinByWo[w.id]
+        if (!lastCheckin) continue
+        const lastCheckinDateStr = new Date(lastCheckin).toLocaleDateString('en-CA')
+        if (lastCheckinDateStr >= todayStr) continue
+
+        const dueDateStr = w.scheduled_date || lastCheckinDateStr
+        if (dueDateStr < todayStr) {
+          followUps.push({ workOrderId: w.id, woNumber: w.wo_number, customerName: w.customer_name, dueDate: dueDateStr, kind: 'stale_in_progress' })
+        }
+      }
+    }
+
+    return { followUps, error: null }
+  } catch (e: unknown) {
+    return { followUps: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function rescheduleFollowUpCore(admin: AdminClient, userId: string, workOrderId: string, newDate: string, offSite?: boolean): Promise<{ error: string | null }> {
+  try {
+    const woResult = await withTimeout(
+      admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', workOrderId).single(),
+      8000
+    )
+    const wo = woResult?.data
+    if (!wo) return { error: 'Notification not found' }
+    if (wo.engineer_id !== userId) return { error: 'Not authorized to reschedule this notification' }
+    if (wo.status !== 'pending' && wo.status !== 'in_progress') return { error: 'This notification no longer needs rescheduling' }
+
+    if (wo.status === 'in_progress') {
+      const updateResult = await withTimeout(
+        admin.from('work_orders').update({ scheduled_date: newDate, updated_at: new Date().toISOString() }).eq('id', workOrderId),
+        8000
+      )
+      if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
+      if (updateResult.error) return { error: updateResult.error.message }
+    } else {
+      const closureResult = await withTimeout(
+        admin.from('work_order_daily_closures')
+          .select('id')
+          .eq('work_order_id', workOrderId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        8000
+      )
+      const latestClosureId = closureResult?.data?.id
+      if (!latestClosureId) return { error: 'No closure found to reschedule' }
+
+      const updateResult = await withTimeout(
+        admin.from('work_order_daily_closures').update({ revisit_date: newDate }).eq('id', latestClosureId),
+        8000
+      )
+      if (!updateResult) return { error: 'Saving is taking longer than expected — please try again.' }
+      if (updateResult.error) return { error: updateResult.error.message }
+    }
+
+    admin.from('profiles').update({
+      engineer_status: 'available',
+      engineer_status_work_order_id: null,
+      engineer_status_updated_at: new Date().toISOString(),
+    }).eq('id', userId).eq('engineer_status', 'reached').eq('engineer_status_work_order_id', workOrderId)
+      .then(() => {}, () => {})
+
+    const formattedDate = new Date(newDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    logActivity(admin, workOrderId, userId, `Rescheduled follow-up to ${formattedDate}`).catch(() => {})
+
+    if (offSite) {
+      const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+      const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+      logSystemActivity(admin, {
+        actorId: userId, actorName,
+        action: `Rescheduled ${wo.wo_number} without being on-site`,
+        entityType: 'off_site_status_update', entityId: workOrderId,
+      }).catch(() => {})
+    }
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMobileJobsListCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
+  try {
+    touchHeartbeat(admin, userId)
+    const [engineer, workOrders] = await Promise.all([
+      getEngineerName(admin, userId),
+      fetchEngineerWorkOrders(admin, userId),
+    ])
+    return { workOrders, engineer, error: null }
+  } catch (e: unknown) {
+    return { workOrders: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function recordLastSeenCore(admin: AdminClient, userId: string, lat: number, lng: number): Promise<{ error: string | null }> {
+  try {
+    const { label } = await reverseGeocodeCore(lat, lng)
+    const result = await withTimeout(
+      admin.from('profiles').update({
+        last_seen_lat: lat,
+        last_seen_lng: lng,
+        last_seen_place_label: label,
+        last_seen_at: new Date().toISOString(),
+      }).eq('id', userId),
+      8000
+    )
+    if (!result) console.error('recordLastSeen: update timed out', userId)
+    else if (result.error) console.error('recordLastSeen: update failed', userId, result.error.message)
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export function logLocationPingIssueCore(userId: string | null, reason: string): void {
+  console.error('mobile geolocation ping failed', { userId, reason })
+}
+
+// Same-day complement to getOverdueFollowUpsCore's 'stale_in_progress' case, which only
+// fires the day AFTER a check-in — this catches "still checked in, never closed out" on
+// the SAME day too, on every app open, regardless of the engineer's current location.
+export async function checkOpenVisitFollowUpCore(admin: AdminClient, userId: string): Promise<{ followUp: OverdueFollowUp | null; error: string | null }> {
+  try {
+    const { data: profile } = await admin.from('profiles').select('engineer_status, engineer_status_work_order_id').eq('id', userId).maybeSingle()
+    if (profile?.engineer_status !== 'reached' || !profile.engineer_status_work_order_id) {
+      return { followUp: null, error: null }
+    }
+
+    const workOrderId = profile.engineer_status_work_order_id
+    const { data: wo } = await admin.from('work_orders').select('id, wo_number, status, customer_id').eq('id', workOrderId).maybeSingle()
+    if (!wo || wo.status !== 'in_progress') return { followUp: null, error: null }
+
+    const [{ data: checkin }, { data: closure }] = await Promise.all([
+      admin.from('work_order_checkins')
+        .select('checked_in_at')
+        .eq('work_order_id', workOrderId)
+        .order('checked_in_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin.from('work_order_daily_closures')
+        .select('created_at')
+        .eq('work_order_id', workOrderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+    if (!checkin) return { followUp: null, error: null }
+    if (closure && closure.created_at >= checkin.checked_in_at) return { followUp: null, error: null }
+
+    const { data: customer } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+
+    return {
+      followUp: {
+        workOrderId: wo.id,
+        woNumber: wo.wo_number,
+        customerName: customer?.name || '',
+        dueDate: checkin.checked_in_at,
+        kind: 'open_checkin',
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { followUp: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getEngineerStatusPromptCore(admin: AdminClient, userId: string): Promise<{ prompt: EngineerStatusPrompt | null; error: string | null }> {
+  try {
+    const [{ data: profile }, workOrders] = await Promise.all([
+      admin.from('profiles').select('engineer_status, engineer_status_updated_at').eq('id', userId).maybeSingle(),
+      fetchEngineerWorkOrders(admin, userId),
+    ])
+
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const updatedToday = !!profile?.engineer_status_updated_at && new Date(profile.engineer_status_updated_at).toLocaleDateString('en-CA') === todayStr
+
+    const assignableSites: AssignableSite[] = workOrders
+      .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment')
+      .map(w => ({ workOrderId: w.id, woNumber: w.wo_number, siteName: w.site_name || w.customer_name }))
+
+    return {
+      prompt: {
+        needsPrompt: !updatedToday,
+        currentStatus: (profile?.engineer_status as EngineerStatusValue) || 'available',
+        assignableSites,
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { prompt: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function setEngineerStatusCore(
+  admin: AdminClient,
+  userId: string,
+  status: EngineerStatusValue,
+  workOrderId?: string | null,
+  startByTime?: string | null,
+  currentLat?: number | null,
+  currentLng?: number | null
+): Promise<{ error: string | null }> {
+  try {
+    if ((status === 'on_the_way' || status === 'travelling') && !workOrderId) {
+      return { error: 'Pick a project' }
+    }
+    if ((status === 'on_the_way' || status === 'travelling') && !startByTime) {
+      return { error: 'Pick a start time' }
+    }
+
+    const isTravelStatus = status === 'on_the_way' || status === 'travelling'
+    let startBy: string | null = null
+    if (isTravelStatus && startByTime) {
+      const todayStr = new Date().toLocaleDateString('en-CA')
+      const parsed = new Date(`${todayStr}T${startByTime}:00`)
+      startBy = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    }
+
+    const { error } = await admin.from('profiles').update({
+      engineer_status: status,
+      engineer_status_work_order_id: status === 'available' || status === 'on_leave' ? null : (workOrderId || null),
+      engineer_status_updated_at: new Date().toISOString(),
+      engineer_status_start_by: isTravelStatus ? startBy : null,
+      engineer_status_set_lat: isTravelStatus ? (currentLat ?? null) : null,
+      engineer_status_set_lng: isTravelStatus ? (currentLng ?? null) : null,
+    }).eq('id', userId)
+    if (error) return { error: error.message }
+
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    const STATUS_LABEL: Record<EngineerStatusValue, string> = {
+      available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project', completed: 'Completed',
+    }
+    logSystemActivity(admin, { actorId: userId, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: userId }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+const NOT_STARTED_THRESHOLD_KM = 0.3
+
+export async function checkNotStartedFollowUpCore(admin: AdminClient, userId: string, currentLat: number, currentLng: number): Promise<{ notice: NotStartedNotice | null; error: string | null }> {
+  try {
+    const { data: profile } = await admin.from('profiles')
+      .select('engineer_status, engineer_status_work_order_id, engineer_status_start_by, engineer_status_set_lat, engineer_status_set_lng')
+      .eq('id', userId).maybeSingle()
+
+    if (profile?.engineer_status !== 'on_the_way' && profile?.engineer_status !== 'travelling') return { notice: null, error: null }
+    if (!profile.engineer_status_start_by) return { notice: null, error: null }
+    if (new Date(profile.engineer_status_start_by) > new Date()) return { notice: null, error: null }
+    if (profile.engineer_status_set_lat == null || profile.engineer_status_set_lng == null) return { notice: null, error: null }
+
+    const distanceKm = haversineKm(profile.engineer_status_set_lat, profile.engineer_status_set_lng, currentLat, currentLng)
+    if (distanceKm >= NOT_STARTED_THRESHOLD_KM) return { notice: null, error: null }
+
+    let projectLabel = 'your next job'
+    if (profile.engineer_status_work_order_id) {
+      const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', profile.engineer_status_work_order_id).maybeSingle()
+      if (wo) {
+        const { data: wotRows } = await admin.from('work_order_transformers').select('transformers(customer_sites(site_name))').eq('work_order_id', profile.engineer_status_work_order_id).limit(1)
+        type Row = { transformers: { customer_sites: { site_name: string } | null } | null }
+        const siteName = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.customer_sites?.site_name
+        const { data: customer } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+        projectLabel = siteName || customer?.name || projectLabel
+      }
+    }
+
+    return { notice: { projectLabel }, error: null }
+  } catch (e: unknown) {
+    return { notice: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}

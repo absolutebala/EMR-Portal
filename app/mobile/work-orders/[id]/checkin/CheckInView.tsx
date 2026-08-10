@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { reverseGeocode } from '@/app/actions/mobile-actions'
-import type { MobileWorkOrderWithCustomer } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { compressImage } from '@/lib/mobile/compressImage'
 import { startBackgroundCheckIn } from '@/lib/mobile/backgroundCheckIn'
 

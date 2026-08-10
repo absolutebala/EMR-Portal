@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
-import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder } from '@/lib/mobile/core/shared'
 
 interface Props {
   workOrders: MobileWorkOrder[]

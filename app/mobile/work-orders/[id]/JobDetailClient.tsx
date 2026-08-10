@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
-import type { MobileWorkOrderDetail } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
 import { getCheckInSyncStatus, clearCheckInSyncStatus, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
 
 interface Props {

@@ -7,7 +7,7 @@ import PhotoField from '@/components/mobile/PhotoField'
 import ExpenseTypePicker from '@/components/mobile/ExpenseTypePicker'
 import { submitExpenseLog, getExpenseEligibility, type BLEligibility } from '@/app/actions/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
-import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder } from '@/lib/mobile/core/shared'
 import type { ClaimType } from '@/lib/travelGuidelines'
 
 interface Props {

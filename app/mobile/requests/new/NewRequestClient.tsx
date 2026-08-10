@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { compressImage } from '@/lib/mobile/compressImage'
 import { searchProducts, submitProductRequest, type Product } from '@/app/actions/products'
-import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder } from '@/lib/mobile/core/shared'
 
 interface Props {
   workOrders: MobileWorkOrder[]

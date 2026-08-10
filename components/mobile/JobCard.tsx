@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
-import type { MobileWorkOrder } from '@/app/actions/mobile-actions'
+import type { MobileWorkOrder } from '@/lib/mobile/core/shared'
 
 const BAR_COLOR: Record<string, string> = {
   assigned: '#2563EB',

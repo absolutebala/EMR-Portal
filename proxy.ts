@@ -27,12 +27,19 @@ export async function proxy(request: NextRequest) {
   // Mobile PWA has its own auth guard per page/route and its own login screen
   const isMobilePublic = pathname.startsWith('/mobile') || pathname === '/sw.js' || pathname === '/manifest.webmanifest'
 
+  // API routes handle their own auth (cookie-session via getAuthedUser, or bearer-token
+  // via resolveBearerUser for the React Native app) and must return JSON, never a 302 —
+  // a redirect response is useless to a fetch client and was actively breaking
+  // unauthenticated hits to routes like the cron endpoint, which has no session cookie
+  // at all and never got a chance to run its own logic before this block intercepted it.
+  const isApiPath = pathname.startsWith('/api/')
+
   // The bare homepage must reach app/page.tsx even when signed out — it does its own
   // device check there (mobile UA -> /mobile/install, desktop -> /dashboard). Without
   // this exemption, every unauthenticated visit to "/" was bounced straight to /login
   // by this same block before that redirect logic ever got a chance to run, on both
   // desktop and mobile alike.
-  if (!user && !isMobilePublic && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
+  if (!user && !isMobilePublic && !isApiPath && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
