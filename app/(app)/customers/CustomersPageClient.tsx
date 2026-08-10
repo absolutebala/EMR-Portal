@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
+import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomersModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import type { Customer } from '@/lib/types'
@@ -24,6 +25,7 @@ interface Props {
 export default function CustomersPageClient({ customers, userName, userRole }: Props) {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [woCustomer, setWoCustomer] = useState<{ id: string; name: string } | null>(null)
   const router = useRouter()
@@ -46,10 +48,16 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers..." style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: 220 }} />
           </div>
-          <button onClick={() => { setEditCustomer(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            Add Customer
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowUpload(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload CSV
+            </button>
+            <button onClick={() => { setEditCustomer(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              Add Customer
+            </button>
+          </div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
@@ -103,6 +111,11 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
           onSaved={() => router.refresh()}
           editCustomer={editCustomer}
           onCreateWorkOrder={(id, name) => { setShowAdd(false); setEditCustomer(null); setWoCustomer({ id, name }) }}
+        />
+        <BulkUploadCustomersModal
+          open={showUpload}
+          onClose={() => setShowUpload(false)}
+          onSaved={() => router.refresh()}
         />
         <NewWorkOrderModal
           open={!!woCustomer}
