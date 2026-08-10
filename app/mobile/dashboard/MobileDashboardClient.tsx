@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
+import PushSubscribe from '@/components/mobile/PushSubscribe'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/app/actions/mobile-actions'
 
@@ -508,6 +509,8 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
             </p>
           </div>
         )}
+
+        <PushSubscribe />
 
         {notStartedNotice && !notStartedDismissed && (
           <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { sendPushToUser } from './push'
 
 type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Head of Service' | 'Service Manager' }
 
@@ -37,6 +38,14 @@ export async function notifyUsers(
         entity_id: params.entityId ?? null,
         link_path: params.linkPath ?? null,
       }))
+    )
+
+    // OS-level push alongside the in-app row, so a recipient finds out even with
+    // the app closed — a no-op per-recipient if they have no subscribed device.
+    await Promise.all(
+      Array.from(recipientIds).map(recipientId =>
+        sendPushToUser(admin, recipientId, { title: params.title, body: params.body, url: params.linkPath }).catch(() => {})
+      )
     )
   } catch {
     // best-effort only
