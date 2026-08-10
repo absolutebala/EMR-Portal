@@ -98,10 +98,11 @@ export interface ProductRequestItemView {
   productName: string
   sapCode: string | null
   quantity: number
-  status: 'pending' | 'approved' | 'rejected' | 'dispatched'
+  status: 'pending' | 'approved' | 'rejected' | 'dispatched' | 'delivered'
   approverName: string | null
   approvedAt: string | null
   dispatchedAt: string | null
+  deliveredAt: string | null
   deliveryEstimate: string | null
   adminNotes: string | null
 }
@@ -121,13 +122,13 @@ async function fetchRequestViews(admin: ReturnType<typeof adminClient>, requestI
 
   const [{ data: requests }, { data: items }] = await Promise.all([
     admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, work_orders(wo_number)').in('id', requestIds),
-    admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivery_estimate, admin_notes').in('request_id', requestIds),
+    admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivered_at, delivery_estimate, admin_notes').in('request_id', requestIds),
   ])
 
   type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; work_orders: { wo_number: string } | null }
   type ItemRow = {
     id: string; request_id: string; product_id: string; quantity: number; status: string
-    approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivery_estimate: string | null; admin_notes: string | null
+    approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivered_at: string | null; delivery_estimate: string | null; admin_notes: string | null
   }
   const reqRows = (requests as unknown as ReqRow[]) || []
   const itemRows = (items as unknown as ItemRow[]) || []
@@ -159,6 +160,7 @@ async function fetchRequestViews(admin: ReturnType<typeof adminClient>, requestI
       approverName: it.approved_by ? (nameMap[it.approved_by] || null) : null,
       approvedAt: it.approved_at,
       dispatchedAt: it.dispatched_at,
+      deliveredAt: it.delivered_at,
       deliveryEstimate: it.delivery_estimate,
       adminNotes: it.admin_notes,
     })
@@ -306,7 +308,7 @@ export async function getAllProductRequests(): Promise<{ requests: ProductReques
 
 export async function updateProductRequestItemStatus(
   itemId: string,
-  status: 'approved' | 'rejected' | 'dispatched',
+  status: 'approved' | 'rejected' | 'dispatched' | 'delivered',
   extra?: { deliveryEstimate?: string | null; notes?: string | null }
 ): Promise<{ error: string | null }> {
   try {
@@ -318,6 +320,7 @@ export async function updateProductRequestItemStatus(
     const patch: Record<string, unknown> = { status }
     if (status === 'approved') { patch.approved_by = user.id; patch.approved_at = new Date().toISOString() }
     if (status === 'dispatched') { patch.dispatched_at = new Date().toISOString() }
+    if (status === 'delivered') { patch.delivered_at = new Date().toISOString() }
     if (extra?.deliveryEstimate !== undefined) patch.delivery_estimate = extra.deliveryEstimate
     if (extra?.notes !== undefined) patch.admin_notes = extra.notes
 
@@ -328,7 +331,7 @@ export async function updateProductRequestItemStatus(
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
-    const label: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched for' }
+    const label: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched for', delivered: 'Marked delivered for' }
     logActivity(admin, { actorId: user.id, actorName, action: `${label[status]} product request item`, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
 
     if (item?.request_id) {

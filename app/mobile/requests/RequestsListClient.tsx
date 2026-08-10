@@ -11,13 +11,14 @@ interface Props {
   error: string | null
 }
 
-type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'rejected'
+type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'delivered' | 'rejected'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending approval' },
   approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
   rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-  dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
+  dispatched: { bg: '#E0E7FF', color: '#3730A3', label: 'Dispatched' },
+  delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
 }
 
 function formatDate(d: string) {
@@ -34,6 +35,7 @@ export default function RequestsListClient({ requests, error }: Props) {
     pending: allItems.filter(x => x.item.status === 'pending').length,
     approved: allItems.filter(x => x.item.status === 'approved').length,
     dispatched: allItems.filter(x => x.item.status === 'dispatched').length,
+    delivered: allItems.filter(x => x.item.status === 'delivered').length,
     rejected: allItems.filter(x => x.item.status === 'rejected').length,
   }
   const filtered = tab === 'all' ? requests : requests
@@ -61,7 +63,7 @@ export default function RequestsListClient({ requests, error }: Props) {
         </button>
 
         <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: 3, marginBottom: 14, overflowX: 'auto' }}>
-          {(['all', 'pending', 'approved', 'dispatched', 'rejected'] as TabId[]).map(t => (
+          {(['all', 'pending', 'approved', 'dispatched', 'delivered', 'rejected'] as TabId[]).map(t => (
             <button
               key={t}
               className="mtap"

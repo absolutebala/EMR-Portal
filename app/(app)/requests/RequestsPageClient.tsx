@@ -10,10 +10,11 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending approval' },
   approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
   rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-  dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
+  dispatched: { bg: '#E0E7FF', color: '#3730A3', label: 'Dispatched' },
+  delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
 }
 
-type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'rejected'
+type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'delivered' | 'rejected'
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -34,7 +35,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
 
-  async function act(itemId: string, status: 'approved' | 'rejected' | 'dispatched') {
+  async function act(itemId: string, status: 'approved' | 'rejected' | 'dispatched' | 'delivered') {
     setActingId(itemId)
     await updateProductRequestItemStatus(itemId, status)
     setActingId(null)
@@ -47,6 +48,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
     pending: allItems.filter(x => x.item.status === 'pending').length,
     approved: allItems.filter(x => x.item.status === 'approved').length,
     dispatched: allItems.filter(x => x.item.status === 'dispatched').length,
+    delivered: allItems.filter(x => x.item.status === 'delivered').length,
     rejected: allItems.filter(x => x.item.status === 'rejected').length,
   }
   const filteredRequests = tab === 'all' ? requests : requests
@@ -58,7 +60,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
       <Topbar title="Product Requests" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {(['all', 'pending', 'approved', 'dispatched', 'rejected'] as TabId[]).map(t => (
+          {(['all', 'pending', 'approved', 'dispatched', 'delivered', 'rejected'] as TabId[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -134,7 +136,7 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
   canApprove: boolean
   canDispatch: boolean
   acting: boolean
-  onAct: (status: 'approved' | 'rejected' | 'dispatched') => void
+  onAct: (status: 'approved' | 'rejected' | 'dispatched' | 'delivered') => void
 }) {
   const btnStyle: React.CSSProperties = { border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }
 
@@ -147,7 +149,10 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
     )
   }
   if (item.status === 'approved' && canDispatch) {
-    return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#FEE2E2', color: '#991B1B' }}>Mark dispatched</button>
+    return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>Mark dispatched</button>
+  }
+  if (item.status === 'dispatched' && canDispatch) {
+    return <button disabled={acting} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Mark delivered</button>
   }
   return null
 }

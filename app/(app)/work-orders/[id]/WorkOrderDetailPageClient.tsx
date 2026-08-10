@@ -763,7 +763,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending approval' },
                               approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
                               rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-                              dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
+                              dispatched: { bg: '#E0E7FF', color: '#3730A3', label: 'Dispatched' },
+                              delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
                             }[item.status]
                             return (
                               <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12 }}>

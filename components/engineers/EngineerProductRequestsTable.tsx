@@ -9,7 +9,8 @@ const REQUEST_ITEM_STATUS_CFG: Record<string, { bg: string; color: string; label
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
   approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
   rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
-  dispatched: { bg: '#D1FAE5', color: '#065F46', label: 'Dispatched' },
+  dispatched: { bg: '#E0E7FF', color: '#3730A3', label: 'Dispatched' },
+  delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
 }
 
 function formatDate(d: string) {
@@ -27,7 +28,7 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
   canApprove: boolean
   canDispatch: boolean
   acting: boolean
-  onAct: (status: 'approved' | 'rejected' | 'dispatched') => void
+  onAct: (status: 'approved' | 'rejected' | 'dispatched' | 'delivered') => void
 }) {
   const btnStyle: React.CSSProperties = { border: 'none', borderRadius: 6, padding: '4px 9px', fontSize: 10, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }
 
@@ -40,7 +41,10 @@ function ItemActions({ item, canApprove, canDispatch, acting, onAct }: {
     )
   }
   if (item.status === 'approved' && canDispatch) {
-    return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#FEE2E2', color: '#991B1B' }}>Mark dispatched</button>
+    return <button disabled={acting} onClick={() => onAct('dispatched')} style={{ ...btnStyle, background: '#E0E7FF', color: '#3730A3' }}>Mark dispatched</button>
+  }
+  if (item.status === 'dispatched' && canDispatch) {
+    return <button disabled={acting} onClick={() => onAct('delivered')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Mark delivered</button>
   }
   return null
 }
@@ -49,7 +53,7 @@ export default function EngineerProductRequestsTable({ requests, canApprove, can
   const router = useRouter()
   const [actingId, setActingId] = useState<string | null>(null)
 
-  async function act(itemId: string, status: 'approved' | 'rejected' | 'dispatched') {
+  async function act(itemId: string, status: 'approved' | 'rejected' | 'dispatched' | 'delivered') {
     setActingId(itemId)
     await updateProductRequestItemStatus(itemId, status)
     setActingId(null)
