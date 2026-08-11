@@ -37,6 +37,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
   const [rowValues, setRowValues] = useState<RowValues>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [visitCompleted, setVisitCompleted] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -222,6 +223,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
       } else {
         localStorage.removeItem(draftKey)
         setSubmitted(true)
+        setVisitCompleted(!!data.completed)
       }
     } catch {
       setSubmitError('Network error. Please try again.')
@@ -248,16 +250,20 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
             <path d="M20 6L9 17l-5-5"/>
           </svg>
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Form submitted!</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>
+          {visitCompleted ? 'Visit completed!' : 'Form submitted!'}
+        </h2>
         <p style={{ fontSize: 13, color: '#7A6870', textAlign: 'center', margin: '0 0 28px', lineHeight: 1.5 }}>
-          The form for {workOrder.wo_number} has been saved. Sign off below to mark the visit done.
+          {visitCompleted
+            ? `The form for ${workOrder.wo_number} has been saved and the visit is marked completed — the summary PDF/Word doc has been generated.`
+            : `The form for ${workOrder.wo_number} has been saved. Sign off below to mark the visit done.`}
         </p>
         <button
           className="mtap"
-          onClick={() => router.push(`/mobile/work-orders/${workOrder.id}/closure`)}
+          onClick={() => router.push(visitCompleted ? `/mobile/work-orders/${workOrder.id}` : `/mobile/work-orders/${workOrder.id}/closure`)}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
-          Continue to closure
+          {visitCompleted ? 'Back to notification' : 'Continue to closure'}
         </button>
       </div>
     )

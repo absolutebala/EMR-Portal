@@ -7,6 +7,12 @@ import {
   touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity,
 } from './shared'
 
+// "Engineer signature" and "Customer signature" are the fixed, standard field labels
+// every form built in the Form Builder includes (confirmed with the user) — used to
+// find the right fields below without needing a dedicated schema flag.
+const ENGINEER_SIGNATURE_LABEL = /engineer signature/i
+const CUSTOMER_SIGNATURE_LABEL = /customer signature/i
+
 // For screens (check-in, closure) that only need the work order + customer info,
 // not the full hub detail (checkin history, closures, previous visits) — no reason
 // to pay for those extra queries on a page that never renders them.
@@ -427,5 +433,79 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Shared by the PWA's /api/mobile/submit-form route and (once Phase 3 builds the RN
+// form screen) its REST equivalent. Upserts the form submission exactly as before,
+// then — per explicit product decision, 2026-08-11 — if the form has both a filled
+// "Engineer signature" and "Customer signature" field, that alone is treated as the
+// visit being done: no separate closure step. This reuses submitDailyClosureCore's
+// existing "completed" branch (status transition, PDF/Word generation, sent_to_sap)
+// rather than duplicating it, with a generic summary text since this path doesn't
+// collect a separate work-summary field, and the customer's already-on-file contact
+// name (not a form field) is used for the visit doc's client name.
+export async function submitJobFormCore(admin: AdminClient, userId: string, params: {
+  workOrderId: string
+  formId: string
+  formData: { fields: Record<string, string>; table_rows: Record<string, unknown> }
+}): Promise<{ error: string | null; completed: boolean }> {
+  try {
+    const { error: subErr } = await admin.from('form_submissions').upsert({
+      work_order_id: params.workOrderId,
+      form_id: params.formId,
+      submitted_by: userId,
+      form_data: params.formData,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+    }, { onConflict: 'work_order_id,form_id' })
+    if (subErr) return { error: subErr.message, completed: false }
+
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).single()
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    await admin.from('work_order_activity').insert({
+      work_order_id: params.workOrderId,
+      action: `Form submitted by ${actorName}`,
+      actor_name: actorName,
+    })
+
+    let completed = false
+    const { data: wo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).maybeSingle()
+    if (wo && wo.status !== 'completed') {
+      const { data: secs } = await admin
+        .from('form_sections')
+        .select('form_fields(id, label, field_type)')
+        .eq('form_id', params.formId)
+
+      type SectionEmbed = { form_fields: { id: string; label: string; field_type: string }[] }
+      const allFields = ((secs as unknown as SectionEmbed[]) || []).flatMap(s => s.form_fields || [])
+      const engineerField = allFields.find(f => f.field_type === 'signature' && ENGINEER_SIGNATURE_LABEL.test(f.label))
+      const customerField = allFields.find(f => f.field_type === 'signature' && CUSTOMER_SIGNATURE_LABEL.test(f.label))
+      const engineerSignature = engineerField ? params.formData.fields[engineerField.id] : null
+      const clientSignature = customerField ? params.formData.fields[customerField.id] : null
+
+      if (engineerSignature && clientSignature) {
+        const workOrder = await fetchSingleWorkOrder(admin, params.workOrderId)
+        const clientName = workOrder?.customer_contact || workOrder?.customer_name || ''
+        const closureResult = await submitDailyClosureCore(admin, userId, {
+          workOrderId: params.workOrderId,
+          outcome: 'completed',
+          summary: 'Completed via job form',
+          pendingReason: null,
+          materialsRequired: null,
+          revisitDate: null,
+          needsReassignment: false,
+          engineerSignature,
+          clientName,
+          clientSignature,
+          offSite: false,
+        })
+        if (!closureResult.error) completed = true
+      }
+    }
+
+    return { error: null, completed }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e), completed: false }
   }
 }
