@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { sendPushToUser } from './push'
+import { sendPushToUser, sendExpoPushToUser } from './push'
 
 type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Head of Service' | 'Service Manager' }
 
@@ -41,11 +41,15 @@ export async function notifyUsers(
     )
 
     // OS-level push alongside the in-app row, so a recipient finds out even with
-    // the app closed — a no-op per-recipient if they have no subscribed device.
+    // the app closed — a no-op per-recipient if they have no subscribed device
+    // (PWA) or registered Expo push token (RN). Both are fanned out to from this one
+    // call site, so every existing/future notification trigger reaches both platforms
+    // automatically with no per-call-site changes.
     await Promise.all(
-      Array.from(recipientIds).map(recipientId =>
-        sendPushToUser(admin, recipientId, { title: params.title, body: params.body, url: params.linkPath }).catch(() => {})
-      )
+      Array.from(recipientIds).flatMap(recipientId => [
+        sendPushToUser(admin, recipientId, { title: params.title, body: params.body, url: params.linkPath }).catch(() => {}),
+        sendExpoPushToUser(admin, recipientId, { title: params.title, body: params.body, url: params.linkPath }).catch(() => {}),
+      ])
     )
   } catch {
     // best-effort only

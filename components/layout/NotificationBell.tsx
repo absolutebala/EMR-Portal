@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getMyNotifications, markNotificationRead, markAllNotificationsRead } from '@/app/actions/notifications'
-import type { NotificationView } from '@/app/actions/notifications'
+import type { NotificationView } from '@/lib/mobile/core/notifications'
 
 const POLL_MS = 30000
 

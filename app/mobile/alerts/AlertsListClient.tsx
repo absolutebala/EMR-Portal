@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { markNotificationRead, markAllNotificationsRead } from '@/app/actions/notifications'
-import type { NotificationView } from '@/app/actions/notifications'
+import type { NotificationView } from '@/lib/mobile/core/notifications'
 
 interface Props {
   notifications: NotificationView[]
