@@ -1,9 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from './api';
-import { CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY, SUBMIT_FORM_MUTATION_KEY, WORK_ORDER_FORM_QUERY_KEY } from './queryClient';
+import {
+  CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY, SUBMIT_FORM_MUTATION_KEY, WORK_ORDER_FORM_QUERY_KEY,
+  SUBMIT_PRODUCT_REQUEST_MUTATION_KEY, SUBMIT_EXPENSE_LOG_MUTATION_KEY,
+} from './queryClient';
 import type {
   AuthMeResponse, DashboardResponse, JobsResponse, WorkOrderDetailResponse, FollowUpsResponse,
   CheckInVariables, ClosureVariables, ErrorResponse, WorkOrderFormResponse, SubmitFormVariables, SubmitFormResult,
+  ProductSearchResponse, ProductRequestsResponse, SubmitProductRequestVariables,
+  ExpenseTypesResponse, ExpenseTypeResponse, ExpenseEligibilityResponse, ExpenseLogsResponse, SubmitExpenseLogVariables,
 } from './types';
 
 export function useDashboard() {
@@ -98,6 +103,74 @@ export function useSubmitJobForm() {
       qc.invalidateQueries({ queryKey: [WORK_ORDER_FORM_QUERY_KEY, variables.workOrderId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+}
+
+// ── Product requests ────────────────────────────────────────────────────────────
+
+// Not a useQuery — called directly from a debounced search-box handler (see
+// requests/new.tsx), same shape as reverseGeocode() above.
+export function searchProducts(query: string) {
+  return apiGet<ProductSearchResponse>(`/api/mobile/v1/products/search?q=${encodeURIComponent(query)}`);
+}
+
+export function useMyProductRequests() {
+  return useQuery({
+    queryKey: ['product-requests'],
+    queryFn: () => apiGet<ProductRequestsResponse>('/api/mobile/v1/product-requests'),
+  });
+}
+
+export function useSubmitProductRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: SUBMIT_PRODUCT_REQUEST_MUTATION_KEY,
+    mutationFn: (variables: SubmitProductRequestVariables) =>
+      apiPost<ErrorResponse>(`/api/mobile/v1/work-orders/${variables.workOrderId}/product-requests`, variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-requests'] });
+    },
+  });
+}
+
+// ── Expenses ─────────────────────────────────────────────────────────────────────
+
+export function useExpenseTypes() {
+  return useQuery({
+    queryKey: ['expense-types'],
+    queryFn: () => apiGet<ExpenseTypesResponse>('/api/mobile/v1/expense-types'),
+  });
+}
+
+// Not offline-queueable — the caller needs the created type's id back immediately to
+// select it, unlike the fire-and-forget submit mutations below.
+export function getOrCreateExpenseType(name: string) {
+  return apiPost<ExpenseTypeResponse>('/api/mobile/v1/expense-types', { name });
+}
+
+export function useExpenseEligibility(workOrderId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['expense-eligibility', workOrderId],
+    queryFn: () => apiGet<ExpenseEligibilityResponse>(`/api/mobile/v1/work-orders/${workOrderId}/expense-eligibility`),
+    enabled: !!workOrderId && enabled,
+  });
+}
+
+export function useMyExpenseLogs() {
+  return useQuery({
+    queryKey: ['expense-logs'],
+    queryFn: () => apiGet<ExpenseLogsResponse>('/api/mobile/v1/expense-logs'),
+  });
+}
+
+export function useSubmitExpenseLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: SUBMIT_EXPENSE_LOG_MUTATION_KEY,
+    mutationFn: (variables: SubmitExpenseLogVariables) => apiPost<ErrorResponse>('/api/mobile/v1/expense-logs', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expense-logs'] });
     },
   });
 }

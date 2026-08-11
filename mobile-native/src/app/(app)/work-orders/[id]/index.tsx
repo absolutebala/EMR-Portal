@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useWorkOrderDetail } from '@/lib/hooks';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
@@ -11,13 +11,6 @@ function formatDate(d: string | null) {
 function formatDateTime(d: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-
-// Checkin/closure/form/requests/expenses aren't built yet (Phases 2-4 of the RN
-// rewrite plan) — the buttons are present (matching the PWA's layout) but stubbed
-// with a placeholder alert instead of routing to a screen that doesn't exist yet.
-function comingSoon(feature: string) {
-  Alert.alert('Coming soon', `${feature} isn't available in this build yet.`);
 }
 
 export default function WorkOrderDetailScreen() {
@@ -119,10 +112,10 @@ export default function WorkOrderDetailScreen() {
         <Pressable style={styles.secondaryButton} onPress={() => router.push(`/(app)/work-orders/${id}/form`)}>
           <Text style={styles.secondaryButtonText}>{detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => comingSoon('Product requests')}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/requests/new', params: { wo: id } })}>
           <Text style={styles.secondaryButtonText}>Request products</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => comingSoon('Expense logging')}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/expenses/new', params: { wo: id } })}>
           <Text style={styles.secondaryButtonText}>Log expense</Text>
         </Pressable>
       </View>

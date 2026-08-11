@@ -4,7 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { AppState, type AppStateStatus } from 'react-native';
 import { apiPost } from './api';
-import type { CheckInVariables, ClosureVariables, ErrorResponse, SubmitFormVariables, SubmitFormResult } from './types';
+import type {
+  CheckInVariables, ClosureVariables, ErrorResponse, SubmitFormVariables, SubmitFormResult,
+  SubmitProductRequestVariables, SubmitExpenseLogVariables,
+} from './types';
 
 // Offline-first mutation queue: react-query automatically pauses a mutation instead
 // of failing it when onlineManager reports offline (default networkMode: 'online' on
@@ -60,6 +63,8 @@ queryClient.setQueryDefaults([WORK_ORDER_FORM_QUERY_KEY], {
 export const CHECKIN_MUTATION_KEY = ['submit-checkin'];
 export const CLOSURE_MUTATION_KEY = ['submit-closure'];
 export const SUBMIT_FORM_MUTATION_KEY = ['submit-job-form'];
+export const SUBMIT_PRODUCT_REQUEST_MUTATION_KEY = ['submit-product-request'];
+export const SUBMIT_EXPENSE_LOG_MUTATION_KEY = ['submit-expense-log'];
 
 queryClient.setMutationDefaults(CHECKIN_MUTATION_KEY, {
   mutationFn: (variables: CheckInVariables) =>
@@ -75,4 +80,13 @@ queryClient.setMutationDefaults(CLOSURE_MUTATION_KEY, {
 // verbatim with the PWA (dual bearer/cookie auth) rather than a separate RN-only route.
 queryClient.setMutationDefaults(SUBMIT_FORM_MUTATION_KEY, {
   mutationFn: (variables: SubmitFormVariables) => apiPost<SubmitFormResult>('/api/mobile/submit-form', variables),
+});
+
+queryClient.setMutationDefaults(SUBMIT_PRODUCT_REQUEST_MUTATION_KEY, {
+  mutationFn: (variables: SubmitProductRequestVariables) =>
+    apiPost<ErrorResponse>(`/api/mobile/v1/work-orders/${variables.workOrderId}/product-requests`, variables),
+});
+
+queryClient.setMutationDefaults(SUBMIT_EXPENSE_LOG_MUTATION_KEY, {
+  mutationFn: (variables: SubmitExpenseLogVariables) => apiPost<ErrorResponse>('/api/mobile/v1/expense-logs', variables),
 });

@@ -217,3 +217,135 @@ export interface SubmitFormResult {
   completed: boolean;
   error: string | null;
 }
+
+// ── Product requests ────────────────────────────────────────────────────────────
+
+export interface Product {
+  id: string;
+  name: string;
+  sap_code: string | null;
+  stock_qty: number;
+}
+
+export type ProductRequestItemStatus = 'pending' | 'approved' | 'rejected' | 'dispatched' | 'delivered';
+
+export interface ProductRequestItemView {
+  id: string;
+  productName: string;
+  sapCode: string | null;
+  quantity: number;
+  status: ProductRequestItemStatus;
+  approverName: string | null;
+  approvedAt: string | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  deliveryEstimate: string | null;
+  adminNotes: string | null;
+}
+
+export interface ProductRequestView {
+  id: string;
+  workOrderId: string;
+  woNumber: string;
+  createdAt: string;
+  damagePhotoUrls: string[];
+  items: ProductRequestItemView[];
+  engineerName?: string;
+}
+
+export interface ProductSearchResponse {
+  products: Product[];
+  error: string | null;
+}
+
+export interface ProductRequestsResponse {
+  requests: ProductRequestView[];
+  error: string | null;
+}
+
+export interface SubmitProductRequestVariables {
+  workOrderId: string;
+  items: { productId: string; quantity: number }[];
+  damagePhotos: { base64: string; mimeType: string; ext: string }[];
+}
+
+// ── Expenses ─────────────────────────────────────────────────────────────────────
+
+export type CityTier = 'metro' | 'pondicherry' | 'other';
+export type ClaimType = 'flat' | 'actual';
+
+export const CITY_TIER_LABEL: Record<CityTier, string> = {
+  metro: 'Metro (Delhi/Mumbai/Chennai/Kolkata)',
+  pondicherry: 'Pondicherry (Unit II)',
+  other: 'All Other Places',
+};
+
+export interface ExpenseType {
+  id: string;
+  name: string;
+}
+
+export interface BLEligibility {
+  grade: string | null;
+  cityTier: CityTier;
+  flatLimit: number | null;
+  actualLimit: number | null;
+  flatAvailable: boolean;
+}
+
+export type ExpenseLogStatus = 'pending' | 'manager_approved' | 'approved' | 'rejected';
+
+export interface ExpenseLogView {
+  id: string;
+  workOrderId: string;
+  woNumber: string;
+  projectLabel: string;
+  customerName: string;
+  expenseTypeId: string;
+  expenseTypeName: string;
+  expenseDate: string;
+  amount: number;
+  photoUrl: string | null;
+  status: ExpenseLogStatus;
+  engineerId: string | null;
+  engineerName: string | null;
+  engineerGrade: string | null;
+  managerApprovedByName: string | null;
+  managerApprovedAt: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  claimType: ClaimType | null;
+  eligibleLimit: number | null;
+  cityTier: CityTier | null;
+  overLimit: boolean;
+}
+
+export interface ExpenseEligibilityResponse {
+  eligibility: BLEligibility | null;
+  error: string | null;
+}
+
+export interface ExpenseTypesResponse {
+  types: ExpenseType[];
+  error: string | null;
+}
+
+export interface ExpenseTypeResponse {
+  type: ExpenseType | null;
+  error: string | null;
+}
+
+export interface ExpenseLogsResponse {
+  logs: ExpenseLogView[];
+  error: string | null;
+}
+
+export interface SubmitExpenseLogVariables {
+  workOrderId: string;
+  expenseTypeId: string;
+  expenseDate: string;
+  amount: number;
+  claimType?: ClaimType;
+  photo?: { base64: string; mimeType: string; ext: string };
+}

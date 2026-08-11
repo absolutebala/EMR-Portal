@@ -27,13 +27,6 @@ function toDateOnlyString(d: Date) {
   return d.toLocaleDateString('en-CA'); // YYYY-MM-DD, local-time convention used throughout this app
 }
 
-// Phase 3 (dynamic job form) and Phase 4 (product requests) aren't built yet in this
-// app — both paths below are stubbed the same way the work-order detail screen stubs
-// its own not-yet-built actions.
-function comingSoon(feature: string) {
-  Alert.alert('Coming soon', `${feature} isn't available in this build yet.`);
-}
-
 export default function ClosureScreen() {
   const { id, offsite } = useLocalSearchParams<{ id: string; offsite?: string }>();
   const router = useRouter();
@@ -181,7 +174,7 @@ export default function ClosureScreen() {
             </View>
 
             {isProductRequest ? (
-              <Pressable style={[styles.primaryButton, { marginTop: 14 }]} onPress={() => comingSoon('Product requests')}>
+              <Pressable style={[styles.primaryButton, { marginTop: 14 }]} onPress={() => router.push({ pathname: '/(app)/requests/new', params: { wo: id } })}>
                 <Text style={styles.primaryButtonText}>Go to Request Products</Text>
               </Pressable>
             ) : (

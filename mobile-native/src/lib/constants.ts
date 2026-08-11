@@ -28,3 +28,20 @@ export const BAR_COLOR: Record<string, string> = {
   unassigned: '#94A3B8',
   completed: '#059669',
 };
+
+// Ported verbatim from the PWA's app/mobile/requests/RequestsListClient.tsx.
+export const PRODUCT_REQUEST_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending approval' },
+  approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
+  rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
+  dispatched: { bg: '#E0E7FF', color: '#3730A3', label: 'Dispatched' },
+  delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
+};
+
+// Ported verbatim from the PWA's app/mobile/expenses/[workOrderId]/ExpenseProjectDetailClient.tsx.
+export const EXPENSE_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
+  manager_approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Awaiting final approval' },
+  approved: { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
+  rejected: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
+};
