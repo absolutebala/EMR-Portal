@@ -3,7 +3,9 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/lib/AuthContext';
 import { useJobs } from '@/lib/hooks';
 import { useAutoDownloadForms } from '@/lib/useFormDownloads';
+import { useRegisterPushToken, useNotificationResponseListener } from '@/lib/pushNotifications';
 import NativeLocationGate from '@/components/NativeLocationGate';
+import PendingSyncBanner from '@/components/PendingSyncBanner';
 
 // Client-side equivalent of the PWA's per-page auth checks — there's no RN middleware,
 // so every screen under (app) is gated here once instead of individually. Order
@@ -19,6 +21,8 @@ export default function AppLayout() {
   // stop the download loop the moment the engineer navigates away from Dashboard.
   const { data: activeJobs } = useJobs('active');
   useAutoDownloadForms(activeJobs?.workOrders);
+  useRegisterPushToken();
+  useNotificationResponseListener();
 
   if (loading) {
     return (
@@ -39,6 +43,7 @@ export default function AppLayout() {
           doesn't depend on knowing the exact internal route-name string Expo Router
           assigns to a folder+index.tsx route (undocumented enough to not guess at). */}
       <Stack screenOptions={{ headerShown: false }} />
+      <PendingSyncBanner />
     </NativeLocationGate>
   );
 }

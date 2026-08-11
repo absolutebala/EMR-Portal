@@ -1,8 +1,9 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard } from '@/lib/hooks';
+import { useDashboard, useAlerts } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
 import JobCard from '@/components/JobCard';
 
@@ -14,11 +15,14 @@ const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'comp
 ];
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const { engineerName, signOut } = useAuth();
   const { data, isLoading, error } = useDashboard();
+  const { data: alertsData } = useAlerts();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
+  const unreadAlerts = alertsData?.unreadCount ?? 0;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -45,9 +49,19 @@ export default function DashboardScreen() {
           <Text style={styles.greeting}>Hi, {engineerName || data?.engineer?.name || 'Engineer'}</Text>
           <Text style={styles.subGreeting}>Here&apos;s your day at a glance</Text>
         </View>
-        <Pressable onPress={signOut}>
-          <Text style={styles.signOut}>Sign out</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.bellButton} onPress={() => router.push('/(app)/alerts')}>
+            <Text style={styles.bellIcon}>🔔</Text>
+            {unreadAlerts > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadAlerts > 9 ? '9+' : unreadAlerts}</Text>
+              </View>
+            )}
+          </Pressable>
+          <Pressable onPress={signOut}>
+            <Text style={styles.signOut}>Sign out</Text>
+          </Pressable>
+        </View>
       </View>
 
       {(error || data?.error) && <Text style={styles.error}>{data?.error || 'Failed to load dashboard'}</Text>}
@@ -78,6 +92,14 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   greeting: { fontSize: 18, fontWeight: '700', color: '#1C0D14' },
   subGreeting: { fontSize: 12, color: '#7A6870', marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  bellButton: { position: 'relative', padding: 2 },
+  bellIcon: { fontSize: 20 },
+  badge: {
+    position: 'absolute', top: -3, right: -5, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#DC2626', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   signOut: { fontSize: 12, color: '#7D1D3F', fontWeight: '600' },
   error: { color: '#DC2626', fontSize: 12, marginBottom: 12 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },

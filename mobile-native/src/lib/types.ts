@@ -349,3 +349,21 @@ export interface SubmitExpenseLogVariables {
   claimType?: ClaimType;
   photo?: { base64: string; mimeType: string; ext: string };
 }
+
+// ── Alerts ───────────────────────────────────────────────────────────────────────
+
+export interface NotificationView {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  linkPath: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface AlertsResponse {
+  notifications: NotificationView[];
+  unreadCount: number;
+  error: string | null;
+}

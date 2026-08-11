@@ -9,6 +9,7 @@ import type {
   CheckInVariables, ClosureVariables, ErrorResponse, WorkOrderFormResponse, SubmitFormVariables, SubmitFormResult,
   ProductSearchResponse, ProductRequestsResponse, SubmitProductRequestVariables,
   ExpenseTypesResponse, ExpenseTypeResponse, ExpenseEligibilityResponse, ExpenseLogsResponse, SubmitExpenseLogVariables,
+  AlertsResponse,
 } from './types';
 
 export function useDashboard() {
@@ -171,6 +172,38 @@ export function useSubmitExpenseLog() {
     mutationFn: (variables: SubmitExpenseLogVariables) => apiPost<ErrorResponse>('/api/mobile/v1/expense-logs', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expense-logs'] });
+    },
+  });
+}
+
+// ── Alerts ───────────────────────────────────────────────────────────────────────
+
+export function useAlerts() {
+  return useQuery({
+    queryKey: ['alerts'],
+    queryFn: () => apiGet<AlertsResponse>('/api/mobile/v1/alerts?limit=50'),
+  });
+}
+
+// Not offline-queueable — a read receipt has no meaning if replayed hours later after
+// reconnecting, unlike the write mutations above (checkin/closure/requests/expenses)
+// which represent real field work that must eventually land. Fire-and-forget is fine.
+export function useMarkAlertRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiPost<ErrorResponse>(`/api/mobile/v1/alerts/${id}/read`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
+
+export function useMarkAllAlertsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<ErrorResponse>('/api/mobile/v1/alerts/read-all'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alerts'] });
     },
   });
 }
