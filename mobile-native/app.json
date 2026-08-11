@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile-native",
     "slug": "mobile-native",
+    "owner": "emr-global",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -40,6 +41,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7310d6cf-6c3b-4280-b1e2-3f4abe577aee"
+      }
     }
   }
 }
