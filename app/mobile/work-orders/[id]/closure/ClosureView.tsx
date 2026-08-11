@@ -11,12 +11,17 @@ interface Props {
   workOrder: MobileWorkOrderWithCustomer
 }
 
+// "Product Request" is a special reason: picking it abandons the normal pending-
+// closure submission entirely and jumps straight into the product-request flow
+// instead (per explicit product decision — not just recorded alongside a normal
+// pending closure like the other reasons).
 const PENDING_REASONS = [
   'Spare part unavailable',
   'Waiting for parts delivery',
   'Customer not available',
   'Technical dependency',
   'Project access issue',
+  'Product Request',
   'Other',
 ]
 
@@ -46,19 +51,25 @@ export default function ClosureView({ workOrder }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  const isProductRequest = outcome === 'pending' && pendingReason === 'Product Request'
+
+  // Only the "pending" path (excluding the Product Request shortcut) submits through
+  // this screen — "completed" hands off entirely to the job form (Complete Form
+  // button below), which will capture sign-off as one of the form's own fields and
+  // generate the visit PDF/Word doc once that backend piece is wired up.
   async function handleSubmit() {
-    if (!outcome) return
+    if (outcome !== 'pending' || isProductRequest) return
     if (!summary.trim()) {
-      setError(outcome === 'completed' ? 'Please describe what was completed today' : 'Please describe what remains to be done')
+      setError('Please describe what remains to be done')
       return
     }
-    if (outcome === 'pending' && !revisitDate) {
+    if (!revisitDate) {
       setError('Please provide a follow-up date')
       return
     }
     if (!engineerSignature) { setError('Engineer signature is required'); return }
     if (!clientName.trim()) { setError('Client name is required'); return }
-    if (!offSite && !clientSignature) { setError('Client signature is required'); return }
+    if (!clientSignature) { setError('Client signature is required'); return }
 
     setSubmitting(true)
     setError('')
@@ -70,16 +81,16 @@ export default function ClosureView({ workOrder }: Props) {
     const result = await Promise.race([
       submitDailyClosure({
         workOrderId: workOrder.id,
-        outcome,
+        outcome: 'pending',
         summary: summary.trim(),
-        pendingReason: outcome === 'pending' ? pendingReason : null,
-        materialsRequired: outcome === 'pending' ? (materialsRequired.trim() || null) : null,
-        revisitDate: outcome === 'pending' ? (revisitDate || null) : null,
-        needsReassignment: outcome === 'pending' ? needsReassignment : false,
+        pendingReason,
+        materialsRequired: materialsRequired.trim() || null,
+        revisitDate: revisitDate || null,
+        needsReassignment,
         engineerSignature,
         clientName: clientName.trim(),
-        clientSignature: offSite ? '' : clientSignature,
-        offSite,
+        clientSignature,
+        offSite: false,
       }),
       new Promise<{ error: string | null }>(resolve =>
         setTimeout(() => resolve({ error: 'Network is too slow to save right now — check your connection and try again.' }), TIMEOUT_MS)
@@ -109,7 +120,7 @@ export default function ClosureView({ workOrder }: Props) {
 
         {offSite ? (
           <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 11, lineHeight: 1.5 }}>
-            Marking this complete without being on-site — the customer signature will be skipped, and your manager will be notified.
+            Marking this complete without being on-site — your manager will be notified.
           </div>
         ) : (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
@@ -169,11 +180,22 @@ export default function ClosureView({ workOrder }: Props) {
 
         {outcome === 'completed' && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>Today&apos;s work summary</p>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-              What was done today? <span style={{ color: '#7D1D3F' }}>*</span>
-            </label>
-            <textarea rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="Briefly describe what work was completed today..." style={{ ...inputStyle, resize: 'none' }} />
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>Complete the job form</p>
+            <p style={{ fontSize: 11, color: '#7A6870', lineHeight: 1.5, marginBottom: 12 }}>
+              Submitting the job form marks this visit completed — your signature is captured as part of the form
+              itself, and the visit summary PDF/Word doc is generated automatically.
+            </p>
+            <button
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${workOrder.id}/form`)}
+              style={{
+                width: '100%', padding: '14px', borderRadius: 10, border: 'none',
+                background: '#059669', color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+              }}
+            >
+              Complete Form
+            </button>
           </div>
         )}
 
@@ -191,48 +213,65 @@ export default function ClosureView({ workOrder }: Props) {
                   {PENDING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-                  Remarks <span style={{ color: '#7D1D3F' }}>*</span>
-                </label>
-                <textarea rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="Describe what remains to be done..." style={{ ...inputStyle, resize: 'none' }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-                  Materials / parts required
-                </label>
-                <textarea rows={2} value={materialsRequired} onChange={e => setMaterialsRequired(e.target.value)} placeholder="List required parts or materials..." style={{ ...inputStyle, resize: 'none' }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-                  Follow-up date <span style={{ color: '#7D1D3F' }}>*</span>
-                </label>
-                <input type="date" min={new Date().toLocaleDateString('en-CA')} value={revisitDate} onChange={e => setRevisitDate(e.target.value)} style={inputStyle} />
-              </div>
-              <label
-                className="mtap"
-                style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', padding: '10px 12px',
-                  borderRadius: 10, border: `1.5px solid ${needsReassignment ? '#7D1D3F' : '#E5E0E3'}`,
-                  background: needsReassignment ? '#F9EEF2' : '#F8F5F6',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={needsReassignment}
-                  onChange={e => setNeedsReassignment(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: '#7D1D3F', marginTop: 1, flexShrink: 0 }}
-                />
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>This job needs a different engineer</div>
-                  <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>Flags it for your supervisor to reassign, instead of just waiting on the same engineer.</div>
-                </div>
-              </label>
+
+              {isProductRequest ? (
+                <button
+                  className="mtap"
+                  onClick={() => router.push(`/mobile/requests/new?wo=${workOrder.id}`)}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 10, border: 'none',
+                    background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+                  }}
+                >
+                  Go to Request Products
+                </button>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
+                      Remarks <span style={{ color: '#7D1D3F' }}>*</span>
+                    </label>
+                    <textarea rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="Describe what remains to be done..." style={{ ...inputStyle, resize: 'none' }} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
+                      Materials / parts required
+                    </label>
+                    <textarea rows={2} value={materialsRequired} onChange={e => setMaterialsRequired(e.target.value)} placeholder="List required parts or materials..." style={{ ...inputStyle, resize: 'none' }} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
+                      Follow-up date <span style={{ color: '#7D1D3F' }}>*</span>
+                    </label>
+                    <input type="date" min={new Date().toLocaleDateString('en-CA')} value={revisitDate} onChange={e => setRevisitDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <label
+                    className="mtap"
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', padding: '10px 12px',
+                      borderRadius: 10, border: `1.5px solid ${needsReassignment ? '#7D1D3F' : '#E5E0E3'}`,
+                      background: needsReassignment ? '#F9EEF2' : '#F8F5F6',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={needsReassignment}
+                      onChange={e => setNeedsReassignment(e.target.checked)}
+                      style={{ width: 18, height: 18, accentColor: '#7D1D3F', marginTop: 1, flexShrink: 0 }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>This job needs a different engineer</div>
+                      <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>Flags it for your supervisor to reassign, instead of just waiting on the same engineer.</div>
+                    </div>
+                  </label>
+                </>
+              )}
             </div>
           </>
         )}
 
-        {outcome && (
+        {outcome === 'pending' && !isProductRequest && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 12 }}>Visit sign-off</p>
 
@@ -252,20 +291,10 @@ export default function ClosureView({ workOrder }: Props) {
               style={inputStyle}
             />
 
-            {!offSite && (
-              <>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', margin: '16px 0 6px' }}>
-                  Client signature <span style={{ color: '#7D1D3F' }}>*</span>
-                </label>
-                <SignaturePad value={clientSignature} onChange={setClientSignature} />
-              </>
-            )}
-
-            {outcome === 'completed' && (
-              <p style={{ fontSize: 10, color: '#7A6870', marginTop: 10, lineHeight: 1.5 }}>
-                Marking completed generates a summary PDF and sends it to SAP.
-              </p>
-            )}
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', margin: '16px 0 6px' }}>
+              Client signature <span style={{ color: '#7D1D3F' }}>*</span>
+            </label>
+            <SignaturePad value={clientSignature} onChange={setClientSignature} />
           </div>
         )}
 
@@ -275,19 +304,19 @@ export default function ClosureView({ workOrder }: Props) {
           </div>
         )}
 
-        {outcome && (
+        {outcome === 'pending' && !isProductRequest && (
           <button
             className="mtap"
             onClick={handleSubmit}
             disabled={submitting}
             style={{
               width: '100%', padding: '14px', borderRadius: 12, border: 'none',
-              background: submitting ? '#A8294F' : outcome === 'completed' ? '#059669' : '#D97706',
+              background: submitting ? '#A8294F' : '#D97706',
               color: '#fff', fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
               fontFamily: 'Poppins, sans-serif',
             }}
           >
-            {submitting ? 'Saving…' : outcome === 'completed' ? 'Mark job completed' : 'Mark job pending'}
+            {submitting ? 'Saving…' : 'Mark job pending'}
           </button>
         )}
       </div>
