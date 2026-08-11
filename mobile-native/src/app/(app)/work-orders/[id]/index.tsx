@@ -45,7 +45,7 @@ export default function WorkOrderDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F' }} />
+        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
         <ActivityIndicator size="large" color="#7D1D3F" />
       </View>
     );
@@ -54,7 +54,7 @@ export default function WorkOrderDetailScreen() {
   if (error || !detail) {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F' }} />
+        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
         <Text style={styles.errorText}>{data?.error || 'Notification not found'}</Text>
       </View>
     );
@@ -67,7 +67,7 @@ export default function WorkOrderDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ headerShown: true, title: wo.wo_number, headerTintColor: '#7D1D3F' }} />
+      <Stack.Screen options={{ headerShown: true, title: wo.wo_number, headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <View style={styles.progressBar}>
         <Text style={styles.progressLabel}>Job status progression</Text>
         <View style={styles.stepsRow}>

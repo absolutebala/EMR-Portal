@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Image, SafeAreaView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal, Image, SafeAreaView, Alert } from 'react-native';
 import SignatureView, { type SignatureViewRef } from 'react-native-signature-canvas';
 
 interface Props {
@@ -15,8 +15,14 @@ interface Props {
 // rotated-canvas coordinate transform — react-native-signature-canvas's `rotated`
 // prop already renders a landscape drawing surface on a portrait screen internally
 // (it wraps a WebView running signature_pad, not a raw <canvas>).
+//
+// The library's own in-WebView "Save"/"Clear" footer buttons are hidden (via
+// webStyle) and not used — in `rotated` mode that footer renders outside the
+// visible viewport (a known library quirk), making it unreachable. Real RN buttons
+// below drive the same ref methods (readSignature()/clearSignature()) instead.
 export default function RNSignaturePad({ label, value, onChange, readOnly }: Props) {
   const [open, setOpen] = useState(false);
+  const [hasStroke, setHasStroke] = useState(false);
   const ref = useRef<SignatureViewRef>(null);
 
   function handleOK(signature: string) {
@@ -24,12 +30,21 @@ export default function RNSignaturePad({ label, value, onChange, readOnly }: Pro
     setOpen(false);
   }
 
+  function handleEmpty() {
+    Alert.alert('Nothing to save', 'Please sign before saving.');
+  }
+
+  function openModal() {
+    setHasStroke(false);
+    setOpen(true);
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <Pressable
         style={styles.previewBox}
-        onPress={() => !readOnly && setOpen(true)}
+        onPress={() => !readOnly && openModal()}
         disabled={readOnly}
       >
         {value ? (
@@ -47,17 +62,32 @@ export default function RNSignaturePad({ label, value, onChange, readOnly }: Pro
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
-          <SignatureView
-            ref={ref}
-            onOK={handleOK}
-            descriptionText=""
-            clearText="Clear"
-            confirmText="Save"
-            rotated
-            trimWhitespace
-            imageType="image/png"
-            webStyle=".m-signature-pad--footer { margin: 0 20px; }"
-          />
+          <View style={styles.canvasWrap}>
+            <SignatureView
+              ref={ref}
+              onOK={handleOK}
+              onEmpty={handleEmpty}
+              onBegin={() => setHasStroke(true)}
+              onClear={() => setHasStroke(false)}
+              descriptionText=""
+              rotated
+              trimWhitespace
+              imageType="image/png"
+              webStyle=".m-signature-pad--footer { display: none; margin: 0; } .m-signature-pad--body { border: none; }"
+            />
+          </View>
+          <View style={styles.actionRow}>
+            <Pressable style={styles.clearButton} onPress={() => ref.current?.clearSignature()}>
+              <Text style={styles.clearButtonText}>Clear</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.saveButton, !hasStroke && styles.saveButtonDisabled]}
+              onPress={() => ref.current?.readSignature()}
+              disabled={!hasStroke}
+            >
+              <Text style={styles.saveButtonText}>Done</Text>
+            </Pressable>
+          </View>
         </SafeAreaView>
       </Modal>
     </View>
@@ -77,4 +107,14 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   modalTitle: { fontSize: 15, fontWeight: '600', color: '#1C0D14' },
   cancelText: { fontSize: 13, color: '#7D1D3F', fontWeight: '600' },
+  canvasWrap: { flex: 1 },
+  actionRow: { flexDirection: 'row', gap: 10, padding: 16 },
+  clearButton: {
+    flex: 1, borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10,
+    paddingVertical: 13, alignItems: 'center', backgroundColor: '#fff',
+  },
+  clearButtonText: { color: '#7A6870', fontSize: 14, fontWeight: '600' },
+  saveButton: { flex: 1, backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  saveButtonDisabled: { backgroundColor: '#D8B6C2' },
+  saveButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

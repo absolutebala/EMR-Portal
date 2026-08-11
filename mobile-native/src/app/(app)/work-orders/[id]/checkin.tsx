@@ -73,7 +73,7 @@ export default function CheckInScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ headerShown: true, title: 'Project Check-In', headerTintColor: '#7D1D3F' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'Project Check-In', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <View style={styles.notice}>
         <Text style={styles.noticeText}>Check-in required before starting work. GPS location and photo will be captured.</Text>
       </View>

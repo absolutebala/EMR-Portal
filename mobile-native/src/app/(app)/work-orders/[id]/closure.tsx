@@ -88,7 +88,7 @@ export default function ClosureScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ headerShown: true, title: 'End of Day', headerTintColor: '#7D1D3F' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'End of Day', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <View style={styles.dateBanner}>
         <Text style={styles.dateBannerText}>{formatDate(new Date())}</Text>
       </View>
