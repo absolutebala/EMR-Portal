@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useWorkOrderDetail } from '@/lib/hooks';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
 
@@ -23,13 +22,9 @@ function comingSoon(feature: string) {
 
 export default function WorkOrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const navigation = useNavigation();
+  const router = useRouter();
   const { data, isLoading, error } = useWorkOrderDetail(id);
   const detail = data?.detail;
-
-  useEffect(() => {
-    if (detail) navigation.setOptions({ title: detail.workOrder.wo_number });
-  }, [detail, navigation]);
 
   const steps = useMemo(() => {
     if (!detail) return [];
@@ -50,6 +45,7 @@ export default function WorkOrderDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
+        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F' }} />
         <ActivityIndicator size="large" color="#7D1D3F" />
       </View>
     );
@@ -58,6 +54,7 @@ export default function WorkOrderDetailScreen() {
   if (error || !detail) {
     return (
       <View style={styles.center}>
+        <Stack.Screen options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F' }} />
         <Text style={styles.errorText}>{data?.error || 'Notification not found'}</Text>
       </View>
     );
@@ -70,6 +67,7 @@ export default function WorkOrderDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ headerShown: true, title: wo.wo_number, headerTintColor: '#7D1D3F' }} />
       <View style={styles.progressBar}>
         <Text style={styles.progressLabel}>Job status progression</Text>
         <View style={styles.stepsRow}>
@@ -105,7 +103,9 @@ export default function WorkOrderDetailScreen() {
         ) : (
           <Pressable
             style={styles.primaryButton}
-            onPress={() => comingSoon(detail.hasCheckedIn ? 'End-of-day closure' : 'Check-in')}
+            onPress={() => router.push(
+              detail.hasCheckedIn ? `/(app)/work-orders/${id}/closure` : `/(app)/work-orders/${id}/checkin`
+            )}
           >
             <Text style={styles.primaryButtonTitle}>
               {detail.hasCheckedIn ? 'End of day closure' : 'Check in at project'}

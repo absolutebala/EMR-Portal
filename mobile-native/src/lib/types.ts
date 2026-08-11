@@ -114,3 +114,34 @@ export interface FollowUpsResponse {
   notStarted: NotStartedNotice | null;
   error: string | null;
 }
+
+export interface ErrorResponse {
+  error: string | null;
+}
+
+// Variables for the offline-queueable mutations (see queryClient.ts's
+// setMutationDefaults) — workOrderId travels as part of the variables, not baked into
+// the mutation key, so one registered default covers every work order.
+export interface CheckInVariables {
+  workOrderId: string;
+  latitude: number | null;
+  longitude: number | null;
+  placeName: string | null;
+  photoBase64: string;
+  mimeType: string;
+  ext: string;
+}
+
+export interface ClosureVariables {
+  workOrderId: string;
+  outcome: 'completed' | 'pending';
+  summary: string;
+  pendingReason: string | null;
+  materialsRequired: string | null;
+  revisitDate: string | null;
+  needsReassignment: boolean;
+  engineerSignature: string;
+  clientName: string;
+  clientSignature: string;
+  offSite?: boolean;
+}

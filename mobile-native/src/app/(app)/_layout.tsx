@@ -25,13 +25,12 @@ export default function AppLayout() {
 
   return (
     <NativeLocationGate>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="work-orders/[id]"
-          options={{ headerShown: true, title: 'Notification', headerTintColor: '#7D1D3F' }}
-        />
-      </Stack>
+      {/* No per-route name declarations here — each work-order screen configures its
+          own header via a child <Stack.Screen options={...}/> instead (see
+          work-orders/[id]/index.tsx, checkin.tsx, closure.tsx), since that pattern
+          doesn't depend on knowing the exact internal route-name string Expo Router
+          assigns to a folder+index.tsx route (undocumented enough to not guess at). */}
+      <Stack screenOptions={{ headerShown: false }} />
     </NativeLocationGate>
   );
 }

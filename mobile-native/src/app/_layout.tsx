@@ -1,19 +1,20 @@
 import { Stack } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { AuthProvider } from '@/lib/AuthContext';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-    },
-  },
-});
+import { queryClient, asyncStoragePersister } from '@/lib/queryClient';
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: asyncStoragePersister }}
+      // Paused mutations (queued while offline) are persisted alongside query data,
+      // but react-query does not auto-resume them after a cache rehydration on its
+      // own — this is the documented hook for kicking that off once restore completes.
+      onSuccess={() => {
+        queryClient.resumePausedMutations();
+      }}
+    >
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
@@ -22,6 +23,6 @@ export default function RootLayout() {
           <Stack.Screen name="(app)" />
         </Stack>
       </AuthProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
