@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDashboard } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
 import JobCard from '@/components/JobCard';
@@ -17,6 +18,7 @@ export default function DashboardScreen() {
   const { data, isLoading, error } = useDashboard();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -35,7 +37,7 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D1D3F" />}
     >
       <View style={styles.headerRow}>

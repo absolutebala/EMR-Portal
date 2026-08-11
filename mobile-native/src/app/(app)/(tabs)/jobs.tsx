@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useJobs } from '@/lib/hooks';
 import JobCard from '@/components/JobCard';
 import type { MobileWorkOrder } from '@/lib/types';
@@ -17,6 +18,7 @@ export default function JobsScreen() {
   const { data, isLoading, error } = useJobs('all');
   const [tab, setTab] = useState<TabId>('all');
   const [query, setQuery] = useState('');
+  const insets = useSafeAreaInsets();
 
   const filtered = useMemo(() => {
     let list = data?.workOrders || [];
@@ -35,7 +37,7 @@ export default function JobsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerArea}>
+      <View style={[styles.headerArea, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>Jobs</Text>
         <TextInput
           style={styles.search}
