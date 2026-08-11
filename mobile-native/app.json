@@ -9,9 +9,11 @@
     "scheme": "mobilenative",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.emrglobal.emrfieldapp"
     },
     "android": {
+      "package": "com.emrglobal.emrfieldapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
