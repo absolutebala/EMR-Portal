@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { submitManagerDecision, submitHeadDecision, type ExpenseLogView } from '@/app/actions/expenses'
+import { submitManagerDecision, submitHeadDecision } from '@/app/actions/expenses'
+import type { ExpenseLogView } from '@/lib/mobile/core/expenses'
 
 const EXPENSE_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },

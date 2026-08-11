@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
-import type { ExpenseLogView } from '@/app/actions/expenses'
+import type { ExpenseLogView } from '@/lib/mobile/core/expenses'
 
 interface Props {
   workOrderId: string

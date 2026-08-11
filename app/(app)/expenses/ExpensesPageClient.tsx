@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import { ListCard } from '@/components/dashboard/DashboardCards'
-import { submitManagerDecision, submitHeadDecision, type ExpenseLogView } from '@/app/actions/expenses'
+import { submitManagerDecision, submitHeadDecision } from '@/app/actions/expenses'
+import type { ExpenseLogView } from '@/lib/mobile/core/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {

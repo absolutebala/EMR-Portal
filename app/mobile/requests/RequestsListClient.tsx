@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
-import type { ProductRequestView } from '@/app/actions/products'
+import type { ProductRequestView } from '@/lib/mobile/core/products'
 
 interface Props {
   requests: ProductRequestView[]

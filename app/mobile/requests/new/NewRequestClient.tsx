@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { compressImage } from '@/lib/mobile/compressImage'
-import { searchProducts, submitProductRequest, type Product } from '@/app/actions/products'
+import { searchProducts, submitProductRequest } from '@/app/actions/products'
+import type { Product } from '@/lib/mobile/core/products'
 import type { MobileWorkOrder } from '@/lib/mobile/core/shared'
 
 interface Props {

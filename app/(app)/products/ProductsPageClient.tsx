@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
-import { createProduct, updateProduct, deleteProduct, type Product } from '@/app/actions/products'
+import { createProduct, updateProduct, deleteProduct } from '@/app/actions/products'
+import type { Product } from '@/lib/mobile/core/products'
 
 const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif' }
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }

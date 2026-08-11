@@ -10,7 +10,8 @@ import {
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
-import { getProductRequestsForWorkOrder, type ProductRequestView } from '@/app/actions/products'
+import { getProductRequestsForWorkOrder } from '@/app/actions/products'
+import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'

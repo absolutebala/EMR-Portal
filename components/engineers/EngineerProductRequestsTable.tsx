@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { updateProductRequestItemStatus, type ProductRequestView, type ProductRequestItemView } from '@/app/actions/products'
+import { updateProductRequestItemStatus } from '@/app/actions/products'
+import type { ProductRequestView, ProductRequestItemView } from '@/lib/mobile/core/products'
 
 const REQUEST_ITEM_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },

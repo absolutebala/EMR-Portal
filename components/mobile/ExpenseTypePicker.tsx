@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { getExpenseTypes, getOrCreateExpenseType, type ExpenseType } from '@/app/actions/expenses'
+import { getExpenseTypes, getOrCreateExpenseType } from '@/app/actions/expenses'
+import type { ExpenseType } from '@/lib/mobile/core/expenses'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10,
