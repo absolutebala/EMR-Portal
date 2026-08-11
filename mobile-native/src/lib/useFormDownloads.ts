@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import { AppState } from 'react-native';
@@ -60,25 +60,4 @@ export function useAutoDownloadForms(jobs: MobileWorkOrder[] | undefined) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobIdsKey]);
-}
-
-// Drives the dashboard's "N of M forms available offline" card. "Ready" means this
-// job's offline-availability question has been resolved one way or another (a form is
-// cached, or we've confirmed the job type has none) — not "has a form", since we can't
-// know that without having already fetched it once.
-export function useFormDownloadStatus(jobs: MobileWorkOrder[] | undefined): { total: number; ready: number } {
-  const qc = useQueryClient();
-  const [, forceUpdate] = useState(0);
-
-  useEffect(() => {
-    const unsubscribe = qc.getQueryCache().subscribe(() => forceUpdate(n => n + 1));
-    return unsubscribe;
-  }, [qc]);
-
-  const total = jobs?.length ?? 0;
-  let ready = 0;
-  for (const job of jobs || []) {
-    if (qc.getQueryData([WORK_ORDER_FORM_QUERY_KEY, job.id]) !== undefined) ready++;
-  }
-  return { total, ready };
 }
