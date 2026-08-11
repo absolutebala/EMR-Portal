@@ -587,7 +587,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           <span style={{ fontSize: 9, background: '#F9EEF2', color: '#7D1D3F', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>Auto-filled</span>
         )}
       </label>
-      {field.prefill_from_job ? (
+      {field.prefill_from_job && field.read_only_on_mobile ? (
         <div style={{ fontSize: 13, fontWeight: 500, color: '#1C0D14', background: '#F5F3F5', borderRadius: 10, padding: '10px 12px', border: '1px solid #E5E0E3' }}>
           {value || '—'}
         </div>

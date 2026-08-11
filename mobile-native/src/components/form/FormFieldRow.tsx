@@ -15,11 +15,18 @@ interface Props {
 // RN port of FormFillView.tsx's memoized FormFieldRow — memoized so typing into one
 // field doesn't re-render every other field/row in a large form.
 const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete }: Props) {
-  const showAsterisk = !(field.prefill_from_job && field.read_only_on_mobile);
+  // A prefill_from_job field only becomes a permanent, non-editable static display
+  // when it's ALSO read_only_on_mobile — matching the validator's carve-out, which
+  // only skips the required-check for that exact combination (a field the engineer
+  // has no way to fix). A prefill field that's still editable must actually render as
+  // editable, or a failed auto-fill lookup (e.g. no rating/manufacturer on file for
+  // this transformer) becomes an unfillable, submit-blocking dead end.
+  const isStaticDisplay = field.prefill_from_job && field.read_only_on_mobile;
+  const showAsterisk = !isStaticDisplay;
 
   // RNSignaturePad already renders its own label (used both above the preview box and
   // as the modal title) — showing FormFieldRow's own label too would duplicate it.
-  const showOuterLabel = field.field_type !== 'signature' || field.prefill_from_job;
+  const showOuterLabel = field.field_type !== 'signature' || isStaticDisplay;
 
   return (
     <View style={[styles.container, bordered && styles.bordered, isIncomplete && styles.incomplete]}>
@@ -37,7 +44,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         </View>
       )}
 
-      {field.prefill_from_job ? (
+      {isStaticDisplay ? (
         <View style={styles.prefillBox}>
           <Text style={styles.prefillText}>{value || '—'}</Text>
         </View>
