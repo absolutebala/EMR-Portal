@@ -2,8 +2,9 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Refre
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard } from '@/lib/hooks';
+import { useDashboard, useJobs } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
+import { useFormDownloadStatus } from '@/lib/useFormDownloads';
 import JobCard from '@/components/JobCard';
 
 const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'completed'; label: string; color: string }[] = [
@@ -16,6 +17,8 @@ const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'comp
 export default function DashboardScreen() {
   const { engineerName, signOut } = useAuth();
   const { data, isLoading, error } = useDashboard();
+  const { data: activeJobs } = useJobs('active');
+  const downloadStatus = useFormDownloadStatus(activeJobs?.workOrders);
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
@@ -61,6 +64,18 @@ export default function DashboardScreen() {
         ))}
       </View>
 
+      {downloadStatus.total > 0 && (
+        <View style={styles.downloadCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.downloadTitle}>
+              {downloadStatus.ready < downloadStatus.total ? 'Downloading forms for offline use…' : 'Forms ready offline'}
+            </Text>
+            <Text style={styles.downloadSub}>{downloadStatus.ready} of {downloadStatus.total} jobs ready</Text>
+          </View>
+          {downloadStatus.ready < downloadStatus.total && <ActivityIndicator size="small" color="#7D1D3F" />}
+        </View>
+      )}
+
       <Text style={styles.sectionTitle}>Recent jobs</Text>
       {data?.recentJobs.length ? (
         data.recentJobs.map(wo => <JobCard key={wo.id} wo={wo} />)
@@ -87,6 +102,12 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 22, fontWeight: '700' },
   statLabel: { fontSize: 11, color: '#7A6870', marginTop: 2 },
+  downloadCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F9EEF2', borderRadius: 12,
+    padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#E8C5D0',
+  },
+  downloadTitle: { fontSize: 12, fontWeight: '600', color: '#7D1D3F' },
+  downloadSub: { fontSize: 11, color: '#7A6870', marginTop: 2 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: '#1C0D14', marginBottom: 10 },
   empty: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', paddingVertical: 24 },
 });

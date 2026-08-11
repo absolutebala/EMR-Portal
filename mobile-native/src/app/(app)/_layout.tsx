@@ -1,6 +1,8 @@
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/lib/AuthContext';
+import { useJobs } from '@/lib/hooks';
+import { useAutoDownloadForms } from '@/lib/useFormDownloads';
 import NativeLocationGate from '@/components/NativeLocationGate';
 
 // Client-side equivalent of the PWA's per-page auth checks — there's no RN middleware,
@@ -11,6 +13,12 @@ import NativeLocationGate from '@/components/NativeLocationGate';
 // prompt, but never on top of an unauthenticated or must-change-password state).
 export default function AppLayout() {
   const { session, loading, mustChangePassword } = useAuth();
+
+  // Mounted here (not inside the dashboard screen) so it keeps running regardless of
+  // which tab is focused — Tabs unmounts inactive tab screens by default, which would
+  // stop the download loop the moment the engineer navigates away from Dashboard.
+  const { data: activeJobs } = useJobs('active');
+  useAutoDownloadForms(activeJobs?.workOrders);
 
   if (loading) {
     return (

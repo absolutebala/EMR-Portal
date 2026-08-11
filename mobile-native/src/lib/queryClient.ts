@@ -40,6 +40,18 @@ export const asyncStoragePersister = createAsyncStoragePersister({
   key: 'EMR_RQ_CACHE',
 });
 
+// Job forms are deliberately pre-downloaded well before an engineer needs them
+// offline (see useAutoDownloadForms) — react-query's default gcTime (5 min) would
+// silently evict a downloaded-but-not-currently-viewed form from the cache (and, on
+// the next persist cycle, from AsyncStorage too), defeating the entire point of
+// downloading it hours or days in advance of a site visit with no signal. A long
+// gcTime keeps it until deliberately replaced by a fresh fetch.
+export const WORK_ORDER_FORM_QUERY_KEY = 'work-order-form';
+queryClient.setQueryDefaults([WORK_ORDER_FORM_QUERY_KEY], {
+  gcTime: Infinity,
+  staleTime: 5 * 60_000,
+});
+
 // Registered once here (not just passed inline to useMutation in each screen) so a
 // mutation that was queued offline, persisted to AsyncStorage, and then rehydrated
 // after the app was fully closed and reopened still has a real mutationFn to resume
