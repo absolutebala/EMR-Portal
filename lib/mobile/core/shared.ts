@@ -293,3 +293,51 @@ export interface MobileWorkOrderDetail {
   handoverFromOtherEngineer: boolean
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
 }
+
+export interface MobileFormRow {
+  id: string
+  table_id: string
+  parent_row_id: string | null
+  row_label: string
+  sno_label: string | null
+  order_index: number
+}
+
+export interface MobileFormTable {
+  id: string
+  section_id: string
+  status_type: string
+  has_subrows: boolean
+  col1_label: string | null
+  col2_label: string | null
+  order_index: number
+  rows: MobileFormRow[]
+}
+
+export interface MobileFormField {
+  id: string
+  section_id: string
+  label: string
+  field_type: string
+  is_required: boolean
+  prefill_from_job: boolean
+  read_only_on_mobile: boolean
+  placeholder: string | null
+  help_text: string | null
+  order_index: number
+}
+
+export interface MobileFormSection {
+  id: string
+  title: string
+  order_index: number
+  fields: MobileFormField[]
+  tables: MobileFormTable[]
+}
+
+export interface MobileForm {
+  id: string
+  name: string
+  job_type: string
+  sections: MobileFormSection[]
+}

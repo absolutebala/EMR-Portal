@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { resolveBearerUser } from '@/lib/mobile/apiAuth'
 import { adminClient } from '@/lib/mobile/core/shared'
 import { submitJobFormCore } from '@/lib/mobile/core/workOrders'
 
+// Shared by both the PWA (cookie session) and the RN app (bearer token) — this route
+// predates the /api/mobile/v1/* convention used everywhere else for RN, and rather
+// than duplicating it there, bearer auth is just tried first here with a fallback to
+// the existing cookie flow, so there's only one submit-form endpoint to maintain.
 export async function POST(req: NextRequest) {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const bearerUser = await resolveBearerUser(req)
+    const user = bearerUser ?? await getAuthedUser(await serverClient())
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json()

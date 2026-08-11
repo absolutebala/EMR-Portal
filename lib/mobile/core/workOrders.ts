@@ -4,6 +4,7 @@ import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
+  type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
   touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity,
 } from './shared'
 
@@ -24,6 +25,79 @@ export async function getMobileWorkOrderBasicCore(admin: AdminClient, userId: st
     return { workOrder, error: null }
   } catch (e: unknown) {
     return { workOrder: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId: string, woId: string): Promise<{
+  workOrder: MobileWorkOrderWithCustomer | null
+  form: MobileForm | null
+  existingSubmission: { id: string; form_data: Record<string, unknown> } | null
+  error: string | null
+}> {
+  try {
+    touchHeartbeat(admin, userId)
+
+    const workOrder = await fetchSingleWorkOrder(admin, woId)
+    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Notification not found' }
+
+    const { data: engineerProfile } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+    workOrder.engineer_name = engineerProfile ? `${engineerProfile.first_name} ${engineerProfile.last_name}` : null
+
+    // Find the active form for this job type
+    const { data: formRow } = await admin
+      .from('forms')
+      .select('id, name, job_type')
+      .eq('job_type', workOrder.job_type)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let form: MobileForm | null = null
+    let existingSubmission: { id: string; form_data: Record<string, unknown> } | null = null
+
+    if (formRow) {
+      // One nested-embed query pulls sections + fields + tables + rows together — the
+      // form used to be loaded with a separate round trip per section and per table,
+      // which for a 5-section form meant ~9 sequential DB calls before the page could render.
+      type SectionEmbed = {
+        id: string; title: string; order_index: number
+        form_fields: MobileFormField[]
+        form_tables: (MobileFormTable & { form_table_rows: MobileFormRow[] })[]
+      }
+      const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
+
+      const [{ data: secs, error: secsErr }, { data: sub }] = await Promise.all([
+        admin.from('form_sections')
+          .select('id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
+          .eq('form_id', formRow.id)
+          .order('order_index'),
+        admin.from('form_submissions')
+          .select('id, form_data')
+          .eq('work_order_id', woId)
+          .eq('form_id', formRow.id)
+          .maybeSingle(),
+      ])
+      if (secsErr) console.error('getMobileWorkOrderWithForm sections:', secsErr.message)
+
+      const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
+        id: sec.id,
+        title: sec.title,
+        order_index: sec.order_index,
+        fields: (sec.form_fields || []).slice().sort(byOrder),
+        tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
+          ...t,
+          rows: (t.form_table_rows || []).slice().sort(byOrder),
+        })),
+      }))
+
+      form = { id: formRow.id, name: formRow.name, job_type: formRow.job_type, sections }
+      if (sub) existingSubmission = { id: sub.id, form_data: sub.form_data }
+    }
+
+    return { workOrder, form, existingSubmission, error: null }
+  } catch (e: unknown) {
+    return { workOrder: null, form: null, existingSubmission: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

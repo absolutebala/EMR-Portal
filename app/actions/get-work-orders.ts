@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import type { WorkOrder } from '@/lib/types'
-import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/app/actions/mobile-actions'
+import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/lib/mobile/core/shared'
 import { extractPlaceLabel } from '@/lib/geocode'
 
 function adminClient() {

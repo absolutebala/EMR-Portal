@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { MobileForm, MobileFormField, MobileFormRow } from '@/app/actions/mobile-actions'
+import type { MobileForm, MobileFormField, MobileFormRow } from '@/lib/mobile/core/shared'
 import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import SignaturePad from './SignaturePad'
