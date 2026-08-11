@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import RNSignaturePad from '@/components/RNSignaturePad';
 import { useSubmitClosure } from '@/lib/hooks';
+import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 
 // "Product Request" is a special reason: picking it abandons the normal pending-
 // closure submission entirely and jumps straight into the product-request flow
@@ -77,28 +78,36 @@ export default function ClosureScreen() {
     if (!clientSignature) { setError('Client signature is required'); return; }
 
     setError('');
+    const variables = {
+      workOrderId: id,
+      outcome: 'pending' as const,
+      summary: summary.trim(),
+      pendingReason,
+      materialsRequired: materialsRequired.trim() || null,
+      revisitDate: revisitDate ? toDateOnlyString(revisitDate) : null,
+      needsReassignment,
+      engineerSignature,
+      clientName: clientName.trim(),
+      clientSignature,
+      offSite: false,
+    };
+
+    if (!(await isOnline())) {
+      submitClosure.mutate(variables);
+      Alert.alert('Saved — will sync', "You're offline. This closure will be sent automatically once you're back online.");
+      router.replace(`/(app)/work-orders/${id}`);
+      return;
+    }
+
     try {
-      const result = await submitClosure.mutateAsync({
-        workOrderId: id,
-        outcome: 'pending',
-        summary: summary.trim(),
-        pendingReason,
-        materialsRequired: materialsRequired.trim() || null,
-        revisitDate: revisitDate ? toDateOnlyString(revisitDate) : null,
-        needsReassignment,
-        engineerSignature,
-        clientName: clientName.trim(),
-        clientSignature,
-        offSite: false,
-      });
+      const result = await submitClosure.mutateAsync(variables);
       if (result.error) {
         setError(result.error);
         return;
       }
       router.replace(`/(app)/work-orders/${id}`);
-    } catch {
-      Alert.alert('Saved — will sync', "You're offline. This closure will be sent automatically once you're back online.");
-      router.replace(`/(app)/work-orders/${id}`);
+    } catch (e) {
+      setError(apiErrorMessage(e));
     }
   }
 
@@ -144,7 +153,7 @@ export default function ClosureScreen() {
             Submitting the job form marks this visit completed — your signature is captured as part of the form
             itself, and the visit summary PDF/Word doc is generated automatically.
           </Text>
-          <Pressable style={styles.primaryButton} onPress={() => comingSoon('Job form')}>
+          <Pressable style={styles.primaryButton} onPress={() => router.push(`/(app)/work-orders/${id}/form`)}>
             <Text style={styles.primaryButtonText}>Complete Form</Text>
           </Pressable>
         </View>

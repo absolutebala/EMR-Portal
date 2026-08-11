@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { capturePhoto, type CapturedPhoto } from '@/lib/photo';
 import { reverseGeocode, useSubmitCheckIn } from '@/lib/hooks';
+import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 
 export default function CheckInScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,27 +46,36 @@ export default function CheckInScreen() {
   async function handleSubmit() {
     if (!photo) { setError('Photo proof is required'); return; }
     setError('');
+
+    const variables = {
+      workOrderId: id,
+      latitude: coords?.lat ?? null,
+      longitude: coords?.lng ?? null,
+      placeName: placeName || null,
+      photoBase64: photo.dataUrl,
+      mimeType: photo.mimeType,
+      ext: photo.ext,
+    };
+
+    if (!(await isOnline())) {
+      // Fire-and-forget — react-query pauses this (queryClient.ts's onlineManager) and
+      // retries automatically on reconnect. Don't await: a paused mutation's promise
+      // doesn't settle until it actually runs, which could be much later.
+      submitCheckIn.mutate(variables);
+      Alert.alert('Saved — will sync', "You're offline. This check-in will be sent automatically once you're back online.");
+      router.replace(`/(app)/work-orders/${id}`);
+      return;
+    }
+
     try {
-      const result = await submitCheckIn.mutateAsync({
-        workOrderId: id,
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lng ?? null,
-        placeName: placeName || null,
-        photoBase64: photo.dataUrl,
-        mimeType: photo.mimeType,
-        ext: photo.ext,
-      });
+      const result = await submitCheckIn.mutateAsync(variables);
       if (result.error) {
         setError(result.error);
         return;
       }
       router.replace(`/(app)/work-orders/${id}`);
-    } catch {
-      // A network failure here means react-query has paused the mutation (offline) —
-      // it's queued and will retry automatically on reconnect, so this isn't a hard
-      // failure the engineer needs to act on immediately.
-      Alert.alert('Saved — will sync', "You're offline. This check-in will be sent automatically once you're back online.");
-      router.replace(`/(app)/work-orders/${id}`);
+    } catch (e) {
+      setError(apiErrorMessage(e));
     }
   }
 

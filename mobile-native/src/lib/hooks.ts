@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from './api';
-import { CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY } from './queryClient';
+import { CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY, SUBMIT_FORM_MUTATION_KEY } from './queryClient';
 import type {
   AuthMeResponse, DashboardResponse, JobsResponse, WorkOrderDetailResponse, FollowUpsResponse,
-  CheckInVariables, ClosureVariables, ErrorResponse,
+  CheckInVariables, ClosureVariables, ErrorResponse, WorkOrderFormResponse, SubmitFormVariables, SubmitFormResult,
 } from './types';
 
 export function useDashboard() {
@@ -74,6 +74,28 @@ export function useSubmitClosure() {
       apiPost<ErrorResponse>(`/api/mobile/v1/work-orders/${variables.workOrderId}/closure`, variables),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['work-order', variables.workOrderId] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+}
+
+export function useJobForm(workOrderId: string | undefined) {
+  return useQuery({
+    queryKey: ['work-order-form', workOrderId],
+    queryFn: () => apiGet<WorkOrderFormResponse>(`/api/mobile/v1/work-orders/${workOrderId}/form`),
+    enabled: !!workOrderId,
+  });
+}
+
+export function useSubmitJobForm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: SUBMIT_FORM_MUTATION_KEY,
+    mutationFn: (variables: SubmitFormVariables) => apiPost<SubmitFormResult>('/api/mobile/submit-form', variables),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['work-order', variables.workOrderId] });
+      qc.invalidateQueries({ queryKey: ['work-order-form', variables.workOrderId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
     },

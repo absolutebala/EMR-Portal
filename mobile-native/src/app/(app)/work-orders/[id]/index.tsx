@@ -116,7 +116,7 @@ export default function WorkOrderDetailScreen() {
           </Pressable>
         )}
 
-        <Pressable style={styles.secondaryButton} onPress={() => comingSoon('Job form')}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push(`/(app)/work-orders/${id}/form`)}>
           <Text style={styles.secondaryButtonText}>{detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}</Text>
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={() => comingSoon('Product requests')}>

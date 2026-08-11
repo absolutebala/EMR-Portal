@@ -145,3 +145,75 @@ export interface ClosureVariables {
   clientSignature: string;
   offSite?: boolean;
 }
+
+// ── Dynamic job form ────────────────────────────────────────────────────────────
+
+export interface MobileFormRow {
+  id: string;
+  table_id: string;
+  parent_row_id: string | null;
+  row_label: string;
+  sno_label: string | null;
+  order_index: number;
+}
+
+export interface MobileFormTable {
+  id: string;
+  section_id: string;
+  status_type: string;
+  has_subrows: boolean;
+  col1_label: string | null;
+  col2_label: string | null;
+  order_index: number;
+  rows: MobileFormRow[];
+}
+
+export interface MobileFormField {
+  id: string;
+  section_id: string;
+  label: string;
+  field_type: string;
+  is_required: boolean;
+  prefill_from_job: boolean;
+  read_only_on_mobile: boolean;
+  placeholder: string | null;
+  help_text: string | null;
+  order_index: number;
+}
+
+export interface MobileFormSection {
+  id: string;
+  title: string;
+  order_index: number;
+  fields: MobileFormField[];
+  tables: MobileFormTable[];
+}
+
+export interface MobileForm {
+  id: string;
+  name: string;
+  job_type: string;
+  sections: MobileFormSection[];
+}
+
+export interface WorkOrderFormResponse {
+  workOrder: MobileWorkOrderWithCustomer | null;
+  form: MobileForm | null;
+  existingSubmission: { id: string; form_data: { fields: Record<string, string>; table_rows: Record<string, { status: string; remarks: string }> } } | null;
+  error: string | null;
+}
+
+export type FieldValues = Record<string, string>;
+export type RowValues = Record<string, { status: string; remarks: string }>;
+
+export interface SubmitFormVariables {
+  workOrderId: string;
+  formId: string;
+  formData: { fields: FieldValues; table_rows: RowValues };
+}
+
+export interface SubmitFormResult {
+  success?: boolean;
+  completed: boolean;
+  error: string | null;
+}

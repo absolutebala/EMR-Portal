@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { AppState, type AppStateStatus } from 'react-native';
 import { apiPost } from './api';
-import type { CheckInVariables, ClosureVariables, ErrorResponse } from './types';
+import type { CheckInVariables, ClosureVariables, ErrorResponse, SubmitFormVariables, SubmitFormResult } from './types';
 
 // Offline-first mutation queue: react-query automatically pauses a mutation instead
 // of failing it when onlineManager reports offline (default networkMode: 'online' on
@@ -47,6 +47,7 @@ export const asyncStoragePersister = createAsyncStoragePersister({
 // mutationKey can, and react-query looks up these defaults by key on restore.
 export const CHECKIN_MUTATION_KEY = ['submit-checkin'];
 export const CLOSURE_MUTATION_KEY = ['submit-closure'];
+export const SUBMIT_FORM_MUTATION_KEY = ['submit-job-form'];
 
 queryClient.setMutationDefaults(CHECKIN_MUTATION_KEY, {
   mutationFn: (variables: CheckInVariables) =>
@@ -56,4 +57,10 @@ queryClient.setMutationDefaults(CHECKIN_MUTATION_KEY, {
 queryClient.setMutationDefaults(CLOSURE_MUTATION_KEY, {
   mutationFn: (variables: ClosureVariables) =>
     apiPost<ErrorResponse>(`/api/mobile/v1/work-orders/${variables.workOrderId}/closure`, variables),
+});
+
+// This one hits /api/mobile/submit-form (no /v1/ prefix) — the one endpoint shared
+// verbatim with the PWA (dual bearer/cookie auth) rather than a separate RN-only route.
+queryClient.setMutationDefaults(SUBMIT_FORM_MUTATION_KEY, {
+  mutationFn: (variables: SubmitFormVariables) => apiPost<SubmitFormResult>('/api/mobile/submit-form', variables),
 });
