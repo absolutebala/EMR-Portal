@@ -80,7 +80,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
     const { tempPassword, error } = await resendInvite(user.email)
     setInviteLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to generate password'); return }
-    const text = `EMR Portal Login Details\n\nURL: https://emr-portal-three.vercel.app\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
     await navigator.clipboard.writeText(text)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
@@ -91,7 +91,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
     const { tempPassword, error } = await resetUserPassword(user.email)
     setResetLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to reset password'); return }
-    const text = `EMR Portal Login Details\n\nURL: https://emr-portal-three.vercel.app\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
     await navigator.clipboard.writeText(text)
     setResetCopied(user.id)
     setTimeout(() => setResetCopied(null), 2500)

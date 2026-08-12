@@ -31,7 +31,7 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://emr-portal-three.vercel.app'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
   const results: BulkInviteResult[] = []
 
   for (const user of users) {

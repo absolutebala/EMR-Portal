@@ -2,6 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
+  // ALB hits this every 15-30s — skip the Supabase Auth round-trip entirely rather
+  // than paying it on every health-check poll for the lifetime of the deployment.
+  if (request.nextUrl.pathname === '/api/health') {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+mobile-native
+infra
+read me
+readme1
+*.sql
+.env*
+.DS_Store
+npm-debug.log*
+coverage
+*.md
