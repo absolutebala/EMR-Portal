@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib/core'
 import { FoundationStack } from '../lib/foundation-stack'
 import { CicdStack } from '../lib/cicd-stack'
 import { CodeBuildStack } from '../lib/codebuild-stack'
+import { ServiceStack } from '../lib/service-stack'
 
 const app = new cdk.App()
 
@@ -27,4 +28,13 @@ new CodeBuildStack(app, 'EmrPortalCodeBuildStack', {
   repository: foundation.repository,
   githubOwner: 'absolutebala',
   githubRepo: 'EMR-Portal',
+})
+
+new ServiceStack(app, 'EmrPortalServiceStack', {
+  env,
+  vpc: foundation.vpc,
+  cluster: foundation.cluster,
+  repository: foundation.repository,
+  logGroup: foundation.logGroup,
+  imageTag: '22b8830d3d793946e8288c1a84f7ab5100db12a9',
 })

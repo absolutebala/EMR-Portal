@@ -54,9 +54,7 @@ export class CodeBuildStack extends cdk.Stack {
         NEXT_PUBLIC_SUPABASE_URL: { value: 'https://tlakzrkpzxoeycpglxwf.supabase.co' },
         NEXT_PUBLIC_SUPABASE_ANON_KEY: { value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYWt6cmtwenhvZXljcGdseHdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDgzNDAsImV4cCI6MjA5ODI4NDM0MH0.fA7NhEDqOTW8bT0MKCsSL9ngcgfsFTvkt0-nBBl-nnQ' },
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: { value: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI' },
-        // Placeholder until Phase 4's ALB DNS name is known — update via
-        // `aws codebuild update-project` (or re-deploy this stack) once it is.
-        NEXT_PUBLIC_SITE_URL: { value: 'TBD_SET_AFTER_ALB_CREATED' },
+        NEXT_PUBLIC_SITE_URL: { value: 'http://EmrPor-Alb16-6ThX6OgVuHrJ-1597119572.ap-south-2.elb.amazonaws.com' },
       },
     })
 
