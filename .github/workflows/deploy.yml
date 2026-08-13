@@ -1,0 +1,75 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC -> aws-actions/configure-aws-credentials
+  contents: read
+
+env:
+  AWS_REGION: ap-south-2
+  ECR_REPOSITORY: emr-portal
+  ECS_CLUSTER: emr-portal
+  ECS_SERVICE: emr-portal
+  ECS_CONTAINER_NAME: emr-portal
+  ECS_TASK_FAMILY: emr-portal
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::945831803151:role/emr-portal-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr-login
+
+      - name: Build and push image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            --build-arg NEXT_PUBLIC_VAPID_PUBLIC_KEY="${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}" \
+            --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      # Self-skips until Phase 4 (ECS service + ALB stack) exists — this workflow runs
+      # before that stack is deployed for the first time, specifically so ECR already
+      # has an image for the ECS task definition to reference on its first deploy.
+      - name: Deploy to ECS
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          if ! aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+              --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+            echo "ECS service not deployed yet — image pushed to ECR, skipping service update."
+            exit 0
+          fi
+
+          aws ecs describe-task-definition --task-definition "$ECS_TASK_FAMILY" \
+            --query 'taskDefinition' > task-def.json
+
+          NEW_TASK_DEF=$(jq --arg IMAGE "$IMAGE" --arg NAME "$ECS_CONTAINER_NAME" \
+            '.containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end) |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def.json)
+
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --task-definition "$NEW_TASK_DEF_ARN" --force-new-deployment
