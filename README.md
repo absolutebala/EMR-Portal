@@ -29,8 +29,15 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app runs on AWS ECS Fargate behind an Application Load Balancer, defined as
+AWS CDK (TypeScript) in `infra/`. Pushing to `main` triggers an AWS CodeBuild
+pipeline (`buildspec.yml`) that builds the Docker image, pushes it to ECR, and
+rolls out a new ECS task revision.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `infra/` — CDK stacks: VPC/ECR/cluster (`foundation-stack.ts`), CI/CD
+  (`codebuild-stack.ts`), ECS service + ALB (`service-stack.ts`), and the
+  EventBridge+Lambda daily-reminders cron trigger (`cron-stack.ts`).
+- `Dockerfile` — multi-stage build using Next.js's `output: 'standalone'` mode.
+- To deploy infra changes: `cd infra && npx cdk deploy <StackName>`.
