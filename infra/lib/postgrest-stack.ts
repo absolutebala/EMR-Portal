@@ -1,15 +1,19 @@
 import * as cdk from 'aws-cdk-lib/core'
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
+import * as lambda from 'aws-cdk-lib/aws-lambda'
+import * as lambdaNode from 'aws-cdk-lib/aws-lambda-nodejs'
 import * as logs from 'aws-cdk-lib/aws-logs'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import * as servicediscovery from 'aws-cdk-lib/aws-servicediscovery'
+import * as path from 'path'
 import { Construct } from 'constructs'
 
 interface PostgrestStackProps extends cdk.StackProps {
   vpc: ec2.Vpc
   cluster: ecs.Cluster
   taskSecurityGroup: ec2.SecurityGroup
+  dbSecurityGroup: ec2.SecurityGroup
 }
 
 // Self-hosted PostgREST (the same open-source engine Supabase's Data API runs on) in
@@ -42,6 +46,11 @@ export class PostgrestStack extends cdk.Stack {
       allowAllOutbound: true,
     })
     sg.addIngressRule(props.taskSecurityGroup, ec2.Port.tcp(3000), 'From app task only')
+
+    // DataStack's RDS security group only allowed the app task's SG in (Phase B) —
+    // PostgREST is a separate ECS service with its own SG, so it needs its own explicit
+    // grant to reach RDS on 5432.
+    props.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(5432), 'From PostgREST only')
 
     // PGRST_DB_URI needs to be one complete connection string, but RDS's
     // fromGeneratedSecret stores host/port/dbname/username/password as separate JSON
@@ -79,6 +88,22 @@ export class PostgrestStack extends cdk.Stack {
       secrets: {
         PGRST_DB_URI: ecs.Secret.fromSecretsManager(dbUriSecret),
       },
+    })
+
+    // One-off VPC-internal connectivity check (no NAT Gateway means no other way to
+    // reach postgrest.emr-portal.local from outside the VPC) — same reusable-debug-
+    // utility role as DataStack's schema-runner Lambda for direct SQL.
+    new lambdaNode.NodejsFunction(this, 'HttpProber', {
+      functionName: 'emr-portal-http-prober',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, '..', 'lambda', 'http-prober', 'index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(15),
+      memorySize: 256,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      allowPublicSubnet: true,
+      securityGroups: [props.taskSecurityGroup],
     })
 
     new ecs.FargateService(this, 'Service', {

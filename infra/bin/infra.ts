@@ -53,7 +53,7 @@ new CronStack(app, 'EmrPortalCronStack', {
 // stack or app code depends on either of these yet.
 new AuthStack(app, 'EmrPortalAuthStack', { env })
 
-new DataStack(app, 'EmrPortalDataStack', {
+const data = new DataStack(app, 'EmrPortalDataStack', {
   env,
   vpc: foundation.vpc,
   taskSecurityGroup: service.taskSecurityGroup,
@@ -70,4 +70,5 @@ new PostgrestStack(app, 'EmrPortalPostgrestStack', {
   vpc: foundation.vpc,
   cluster: foundation.cluster,
   taskSecurityGroup: service.taskSecurityGroup,
+  dbSecurityGroup: data.dbSecurityGroup,
 })
