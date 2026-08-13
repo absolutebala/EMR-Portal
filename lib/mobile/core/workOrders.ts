@@ -5,7 +5,7 @@ import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
   type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
-  touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity,
+  touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity, storageAdminClient,
 } from './shared'
 
 // "Engineer signature" and "Customer signature" are the fixed, standard field labels
@@ -208,11 +208,11 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
 
     let photoUrl: string | null = null
     const uploadResult = await withTimeout(
-      admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType }),
+      storageAdminClient().storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.mimeType }),
       25000
     )
     if (uploadResult && !uploadResult.error) {
-      photoUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+      photoUrl = storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
     } else if (!uploadResult) {
       console.error(`submitCheckIn: photo upload timed out for work order ${params.workOrderId} (path: ${path})`)
     } else {
@@ -335,10 +335,10 @@ async function buildVisitDocs(
     const pdfBuffer = await generateVisitPdf(docParams)
     const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
     const upResult = await withTimeout(
-      admin.storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' }),
+      storageAdminClient().storage.from('assets').upload(path, pdfBuffer, { upsert: true, contentType: 'application/pdf' }),
       12000
     )
-    if (upResult && !upResult.error) pdfUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+    if (upResult && !upResult.error) pdfUrl = storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
   } catch (e) {
     console.error('buildVisitDocs (pdf) failed:', e)
   }
@@ -348,10 +348,10 @@ async function buildVisitDocs(
     const wordBuffer = await generateVisitWord(docParams)
     const path = `visit-docs/${workOrderId}-${stamp}.docx`
     const upResult = await withTimeout(
-      admin.storage.from('assets').upload(path, wordBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      storageAdminClient().storage.from('assets').upload(path, wordBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
       12000
     )
-    if (upResult && !upResult.error) wordUrl = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+    if (upResult && !upResult.error) wordUrl = storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
   } catch (e) {
     console.error('buildVisitDocs (word) failed:', e)
   }

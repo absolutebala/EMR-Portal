@@ -1,15 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/db/admin-client'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
 
 function todayDatePrefix(): string {
   const d = new Date()

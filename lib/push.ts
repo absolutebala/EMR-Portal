@@ -1,6 +1,6 @@
 import webpush from 'web-push'
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { adminClient } from '@/lib/db/admin-client'
 
 let configured = false
 function ensureConfigured(): boolean {
@@ -21,7 +21,7 @@ const expo = new Expo()
 // doesn't require any server-side credentials for a managed (non-FCM/APNs-direct)
 // Expo app, so this is always "configured".
 export async function sendExpoPushToUser(
-  admin: SupabaseClient,
+  admin: ReturnType<typeof adminClient>,
   userId: string,
   payload: { title: string; body?: string | null; url?: string | null }
 ): Promise<void> {
@@ -71,7 +71,7 @@ export async function sendExpoPushToUser(
 // silently a no-op if VAPID env vars aren't set, so this is safe to call
 // unconditionally from notifyUsers() without gating every call site.
 export async function sendPushToUser(
-  admin: SupabaseClient,
+  admin: ReturnType<typeof adminClient>,
   userId: string,
   payload: { title: string; body?: string | null; url?: string | null }
 ): Promise<void> {

@@ -1,15 +1,8 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/db/admin-client'
 import { createClient as createServerClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Server configuration error.')
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
 
 async function currentActor(admin: ReturnType<typeof adminClient>): Promise<{ id: string | null; name: string }> {
   const sb = await createServerClient()
@@ -151,10 +144,10 @@ export async function getMyPermissions(): Promise<{ permissions: Record<string, 
     const sb = await createServerClient()
     const user = await getAuthedUser(sb)
     if (!user) return { permissions: {}, role: '', error: null }
-    const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).single()
+    const admin = adminClient()
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
     const role = (profile?.role as string) || ''
     if (!role) return { permissions: {}, role: '', error: null }
-    const admin = adminClient()
     const { data: roleData, error } = await admin.from('roles').select('permissions').eq('name', role).maybeSingle()
     if (error) return { permissions: {}, role, error: error.message }
     return { permissions: (roleData?.permissions as Record<string, boolean>) ?? {}, role, error: null }

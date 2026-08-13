@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
+import { adminClient } from '@/lib/db/admin-client'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -24,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  const { data: profile } = await adminClient()
     .from('profiles')
     .select('first_name, last_name, role, is_active, must_change_password')
     .eq('id', user.id)
@@ -46,8 +47,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const userRole = profile?.role || 'User'
 
   const [{ data: roleData }, { data: moduleRows }] = await Promise.all([
-    supabase.from('roles').select('permissions').eq('name', userRole).maybeSingle(),
-    supabase.from('user_module_access').select('module').eq('user_id', user.id),
+    adminClient().from('roles').select('permissions').eq('name', userRole).maybeSingle(),
+    adminClient().from('user_module_access').select('module').eq('user_id', user.id),
   ])
 
   const permissions = (roleData?.permissions as Record<string, boolean> | null) ?? {}

@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import {
   getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers, getEngineerSchedule,
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
+import { getCurrentUserSummary } from '@/app/actions/get-current-user'
 import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
 import { getProductRequestsForWorkOrder } from '@/app/actions/products'
 import type { ProductRequestView } from '@/lib/mobile/core/products'
@@ -237,7 +237,6 @@ const cardLabel: React.CSSProperties = {
 
 export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId: string }) {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
   const [engineers, setEngineers] = useState<Engineer[]>([])
 
@@ -281,11 +280,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       setProductRequests(requests)
       setLoading(false)
     })
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const userId = session?.user.id
-      if (userId) supabase.from('profiles').select('first_name,last_name,role').eq('id', userId).single().then(({ data }) => {
-        if (data) setCurrentUser({ name: `${data.first_name} ${data.last_name}`, role: data.role })
-      })
+    getCurrentUserSummary().then(summary => {
+      if (summary) setCurrentUser(summary)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrderId])

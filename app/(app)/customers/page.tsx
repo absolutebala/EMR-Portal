@@ -1,14 +1,15 @@
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import CustomersPageClient from './CustomersPageClient'
 import type { Customer } from '@/lib/types'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function CustomersPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
 
   const [{ data: profile }, { data: custs }] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
-    supabase.from('customers').select('*').order('created_at', { ascending: false }),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('customers').select('*').order('created_at', { ascending: false }),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
@@ -21,8 +22,8 @@ export default async function CustomersPage() {
     // Fetch all site and transformer counts in 2 bulk queries instead of N×2 queries
     const customerIds = customerRows.map(c => c.id)
     const [{ data: sites }, { data: sns }] = await Promise.all([
-      supabase.from('customer_sites').select('customer_id').in('customer_id', customerIds),
-      supabase.from('transformers').select('customer_id').in('customer_id', customerIds),
+      adminClient().from('customer_sites').select('customer_id').in('customer_id', customerIds),
+      adminClient().from('transformers').select('customer_id').in('customer_id', customerIds),
     ])
 
     const siteMap: Record<string, number> = {}

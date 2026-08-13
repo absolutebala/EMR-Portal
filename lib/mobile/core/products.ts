@@ -1,5 +1,5 @@
 import { logActivity } from '@/lib/activity-log'
-import { type AdminClient, withTimeout } from './shared'
+import { type AdminClient, withTimeout, storageAdminClient } from './shared'
 
 export interface Product {
   id: string
@@ -130,10 +130,10 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
       const buffer = Buffer.from(base64, 'base64')
       const path = `product-requests/${params.workOrderId}-${Date.now()}-${i}.${photo.ext}`
       const upResult = await withTimeout(
-        admin.storage.from('assets').upload(path, buffer, { upsert: true, contentType: photo.mimeType }),
+        storageAdminClient().storage.from('assets').upload(path, buffer, { upsert: true, contentType: photo.mimeType }),
         25000
       )
-      if (upResult && !upResult.error) return admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+      if (upResult && !upResult.error) return storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
       console.error('submitProductRequest: damage photo upload failed', upResult?.error)
       return null
     }))

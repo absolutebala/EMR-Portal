@@ -2,6 +2,7 @@ import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import { getAttendanceGrid } from '@/app/actions/get-attendance'
 import { getRange } from './dateRange'
 import AttendancePageClient from './AttendancePageClient'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function AttendancePage() {
   const supabase = await createClient()
@@ -10,7 +11,7 @@ export default async function AttendancePage() {
   const defaultRange = getRange('week', new Date(), '', '')
 
   const [{ data: profile }, { engineers, dates, cells, error }] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getAttendanceGrid(defaultRange.from, defaultRange.to),
   ])
 

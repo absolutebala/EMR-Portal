@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
+import { adminClient } from '@/lib/db/admin-client'
 import { randomBytes } from 'crypto'
 
 function generateTempPassword(): string {
@@ -110,7 +111,7 @@ export async function inviteUser(payload: {
     module: 'field_management',
   })
 
-  await logActivity(supabase, {
+  await logActivity(adminClient(), {
     actorId: currentUser?.id ?? null,
     actorName: creatorName,
     action: `Invited user ${payload.first_name} ${payload.last_name} (${payload.role})`,

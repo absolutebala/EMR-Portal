@@ -1,13 +1,14 @@
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import { getActivities, getActivityActors } from '@/app/actions/get-activities'
 import ActivitiesPageClient from './ActivitiesPageClient'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function ActivitiesPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
 
   const [{ data: profile }, { activities, total, error }, { actors }] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getActivities({ page: 1 }),
     getActivityActors(),
   ])

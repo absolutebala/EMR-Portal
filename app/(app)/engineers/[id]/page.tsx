@@ -10,6 +10,7 @@ import { getMyPermissions } from '@/app/actions/roles-actions'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 import EngineerExpensesTable from '@/components/engineers/EngineerExpensesTable'
 import EngineerProductRequestsTable from '@/components/engineers/EngineerProductRequestsTable'
+import { adminClient } from '@/lib/db/admin-client'
 
 const ENGINEER_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
@@ -65,7 +66,7 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
 
   if (!profile) notFound()
 
-  const { data: viewerProfile } = await supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
+  const { data: viewerProfile } = await adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
   const userName = viewerProfile ? `${viewerProfile.first_name} ${viewerProfile.last_name}` : 'User'
   const userRole = viewerProfile?.role || role || 'User'
 

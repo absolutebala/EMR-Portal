@@ -1,10 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { adminClient } from '@/lib/db/admin-client'
 
 // Fire-and-forget system activity log, separate from the per-work-order
 // work_order_activity feed. Never throws — a logging failure must not break
 // the calling action.
 export async function logActivity(
-  admin: SupabaseClient,
+  admin: ReturnType<typeof adminClient>,
   params: {
     actorId: string | null
     actorName: string

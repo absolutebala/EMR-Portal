@@ -1,13 +1,14 @@
 import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import SettingsPageClient from './SettingsPageClient'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
 
   const [{ data: profile }, { data }] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
-    supabase.from('settings').select('*').single(),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('settings').select('*').single(),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'

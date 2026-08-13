@@ -8,6 +8,7 @@ import { CronStack } from '../lib/cron-stack'
 import { AuthStack } from '../lib/auth-stack'
 import { DataStack } from '../lib/data-stack'
 import { StorageStack } from '../lib/storage-stack'
+import { PostgrestStack } from '../lib/postgrest-stack'
 
 const app = new cdk.App()
 
@@ -59,3 +60,14 @@ new DataStack(app, 'EmrPortalDataStack', {
 })
 
 new StorageStack(app, 'EmrPortalStorageStack', { env })
+
+// Phase D0 — self-hosted PostgREST in front of RDS, so the app's 62 .from()/.select()
+// call sites don't need a full rewrite to raw SQL. Depends on DataStack's RDS instance
+// (via the emr-portal/PGRST_DB_URI secret, composed out-of-band) and reuses the app
+// service's task security group as the only allowed inbound source.
+new PostgrestStack(app, 'EmrPortalPostgrestStack', {
+  env,
+  vpc: foundation.vpc,
+  cluster: foundation.cluster,
+  taskSecurityGroup: service.taskSecurityGroup,
+})

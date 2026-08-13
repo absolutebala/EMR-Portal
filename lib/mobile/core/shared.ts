@@ -3,16 +3,12 @@
 // (app/api/mobile/v1/*). No 'use server' here — plain functions callable from either
 // a Server Action file or a Route Handler. Business logic lives here exactly once;
 // only the auth-resolution step differs between the two callers.
-import { createClient } from '@supabase/supabase-js'
 import { extractPlaceLabel } from '@/lib/geocode'
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
+import { adminClient } from '@/lib/db/admin-client'
+import { storageAdminClient } from '@/lib/supabase/storage-admin'
 
-export function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
-
+export { adminClient, storageAdminClient }
 export type AdminClient = ReturnType<typeof adminClient>
 
 // Storage/network calls have no built-in timeout — a stalled request would otherwise

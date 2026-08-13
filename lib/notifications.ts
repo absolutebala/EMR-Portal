@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { adminClient } from '@/lib/db/admin-client'
 import { sendPushToUser, sendExpoPushToUser } from './push'
 
 type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Head of Service' | 'Service Manager' }
@@ -6,7 +6,7 @@ type NotifyTarget = { userId: string } | { role: 'Super Admin' | 'Head of Servic
 // Fire-and-forget per-user alert feed, alongside logActivity's system-wide feed.
 // Never throws — a notification failure must not break the calling action.
 export async function notifyUsers(
-  admin: SupabaseClient,
+  admin: ReturnType<typeof adminClient>,
   targets: NotifyTarget[],
   params: {
     type: string

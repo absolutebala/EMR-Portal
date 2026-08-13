@@ -1,12 +1,13 @@
 import type { AdminClient } from './shared'
 
 export async function completePasswordChangeCore(admin: AdminClient, userId: string): Promise<{ error: string | null }> {
-  const [{ error: profileError }, { error: metaError }] = await Promise.all([
-    admin.from('profiles').update({ must_change_password: false, invite_pending: false }).eq('id', userId),
-    admin.auth.admin.updateUserById(userId, { user_metadata: { must_change_password: false } }),
-  ])
+  // profiles.must_change_password is the sole source of truth (Cognito has no
+  // equivalent to Supabase's user_metadata sync this used to also perform).
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({ must_change_password: false, invite_pending: false })
+    .eq('id', userId)
   if (profileError) return { error: profileError.message }
-  if (metaError) return { error: metaError.message }
   return { error: null }
 }
 

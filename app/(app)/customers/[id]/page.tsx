@@ -7,27 +7,28 @@ import ContactsTableClient from '@/components/customers/ContactsTableClient'
 import CustomerNotificationsClient from '@/components/customers/CustomerNotificationsClient'
 import { getWorkOrders } from '@/app/actions/get-work-orders'
 import Link from 'next/link'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
   const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user, { workOrders: notifications }] = await Promise.all([
-    supabase.from('customers').select('*').eq('id', id).single(),
-    supabase.from('customer_sites').select('*').eq('customer_id', id),
-    supabase.from('transformers').select('*').eq('customer_id', id),
-    supabase.from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
+    adminClient().from('customers').select('*').eq('id', id).single(),
+    adminClient().from('customer_sites').select('*').eq('customer_id', id),
+    adminClient().from('transformers').select('*').eq('customer_id', id),
+    adminClient().from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
     getAuthedUser(supabase),
     getWorkOrders(id),
   ])
 
   if (!customer) notFound()
 
-  const { data: profile } = await supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
+  const { data: profile } = await adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single()
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
 
-  const { data: roleData } = await supabase.from('roles').select('permissions').eq('name', userRole).maybeSingle()
+  const { data: roleData } = await adminClient().from('roles').select('permissions').eq('name', userRole).maybeSingle()
   const permissions = (roleData?.permissions as Record<string, boolean> | null) ?? {}
   const hasPerms = Object.keys(permissions).length > 0
   const canEdit = !hasPerms || permissions['Customers — Create / Edit'] !== false

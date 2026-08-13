@@ -2,13 +2,14 @@ import { createClient, getAuthedUser } from '@/lib/supabase/server'
 import { getAllExpenseLogs } from '@/app/actions/expenses'
 import { getMyPermissions } from '@/app/actions/roles-actions'
 import ExpensesPageClient from './ExpensesPageClient'
+import { adminClient } from '@/lib/db/admin-client'
 
 export default async function ExpensesPage() {
   const supabase = await createClient()
   const user = await getAuthedUser(supabase)
 
   const [{ data: profile }, { logs }, { permissions, role }] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getAllExpenseLogs(),
     getMyPermissions(),
   ])

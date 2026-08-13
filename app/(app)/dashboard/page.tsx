@@ -6,6 +6,7 @@ import type { EngineerStatus } from '@/app/actions/get-engineers'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import AssignableList from '@/components/dashboard/AssignableList'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
+import { adminClient } from '@/lib/db/admin-client'
 
 const KPI_CARDS: { key: 'inProgressCount' | 'unassignedCount' | 'pendingProductRequestsCount'; label: string; href: string; color: string; bg: string }[] = [
   { key: 'inProgressCount', label: 'In Progress', href: '/work-orders?status=in_progress', color: '#D97706', bg: '#FEF3C7' },
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
   const user = await getAuthedUser(supabase)
 
   const [{ data: profile }, dashboard] = await Promise.all([
-    supabase.from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
+    adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getDashboardData(),
   ])
 

@@ -1,13 +1,7 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Server configuration error.')
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
+import { adminClient } from '@/lib/db/admin-client'
+import { storageAdminClient } from '@/lib/supabase/storage-admin'
 
 export async function saveSettings(
   settingsId: string,
@@ -39,7 +33,7 @@ export async function uploadLogo(
     const buffer = Buffer.from(base64, 'base64')
     const path = `logos/logo.${ext}`
 
-    const { error: upErr } = await sb.storage
+    const { error: upErr } = await storageAdminClient().storage
       .from('assets')
       .upload(path, buffer, { upsert: true, contentType: mimeType })
 
@@ -52,7 +46,7 @@ export async function uploadLogo(
       return { error: null, url: base64Data }
     }
 
-    const { data: { publicUrl } } = sb.storage.from('assets').getPublicUrl(path)
+    const { data: { publicUrl } } = storageAdminClient().storage.from('assets').getPublicUrl(path)
     await sb
       .from('settings')
       .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })

@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/db/admin-client'
 import { notifyUsers } from '@/lib/notifications'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
 
 function dateStr(d: Date): string {
   return d.toLocaleDateString('en-CA')

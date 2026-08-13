@@ -1,13 +1,6 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Server configuration error.')
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
+import { adminClient } from '@/lib/db/admin-client'
 
 export async function assignForm(
   formId: string,
