@@ -17,13 +17,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://emr-portal-three.vercel.app"
+        "EXPO_PUBLIC_API_BASE_URL": "http://EmrPor-Alb16-6ThX6OgVuHrJ-1597119572.ap-south-2.elb.amazonaws.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://emr-portal-three.vercel.app"
+        "EXPO_PUBLIC_API_BASE_URL": "http://EmrPor-Alb16-6ThX6OgVuHrJ-1597119572.ap-south-2.elb.amazonaws.com"
       }
     }
   },
