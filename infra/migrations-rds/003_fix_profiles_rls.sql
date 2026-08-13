@@ -1,5 +1,7 @@
--- No-op on RDS: this migration only ever touched RLS policies + get_my_role()
--- (a SECURITY DEFINER function reading auth.uid()), both stripped by
--- infra/scripts/prepare-rds-migrations.py per the migration plan's decision to drop
--- RLS entirely (see supabase/migrations/003_fix_profiles_rls.sql for the original).
--- Kept as an empty file to preserve the migration numbering sequence.
+-- Fix infinite recursion in profiles RLS policies.
+-- The old policies queried `profiles` inside the policy itself, causing recursion.
+-- Solution: a SECURITY DEFINER function that bypasses RLS to read the caller's role.
+
+-- Drop old recursive policies
+
+-- Recreate without recursion

@@ -51,9 +51,10 @@ export const handler = async (event: RunEvent) => {
     for (const file of event.files) {
       try {
         const result = await client.query(file.sql)
-        // rows is populated for SELECTs (used by verification queries), omitted
-        // (empty) for DDL/DML — keeps migration-replay output compact.
-        results.push({ file: file.name, status: 'ok', ...(result.rows.length ? { rows: result.rows } : {}) })
+        // rows is populated for SELECTs (used by verification queries), omitted for
+        // DDL/DML — keeps migration-replay output compact. Some commands (e.g. ALTER
+        // TYPE) return rows:undefined rather than an empty array.
+        results.push({ file: file.name, status: 'ok', ...(result.rows?.length ? { rows: result.rows } : {}) })
       } catch (e) {
         results.push({ file: file.name, status: 'error', error: e instanceof Error ? e.message : String(e) })
         break // stop on first failure — later migrations likely depend on earlier ones

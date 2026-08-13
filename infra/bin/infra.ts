@@ -7,6 +7,7 @@ import { ServiceStack } from '../lib/service-stack'
 import { CronStack } from '../lib/cron-stack'
 import { AuthStack } from '../lib/auth-stack'
 import { DataStack } from '../lib/data-stack'
+import { StorageStack } from '../lib/storage-stack'
 
 const app = new cdk.App()
 
@@ -56,3 +57,5 @@ new DataStack(app, 'EmrPortalDataStack', {
   vpc: foundation.vpc,
   taskSecurityGroup: service.taskSecurityGroup,
 })
+
+new StorageStack(app, 'EmrPortalStorageStack', { env })

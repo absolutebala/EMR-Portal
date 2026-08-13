@@ -2,7 +2,7 @@
 create extension if not exists "uuid-ossp";
 
 -- =====================
--- PROFILES (cognito_sub links to the Cognito user once migrated, see Phase F/G)
+-- PROFILES (extends auth.users)
 -- =====================
 create type user_role as enum (
   'Super Admin',
