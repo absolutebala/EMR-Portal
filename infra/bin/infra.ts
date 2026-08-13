@@ -4,6 +4,7 @@ import { FoundationStack } from '../lib/foundation-stack'
 import { CicdStack } from '../lib/cicd-stack'
 import { CodeBuildStack } from '../lib/codebuild-stack'
 import { ServiceStack } from '../lib/service-stack'
+import { CronStack } from '../lib/cron-stack'
 
 const app = new cdk.App()
 
@@ -30,11 +31,16 @@ new CodeBuildStack(app, 'EmrPortalCodeBuildStack', {
   githubRepo: 'EMR-Portal',
 })
 
-new ServiceStack(app, 'EmrPortalServiceStack', {
+const service = new ServiceStack(app, 'EmrPortalServiceStack', {
   env,
   vpc: foundation.vpc,
   cluster: foundation.cluster,
   repository: foundation.repository,
   logGroup: foundation.logGroup,
   imageTag: '22b8830d3d793946e8288c1a84f7ab5100db12a9',
+})
+
+new CronStack(app, 'EmrPortalCronStack', {
+  env,
+  albDnsName: service.loadBalancer.loadBalancerDnsName,
 })
