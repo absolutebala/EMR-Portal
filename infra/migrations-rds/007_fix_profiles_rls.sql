@@ -1,0 +1,2 @@
+-- Fix recursive RLS policies on profiles table.
+-- The old policies use exists(select from profiles...) which causes infinite recursion.

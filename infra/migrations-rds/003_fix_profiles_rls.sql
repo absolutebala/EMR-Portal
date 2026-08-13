@@ -1,0 +1,5 @@
+-- No-op on RDS: this migration only ever touched RLS policies + get_my_role()
+-- (a SECURITY DEFINER function reading auth.uid()), both stripped by
+-- infra/scripts/prepare-rds-migrations.py per the migration plan's decision to drop
+-- RLS entirely (see supabase/migrations/003_fix_profiles_rls.sql for the original).
+-- Kept as an empty file to preserve the migration numbering sequence.

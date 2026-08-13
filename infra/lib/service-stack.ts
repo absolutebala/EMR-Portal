@@ -22,6 +22,7 @@ interface ServiceStackProps extends cdk.StackProps {
 
 export class ServiceStack extends cdk.Stack {
   public readonly loadBalancer: elbv2.ApplicationLoadBalancer
+  public readonly taskSecurityGroup: ec2.SecurityGroup
 
   constructor(scope: Construct, id: string, props: ServiceStackProps) {
     super(scope, id, props)
@@ -39,6 +40,7 @@ export class ServiceStack extends cdk.Stack {
       allowAllOutbound: true,
     })
     taskSg.addIngressRule(albSg, ec2.Port.tcp(3000), 'From ALB only')
+    this.taskSecurityGroup = taskSg
 
     // Created before the task definition specifically so its DNS name (a CloudFormation
     // Fn::GetAtt, no dependency on the service/task definition at the resource level)

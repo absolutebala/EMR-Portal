@@ -6,6 +6,7 @@ import { CodeBuildStack } from '../lib/codebuild-stack'
 import { ServiceStack } from '../lib/service-stack'
 import { CronStack } from '../lib/cron-stack'
 import { AuthStack } from '../lib/auth-stack'
+import { DataStack } from '../lib/data-stack'
 
 const app = new cdk.App()
 
@@ -46,6 +47,12 @@ new CronStack(app, 'EmrPortalCronStack', {
   albDnsName: service.loadBalancer.loadBalancerDnsName,
 })
 
-// Supabase -> AWS-native migration, Phase A. Additive/standalone — no existing stack
-// or app code depends on this yet.
+// Supabase -> AWS-native migration, Phases A/B. Additive/standalone — no existing
+// stack or app code depends on either of these yet.
 new AuthStack(app, 'EmrPortalAuthStack', { env })
+
+new DataStack(app, 'EmrPortalDataStack', {
+  env,
+  vpc: foundation.vpc,
+  taskSecurityGroup: service.taskSecurityGroup,
+})
