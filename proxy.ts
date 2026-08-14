@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { InitiateAuthCommand, AuthFlowType } from '@aws-sdk/client-cognito-identity-provider'
 import { COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
-import { idVerifier } from '@/lib/cognito/verifier'
+import { getIdVerifier } from '@/lib/cognito/verifier'
 import { cognitoClient } from '@/lib/cognito/client'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -92,14 +92,14 @@ export async function proxy(request: NextRequest) {
 
   if (tokens) {
     try {
-      const payload = await idVerifier.verify(tokens.idToken)
+      const payload = await getIdVerifier().verify(tokens.idToken)
       user = await resolveProfileUser(payload.sub, (payload.email as string) ?? '')
     } catch {
       // Expired or invalid — try once to refresh before treating this as signed out.
       const refreshed = await refreshSession(tokens.refreshToken)
       if (refreshed) {
         try {
-          const payload = await idVerifier.verify(refreshed.idToken)
+          const payload = await getIdVerifier().verify(refreshed.idToken)
           user = await resolveProfileUser(payload.sub, (payload.email as string) ?? '')
           refreshedTokens = refreshed
         } catch {

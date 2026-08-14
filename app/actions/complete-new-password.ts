@@ -3,7 +3,7 @@
 import { RespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider'
 import { cognitoClient } from '@/lib/cognito/client'
 import { COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
-import { idVerifier } from '@/lib/cognito/verifier'
+import { getIdVerifier } from '@/lib/cognito/verifier'
 import { getChallengeCookie, clearChallengeCookie, setSessionCookie } from '@/lib/cognito/session'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -31,7 +31,7 @@ export async function completeNewPassword(newPassword: string): Promise<{ error:
       return { error: 'Could not set your password. Please try again.' }
     }
 
-    const payload = await idVerifier.verify(auth.IdToken)
+    const payload = await getIdVerifier().verify(auth.IdToken)
 
     await setSessionCookie({ idToken: auth.IdToken, accessToken: auth.AccessToken, refreshToken: auth.RefreshToken })
     await clearChallengeCookie()

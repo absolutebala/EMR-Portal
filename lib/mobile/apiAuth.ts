@@ -15,11 +15,23 @@ export interface BearerUser {
 // (cached per container), not a network round trip — a real improvement over the old
 // Supabase-based version, which called out to Supabase Auth's live API on every one
 // of these (the highest-QPS auth path in the app: checkins, dashboard polls, etc.).
-const accessVerifier = CognitoJwtVerifier.create({
-  userPoolId: COGNITO_USER_POOL_ID,
-  tokenUse: 'access',
-  clientId: COGNITO_MOBILE_CLIENT_ID,
-})
+//
+// Lazy (not built at module scope) — Next.js's build step statically evaluates every
+// route module, including this one, inside the Docker build where
+// COGNITO_USER_POOL_ID isn't set (runtime-only ECS env var, not a build arg). Building
+// the verifier eagerly crashed the build with "Cannot read properties of undefined
+// (reading 'match')" from CognitoJwtVerifier.create() parsing an undefined pool id.
+let cachedAccessVerifier: ReturnType<typeof CognitoJwtVerifier.create> | undefined
+function getAccessVerifier() {
+  if (!cachedAccessVerifier) {
+    cachedAccessVerifier = CognitoJwtVerifier.create({
+      userPoolId: COGNITO_USER_POOL_ID,
+      tokenUse: 'access',
+      clientId: COGNITO_MOBILE_CLIENT_ID,
+    })
+  }
+  return cachedAccessVerifier
+}
 
 export async function resolveBearerUser(req: NextRequest): Promise<BearerUser | null> {
   const authHeader = req.headers.get('authorization')
@@ -28,7 +40,7 @@ export async function resolveBearerUser(req: NextRequest): Promise<BearerUser | 
   if (!token) return null
 
   try {
-    const payload = await accessVerifier.verify(token)
+    const payload = await getAccessVerifier().verify(token)
     // profiles.cognito_sub links this Cognito identity to its legacy profile row —
     // same mapping proxy.ts's resolveProfileUser reads for the cookie-session path.
     // Access tokens carry no email claim, only sub, so there's nothing else to return.

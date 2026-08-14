@@ -3,7 +3,7 @@
 import { InitiateAuthCommand, AuthFlowType, NotAuthorizedException, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { cognitoClient } from '@/lib/cognito/client'
 import { COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
-import { idVerifier } from '@/lib/cognito/verifier'
+import { getIdVerifier } from '@/lib/cognito/verifier'
 import { setSessionCookie, setChallengeCookie } from '@/lib/cognito/session'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -41,7 +41,7 @@ export async function login(email: string, password: string): Promise<LoginResul
     // last_sign_in_at equivalent to read back (see get-users.ts), so this is the
     // write side of that same value.
     try {
-      const payload = await idVerifier.verify(auth.IdToken)
+      const payload = await getIdVerifier().verify(auth.IdToken)
       await adminClient().from('profiles').update({ last_login_at: new Date().toISOString() }).eq('cognito_sub', payload.sub)
     } catch {
       // best-effort only
