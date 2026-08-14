@@ -49,9 +49,22 @@ new CronStack(app, 'EmrPortalCronStack', {
   albDnsName: service.loadBalancer.loadBalancerDnsName,
 })
 
-// Supabase -> AWS-native migration, Phases A/B. Additive/standalone — no existing
-// stack or app code depends on either of these yet.
-const auth = new AuthStack(app, 'EmrPortalAuthStack', { env })
+const data = new DataStack(app, 'EmrPortalDataStack', {
+  env,
+  vpc: foundation.vpc,
+  taskSecurityGroup: service.taskSecurityGroup,
+})
+
+// Supabase -> AWS-native migration, Phases A/B/G. Additive/standalone — no existing
+// stack or app code depends on this until Phase I's cutover. Depends on DataStack (not
+// ServiceStack) for its post-authentication Lambda's RDS access — reusing
+// ServiceStack's task SG here would create a cycle with the IAM grant below, which
+// makes ServiceStack depend on this stack's userPool.
+const auth = new AuthStack(app, 'EmrPortalAuthStack', {
+  env,
+  vpc: foundation.vpc,
+  dbSecurityGroup: data.dbSecurityGroup,
+})
 
 // Phase F: admin API rewrite (invite/delete/reset-password) uses Cognito's Admin*
 // APIs, which — unlike InitiateAuth/RespondToAuthChallenge/ForgotPassword (Phases D/E,
@@ -66,12 +79,6 @@ auth.userPool.grant(
   'cognito-idp:AdminSetUserPassword',
   'cognito-idp:AdminInitiateAuth',
 )
-
-const data = new DataStack(app, 'EmrPortalDataStack', {
-  env,
-  vpc: foundation.vpc,
-  taskSecurityGroup: service.taskSecurityGroup,
-})
 
 new StorageStack(app, 'EmrPortalStorageStack', { env })
 
