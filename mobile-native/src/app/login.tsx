@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { login } from '@/lib/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -17,10 +17,18 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const result = await login(email.trim(), password);
     setLoading(false);
-    if (signInError) {
-      setError(signInError.message);
+    if (result.status === 'error') {
+      setError(result.error);
+      return;
+    }
+    if (result.status === 'challenge') {
+      // Temp-password (freshly invited, or admin-reset) accounts get no tokens until
+      // this challenge is answered — the session/email are passed as route params
+      // rather than persisted anywhere, since they're only needed for this one
+      // screen transition.
+      router.push({ pathname: '/change-password', params: { session: result.session, email: result.email } });
       return;
     }
     router.replace('/');

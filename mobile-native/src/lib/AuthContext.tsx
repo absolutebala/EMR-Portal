@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { loadSession, onSessionChange, type SessionTokens } from './sessionStore';
+import { logout as logoutAction } from './auth';
 import { apiGet } from './api';
 import type { AuthMeResponse } from './types';
 
 interface AuthState {
-  session: Session | null;
+  session: SessionTokens | null;
   loading: boolean;
   mustChangePassword: boolean;
   engineerName: string | null;
@@ -16,7 +16,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSessionState] = useState<SessionTokens | null>(null);
   const [loading, setLoading] = useState(true);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [engineerName, setEngineerName] = useState<string | null>(null);
@@ -38,14 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    loadSession().then(initial => {
+      setSessionState(initial);
       setLoading(false);
-      if (data.session) refreshMe();
+      if (initial) refreshMe();
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
+    const unsubscribe = onSessionChange(newSession => {
+      setSessionState(newSession);
       setLoading(false);
       if (newSession) {
         refreshMe();
@@ -55,11 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    return unsubscribe;
   }, [refreshMe]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await logoutAction();
   }, []);
 
   return (

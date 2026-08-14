@@ -1,25 +1,41 @@
-import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
-import type { User } from '@supabase/supabase-js'
+import { CognitoJwtVerifier } from 'aws-jwt-verify'
+import { COGNITO_USER_POOL_ID, COGNITO_MOBILE_CLIENT_ID } from '@/lib/cognito/config'
+import { adminClient } from '@/lib/db/admin-client'
 
-const anon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xxxxxxxxxxxxxxxx.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.placeholder',
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+export interface BearerUser {
+  id: string
+}
 
 // Bearer-token auth for the React Native app's REST routes (app/api/mobile/v1/*).
-// Unlike the cookie-session flow (see lib/supabase/server.ts's getAuthedUser, which
-// deliberately avoids re-verifying because proxy.ts already did a live check earlier
-// in the same request), a bearer request has no upstream verification to lean on — it
-// arrives at this route directly, so auth.getUser(token) here IS the live check. Do
-// not "simplify" this to getSession()-style trust; there's nothing to trust yet.
-export async function resolveBearerUser(req: NextRequest): Promise<User | null> {
+// Unlike the cookie-session flow (proxy.ts verifies once per request and stashes
+// claims in a header for lib/cognito/server.ts's getAuthedUser to trust), a bearer
+// request has no upstream verification to lean on — it arrives at this route
+// directly, so this verification IS the live check. Local against Cognito's JWKS
+// (cached per container), not a network round trip — a real improvement over the old
+// Supabase-based version, which called out to Supabase Auth's live API on every one
+// of these (the highest-QPS auth path in the app: checkins, dashboard polls, etc.).
+const accessVerifier = CognitoJwtVerifier.create({
+  userPoolId: COGNITO_USER_POOL_ID,
+  tokenUse: 'access',
+  clientId: COGNITO_MOBILE_CLIENT_ID,
+})
+
+export async function resolveBearerUser(req: NextRequest): Promise<BearerUser | null> {
   const authHeader = req.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) return null
   const token = authHeader.slice(7)
   if (!token) return null
-  const { data, error } = await anon.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
+
+  try {
+    const payload = await accessVerifier.verify(token)
+    // profiles.cognito_sub links this Cognito identity to its legacy profile row —
+    // same mapping proxy.ts's resolveProfileUser reads for the cookie-session path.
+    // Access tokens carry no email claim, only sub, so there's nothing else to return.
+    const { data } = await adminClient().from('profiles').select('id').eq('cognito_sub', payload.sub).maybeSingle()
+    if (!data) return null
+    return { id: data.id }
+  } catch {
+    return null
+  }
 }

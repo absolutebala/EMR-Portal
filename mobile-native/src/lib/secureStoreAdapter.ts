@@ -1,14 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
 
-// Supabase's persisted session payload (access token + refresh token + user object)
-// routinely exceeds SecureStore's real-world per-item size ceiling (historically ~2048
-// bytes on iOS Keychain / Android Keystore) — a plain single setItemAsync call for the
-// whole session silently fails or throws on-device even though it works fine in
-// simulators with more permissive storage. This adapter chunks the value across
-// numbered keys plus a small manifest key recording how many chunks exist, and
-// implements the {getItem,setItem,removeItem} interface supabase-js expects for its
-// `storage` option. Do not swap this for plain AsyncStorage — that would store the
-// session tokens unencrypted on disk.
+// A persisted Cognito session payload (id token + access token + refresh token, all
+// JWTs) routinely exceeds SecureStore's real-world per-item size ceiling (historically
+// ~2048 bytes on iOS Keychain / Android Keystore) — a plain single setItemAsync call
+// for the whole session silently fails or throws on-device even though it works fine
+// in simulators with more permissive storage. This adapter chunks the value across
+// numbered keys plus a small manifest key recording how many chunks exist (see
+// sessionStore.ts, the sole consumer). Do not swap this for plain AsyncStorage — that
+// would store the session tokens unencrypted on disk.
 const CHUNK_SIZE = 1800;
 
 function chunkKey(key: string, index: number) {

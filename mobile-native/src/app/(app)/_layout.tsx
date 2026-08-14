@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/lib/AuthContext';
@@ -14,7 +15,18 @@ import PendingSyncBanner from '@/components/PendingSyncBanner';
 // (mirrors components/mobile/LocationGate.tsx — blocks the app behind a permission
 // prompt, but never on top of an unauthenticated or must-change-password state).
 export default function AppLayout() {
-  const { session, loading, mustChangePassword } = useAuth();
+  const { session, loading, mustChangePassword, signOut } = useAuth();
+
+  // Cognito never issues tokens for a temp-password account until its
+  // NEW_PASSWORD_REQUIRED login challenge is answered (see login.tsx/change-password.tsx)
+  // — so if must_change_password is true for an *already* signed-in session (e.g. an
+  // admin reset this user's password mid-session, per reset-user-password.ts's
+  // AdminSetUserPasswordCommand(Permanent:false)), there's no challenge session to
+  // complete here. Sign out and send them back through a fresh login with their new
+  // temp password instead of trying to reuse a session that's about to be stale.
+  useEffect(() => {
+    if (mustChangePassword) signOut();
+  }, [mustChangePassword, signOut]);
 
   // Mounted here (not inside the dashboard screen) so it keeps running regardless of
   // which tab is focused — Tabs unmounts inactive tab screens by default, which would
@@ -32,8 +44,7 @@ export default function AppLayout() {
     );
   }
 
-  if (!session) return <Redirect href="/login" />;
-  if (mustChangePassword) return <Redirect href="/change-password" />;
+  if (!session || mustChangePassword) return <Redirect href="/login" />;
 
   return (
     <NativeLocationGate>

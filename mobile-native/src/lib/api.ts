@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import * as cognito from './cognito';
+import { loadSession, setSession, clearSession, fromAuthResult } from './sessionStore';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL!;
 
@@ -11,16 +12,16 @@ export class ApiError extends Error {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  const session = await loadSession();
+  return session?.accessToken ?? null;
 }
 
 // Bearer-attaching fetch wrapper for the EMR Portal backend's /api/mobile/v1/* REST
 // routes (see lib/mobile/apiAuth.ts's resolveBearerUser on the server side). A 401
 // means the access token has expired or was rejected — try exactly one refresh +
-// retry (matches supabase-js's own single-refresh-attempt convention) before giving
-// up and signing out, which the root layout's onAuthStateChange listener reacts to by
-// routing back to the login screen. Callers never need to think about token refresh.
+// retry before giving up and clearing the session, which AuthContext's
+// onSessionChange listener reacts to by routing back to the login screen. Callers
+// never need to think about token refresh.
 async function request<T>(path: string, init?: RequestInit, _isRetry = false): Promise<T> {
   const token = await getAccessToken();
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -33,12 +34,17 @@ async function request<T>(path: string, init?: RequestInit, _isRetry = false): P
   });
 
   if (res.status === 401 && !_isRetry) {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (!error && data.session) {
+    const session = await loadSession();
+    try {
+      if (!session?.refreshToken) throw new Error('no refresh token');
+      const result = await cognito.refreshAuth(session.refreshToken);
+      if (!result.AuthenticationResult) throw new Error('refresh failed');
+      await setSession(fromAuthResult(result.AuthenticationResult, session.refreshToken));
       return request<T>(path, init, true);
+    } catch {
+      await clearSession();
+      throw new ApiError('Session expired', 401);
     }
-    await supabase.auth.signOut();
-    throw new ApiError('Session expired', 401);
   }
 
   let body: unknown = null;

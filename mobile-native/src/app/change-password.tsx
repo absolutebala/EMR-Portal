@@ -1,25 +1,30 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
-import { apiPost } from '@/lib/api';
-import { useAuth } from '@/lib/AuthContext';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { completeNewPassword } from '@/lib/auth';
 
-// RN equivalent of the PWA's /mobile/change-password — reached from app/(app)/_layout.tsx
-// when GET /api/mobile/v1/auth/me reports mustChangePassword: true (first login or an
-// admin-triggered reset). Mirrors complete-password-change's two steps: update the
-// Supabase Auth password itself, then clear profiles.must_change_password server-side.
+// Completes the NEW_PASSWORD_REQUIRED challenge login.tsx started for a temp-password
+// account (freshly invited, or admin-reset) — session/email were passed as route
+// params from that one screen transition, not persisted anywhere. Cognito never
+// issues real tokens for a temp-password account until this challenge is answered, so
+// (unlike the old Supabase-based version of this screen) there's no already-signed-in
+// state to handle here — see (app)/_layout.tsx for why a stale must_change_password on
+// an existing session goes through a full sign-out + fresh login instead of landing here.
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const { refreshMe } = useAuth();
+  const { session, email } = useLocalSearchParams<{ session: string; email: string }>();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (!session || !email) {
+      setError('Your session has expired. Please sign in again.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
     if (password !== confirm) {
@@ -28,17 +33,13 @@ export default function ChangePasswordScreen() {
     }
     setLoading(true);
     setError(null);
-    try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) throw new Error(updateError.message);
-      await apiPost('/api/mobile/v1/auth/complete-password-change');
-      await refreshMe();
-      router.replace('/(app)/(tabs)/dashboard');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+    const { error: changeError } = await completeNewPassword(email, session, password);
+    setLoading(false);
+    if (changeError) {
+      setError(changeError);
+      return;
     }
+    router.replace('/(app)/(tabs)/dashboard');
   }
 
   return (
