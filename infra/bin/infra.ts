@@ -35,6 +35,15 @@ new CodeBuildStack(app, 'EmrPortalCodeBuildStack', {
   githubRepo: 'EMR-Portal',
 })
 
+// Phase I cutover, step 1: stage the new Cognito/RDS/PostgREST env vars (and
+// MAINTENANCE_MODE=true) onto the CURRENTLY RUNNING old Supabase-based image first —
+// harmless, since that old code doesn't read any of them. This means the moment
+// CodeBuild's push-triggered deploy (step 2, git push) brings up the new
+// Cognito-integrated code, MAINTENANCE_MODE is already baked in and it comes up
+// straight into the maintenance page — no window where the new code is live but
+// missing required config. imageTag stays on the old SHA here on purpose; it only
+// moves forward once the real new-code deploy has happened (see the comment at
+// Phase I step 4 below, when this flips MAINTENANCE_MODE back off).
 const service = new ServiceStack(app, 'EmrPortalServiceStack', {
   env,
   vpc: foundation.vpc,
@@ -42,6 +51,7 @@ const service = new ServiceStack(app, 'EmrPortalServiceStack', {
   repository: foundation.repository,
   logGroup: foundation.logGroup,
   imageTag: '22b8830d3d793946e8288c1a84f7ab5100db12a9',
+  maintenanceMode: true,
 })
 
 new CronStack(app, 'EmrPortalCronStack', {

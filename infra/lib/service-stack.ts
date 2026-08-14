@@ -18,6 +18,9 @@ interface ServiceStackProps extends cdk.StackProps {
   // known (needed for NEXT_PUBLIC_SITE_URL's client-bundle half, which is baked in at
   // Docker build time — a runtime env var here can only ever fix the server-side half).
   imageTag: string
+  // Phase I cutover switch (proxy.ts) — true blocks the whole app with a 503 page.
+  // A plain env var, so flipping it is a fast CDK-only deploy, no image rebuild.
+  maintenanceMode: boolean
 }
 
 export class ServiceStack extends cdk.Stack {
@@ -87,12 +90,23 @@ export class ServiceStack extends cdk.Stack {
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'emr-portal', logGroup: props.logGroup }),
       environment: {
+        // Storage only (lib/supabase/storage-admin.ts) — new photo/logo uploads still
+        // go to Supabase Storage, a deliberate follow-up left for after this cutover.
+        // Auth and all other DB access no longer touch Supabase at all as of this
+        // deploy (Cognito + RDS/PostgREST below).
         NEXT_PUBLIC_SUPABASE_URL: 'https://tlakzrkpzxoeycpglxwf.supabase.co',
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYWt6cmtwenhvZXljcGdseHdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDgzNDAsImV4cCI6MjA5ODI4NDM0MH0.fA7NhEDqOTW8bT0MKCsSL9ngcgfsFTvkt0-nBBl-nnQ',
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI',
         VAPID_SUBJECT: 'mailto:admin@emrglobal.com',
         NEXT_PUBLIC_SITE_URL: `http://${this.loadBalancer.loadBalancerDnsName}`,
         NODE_ENV: 'production',
+        MAINTENANCE_MODE: props.maintenanceMode ? 'true' : 'false',
+        AWS_REGION: cdk.Stack.of(this).region,
+        POSTGREST_URL: 'http://postgrest.emr-portal.local:3000',
+        // Stable, already-created identifiers, not secrets — same "known value,
+        // hardcoded" convention already used for the Supabase URL above.
+        COGNITO_USER_POOL_ID: 'ap-south-2_suiaA6XPc',
+        COGNITO_WEB_CLIENT_ID: '7brt0h6l1qo5v2href4gv92ds8',
+        COGNITO_MOBILE_CLIENT_ID: 'p1g74ckm0qa7bpa3fpng44qj',
       },
       secrets: {
         SUPABASE_SERVICE_ROLE_KEY: ecs.Secret.fromSecretsManager(serviceRoleKey),

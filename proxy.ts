@@ -72,6 +72,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
+  // Phase I cutover switch — blocks the whole app (not just writes: simpler and safer
+  // to reason about under time pressure than trying to distinguish GET from
+  // mutation-carrying requests) while the Supabase -> RDS/Cognito data migration runs,
+  // so no write can land on Supabase after the final sync snapshot is taken. Flip back
+  // to 'false' (a plain env var update, no image rebuild needed) once verified live.
+  if (process.env.MAINTENANCE_MODE === 'true') {
+    return new NextResponse(
+      '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:60px 20px;"><h2>EMR Portal is briefly offline for maintenance</h2><p>Back shortly — please try again in a few minutes.</p></body></html>',
+      { status: 503, headers: { 'Content-Type': 'text/html', 'Retry-After': '120' } }
+    )
+  }
+
   const { pathname } = request.nextUrl
 
   const tokens = readSessionCookie(request)
