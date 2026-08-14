@@ -74,9 +74,21 @@ export class AuthStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       allowPublicSubnet: true,
       securityGroups: [postAuthSg],
-      bundling: { externalModules: ['@aws-sdk/client-secrets-manager'] },
+      // Deliberate, user-approved tradeoff: this Lambda is VPC-attached (to reach
+      // RDS) with no NAT Gateway, so it has no route to Secrets Manager's API at
+      // runtime — the same constraint schema-runner solved with credentials passed
+      // in its invocation payload, which isn't an option here since Cognito (not us)
+      // controls this Lambda's payload. unsafeUnwrap() bakes the connection string
+      // into this Lambda's config at deploy time via a CloudFormation dynamic
+      // reference (resolved server-side, never appears in the synthesized template
+      // file) instead of fetching it over the network. This does mean anyone who can
+      // read this Lambda's configuration can see the value in plaintext — acceptable
+      // here since this is a single-admin AWS account where that's already true of
+      // every other secret in this migration via the Secrets Manager console.
+      environment: {
+        DB_URI: pgrstDbUriSecret.secretValue.unsafeUnwrap(),
+      },
     })
-    pgrstDbUriSecret.grantRead(this.postAuthFunction)
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'emr-portal-users',
