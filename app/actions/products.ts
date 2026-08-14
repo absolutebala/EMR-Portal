@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { adminClient } from '@/lib/mobile/core/shared'
@@ -27,8 +27,7 @@ export async function getProductsCatalog(): Promise<{ products: Product[]; error
 
 export async function createProduct(params: { name: string; sapCode: string | null; stockQty: number }): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -47,8 +46,7 @@ export async function createProduct(params: { name: string; sapCode: string | nu
 
 export async function updateProduct(id: string, params: { name: string; sapCode: string | null; stockQty: number }): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -65,8 +63,7 @@ export async function updateProduct(id: string, params: { name: string; sapCode:
 
 export async function deleteProduct(id: string): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -92,15 +89,13 @@ export async function submitProductRequest(params: {
   items: { productId: string; quantity: number }[]
   damagePhotos: { base64: string; mimeType: string; ext: string }[]
 }) {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return submitProductRequestCore(adminClient(), user.id, params)
 }
 
 export async function getMyProductRequests() {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { requests: [], error: 'Not authenticated' }
   return getMyProductRequestsCore(adminClient(), user.id)
 }
@@ -146,8 +141,7 @@ export async function updateProductRequestItemStatus(
   extra?: { deliveryEstimate?: string | null; notes?: string | null }
 ): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

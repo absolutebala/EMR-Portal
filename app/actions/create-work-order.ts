@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 
@@ -48,8 +48,7 @@ export async function createWorkOrder(payload: {
   customer_category_id: string | null
 }): Promise<{ error: string | null; id?: string }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -136,8 +135,7 @@ export async function createWorkOrder(payload: {
 
 export async function updateWorkOrderStatus(id: string, status: string): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -172,8 +170,7 @@ export async function updateWorkOrder(id: string, payload: {
   customer_category_id: string | null
 }): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -268,8 +265,7 @@ export async function updateWorkOrder(id: string, payload: {
 
 export async function reassignWorkOrderEngineer(id: string, engineerId: string, scheduledDate?: string | null): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

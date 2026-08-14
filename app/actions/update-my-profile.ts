@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as createServerClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { createClient } from '@supabase/supabase-js'
 
 function adminClient() {
@@ -16,8 +16,7 @@ export async function updateMyProfile(updates: {
   phone: string | null
 }): Promise<{ error: string | null }> {
   try {
-    const sb = await createServerClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
     const { error } = await adminClient().from('profiles').update(updates).eq('id', user.id)
     return { error: error?.message || null }
@@ -31,8 +30,7 @@ export async function changeMyPassword(
   newPassword: string
 ): Promise<{ error: string | null }> {
   try {
-    const sb = await createServerClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user?.email) return { error: 'Not authenticated' }
 
     // Verify current password using a fresh anon client (doesn't affect the current session)

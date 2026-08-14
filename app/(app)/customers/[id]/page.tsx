@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import Topbar from '@/components/layout/Topbar'
 import CustomerInfoClient from '@/components/customers/CustomerInfoClient'
 import TransformerTableClient from '@/components/customers/TransformerTableClient'
@@ -11,14 +11,13 @@ import { adminClient } from '@/lib/db/admin-client'
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
 
   const [{ data: customer }, { data: sites }, { data: transformers }, { data: contacts }, user, { workOrders: notifications }] = await Promise.all([
     adminClient().from('customers').select('*').eq('id', id).single(),
     adminClient().from('customer_sites').select('*').eq('customer_id', id),
     adminClient().from('transformers').select('*').eq('customer_id', id),
     adminClient().from('customer_contacts').select('*').eq('customer_id', id).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
-    getAuthedUser(supabase),
+    getAuthedUser(),
     getWorkOrders(id),
   ])
 

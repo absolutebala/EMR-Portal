@@ -1,17 +1,16 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getMobileDashboardData, getOverdueFollowUps, getEngineerStatusPrompt } from '@/app/actions/mobile-actions'
 import { getMyNotifications } from '@/app/actions/notifications'
 import MobileDashboardClient from './MobileDashboardClient'
 
 export default async function MobileDashboardPage() {
-  const sb = await createClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) redirect('/mobile/login')
-  await requireMobilePasswordChanged(sb, user.id)
+  await requireMobilePasswordChanged(user.id)
 
   const [{ stats, recentJobs, engineer, error }, { followUps }, { prompt }, { unreadCount }] = await Promise.all([
     getMobileDashboardData(),

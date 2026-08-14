@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import type { WorkOrder } from '@/lib/types'
 import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/lib/mobile/core/shared'
 import { extractPlaceLabel } from '@/lib/geocode'
@@ -68,8 +68,7 @@ export interface WorkOrderVisit {
 // fetching + joining every work order, every referenced customer/engineer/category.
 export async function getWorkOrders(customerId?: string, engineerId?: string): Promise<{ workOrders: WorkOrder[]; error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { workOrders: [], error: 'Not authenticated' }
 
     const admin = adminClient()

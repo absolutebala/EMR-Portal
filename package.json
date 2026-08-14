@@ -12,10 +12,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1110.0",
     "@supabase/postgrest-js": "^2.108.2",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@types/pdfkit": "^0.17.6",
+    "aws-jwt-verify": "^5.2.1",
     "docx": "^9.7.1",
     "expo-server-sdk": "^7.1.0",
     "lucide-react": "^1.22.0",

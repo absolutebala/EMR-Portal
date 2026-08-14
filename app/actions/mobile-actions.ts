@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import {
   adminClient, reverseGeocodeCore,
   type MobileWorkOrder, type MobileWorkOrderWithCustomer, type MobileDashboardStats,
@@ -30,8 +30,7 @@ import {
 // so nothing is duplicated between the PWA and the native app. ──────────────────────
 
 export async function getMobileWorkOrders(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
   return getMobileWorkOrdersCore(adminClient(), user.id)
 }
@@ -42,29 +41,25 @@ export async function getMobileDashboardData(): Promise<{
   engineer: { name: string } | null
   error: string | null
 }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
   return getMobileDashboardDataCore(adminClient(), user.id)
 }
 
 export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowUp[]; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { followUps: [], error: 'Not authenticated' }
   return getOverdueFollowUpsCore(adminClient(), user.id)
 }
 
 export async function rescheduleFollowUp(workOrderId: string, newDate: string, offSite?: boolean): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return rescheduleFollowUpCore(adminClient(), user.id, workOrderId, newDate, offSite)
 }
 
 export async function getMobileJobsList(): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { workOrders: [], engineer: null, error: 'Not authenticated' }
   return getMobileJobsListCore(adminClient(), user.id)
 }
@@ -74,28 +69,24 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{ label:
 }
 
 export async function recordLastSeen(lat: number, lng: number): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return recordLastSeenCore(adminClient(), user.id, lat, lng)
 }
 
 export async function logLocationPingIssue(reason: string): Promise<void> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   logLocationPingIssueCore(user?.id ?? null, reason)
 }
 
 export async function checkOpenVisitFollowUp(): Promise<{ followUp: OverdueFollowUp | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { followUp: null, error: 'Not authenticated' }
   return checkOpenVisitFollowUpCore(adminClient(), user.id)
 }
 
 export async function getEngineerStatusPrompt(): Promise<{ prompt: EngineerStatusPrompt | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { prompt: null, error: 'Not authenticated' }
   return getEngineerStatusPromptCore(adminClient(), user.id)
 }
@@ -107,29 +98,25 @@ export async function setEngineerStatus(
   currentLat?: number | null,
   currentLng?: number | null
 ): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return setEngineerStatusCore(adminClient(), user.id, status, workOrderId, startByTime, currentLat, currentLng)
 }
 
 export async function checkNotStartedFollowUp(currentLat: number, currentLng: number): Promise<{ notice: NotStartedNotice | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { notice: null, error: 'Not authenticated' }
   return checkNotStartedFollowUpCore(adminClient(), user.id, currentLat, currentLng)
 }
 
 export async function getMobileWorkOrderBasic(woId: string): Promise<{ workOrder: MobileWorkOrderWithCustomer | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { workOrder: null, error: 'Not authenticated' }
   return getMobileWorkOrderBasicCore(adminClient(), user.id, woId)
 }
 
 export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: MobileWorkOrderDetail | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { detail: null, error: 'Not authenticated' }
   return getMobileWorkOrderDetailCore(adminClient(), user.id, woId)
 }
@@ -139,8 +126,7 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
 // instead of local duplicates. ───────────────────────────────────────────────────────
 
 export async function getMobileWorkOrderWithForm(woId: string) {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
   return getMobileWorkOrderWithFormCore(adminClient(), user.id, woId)
 }
@@ -154,8 +140,7 @@ export async function submitCheckIn(params: {
   mimeType: string
   ext: string
 }): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return submitCheckInCore(adminClient(), user.id, params)
 }
@@ -177,8 +162,7 @@ export async function submitDailyClosure(params: {
   // still happens as normal, plus a flagged entry for the manager's Dashboard card.
   offSite?: boolean
 }): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return submitDailyClosureCore(adminClient(), user.id, params)
 }

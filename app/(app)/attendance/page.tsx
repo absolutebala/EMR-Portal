@@ -1,12 +1,11 @@
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { getAttendanceGrid } from '@/app/actions/get-attendance'
 import { getRange } from './dateRange'
 import AttendancePageClient from './AttendancePageClient'
 import { adminClient } from '@/lib/db/admin-client'
 
 export default async function AttendancePage() {
-  const supabase = await createClient()
-  const user = await getAuthedUser(supabase)
+  const user = await getAuthedUser()
 
   const defaultRange = getRange('week', new Date(), '', '')
 

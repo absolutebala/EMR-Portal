@@ -2,60 +2,23 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { clearActivationToken } from '@/app/actions/clear-activation-token'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { completeNewPassword } from '@/app/actions/complete-new-password'
 
+// The one page every temp-password user (freshly invited, or admin-reset) lands on
+// after login()'s NEW_PASSWORD_REQUIRED challenge — replaces the old three-mechanism
+// version of this page (Supabase token_hash activation links, legacy hash-fragment
+// magic links, and an already-authenticated fallback) and the separate desktop/mobile
+// change-password pages' "already signed in, just update the password" flow. Cognito
+// never issues real tokens for a temp-password account until this challenge is
+// answered, so there's no "already authenticated" state to detect here anymore — if a
+// visitor lands here without having just gone through login()'s challenge, the
+// completeNewPassword() call below fails cleanly with "session expired."
 export default function SetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [email, setEmail] = useState('')
-  const [userId, setUserId] = useState('')
-  const router = useRouter()
-  const supabase = createClient()
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const tokenHash = searchParams.get('token_hash')
-    const type = (searchParams.get('type') || 'recovery') as 'recovery' | 'invite' | 'email'
-
-    if (tokenHash) {
-      // Path A: from /activate — exchange hashed token directly (no Supabase redirect URL needed)
-      supabase.auth.verifyOtp({ token_hash: tokenHash, type })
-        .then(({ data, error }) => {
-          if (error) { setError('This link has expired or already been used. Please ask your admin for a new one.'); return }
-          setEmail(data.user?.email || '')
-          setUserId(data.user?.id || '')
-          setReady(true)
-        })
-      return
-    }
-
-    // Path B: from legacy Supabase redirect (hash fragment with access_token)
-    const hash = window.location.hash
-    const hashParams = new URLSearchParams(hash.replace('#', ''))
-    const accessToken = hashParams.get('access_token')
-    const refreshToken = hashParams.get('refresh_token')
-
-    if (accessToken && refreshToken) {
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        .then(({ data, error }) => {
-          if (error) { setError('Invalid or expired invite link.'); return }
-          setEmail(data.user?.email || '')
-          setUserId(data.user?.id || '')
-          setReady(true)
-        })
-    } else {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) { setEmail(user.email || ''); setUserId(user.id || ''); setReady(true) }
-        else setError('Invalid or expired invite link. Please ask your admin for a new one.')
-      })
-    }
-  }, [supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -63,11 +26,10 @@ export default function SetPasswordPage() {
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) { setError(error.message); setLoading(false); return }
-    // Mark activation complete so the link can no longer be reused
-    if (userId) await clearActivationToken(userId)
-    router.push('/dashboard')
+    const { error } = await completeNewPassword(password)
+    if (error) { setError(error); setLoading(false); return }
+    // Full page navigation so proxy.ts reads the freshly-set session cookie.
+    window.location.href = '/dashboard'
   }
 
   return (
@@ -91,53 +53,39 @@ export default function SetPasswordPage() {
         </div>
 
         <div style={{ background: 'rgba(255,255,255,.97)', borderRadius: 16, padding: 32, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
-          {!ready && !error ? (
-            <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--txm)', fontSize: 13 }}>
-              Verifying your invite…
-            </div>
-          ) : error && !ready ? (
-            <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '12px 14px', fontSize: 12, marginBottom: 16 }}>{error}</div>
-              <a href="/login" style={{ fontSize: 12, color: 'var(--m)', textDecoration: 'none', fontWeight: 500 }}>← Back to sign in</a>
-            </div>
-          ) : (
-            <>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)', margin: '0 0 4px' }}>Create your password</h2>
-              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 20 }}>
-                Setting up account for <strong>{email}</strong>
-              </div>
-              {error && (
-                <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>
-              )}
-              <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 5 }}>New password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    placeholder="Min. 8 characters"
-                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 5 }}>Confirm password</label>
-                  <input
-                    type="password"
-                    value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
-                    required
-                    placeholder="Re-enter your password"
-                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <button type="submit" disabled={loading} style={{ width: '100%', padding: 11, background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
-                  {loading ? 'Saving…' : 'Set password & sign in'}
-                </button>
-              </form>
-            </>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)', margin: '0 0 4px' }}>Set your password</h2>
+          <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 6 }}>
+            Welcome! Please set a permanent password to continue.
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 20 }}>
+            Already set your password?{' '}
+            <a href="/login" style={{ color: 'var(--m)', fontWeight: 600, textDecoration: 'underline' }}>Sign in</a>
+          </div>
+          {error && (
+            <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>
           )}
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 5 }}>New password</label>
+              <input
+                type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                placeholder="Min. 8 characters"
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 5 }}>Confirm password</label>
+              <input
+                type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
+                placeholder="Re-enter your password"
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', padding: 11, background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', opacity: loading ? .7 : 1 }}>
+              {loading ? 'Saving…' : 'Set password & continue'}
+            </button>
+          </form>
         </div>
       </div>
     </div>

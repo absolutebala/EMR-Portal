@@ -1,11 +1,10 @@
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { getProductsCatalog } from '@/app/actions/products'
 import ProductsPageClient from './ProductsPageClient'
 import { adminClient } from '@/lib/db/admin-client'
 
 export default async function ProductsPage() {
-  const supabase = await createClient()
-  const user = await getAuthedUser(supabase)
+  const user = await getAuthedUser()
 
   const [{ data: profile }, { products }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),

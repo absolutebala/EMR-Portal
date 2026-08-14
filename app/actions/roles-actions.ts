@@ -1,12 +1,11 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { createClient as createServerClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 
 async function currentActor(admin: ReturnType<typeof adminClient>): Promise<{ id: string | null; name: string }> {
-  const sb = await createServerClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { id: null, name: 'Admin' }
   const { data: profile } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
   return { id: user.id, name: profile ? `${profile.first_name} ${profile.last_name}` : 'Admin' }
@@ -141,8 +140,7 @@ export async function updateRoleRequiresManager(
 
 export async function getMyPermissions(): Promise<{ permissions: Record<string, boolean>; role: string; error: string | null }> {
   try {
-    const sb = await createServerClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { permissions: {}, role: '', error: null }
     const admin = adminClient()
     const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()

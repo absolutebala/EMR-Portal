@@ -3,8 +3,9 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { login } from '@/app/actions/login'
+import { requestPasswordReset, confirmPasswordReset } from '@/app/actions/forgot-password'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,8 +16,9 @@ export default function LoginPage() {
   const [showForgot, setShowForgot] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [resetSent, setResetSent] = useState(false)
+  const [resetCode, setResetCode] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -30,24 +32,38 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    const result = await login(email, password)
+    if (result.status === 'error') {
+      setError(result.error)
       setLoading(false)
       return
     }
-    router.push('/dashboard')
-    router.refresh()
+    if (result.status === 'challenge') {
+      router.push('/set-password')
+      return
+    }
+    // Full page navigation so proxy.ts reads the freshly-set session cookie.
+    window.location.href = '/dashboard'
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
+    await requestPasswordReset(forgotEmail)
     setLoading(false)
-    if (!error) setResetSent(true)
+    setResetSent(true)
+  }
+
+  async function handleConfirmReset(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const { error } = await confirmPasswordReset(forgotEmail, resetCode, resetPassword)
+    setLoading(false)
+    if (error) { setError(error); return }
+    setShowForgot(false)
+    setResetSent(false)
+    setNotice('Password reset. Sign in with your new password below.')
   }
 
   return (
@@ -122,12 +138,13 @@ export default function LoginPage() {
           ) : (
             <>
               <h2 style={{ fontSize:16, fontWeight:600, color:'var(--tx)', margin:0, marginBottom:2 }}>Reset password</h2>
-              <div style={{ fontSize:11, color:'var(--txm)', marginBottom:20 }}>Enter your registered email. A reset link will be sent.</div>
-              {resetSent ? (
-                <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:8, padding:'12px 14px', fontSize:12 }}>
-                  Reset link sent! Check your email inbox.
-                </div>
-              ) : (
+              <div style={{ fontSize:11, color:'var(--txm)', marginBottom:20 }}>
+                {resetSent ? 'Enter the code we emailed you along with a new password.' : 'Enter your registered email. A reset code will be sent.'}
+              </div>
+              {error && (
+                <div style={{ background:'#FEE2E2', color:'var(--red)', borderRadius:8, padding:'10px 12px', fontSize:12, marginBottom:14 }}>{error}</div>
+              )}
+              {!resetSent ? (
                 <form onSubmit={handleForgotPassword}>
                   <div style={{ marginBottom:14 }}>
                     <label style={{ display:'block', fontSize:11, fontWeight:500, color:'#374151', marginBottom:5 }}>Email address</label>
@@ -138,12 +155,34 @@ export default function LoginPage() {
                     />
                   </div>
                   <button type="submit" disabled={loading} style={{ width:'100%', padding:11, background:'var(--m)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Poppins,sans-serif' }}>
-                    Send reset link
+                    Send reset code
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleConfirmReset}>
+                  <div style={{ marginBottom:14 }}>
+                    <label style={{ display:'block', fontSize:11, fontWeight:500, color:'#374151', marginBottom:5 }}>Reset code</label>
+                    <input
+                      type="text" value={resetCode} onChange={e => setResetCode(e.target.value)} required
+                      placeholder="6-digit code"
+                      style={{ width:'100%', padding:'10px 12px', border:'1.5px solid var(--gm)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'Poppins,sans-serif' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom:20 }}>
+                    <label style={{ display:'block', fontSize:11, fontWeight:500, color:'#374151', marginBottom:5 }}>New password</label>
+                    <input
+                      type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} required
+                      placeholder="Min. 8 characters"
+                      style={{ width:'100%', padding:'10px 12px', border:'1.5px solid var(--gm)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'Poppins,sans-serif' }}
+                    />
+                  </div>
+                  <button type="submit" disabled={loading} style={{ width:'100%', padding:11, background:'var(--m)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Poppins,sans-serif' }}>
+                    Set new password
                   </button>
                 </form>
               )}
               <div style={{ textAlign:'center', marginTop:12 }}>
-                <button onClick={() => { setShowForgot(false); setResetSent(false) }} style={{ fontSize:11, color:'var(--m)', background:'none', border:'none', cursor:'pointer' }}>← Back to sign in</button>
+                <button onClick={() => { setShowForgot(false); setResetSent(false); setError('') }} style={{ fontSize:11, color:'var(--m)', background:'none', border:'none', cursor:'pointer' }}>← Back to sign in</button>
               </div>
             </>
           )}

@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/mobile/core/shared'
 import {
   getMyNotificationsCore, markNotificationReadCore, markAllNotificationsReadCore,
@@ -11,22 +11,19 @@ import {
 // constraint as elsewhere in this codebase).
 
 export async function getMyNotifications(limit = 20): Promise<{ notifications: NotificationView[]; unreadCount: number; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { notifications: [], unreadCount: 0, error: 'Not authenticated' }
   return getMyNotificationsCore(adminClient(), user.id, limit)
 }
 
 export async function markNotificationRead(id: string): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return markNotificationReadCore(adminClient(), user.id, id)
 }
 
 export async function markAllNotificationsRead(): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return markAllNotificationsReadCore(adminClient(), user.id)
 }

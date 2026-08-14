@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import Sidebar from '@/components/layout/Sidebar'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -20,8 +20,7 @@ const PAGE_TITLES: Record<string, string> = {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const user = await getAuthedUser(supabase)
+  const user = await getAuthedUser()
 
   if (!user) redirect('/login')
 
@@ -31,17 +30,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single()
 
-  if (profile && !profile.is_active) {
-    await supabase.auth.signOut()
-    redirect('/login')
-  }
+  // Cognito has no equivalent to Supabase's auth.signOut() being callable here to
+  // revoke the session server-side — this DB check runs on every request regardless,
+  // so a deactivated user stays bounced to /login even if their token is technically
+  // still valid until it naturally expires.
+  if (profile && !profile.is_active) redirect('/login')
 
-  // user_metadata is set by admin API and returned by getUser() — always authoritative.
-  // If metadata explicitly says false, skip redirect even if DB hasn't caught up yet.
-  // Fall back to DB check for users created before metadata was introduced.
-  const metaFlag = user.user_metadata?.must_change_password
-  const mustChange = metaFlag === true || (metaFlag !== false && profile?.must_change_password === true)
-  if (mustChange) redirect('/change-password')
+  // profiles.must_change_password is the sole source of truth (Cognito has no
+  // user_metadata-style claim to cross-check against, unlike Supabase).
+  if (profile?.must_change_password) redirect('/set-password')
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'
   const userRole = profile?.role || 'User'

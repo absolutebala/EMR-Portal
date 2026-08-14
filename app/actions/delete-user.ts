@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { createClient } from '@supabase/supabase-js'
 import { logActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
@@ -18,13 +18,12 @@ function supabaseAdminClient() {
 
 export async function deleteUser(targetUserId: string): Promise<{ error: string | null }> {
   try {
-    const sSb = await serverClient()
-    const user = await getAuthedUser(sSb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated.' }
     if (user.id === targetUserId) return { error: 'You cannot delete your own account.' }
 
-    const { data: currentProfile } = await sSb.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
     const admin = supabaseAdminClient()
+    const { data: currentProfile } = await adminClient().from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
 
     if (currentProfile?.role === 'Service Manager') {
       const { data: target } = await admin.from('profiles').select('created_by').eq('id', targetUserId).single()

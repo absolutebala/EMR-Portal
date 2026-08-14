@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/db/admin-client'
 
 export interface ActivityLogRow {
@@ -26,8 +26,7 @@ export async function getActivities(filters: {
   page?: number
 }): Promise<{ activities: ActivityLogRow[]; total: number; error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { activities: [], total: 0, error: 'Not authenticated.' }
 
     const admin = adminClient()
@@ -50,8 +49,7 @@ export async function getActivities(filters: {
 
 export async function getActivityActors(): Promise<{ actors: ActivityActor[]; error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { actors: [], error: 'Not authenticated.' }
 
     const admin = adminClient()

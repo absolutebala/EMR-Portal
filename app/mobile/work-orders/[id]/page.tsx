@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getMobileWorkOrderDetail } from '@/app/actions/mobile-actions'
 import JobDetailClient from './JobDetailClient'
@@ -11,10 +11,9 @@ interface Props {
 }
 
 export default async function MobileWorkOrderDetailPage({ params }: Props) {
-  const sb = await createClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) redirect('/mobile/login')
-  await requireMobilePasswordChanged(sb, user.id)
+  await requireMobilePasswordChanged(user.id)
 
   const { id } = await params
   const { detail, error } = await getMobileWorkOrderDetail(id)

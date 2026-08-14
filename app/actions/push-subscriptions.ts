@@ -1,15 +1,14 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 
 export async function savePushSubscription(sub: {
   endpoint: string
   keys: { p256dh: string; auth: string }
 }): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -31,8 +30,7 @@ export async function savePushSubscription(sub: {
 
 export async function deletePushSubscription(endpoint: string): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

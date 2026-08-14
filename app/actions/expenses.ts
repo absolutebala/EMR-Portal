@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { adminClient } from '@/lib/mobile/core/shared'
@@ -19,8 +19,7 @@ import {
 // lives there, shared with the RN REST routes.
 
 export async function getExpenseEligibility(workOrderId: string): Promise<{ eligibility: BLEligibility | null; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { eligibility: null, error: 'Not authenticated' }
   return getExpenseEligibilityCore(adminClient(), user.id, workOrderId)
 }
@@ -41,15 +40,13 @@ export async function submitExpenseLog(params: {
   claimType?: 'flat' | 'actual'
   photo?: { base64: string; mimeType: string; ext: string }
 }): Promise<{ error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return submitExpenseLogCore(adminClient(), user.id, params)
 }
 
 export async function getMyExpenseLogs(): Promise<{ logs: ExpenseLogView[]; error: string | null }> {
-  const sb = await serverClient()
-  const user = await getAuthedUser(sb)
+  const user = await getAuthedUser()
   if (!user) return { logs: [], error: 'Not authenticated' }
   return getMyExpenseLogsCore(adminClient(), user.id)
 }
@@ -90,8 +87,7 @@ async function getActorName(admin: ReturnType<typeof adminClient>, userId: strin
 // / Head of Service acting here; rejecting is final at either stage.
 export async function submitManagerDecision(id: string, decision: 'approve' | 'reject'): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
@@ -141,8 +137,7 @@ export async function submitManagerDecision(id: string, decision: 'approve' | 'r
 // cleared stage 1 — this is the final decision either way.
 export async function submitHeadDecision(id: string, decision: 'approve' | 'reject'): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()

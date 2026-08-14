@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import Topbar from '@/components/layout/Topbar'
 import { getEngineerProfile } from '@/app/actions/get-engineers'
 import { getWorkOrders } from '@/app/actions/get-work-orders'
@@ -53,11 +53,10 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
 
 export default async function EngineerProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
 
   const [{ profile }, user, { workOrders: notifications }, { logs: expenses }, { requests: productRequests }, { permissions, role }] = await Promise.all([
     getEngineerProfile(id),
-    getAuthedUser(supabase),
+    getAuthedUser(),
     getWorkOrders(undefined, id),
     getExpenseLogsForEngineer(id),
     getProductRequestsForEngineer(id),

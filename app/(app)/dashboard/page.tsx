@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
 import type { EngineerStatus } from '@/app/actions/get-engineers'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
@@ -51,8 +51,7 @@ function formatTime(d: string) {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const user = await getAuthedUser(supabase)
+  const user = await getAuthedUser()
 
   const [{ data: profile }, dashboard] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),

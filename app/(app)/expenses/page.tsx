@@ -1,12 +1,11 @@
-import { createClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { getAllExpenseLogs } from '@/app/actions/expenses'
 import { getMyPermissions } from '@/app/actions/roles-actions'
 import ExpensesPageClient from './ExpensesPageClient'
 import { adminClient } from '@/lib/db/admin-client'
 
 export default async function ExpensesPage() {
-  const supabase = await createClient()
-  const user = await getAuthedUser(supabase)
+  const user = await getAuthedUser()
 
   const [{ data: profile }, { logs }, { permissions, role }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),

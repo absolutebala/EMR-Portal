@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/db/admin-client'
 import { logActivity } from '@/lib/activity-log'
 
@@ -9,17 +9,16 @@ export async function toggleUserActive(
   isActive: boolean
 ): Promise<{ error: string | null }> {
   try {
-    const sb = await serverClient()
-    const user = await getAuthedUser(sb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated.' }
 
-    const { data: profile } = await sb
+    const admin = adminClient()
+
+    const { data: profile } = await admin
       .from('profiles')
       .select('role, first_name, last_name')
       .eq('id', user.id)
       .single()
-
-    const admin = adminClient()
 
     if (profile?.role === 'Service Manager') {
       const { data: target } = await admin

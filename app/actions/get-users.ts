@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { createClient } from '@supabase/supabase-js'
 
 function adminClient() {
@@ -12,12 +12,11 @@ function adminClient() {
 
 export async function getUsers(): Promise<{ users: unknown[]; error: string | null }> {
   try {
-    const sb = await serverClient()
     const admin = adminClient()
 
     // Run auth check and admin list in parallel — they don't depend on each other
     const [user, { data: authData }] = await Promise.all([
-      getAuthedUser(sb),
+      getAuthedUser(),
       admin.auth.admin.listUsers({ perPage: 1000 }),
     ])
 
@@ -46,7 +45,7 @@ export async function getUsers(): Promise<{ users: unknown[]; error: string | nu
 
     // Get caller role + all profiles in parallel
     const [{ data: profile }, { data, error }] = await Promise.all([
-      sb.from('profiles').select('role').eq('id', user.id).single(),
+      admin.from('profiles').select('role').eq('id', user.id).single(),
       admin.from('profiles').select('*').order('created_at', { ascending: false }),
     ])
 

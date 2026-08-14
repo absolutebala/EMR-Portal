@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { resolveBearerUser } from '@/lib/mobile/apiAuth'
 import { adminClient } from '@/lib/mobile/core/shared'
 import { submitJobFormCore } from '@/lib/mobile/core/workOrders'
@@ -11,7 +11,7 @@ import { submitJobFormCore } from '@/lib/mobile/core/workOrders'
 export async function POST(req: NextRequest) {
   try {
     const bearerUser = await resolveBearerUser(req)
-    const user = bearerUser ?? await getAuthedUser(await serverClient())
+    const user = bearerUser ?? await getAuthedUser()
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json()

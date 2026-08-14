@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { adminClient } from './core/shared'
 import { mustChangePasswordCore } from './core/auth'
 
@@ -12,7 +11,7 @@ import { mustChangePasswordCore } from './core/auth'
 // in mustChangePasswordCore (lib/mobile/core/auth.ts) so the React Native app's
 // GET /api/mobile/v1/auth/me route can reuse the exact same logic as a JSON flag
 // instead of a server-side redirect, which RN has no equivalent for.
-export async function requireMobilePasswordChanged(_sb: SupabaseClient, userId: string) {
+export async function requireMobilePasswordChanged(userId: string) {
   const mustChange = await mustChangePasswordCore(adminClient(), userId)
   if (mustChange) redirect('/mobile/change-password')
 }

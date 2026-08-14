@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { login } from '@/app/actions/login'
 import { useRouter } from 'next/navigation'
 
 export default function MobileLoginPage() {
@@ -12,20 +12,23 @@ export default function MobileLoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    const result = await login(email, password)
+    if (result.status === 'error') {
+      setError(result.error)
       setLoading(false)
       return
     }
-    router.push('/mobile/dashboard')
-    router.refresh()
+    if (result.status === 'challenge') {
+      router.push('/mobile/change-password')
+      return
+    }
+    // Full page navigation so proxy.ts reads the freshly-set session cookie.
+    window.location.href = '/mobile/dashboard'
   }
 
   return (

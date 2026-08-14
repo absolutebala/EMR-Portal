@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -18,13 +18,12 @@ export async function updateUser(
   }
 ): Promise<{ error: string | null }> {
   try {
-    const sSb = await serverClient()
-    const user = await getAuthedUser(sSb)
+    const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated.' }
 
-    const { data: currentProfile } = await sSb.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
-
     const admin = adminClient()
+
+    const { data: currentProfile } = await admin.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
 
     if (currentProfile?.role === 'Service Manager') {
       const { data: target } = await admin.from('profiles').select('created_by').eq('id', userId).single()

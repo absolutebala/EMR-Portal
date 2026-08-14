@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createClient as serverClient, getAuthedUser } from '@/lib/supabase/server'
+import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
 import { randomBytes } from 'crypto'
@@ -44,8 +44,7 @@ export async function inviteUser(payload: {
     return { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set.' }
   }
 
-  const sSb = await serverClient()
-  const currentUser = await getAuthedUser(sSb)
+  const currentUser = await getAuthedUser()
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
