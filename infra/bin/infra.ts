@@ -88,7 +88,12 @@ auth.userPool.grant(
   'cognito-idp:AdminInitiateAuth',
 )
 
-new StorageStack(app, 'EmrPortalStorageStack', { env })
+const storage = new StorageStack(app, 'EmrPortalStorageStack', { env })
+
+// Storage cutover (same-day follow-up after Phase I): new uploads (checkins,
+// receipts, damage photos, visit PDFs/docs, logos) go straight to S3 now instead of
+// Supabase Storage — the app's task role needs write access to the bucket for that.
+storage.bucket.grantPut(service.taskRole)
 
 // Phase D0 — self-hosted PostgREST in front of RDS, so the app's 62 .from()/.select()
 // call sites don't need a full rewrite to raw SQL. Depends on DataStack's RDS instance

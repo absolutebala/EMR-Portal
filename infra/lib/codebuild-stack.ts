@@ -48,11 +48,9 @@ export class CodeBuildStack extends cdk.Stack {
         AWS_REGION: { value: cdk.Stack.of(this).region },
         ECR_REGISTRY: { value: props.repository.repositoryUri.split('/')[0] },
         ECR_REPOSITORY: { value: props.repository.repositoryName },
-        // NEXT_PUBLIC_* build args — public values, fine as plaintext project env vars
-        // (kept in step with the same GitHub Actions repo variables set earlier, so
-        // both pipelines would produce an identical build if GH Actions is ever revived).
-        NEXT_PUBLIC_SUPABASE_URL: { value: 'https://tlakzrkpzxoeycpglxwf.supabase.co' },
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: { value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYWt6cmtwenhvZXljcGdseHdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDgzNDAsImV4cCI6MjA5ODI4NDM0MH0.fA7NhEDqOTW8bT0MKCsSL9ngcgfsFTvkt0-nBBl-nnQ' },
+        // NEXT_PUBLIC_* build args — public values, fine as plaintext project env vars.
+        // Supabase vars removed entirely (2026-08-14 Supabase cutoff) — nothing in the
+        // client bundle has needed them since auth moved server-side to Cognito.
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: { value: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI' },
         NEXT_PUBLIC_SITE_URL: { value: 'http://EmrPor-Alb16-6ThX6OgVuHrJ-1597119572.ap-south-2.elb.amazonaws.com' },
       },

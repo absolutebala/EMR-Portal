@@ -1,6 +1,7 @@
 import { logActivity } from '@/lib/activity-log'
 import { classifyCityTier, getEligibleLimit, isFlatAvailable, type CityTier, type ClaimType, type Grade } from '@/lib/travelGuidelines'
-import { type AdminClient, withTimeout, storageAdminClient } from './shared'
+import { type AdminClient, withTimeout } from './shared'
+import { uploadAsset } from '@/lib/storage/s3'
 
 export interface ExpenseType {
   id: string
@@ -230,14 +231,11 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
       const base64 = params.photo.base64.split(',')[1] ?? params.photo.base64
       const buffer = Buffer.from(base64, 'base64')
       const path = `expenses/${params.workOrderId}-${Date.now()}.${params.photo.ext}`
-      const upResult = await withTimeout(
-        storageAdminClient().storage.from('assets').upload(path, buffer, { upsert: true, contentType: params.photo.mimeType }),
-        25000
-      )
-      if (upResult && !upResult.error) {
-        photoUrl = storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
+      const url = await withTimeout(uploadAsset(path, buffer, params.photo.mimeType), 25000)
+      if (url) {
+        photoUrl = url
       } else {
-        console.error('submitExpenseLog: receipt photo upload failed', upResult?.error)
+        console.error(`submitExpenseLog: receipt photo upload failed or timed out (path: ${path})`)
       }
     }
 

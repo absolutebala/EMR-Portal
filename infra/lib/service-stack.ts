@@ -72,7 +72,6 @@ export class ServiceStack extends cdk.Stack {
     })
     this.taskRole = taskRole
 
-    const serviceRoleKey = secretsmanager.Secret.fromSecretNameV2(this, 'SupabaseServiceRoleKeySecret', 'emr-portal/SUPABASE_SERVICE_ROLE_KEY')
     const vapidPrivateKey = secretsmanager.Secret.fromSecretNameV2(this, 'VapidPrivateKeySecret', 'emr-portal/VAPID_PRIVATE_KEY')
     const cronSecret = secretsmanager.Secret.fromSecretNameV2(this, 'CronSecret', 'emr-portal/CRON_SECRET')
 
@@ -90,11 +89,9 @@ export class ServiceStack extends cdk.Stack {
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'emr-portal', logGroup: props.logGroup }),
       environment: {
-        // Storage only (lib/supabase/storage-admin.ts) — new photo/logo uploads still
-        // go to Supabase Storage, a deliberate follow-up left for after this cutover.
-        // Auth and all other DB access no longer touch Supabase at all as of this
-        // deploy (Cognito + RDS/PostgREST below).
-        NEXT_PUBLIC_SUPABASE_URL: 'https://tlakzrkpzxoeycpglxwf.supabase.co',
+        // No Supabase dependency left at all as of this deploy — auth (Cognito), DB
+        // (RDS/PostgREST), and storage (S3/CloudFront below) are all AWS-native, so
+        // the Supabase account can be safely canceled.
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI',
         VAPID_SUBJECT: 'mailto:admin@emrglobal.com',
         NEXT_PUBLIC_SITE_URL: `http://${this.loadBalancer.loadBalancerDnsName}`,
@@ -103,13 +100,14 @@ export class ServiceStack extends cdk.Stack {
         AWS_REGION: cdk.Stack.of(this).region,
         POSTGREST_URL: 'http://postgrest.emr-portal.local:3000',
         // Stable, already-created identifiers, not secrets — same "known value,
-        // hardcoded" convention already used for the Supabase URL above.
+        // hardcoded" convention already used elsewhere in this file.
         COGNITO_USER_POOL_ID: 'ap-south-2_suiaA6XPc',
         COGNITO_WEB_CLIENT_ID: '7brt0h6l1qo5v2href4gv92ds8',
         COGNITO_MOBILE_CLIENT_ID: 'p1g74ckm0qa7bpa3fpng44qj',
+        S3_BUCKET_NAME: 'emr-portal-assets-prod',
+        CLOUDFRONT_DOMAIN: 'd10atqfr8tij1p.cloudfront.net',
       },
       secrets: {
-        SUPABASE_SERVICE_ROLE_KEY: ecs.Secret.fromSecretsManager(serviceRoleKey),
         VAPID_PRIVATE_KEY: ecs.Secret.fromSecretsManager(vapidPrivateKey),
         CRON_SECRET: ecs.Secret.fromSecretsManager(cronSecret),
       },
@@ -122,7 +120,7 @@ export class ServiceStack extends cdk.Stack {
       desiredCount: 1,
       securityGroups: [taskSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      assignPublicIp: true, // required to pull the image / reach Supabase — no NAT Gateway
+      assignPublicIp: true, // required to pull the image from ECR — no NAT Gateway
       circuitBreaker: { enable: true, rollback: true },
       // With desiredCount 1, the 50% default minHealthyPercent floors to 0 — the old
       // task could be stopped before the new one is healthy. 100/200 forces a real

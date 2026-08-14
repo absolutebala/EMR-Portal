@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { storageAdminClient } from '@/lib/supabase/storage-admin'
+import { uploadAsset } from '@/lib/storage/s3'
 
 export async function saveSettings(
   settingsId: string,
@@ -33,11 +33,9 @@ export async function uploadLogo(
     const buffer = Buffer.from(base64, 'base64')
     const path = `logos/logo.${ext}`
 
-    const { error: upErr } = await storageAdminClient().storage
-      .from('assets')
-      .upload(path, buffer, { upsert: true, contentType: mimeType })
+    const publicUrl = await uploadAsset(path, buffer, mimeType)
 
-    if (upErr) {
+    if (!publicUrl) {
       // Fallback: store data URL directly in the settings row
       await sb
         .from('settings')
@@ -46,7 +44,6 @@ export async function uploadLogo(
       return { error: null, url: base64Data }
     }
 
-    const { data: { publicUrl } } = storageAdminClient().storage.from('assets').getPublicUrl(path)
     await sb
       .from('settings')
       .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })

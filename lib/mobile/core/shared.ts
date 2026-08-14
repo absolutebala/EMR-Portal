@@ -6,9 +6,8 @@
 import { extractPlaceLabel } from '@/lib/geocode'
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
-import { storageAdminClient } from '@/lib/supabase/storage-admin'
 
-export { adminClient, storageAdminClient }
+export { adminClient }
 export type AdminClient = ReturnType<typeof adminClient>
 
 // Storage/network calls have no built-in timeout — a stalled request would otherwise

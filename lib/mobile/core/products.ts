@@ -1,5 +1,6 @@
 import { logActivity } from '@/lib/activity-log'
-import { type AdminClient, withTimeout, storageAdminClient } from './shared'
+import { type AdminClient, withTimeout } from './shared'
+import { uploadAsset } from '@/lib/storage/s3'
 
 export interface Product {
   id: string
@@ -129,12 +130,9 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
       const base64 = photo.base64.split(',')[1] ?? photo.base64
       const buffer = Buffer.from(base64, 'base64')
       const path = `product-requests/${params.workOrderId}-${Date.now()}-${i}.${photo.ext}`
-      const upResult = await withTimeout(
-        storageAdminClient().storage.from('assets').upload(path, buffer, { upsert: true, contentType: photo.mimeType }),
-        25000
-      )
-      if (upResult && !upResult.error) return storageAdminClient().storage.from('assets').getPublicUrl(path).data.publicUrl
-      console.error('submitProductRequest: damage photo upload failed', upResult?.error)
+      const url = await withTimeout(uploadAsset(path, buffer, photo.mimeType), 25000)
+      if (url) return url
+      console.error(`submitProductRequest: damage photo upload failed or timed out (path: ${path})`)
       return null
     }))
     const photoUrls = uploadResults.filter((u): u is string => !!u)
