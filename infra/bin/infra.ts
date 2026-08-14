@@ -35,20 +35,20 @@ new CodeBuildStack(app, 'EmrPortalCodeBuildStack', {
   githubRepo: 'EMR-Portal',
 })
 
-// Phase I cutover, step 4: CodeBuild's push-triggered deploy already replaced the
-// running image with this exact SHA (confirmed live against the deployed task
-// definition) — imageTag updated here to match, so this CDK deploy doesn't
-// accidentally revert it back to the old Supabase-based image. Data verified
-// consistent between Supabase and RDS (all 31 tables, exact row-level match, no drift
-// since Phase C — the app saw no real writes during the migration window) and storage
-// (8/8 files match), so no sync was needed. maintenanceMode flips to false here.
+// Cutover is live (Phase I). imageTag must always match whatever CodeBuild's
+// push-triggered deploy last actually put on the running task (check via
+// `aws ecs describe-task-definition --task-definition emr-portal`) — CodeBuild and CDK
+// both mutate this same task definition through separate paths, so an out-of-date
+// value here would silently revert the image on the next `cdk deploy
+// EmrPortalServiceStack`, even for a change that has nothing to do with the app image
+// (this bit already, twice, during the cutover itself).
 const service = new ServiceStack(app, 'EmrPortalServiceStack', {
   env,
   vpc: foundation.vpc,
   cluster: foundation.cluster,
   repository: foundation.repository,
   logGroup: foundation.logGroup,
-  imageTag: '44b0392e6bb2eefdaa562e8e1b2e5930b5154c36',
+  imageTag: '58e76d349ec61f4eff70052c93d53ef8be5a3a6f',
   maintenanceMode: false,
 })
 
