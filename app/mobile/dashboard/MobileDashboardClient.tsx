@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { logout } from '@/app/actions/logout'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
@@ -76,7 +76,6 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
 
 export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
   const router = useRouter()
-  const supabase = createClient()
   const [queue, setQueue] = useState(overdueFollowUps)
   const [askingAtSite, setAskingAtSite] = useState<{ workOrderId: string; action: 'completed' | 'reschedule' } | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
@@ -141,7 +140,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
   }, [])
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    await logout()
     router.push('/mobile/login')
     router.refresh()
   }

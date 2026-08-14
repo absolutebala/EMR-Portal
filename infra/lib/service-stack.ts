@@ -23,6 +23,7 @@ interface ServiceStackProps extends cdk.StackProps {
 export class ServiceStack extends cdk.Stack {
   public readonly loadBalancer: elbv2.ApplicationLoadBalancer
   public readonly taskSecurityGroup: ec2.SecurityGroup
+  public readonly taskRole: iam.Role
 
   constructor(scope: Construct, id: string, props: ServiceStackProps) {
     super(scope, id, props)
@@ -66,6 +67,7 @@ export class ServiceStack extends cdk.Stack {
       roleName: 'emr-portal-task-role',
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     })
+    this.taskRole = taskRole
 
     const serviceRoleKey = secretsmanager.Secret.fromSecretNameV2(this, 'SupabaseServiceRoleKeySecret', 'emr-portal/SUPABASE_SERVICE_ROLE_KEY')
     const vapidPrivateKey = secretsmanager.Secret.fromSecretNameV2(this, 'VapidPrivateKeySecret', 'emr-portal/VAPID_PRIVATE_KEY')

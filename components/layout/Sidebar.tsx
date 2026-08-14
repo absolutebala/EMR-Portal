@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { logout as logoutAction } from '@/app/actions/logout'
 import EditProfileModal from '@/components/users/EditProfileModal'
 
 interface SidebarProps {
@@ -68,14 +68,13 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [navigating, setNavigating] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
     setNavigating(null)
   }, [pathname])
 
   async function logout() {
-    await supabase.auth.signOut()
+    await logoutAction()
     router.push('/login')
     router.refresh()
   }

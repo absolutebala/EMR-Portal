@@ -1,49 +1,25 @@
 'use server'
 
 import { getAuthedUser } from '@/lib/cognito/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/db/admin-client'
 
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Server configuration error.')
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
-
+// Cognito's ListUsers has no equivalent to Supabase's auth.users.last_sign_in_at, so
+// there's nothing useful left to merge in from a Cognito call here at all (the old
+// merge preferred profiles.last_active_at over it anyway — "a PWA session persists
+// across app opens, so last_sign_in_at alone can look stale for weeks even though the
+// engineer is actively using the app every day"). last_active_at is touched by most
+// mobile actions already; profiles.last_login_at is now written directly by
+// app/actions/login.ts and complete-new-password.ts on successful web sign-in instead.
 export async function getUsers(): Promise<{ users: unknown[]; error: string | null }> {
   try {
-    const admin = adminClient()
-
-    // Run auth check and admin list in parallel — they don't depend on each other
-    const [user, { data: authData }] = await Promise.all([
-      getAuthedUser(),
-      admin.auth.admin.listUsers({ perPage: 1000 }),
-    ])
-
+    const user = await getAuthedUser()
     if (!user) return { users: [], error: 'Not authenticated.' }
 
-    const signInMap: Record<string, string | null> = {}
-    for (const au of authData?.users ?? []) {
-      signInMap[au.id] = au.last_sign_in_at ?? null
-    }
+    const admin = adminClient()
 
-    // "Last login" shows whichever is more recent: an actual credential sign-in
-    // (auth.users.last_sign_in_at) or real app usage (profiles.last_active_at, a
-    // heartbeat touched by most mobile actions). A PWA session persists across app
-    // opens — reopening it silently resumes the session without a fresh sign-in — so
-    // last_sign_in_at alone can look stale for weeks even though the engineer is
-    // actively using the app every day; last_active_at is what actually moves.
-    const merge = (rows: Record<string, unknown>[]) =>
-      rows.map(r => {
-        const signIn = signInMap[r.id as string] ?? null
-        const active = (r.last_active_at as string | null) ?? null
-        const lastLoginAt = signIn && active
-          ? (new Date(active) > new Date(signIn) ? active : signIn)
-          : (active ?? signIn ?? (r.last_login_at as string | null) ?? null)
-        return { ...r, last_login_at: lastLoginAt }
-      })
+    const withRecency = (rows: Record<string, unknown>[]) =>
+      rows.map(r => ({ ...r, last_login_at: (r.last_active_at as string | null) ?? (r.last_login_at as string | null) ?? null }))
 
-    // Get caller role + all profiles in parallel
     const [{ data: profile }, { data, error }] = await Promise.all([
       admin.from('profiles').select('role').eq('id', user.id).single(),
       admin.from('profiles').select('*').order('created_at', { ascending: false }),
@@ -55,10 +31,10 @@ export async function getUsers(): Promise<{ users: unknown[]; error: string | nu
         .select('*')
         .eq('created_by', user.id)
         .order('created_at', { ascending: false })
-      return { users: merge((managed as Record<string, unknown>[]) || []), error: me?.message || null }
+      return { users: withRecency((managed as Record<string, unknown>[]) || []), error: me?.message || null }
     }
 
-    return { users: merge((data as Record<string, unknown>[]) || []), error: error?.message || null }
+    return { users: withRecency((data as Record<string, unknown>[]) || []), error: error?.message || null }
   } catch (e: unknown) {
     return { users: [], error: e instanceof Error ? e.message : String(e) }
   }

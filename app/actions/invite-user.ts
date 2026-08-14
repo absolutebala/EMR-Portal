@@ -1,10 +1,12 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { AdminCreateUserCommand, AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provider'
+import { cognitoClient } from '@/lib/cognito/client'
+import { COGNITO_USER_POOL_ID } from '@/lib/cognito/config'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 
 function generateTempPassword(): string {
   const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
@@ -37,24 +39,14 @@ export async function inviteUser(payload: {
   manager_id: string | null
   grade: string | null
 }): Promise<{ error: string | null; tempPassword?: string }> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set.' }
-  }
-
   const currentUser = await getAuthedUser()
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
+  const admin = adminClient()
 
   let createdBy: string | null = null
   let creatorRole: string | null = null
   let creatorName = 'Admin'
   if (currentUser?.id) {
-    const { data: adminProfile } = await supabase.from('profiles').select('id, role, first_name, last_name').eq('id', currentUser.id).maybeSingle()
+    const { data: adminProfile } = await admin.from('profiles').select('id, role, first_name, last_name').eq('id', currentUser.id).maybeSingle()
     createdBy = adminProfile?.id ?? null
     creatorRole = adminProfile?.role ?? null
     if (adminProfile) creatorName = `${adminProfile.first_name} ${adminProfile.last_name}`
@@ -66,7 +58,7 @@ export async function inviteUser(payload: {
   }
 
   // Check for duplicate employee ID
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from('profiles')
     .select('id')
     .eq('employee_id', payload.employee_id)
@@ -76,20 +68,37 @@ export async function inviteUser(payload: {
 
   const tempPassword = generateTempPassword()
 
-  // Create auth user with a known temporary password
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: payload.email,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: { must_change_password: true },
-  })
+  // Create the Cognito identity with a known temporary password — no invite email at
+  // all (MessageAction: SUPPRESS); the temp password is shown to the inviting admin
+  // to share out-of-band, and the new user hits Cognito's NEW_PASSWORD_REQUIRED
+  // challenge on their first login (see app/actions/login.ts).
+  let cognitoSub: string
+  try {
+    const result = await cognitoClient.send(new AdminCreateUserCommand({
+      UserPoolId: COGNITO_USER_POOL_ID,
+      Username: payload.email,
+      UserAttributes: [
+        { Name: 'email', Value: payload.email },
+        { Name: 'email_verified', Value: 'true' },
+      ],
+      TemporaryPassword: tempPassword,
+      MessageAction: 'SUPPRESS',
+    }))
+    const sub = result.User?.Attributes?.find(a => a.Name === 'sub')?.Value
+    if (!sub) return { error: 'Could not create the user account. Please try again.' }
+    cognitoSub = sub
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : 'Could not create the user account.' }
+  }
 
-  if (authError) return { error: authError.message }
-
-  const userId = authData.user.id
-
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: userId,
+  // profiles.id is NOT Cognito's sub (confirmed in Phase A: Cognito ignores any forced
+  // username/sub value) — it's a fresh id here, same as it always was for a genuinely
+  // new user, with cognito_sub as the separate mapping column proxy.ts and
+  // resolveBearerUser resolve identity through.
+  const profileId = randomUUID()
+  const { error: profileError } = await admin.from('profiles').insert({
+    id: profileId,
+    cognito_sub: cognitoSub,
     first_name: payload.first_name,
     last_name: payload.last_name,
     employee_id: payload.employee_id,
@@ -103,19 +112,23 @@ export async function inviteUser(payload: {
     must_change_password: true,
   })
 
-  if (profileError) return { error: profileError.message }
+  if (profileError) {
+    // Don't leave an orphaned Cognito identity with no profile row behind.
+    await cognitoClient.send(new AdminDeleteUserCommand({ UserPoolId: COGNITO_USER_POOL_ID, Username: payload.email })).catch(() => {})
+    return { error: profileError.message }
+  }
 
-  await supabase.from('user_module_access').insert({
-    user_id: userId,
+  await admin.from('user_module_access').insert({
+    user_id: profileId,
     module: 'field_management',
   })
 
-  await logActivity(adminClient(), {
+  await logActivity(admin, {
     actorId: currentUser?.id ?? null,
     actorName: creatorName,
     action: `Invited user ${payload.first_name} ${payload.last_name} (${payload.role})`,
     entityType: 'user',
-    entityId: userId,
+    entityId: profileId,
   })
 
   return { error: null, tempPassword }

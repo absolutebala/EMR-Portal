@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/db/admin-client'
 
 export async function toggleFormStatus(
   formId: string,
@@ -8,13 +8,7 @@ export async function toggleFormStatus(
   jobType: string,
   forceSwap = false
 ): Promise<{ error: string | null; conflict?: { id: string; name: string } }> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !serviceRoleKey) return { error: 'Server configuration error.' }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
+  const supabase = adminClient()
 
   const newStatus = currentStatus === 'active' ? 'draft' : 'active'
 

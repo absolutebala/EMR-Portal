@@ -1,6 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { AdminCreateUserCommand, AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provider'
+import { cognitoClient } from '@/lib/cognito/client'
+import { COGNITO_USER_POOL_ID } from '@/lib/cognito/config'
+import { adminClient } from '@/lib/db/admin-client'
+import { randomBytes, randomUUID } from 'crypto'
 
 export interface BulkUserRow {
   first_name: string
@@ -15,49 +19,74 @@ export interface BulkInviteResult {
   email: string
   name: string
   status: 'success' | 'error'
-  inviteLink?: string
+  tempPassword?: string
   error?: string
 }
 
-export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteResult[]> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return users.map(u => ({ email: u.email, name: `${u.first_name} ${u.last_name}`, status: 'error', error: 'Server configuration error.' }))
+// Same temp-password generator as invite-user.ts — no email invite link at all
+// (Cognito has no equivalent to Supabase's generateLink), each row's temp password is
+// surfaced in the results UI for the admin to share out-of-band.
+function generateTempPassword(): string {
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const lower = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const special = '@#$!'
+  const all = upper + lower + digits + special
+  const bytes = randomBytes(8)
+  const chars = Array.from(bytes).map(b => all[b % all.length])
+  chars[0] = upper[randomBytes(1)[0] % upper.length]
+  chars[1] = lower[randomBytes(1)[0] % lower.length]
+  chars[2] = digits[randomBytes(1)[0] % digits.length]
+  chars[3] = special[randomBytes(1)[0] % special.length]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomBytes(1)[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]]
   }
+  return chars.join('')
+}
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
+export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteResult[]> {
+  const admin = adminClient()
   const results: BulkInviteResult[] = []
 
   for (const user of users) {
     const name = `${user.first_name} ${user.last_name}`
 
-    // Check duplicate employee ID
-    const { data: existingEmp } = await supabase
+    const { data: existingEmp } = await admin
       .from('profiles').select('id').eq('employee_id', user.employee_id).maybeSingle()
     if (existingEmp) {
       results.push({ email: user.email, name, status: 'error', error: `Employee ID "${user.employee_id}" already exists.` })
       continue
     }
 
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'invite',
-      email: user.email,
-      options: { redirectTo: `${siteUrl}/set-password` },
-    })
-
-    if (linkError) {
-      results.push({ email: user.email, name, status: 'error', error: linkError.message })
+    const tempPassword = generateTempPassword()
+    let cognitoSub: string
+    try {
+      const result = await cognitoClient.send(new AdminCreateUserCommand({
+        UserPoolId: COGNITO_USER_POOL_ID,
+        Username: user.email,
+        UserAttributes: [
+          { Name: 'email', Value: user.email },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+        TemporaryPassword: tempPassword,
+        MessageAction: 'SUPPRESS',
+      }))
+      const sub = result.User?.Attributes?.find(a => a.Name === 'sub')?.Value
+      if (!sub) {
+        results.push({ email: user.email, name, status: 'error', error: 'Could not create the user account.' })
+        continue
+      }
+      cognitoSub = sub
+    } catch (e: unknown) {
+      results.push({ email: user.email, name, status: 'error', error: e instanceof Error ? e.message : 'Could not create the user account.' })
       continue
     }
 
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: linkData.user.id,
+    const profileId = randomUUID()
+    const { error: profileError } = await admin.from('profiles').insert({
+      id: profileId,
+      cognito_sub: cognitoSub,
       first_name: user.first_name,
       last_name: user.last_name,
       employee_id: user.employee_id,
@@ -65,16 +94,18 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
       phone: user.phone || null,
       role: user.role,
       invite_pending: true,
+      must_change_password: true,
     })
 
     if (profileError) {
+      await cognitoClient.send(new AdminDeleteUserCommand({ UserPoolId: COGNITO_USER_POOL_ID, Username: user.email })).catch(() => {})
       results.push({ email: user.email, name, status: 'error', error: profileError.message })
       continue
     }
 
-    await supabase.from('user_module_access').insert({ user_id: linkData.user.id, module: 'field_management' })
+    await admin.from('user_module_access').insert({ user_id: profileId, module: 'field_management' })
 
-    results.push({ email: user.email, name, status: 'success', inviteLink: linkData.properties?.action_link })
+    results.push({ email: user.email, name, status: 'success', tempPassword })
   }
 
   return results

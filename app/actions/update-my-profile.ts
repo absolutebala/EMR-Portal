@@ -1,14 +1,10 @@
 'use server'
 
+import { AdminInitiateAuthCommand, AdminSetUserPasswordCommand, AuthFlowType, NotAuthorizedException } from '@aws-sdk/client-cognito-identity-provider'
+import { cognitoClient } from '@/lib/cognito/client'
+import { COGNITO_USER_POOL_ID, COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
 import { getAuthedUser } from '@/lib/cognito/server'
-import { createClient } from '@supabase/supabase-js'
-
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Server configuration error.')
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
+import { adminClient } from '@/lib/db/admin-client'
 
 export async function updateMyProfile(updates: {
   first_name: string
@@ -33,15 +29,28 @@ export async function changeMyPassword(
     const user = await getAuthedUser()
     if (!user?.email) return { error: 'Not authenticated' }
 
-    // Verify current password using a fresh anon client (doesn't affect the current session)
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const anonSb = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } })
-    const { error: signInErr } = await anonSb.auth.signInWithPassword({ email: user.email, password: currentPassword })
-    if (signInErr) return { error: 'Current password is incorrect.' }
+    // Verify the current password without touching the caller's own session cookie —
+    // stays server-side, no ClientId round-trip to the browser needed.
+    try {
+      await cognitoClient.send(new AdminInitiateAuthCommand({
+        UserPoolId: COGNITO_USER_POOL_ID,
+        ClientId: COGNITO_WEB_CLIENT_ID,
+        AuthFlow: AuthFlowType.ADMIN_USER_PASSWORD_AUTH,
+        AuthParameters: { USERNAME: user.email, PASSWORD: currentPassword },
+      }))
+    } catch (e: unknown) {
+      if (e instanceof NotAuthorizedException) return { error: 'Current password is incorrect.' }
+      throw e
+    }
 
-    const { error } = await adminClient().auth.admin.updateUserById(user.id, { password: newPassword })
-    return { error: error?.message || null }
+    await cognitoClient.send(new AdminSetUserPasswordCommand({
+      UserPoolId: COGNITO_USER_POOL_ID,
+      Username: user.email,
+      Password: newPassword,
+      Permanent: true,
+    }))
+
+    return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }

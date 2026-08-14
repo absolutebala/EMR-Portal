@@ -51,7 +51,21 @@ new CronStack(app, 'EmrPortalCronStack', {
 
 // Supabase -> AWS-native migration, Phases A/B. Additive/standalone — no existing
 // stack or app code depends on either of these yet.
-new AuthStack(app, 'EmrPortalAuthStack', { env })
+const auth = new AuthStack(app, 'EmrPortalAuthStack', { env })
+
+// Phase F: admin API rewrite (invite/delete/reset-password) uses Cognito's Admin*
+// APIs, which — unlike InitiateAuth/RespondToAuthChallenge/ForgotPassword (Phases D/E,
+// no IAM auth required at all) — do require an explicit IAM grant on the caller.
+// Added now even though this app code isn't deployed yet: an IAM policy grant doesn't
+// replace or restart the running task, so there's no live-production risk in doing
+// this ahead of Phase I's actual cutover.
+auth.userPool.grant(
+  service.taskRole,
+  'cognito-idp:AdminCreateUser',
+  'cognito-idp:AdminDeleteUser',
+  'cognito-idp:AdminSetUserPassword',
+  'cognito-idp:AdminInitiateAuth',
+)
 
 const data = new DataStack(app, 'EmrPortalDataStack', {
   env,

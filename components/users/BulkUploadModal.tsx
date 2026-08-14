@@ -120,8 +120,9 @@ export default function BulkUploadModal({ open, onClose, onSaved }: Props) {
     onSaved()
   }
 
-  async function copyLink(link: string, idx: number) {
-    await navigator.clipboard.writeText(link)
+  async function copyPassword(email: string, tempPassword: string, idx: number) {
+    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    await navigator.clipboard.writeText(text)
     setCopiedIdx(idx)
     setTimeout(() => setCopiedIdx(null), 2500)
   }
@@ -255,7 +256,7 @@ export default function BulkUploadModal({ open, onClose, onSaved }: Props) {
             )}
           </div>
 
-          <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10 }}>Copy and share each invite link individually with the user.</div>
+          <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10 }}>Copy and share each temporary password individually with the user.</div>
 
           <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {results.map((r, i) => (
@@ -265,14 +266,14 @@ export default function BulkUploadModal({ open, onClose, onSaved }: Props) {
                   <div style={{ fontSize: 11, color: 'var(--txm)' }}>{r.email}</div>
                   {r.status === 'error' && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>{r.error}</div>}
                 </div>
-                {r.status === 'success' && r.inviteLink && (
+                {r.status === 'success' && r.tempPassword && (
                   <button
-                    onClick={() => copyLink(r.inviteLink!, i)}
+                    onClick={() => copyPassword(r.email, r.tempPassword!, i)}
                     style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--gm)', background: copiedIdx === i ? '#D1FAE5' : '#fff', color: copiedIdx === i ? '#065F46' : 'var(--tx)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
                   >
                     {copiedIdx === i
                       ? <>✓ Copied</>
-                      : <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy invite link</>
+                      : <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy login details</>
                     }
                   </button>
                 )}

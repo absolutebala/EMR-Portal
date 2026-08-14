@@ -3,7 +3,9 @@
 import { InitiateAuthCommand, AuthFlowType, NotAuthorizedException, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { cognitoClient } from '@/lib/cognito/client'
 import { COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
+import { idVerifier } from '@/lib/cognito/verifier'
 import { setSessionCookie, setChallengeCookie } from '@/lib/cognito/session'
+import { adminClient } from '@/lib/db/admin-client'
 
 export type LoginResult =
   | { status: 'ok' }
@@ -34,6 +36,17 @@ export async function login(email: string, password: string): Promise<LoginResul
       return { status: 'error', error: 'Sign-in failed. Please try again.' }
     }
     await setSessionCookie({ idToken: auth.IdToken, accessToken: auth.AccessToken, refreshToken: auth.RefreshToken })
+
+    // Best-effort — a failure here shouldn't block sign-in. Cognito has no
+    // last_sign_in_at equivalent to read back (see get-users.ts), so this is the
+    // write side of that same value.
+    try {
+      const payload = await idVerifier.verify(auth.IdToken)
+      await adminClient().from('profiles').update({ last_login_at: new Date().toISOString() }).eq('cognito_sub', payload.sub)
+    } catch {
+      // best-effort only
+    }
+
     return { status: 'ok' }
   } catch (e: unknown) {
     if (e instanceof NotAuthorizedException || e instanceof UserNotFoundException) {

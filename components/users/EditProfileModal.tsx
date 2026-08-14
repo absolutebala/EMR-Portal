@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
-import { createClient } from '@/lib/supabase/client'
 import { updateMyProfile, changeMyPassword } from '@/app/actions/update-my-profile'
+import { getMyProfile } from '@/app/actions/get-current-user'
 
 const fi: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', boxSizing: 'border-box', transition: 'border .15s' }
 const fiRO: React.CSSProperties = { ...fi, background: 'var(--gl)', color: 'var(--txm)' }
@@ -37,23 +37,15 @@ export default function EditProfileModal({ open, onClose, userEmail }: { open: b
     setShowPwd({ current: false, next: false, confirm: false })
 
     setLoading(true)
-    const sb = createClient()
-    sb.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { setLoading(false); return }
-      sb.from('profiles')
-        .select('first_name, last_name, phone, employee_id')
-        .eq('id', user.id)
-        .single()
-        .then(({ data }) => {
-          setProfile({
-            first_name: data?.first_name || '',
-            last_name: data?.last_name || '',
-            phone: data?.phone || '',
-            email: user.email || userEmail,
-            employee_id: data?.employee_id || '',
-          })
-          setLoading(false)
-        })
+    getMyProfile().then(data => {
+      setProfile({
+        first_name: data?.first_name || '',
+        last_name: data?.last_name || '',
+        phone: data?.phone || '',
+        email: data?.email || userEmail,
+        employee_id: data?.employee_id || '',
+      })
+      setLoading(false)
     })
   }, [open, userEmail])
 

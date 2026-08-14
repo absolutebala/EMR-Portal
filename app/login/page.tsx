@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { login } from '@/app/actions/login'
 import { requestPasswordReset, confirmPasswordReset } from '@/app/actions/forgot-password'
@@ -19,14 +19,6 @@ export default function LoginPage() {
   const [resetCode, setResetCode] = useState('')
   const [resetPassword, setResetPassword] = useState('')
   const router = useRouter()
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const n = params.get('notice')
-    if (n === 'already-active') setNotice('Your account is already active. Sign in below.')
-    else if (n === 'invalid-link') setNotice('This activation link is invalid. Please contact your admin.')
-    else if (n === 'link-error') setNotice('Could not generate activation link. Please contact your admin.')
-  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

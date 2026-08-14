@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect, useCallback } from 'react'
 import { saveForm } from '@/app/actions/save-form'
 import {
   createFormWithDefaults,
@@ -82,8 +81,6 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const [previewSel, setPreviewSel] = useState<Record<string, { c1: boolean; c2: boolean }>>({})
   const [previewObsSel, setPreviewObsSel] = useState<Record<string, 'progress' | 'completed' | 'na'>>({})
-  const supabase = useMemo(() => createClient(), [])
-
   const loadForm = useCallback(async (id: string) => {
     setSections([])
     setPreviewSel({})

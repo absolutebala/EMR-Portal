@@ -42,7 +42,7 @@ export async function completeNewPassword(newPassword: string): Promise<{ error:
     // for the read side of this same mapping).
     await adminClient()
       .from('profiles')
-      .update({ must_change_password: false, invite_pending: false })
+      .update({ must_change_password: false, invite_pending: false, last_login_at: new Date().toISOString() })
       .eq('cognito_sub', payload.sub)
 
     return { error: null }
