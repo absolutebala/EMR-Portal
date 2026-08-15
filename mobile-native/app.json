@@ -32,7 +32,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#121418"
+          "backgroundColor": "#121418",
+          "image": "./assets/images/emr-logo.png",
+          "imageWidth": 200
         }
       ],
       "expo-secure-store",
