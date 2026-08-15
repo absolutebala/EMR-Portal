@@ -56,7 +56,11 @@ export const EMRSplashScreen: React.FC<EMRSplashScreenProps> = ({ onFinish }) =>
         Animated.timing(accentLineOpacity, {
           toValue: 0.6,
           duration: 200,
-          useNativeDriver: true,
+          // Must match accentLineWidth's useNativeDriver setting below — they're
+          // both applied to the same Animated.View, and mixing a native-driven and
+          // JS-driven prop on one component crashes ("...animated node that has
+          // been moved to native earlier...").
+          useNativeDriver: false,
         }),
         Animated.timing(accentLineWidth, {
           toValue: width * 0.4,
@@ -70,7 +74,7 @@ export const EMRSplashScreen: React.FC<EMRSplashScreenProps> = ({ onFinish }) =>
         Animated.timing(accentLineOpacity, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false, // must match accentLineWidth (same Animated.View)
         }),
         Animated.timing(textOpacity, {
           toValue: 1,
