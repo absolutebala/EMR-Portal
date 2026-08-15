@@ -87,6 +87,13 @@ export interface AppSettings {
   date_format: string
   admin_email: string
   whatsapp_api_key: string | null
+  whatsapp_campaign_assigned_engineer: string | null
+  whatsapp_campaign_assigned_customer: string | null
+  whatsapp_campaign_on_the_way: string | null
+  whatsapp_campaign_product_request: string | null
+  whatsapp_campaign_escalation: string | null
+  whatsapp_campaign_completed: string | null
+  whatsapp_campaign_pending: string | null
   sms_gateway: string | null
   sms_api_key: string | null
   sms_sender_id: string | null

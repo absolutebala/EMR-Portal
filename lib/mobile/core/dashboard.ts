@@ -1,4 +1,5 @@
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
+import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import {
   type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
   type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice,
@@ -332,6 +333,17 @@ export async function setEngineerStatusCore(
       available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project', completed: 'Completed',
     }
     logSystemActivity(admin, { actorId: userId, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: userId }).catch(() => {})
+
+    if (status === 'on_the_way' && workOrderId) {
+      const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id').eq('id', workOrderId).maybeSingle()
+      if (wo?.customer_id) {
+        const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
+        if (customer) {
+          sendWhatsApp(admin, 'on_the_way', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+            [customer.contact_person, actorName, wo.wo_number || '', startByTime || '']).catch(() => {})
+        }
+      }
+    }
 
     return { error: null }
   } catch (e: unknown) {

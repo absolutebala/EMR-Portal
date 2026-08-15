@@ -4,6 +4,11 @@ import { adminClient } from '@/lib/db/admin-client'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
+import { sendWhatsApp } from '@/lib/messaging/whatsapp'
+
+function formatScheduledDate(d: string | null | undefined): string {
+  return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not scheduled'
+}
 
 function todayDatePrefix(): string {
   const d = new Date()
@@ -110,8 +115,10 @@ export async function createWorkOrder(payload: {
     const actorName = creator ? `${creator.first_name} ${creator.last_name}` : 'Admin'
 
     const activityRows = [{ work_order_id: wo.id, action: `Notification created by ${actorName}`, actor_name: actorName }]
+    let assignedEngineer: { first_name: string; last_name: string; phone: string | null } | null = null
     if (payload.engineer_id) {
-      const { data: eng } = await admin.from('profiles').select('first_name, last_name').eq('id', payload.engineer_id).single()
+      const { data: eng } = await admin.from('profiles').select('first_name, last_name, phone').eq('id', payload.engineer_id).single()
+      assignedEngineer = eng
       const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
       activityRows.push({ work_order_id: wo.id, action: `Assigned to ${engName}`, actor_name: actorName })
     }
@@ -125,6 +132,18 @@ export async function createWorkOrder(payload: {
         body: `${actorName} assigned you a new notification.`,
         entityType: 'work_order', entityId: wo.id, linkPath: `/mobile/work-orders/${wo.id}`,
       }).catch(() => {})
+
+      const { data: customer } = await admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', payload.customer_id).maybeSingle()
+      const engName = assignedEngineer ? `${assignedEngineer.first_name} ${assignedEngineer.last_name}` : 'Engineer'
+      const scheduledLabel = formatScheduledDate(payload.scheduled_date)
+
+      sendWhatsApp(admin, 'assigned_engineer', [{ phone: assignedEngineer?.phone, userName: assignedEngineer?.first_name || 'Engineer' }],
+        [assignedEngineer?.first_name || 'Engineer', payload.wo_number, customer?.name || '', scheduledLabel]).catch(() => {})
+
+      if (customer) {
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+          [customer.contact_person, payload.wo_number, engName, scheduledLabel]).catch(() => {})
+      }
     }
 
     return { error: null, id: wo.id }
@@ -176,7 +195,7 @@ export async function updateWorkOrder(id: string, payload: {
     const admin = adminClient()
 
     // Fetch current WO to detect changes
-    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', id).single()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id').eq('id', id).single()
     if (!current) return { error: 'Notification not found' }
 
     // Check WO number uniqueness (skip if unchanged)
@@ -231,7 +250,7 @@ export async function updateWorkOrder(id: string, payload: {
       { work_order_id: id, action: `Notification updated by ${actorName}`, actor_name: actorName },
     ]
     if (payload.engineer_id && payload.engineer_id !== current.engineer_id) {
-      const { data: eng } = await admin.from('profiles').select('first_name, last_name').eq('id', payload.engineer_id).single()
+      const { data: eng } = await admin.from('profiles').select('first_name, last_name, phone').eq('id', payload.engineer_id).single()
       const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
       const verb = current.engineer_id ? 'Reassigned' : 'Assigned'
       activityRows.push({ work_order_id: id, action: `${verb} to ${engName}`, actor_name: actorName })
@@ -242,6 +261,15 @@ export async function updateWorkOrder(id: string, payload: {
         body: `${actorName} ${verb.toLowerCase()} you this notification.`,
         entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
       }).catch(() => {})
+
+      const { data: customer } = await admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle()
+      const scheduledLabel = formatScheduledDate(payload.scheduled_date)
+      sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
+        [eng?.first_name || 'Engineer', payload.wo_number, customer?.name || '', scheduledLabel]).catch(() => {})
+      if (customer) {
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+          [customer.contact_person, payload.wo_number, engName, scheduledLabel]).catch(() => {})
+      }
 
       // The previous engineer flagged this job "needs reassignment" during closure —
       // let them know it's been picked up now that someone else has it.
@@ -269,7 +297,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
-    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status').eq('id', id).maybeSingle()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id').eq('id', id).maybeSingle()
 
     const { error } = await admin.from('work_orders').update({
       engineer_id: engineerId,
@@ -281,7 +309,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
 
     const [{ data: actor }, { data: eng }] = await Promise.all([
       admin.from('profiles').select('first_name, last_name').eq('id', user.id).single(),
-      admin.from('profiles').select('first_name, last_name').eq('id', engineerId).single(),
+      admin.from('profiles').select('first_name, last_name, phone').eq('id', engineerId).single(),
     ])
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
@@ -296,6 +324,17 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
         body: `${actorName} reassigned you this notification.`,
         entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
       }).catch(() => {})
+
+      if (current?.customer_id) {
+        const { data: customer } = await admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle()
+        const scheduledLabel = formatScheduledDate(scheduledDate)
+        sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
+          [eng?.first_name || 'Engineer', current.wo_number || '', customer?.name || '', scheduledLabel]).catch(() => {})
+        if (customer) {
+          sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+            [customer.contact_person, current.wo_number || '', engName, scheduledLabel]).catch(() => {})
+        }
+      }
 
       if (current?.status === 'needs_reassignment' && current.engineer_id) {
         notifyUsers(admin, [{ userId: current.engineer_id }], {

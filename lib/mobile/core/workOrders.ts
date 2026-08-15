@@ -1,5 +1,6 @@
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
+import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import {
@@ -464,6 +465,24 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       }).eq('id', userId).then(() => {}, () => {})
     }
 
+    // Fetched once, reused below both for the customer-facing WhatsApp send (every
+    // closure outcome) and the off-site/needs-reassignment activity log further down.
+    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id').eq('id', params.workOrderId).maybeSingle()
+
+    if (wo?.customer_id) {
+      const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
+      if (customer) {
+        const recipient = { phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }
+        if (params.outcome === 'completed') {
+          const completedDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          sendWhatsApp(admin, 'completed', [recipient], [customer.contact_person, wo.wo_number || '', engineerName, completedDate]).catch(() => {})
+        } else {
+          const revisitLabel = params.revisitDate ? new Date(params.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+          sendWhatsApp(admin, 'pending', [recipient], [customer.contact_person, wo.wo_number || '', engineerName, revisitLabel]).catch(() => {})
+        }
+      }
+    }
+
     const activityMsg = params.outcome === 'completed'
       ? `Marked notification completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
       : params.needsReassignment
@@ -472,8 +491,6 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     logActivity(admin, params.workOrderId, userId, activityMsg).catch(() => {})
 
     if (params.offSite || params.needsReassignment) {
-      const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
-
       if (params.offSite) {
         logSystemActivity(admin, {
           actorId: userId, actorName: engineerName,
@@ -489,6 +506,12 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
           body: `${engineerName} marked this notification as needing reassignment to a different engineer.`,
           entityType: 'work_order', entityId: params.workOrderId, linkPath: `/work-orders/${params.workOrderId}`,
         }).catch(() => {})
+
+        const { data: admins } = await admin.from('profiles').select('first_name, phone')
+          .in('role', ['Super Admin', 'Head of Service', 'Service Manager']).not('phone', 'is', null)
+        sendWhatsApp(admin, 'escalation',
+          (admins || []).map(a => ({ phone: a.phone, userName: a.first_name })),
+          [wo?.wo_number || '', engineerName, 'Needs reassignment']).catch(() => {})
       }
     }
 

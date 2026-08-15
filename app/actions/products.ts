@@ -3,6 +3,7 @@
 import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
+import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { adminClient } from '@/lib/mobile/core/shared'
 import {
   fetchRequestViews, searchProductsCore, submitProductRequestCore, getMyProductRequestsCore,
@@ -152,7 +153,7 @@ export async function updateProductRequestItemStatus(
     if (extra?.deliveryEstimate !== undefined) patch.delivery_estimate = extra.deliveryEstimate
     if (extra?.notes !== undefined) patch.admin_notes = extra.notes
 
-    const { data: item } = await admin.from('product_request_items').select('request_id').eq('id', itemId).maybeSingle()
+    const { data: item } = await admin.from('product_request_items').select('request_id, products(name)').eq('id', itemId).maybeSingle()
 
     const { error } = await admin.from('product_request_items').update(patch).eq('id', itemId)
     if (error) return { error: error.message }
@@ -172,6 +173,14 @@ export async function updateProductRequestItemStatus(
           entityType: 'product_request_item', entityId: itemId,
           linkPath: reqRow.work_order_id ? `/mobile/work-orders/${reqRow.work_order_id}` : '/mobile/requests',
         }).catch(() => {})
+
+        const [{ data: eng }, { data: wo }] = await Promise.all([
+          admin.from('profiles').select('first_name, phone').eq('id', reqRow.engineer_id).maybeSingle(),
+          admin.from('work_orders').select('wo_number').eq('id', reqRow.work_order_id).maybeSingle(),
+        ])
+        const productName = item.products?.[0]?.name || 'item'
+        sendWhatsApp(admin, 'product_request', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
+          [eng?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName]).catch(() => {})
       }
     }
 

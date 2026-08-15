@@ -21,11 +21,32 @@ interface SettingsShape {
   date_format: string
   admin_email: string
   whatsapp_api_key: string
+  whatsapp_campaign_assigned_engineer: string
+  whatsapp_campaign_assigned_customer: string
+  whatsapp_campaign_on_the_way: string
+  whatsapp_campaign_product_request: string
+  whatsapp_campaign_escalation: string
+  whatsapp_campaign_completed: string
+  whatsapp_campaign_pending: string
   sms_gateway: string
   sms_api_key: string
   sms_sender_id: string
   logo_url: string
 }
+
+// Each Combirds WhatsApp campaign must already exist and be "Live" in the org's own
+// Combirds dashboard, built to accept these exact params in this exact order — see the
+// matching doc comment in lib/messaging/whatsapp.ts (the actual source of truth this
+// mirrors).
+const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string }[] = [
+  { key: 'whatsapp_campaign_assigned_engineer', label: 'Assigned / reassigned — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Customer name  4) Scheduled date' },
+  { key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Scheduled date' },
+  { key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign', params: '1) Customer name  2) Engineer name  3) Notification number  4) Start-by time' },
+  { key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Completion date' },
+  { key: 'whatsapp_campaign_pending', label: 'Notification pending (follow-up) — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Follow-up date' },
+  { key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Status  4) Product name' },
+  { key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign', params: '1) Notification number  2) Engineer name  3) Reason' },
+]
 
 interface Props {
   initialSettings: SettingsShape
@@ -98,13 +119,38 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
           <h3 style={h3s}>Notifications</h3>
           <p style={ps}>Configure channels for customer and engineer notifications.</p>
           <div style={grid2}>
-            <div><label style={fl2}>WhatsApp Business API key</label><input style={fi2} value={settings.whatsapp_api_key} onChange={e => set('whatsapp_api_key', e.target.value)} placeholder="API key from Meta Business" /></div>
+            <div><label style={fl2}>Combirds API key</label><input style={fi2} value={settings.whatsapp_api_key} onChange={e => set('whatsapp_api_key', e.target.value)} placeholder="API key from your Combirds dashboard" /></div>
             <div><label style={fl2}>SMS gateway</label><select style={fi2} value={settings.sms_gateway} onChange={e => set('sms_gateway', e.target.value)}><option value="twilio">Twilio</option><option value="msg91">MSG91</option><option value="textlocal">TextLocal</option></select></div>
-            <div><label style={fl2}>SMS API key</label><input style={fi2} value={settings.sms_api_key} onChange={e => set('sms_api_key', e.target.value)} placeholder="SMS gateway API key" /></div>
+            <div><label style={fl2}>SMS API key</label><input style={fi2} value={settings.sms_api_key} onChange={e => set('sms_api_key', e.target.value)} placeholder="SMS gateway API key (not yet active)" /></div>
             <div><label style={fl2}>Sender ID</label><input style={fi2} value={settings.sms_sender_id} onChange={e => set('sms_sender_id', e.target.value)} placeholder="e.g. EMRGLB" /></div>
           </div>
+
+          <div style={{ marginTop: 18, marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>WhatsApp campaign mapping</div>
+            <p style={ps}>Each campaign must already exist and be set to &quot;Live&quot; in your Combirds dashboard, built to accept the listed params in that exact order. Leave blank to skip that notification.</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {CAMPAIGN_FIELDS.map(f => (
+              <div key={f.key}>
+                <label style={fl2}>{f.label}</label>
+                <input style={fi2} value={settings[f.key]} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
+                <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
+              </div>
+            ))}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-            <button onClick={() => save('notifications', { whatsapp_api_key: settings.whatsapp_api_key || null, sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>
+            <button onClick={() => save('notifications', {
+              whatsapp_api_key: settings.whatsapp_api_key || null,
+              whatsapp_campaign_assigned_engineer: settings.whatsapp_campaign_assigned_engineer || null,
+              whatsapp_campaign_assigned_customer: settings.whatsapp_campaign_assigned_customer || null,
+              whatsapp_campaign_on_the_way: settings.whatsapp_campaign_on_the_way || null,
+              whatsapp_campaign_product_request: settings.whatsapp_campaign_product_request || null,
+              whatsapp_campaign_escalation: settings.whatsapp_campaign_escalation || null,
+              whatsapp_campaign_completed: settings.whatsapp_campaign_completed || null,
+              whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
+              sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null,
+            })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>
               {saving === 'notifications' ? 'Saving…' : 'Save notification settings'}
             </button>
             {saved === 'notifications' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
