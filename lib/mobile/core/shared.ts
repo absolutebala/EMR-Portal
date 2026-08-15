@@ -294,7 +294,9 @@ export interface MobileFormRow {
   table_id: string
   parent_row_id: string | null
   row_label: string
+  row_label_hi?: string | null
   sno_label: string | null
+  sno_label_hi?: string | null
   order_index: number
 }
 
@@ -304,7 +306,9 @@ export interface MobileFormTable {
   status_type: string
   has_subrows: boolean
   col1_label: string | null
+  col1_label_hi?: string | null
   col2_label: string | null
+  col2_label_hi?: string | null
   order_index: number
   rows: MobileFormRow[]
 }
@@ -313,6 +317,7 @@ export interface MobileFormField {
   id: string
   section_id: string
   label: string
+  label_hi?: string | null
   field_type: string
   is_required: boolean
   prefill_from_job: boolean
@@ -325,6 +330,7 @@ export interface MobileFormField {
 export interface MobileFormSection {
   id: string
   title: string
+  title_hi?: string | null
   order_index: number
   fields: MobileFormField[]
   tables: MobileFormTable[]

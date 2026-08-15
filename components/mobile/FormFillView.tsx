@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { MobileForm, MobileFormField, MobileFormRow } from '@/lib/mobile/core/shared'
+import type { MobileForm, MobileFormField, MobileFormRow, MobileFormTable } from '@/lib/mobile/core/shared'
 import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import SignaturePad from './SignaturePad'
@@ -18,12 +18,16 @@ interface Props {
 }
 
 // Best-effort label -> job-data mapping for fields the Form Builder marked "prefill from job".
-// There's no formal schema linking a field to a specific job attribute, only the label text.
-function getPrefillValue(label: string, wo: MobileWorkOrderWithCustomer): string {
+// There's no formal schema linking a field to a specific job attribute, only the label text
+// (plus the section title, needed to disambiguate a bare "Phone No." field that appears
+// under both a Customer section and an Engineer section with the same generic wording).
+function getPrefillValue(label: string, sectionTitle: string, wo: MobileWorkOrderWithCustomer): string {
   const l = label.toLowerCase()
+  const s = sectionTitle.toLowerCase()
   if (l.includes('engineer') && l.includes('name')) return wo.engineer_name || ''
   if (l.includes('customer') && l.includes('name')) return wo.customer_name
   if (l.includes('contact')) return wo.customer_contact || ''
+  if (l.includes('phone') && (l.includes('customer') || s.includes('customer'))) return wo.customer_contact || ''
   if (l.includes('installation location') || (l.includes('site') && l.includes('address'))) return wo.site_address || ''
   if (l.includes('serial')) return wo.serial_numbers.join(', ')
   if (l.includes('rating')) return wo.rating || ''
@@ -31,10 +35,24 @@ function getPrefillValue(label: string, wo: MobileWorkOrderWithCustomer): string
   return ''
 }
 
+function todayIsoDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Shows the Hindi text when the toggle is set to Hindi and a translation exists,
+// otherwise falls back to English — most forms have no _hi content at all.
+function t(en: string, hi: string | null | undefined, language: Language): string {
+  return language === 'hi' && hi ? hi : en
+}
+
+type Language = 'en' | 'hi'
+
 export default function FormFillView({ workOrder, form, existingSubmission }: Props) {
   const router = useRouter()
   const [fieldValues, setFieldValues] = useState<FieldValues>({})
   const [rowValues, setRowValues] = useState<RowValues>({})
+  const [language, setLanguage] = useState<Language>('en')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [visitCompleted, setVisitCompleted] = useState(false)
@@ -64,13 +82,19 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
       loadedRows = d.table_rows || {}
     }
 
-    // Auto-fill "prefill from job" fields that weren't already captured by a draft/submission
+    // Auto-fill "prefill from job" fields that weren't already captured by a draft/submission.
+    // Date fields always default to today regardless of prefill_from_job — there's no job
+    // data for "today's date", it's just the sensible default — and stay editable so the
+    // field engineer can correct it (e.g. filling the form a day late).
     if (form) {
       for (const sec of form.sections) {
         for (const f of sec.fields) {
           if (f.prefill_from_job && !loadedFields[f.id]) {
-            const v = getPrefillValue(f.label, workOrder)
+            const v = getPrefillValue(f.label, sec.title, workOrder)
             if (v) loadedFields = { ...loadedFields, [f.id]: v }
+          }
+          if (f.field_type === 'date' && !loadedFields[f.id]) {
+            loadedFields = { ...loadedFields, [f.id]: todayIsoDate() }
           }
         }
       }
@@ -363,7 +387,27 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 12 }}>{form.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14' }}>{form.name}</div>
+              <div style={{ display: 'flex', background: '#F5F3F5', borderRadius: 8, padding: 2 }}>
+                {(['en', 'hi'] as const).map(lang => (
+                  <button
+                    key={lang}
+                    type="button"
+                    className="mtap"
+                    onClick={() => setLanguage(lang)}
+                    style={{
+                      padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: 'none',
+                      cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+                      background: language === lang ? '#7D1D3F' : 'transparent',
+                      color: language === lang ? '#fff' : '#7A6870',
+                    }}
+                  >
+                    {lang === 'en' ? 'English' : 'हिंदी'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {form.sections.map(section => {
               if (section.fields.length === 0 && section.tables.length === 0) return null
@@ -377,7 +421,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                   padding: '10px 14px',
                   fontSize: 12, fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase',
                 }}>
-                  {section.title}
+                  {t(section.title, section.title_hi, language)}
                 </div>
                 <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', border: '1px solid #E5E0E3', borderTop: 'none', overflow: 'hidden' }}>
 
@@ -390,6 +434,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
                       onChange={setField}
                       bordered={fi > 0}
                       isIncomplete={incompleteIds.has(field.id)}
+                      language={language}
                     />
                   ))}
 
@@ -404,7 +449,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 
                     return (
                       <div key={table.id} style={{ borderTop: (ti > 0 || section.fields.length > 0) ? '1px solid #F5F3F5' : 'none' }}>
-                        {renderTable(table.status_type, topRows, childMap, rowValues, setRowStatus, setRowRemarks, incompleteIds)}
+                        {renderTable(table, topRows, childMap, rowValues, setRowStatus, setRowRemarks, incompleteIds, language)}
                       </div>
                     )
                   })}
@@ -451,22 +496,25 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 const EMPTY_ROW_VALUE = { status: '', remarks: '' }
 
 function renderTable(
-  statusType: string,
+  table: MobileFormTable,
   topRows: MobileFormRow[],
   childMap: Record<string, MobileFormRow[]>,
   rowValues: RowValues,
   setRowStatus: (id: string, status: string) => void,
   setRowRemarks: (id: string, remarks: string) => void,
-  incompleteIds: Set<string>
+  incompleteIds: Set<string>,
+  language: Language
 ) {
+  const statusType = table.status_type
+
   if (statusType === 'yes_no') {
     return (
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <YesNoRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} />
+            <YesNoRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} language={language} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <YesNoRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} />
+              <YesNoRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} language={language} />
             ))}
           </div>
         ))}
@@ -479,9 +527,9 @@ function renderTable(
       <div>
         {topRows.map((row, i) => (
           <div key={row.id}>
-            <TestedRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} />
+            <TestedRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} language={language} />
             {(childMap[row.id] || []).map((child, ci) => (
-              <TestedRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} />
+              <TestedRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} language={language} />
             ))}
           </div>
         ))}
@@ -503,8 +551,8 @@ function renderTable(
               style={{ width: 20, height: 20, marginTop: 1, accentColor: '#7D1D3F', flexShrink: 0 }}
             />
             <span style={{ fontSize: 13, color: '#1C0D14', lineHeight: 1.4 }}>
-              {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{row.sno_label}.</span>}
-              {row.row_label}
+              {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+              {t(row.row_label, row.row_label_hi, language)}
             </span>
           </div>
           )
@@ -519,16 +567,16 @@ function renderTable(
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 0, background: '#F5F3F5', padding: '8px 14px', fontSize: 11, fontWeight: 600, color: '#7A6870' }}>
           <span>Item</span>
-          <span style={{ textAlign: 'center' }}>Col 1</span>
-          <span style={{ textAlign: 'center' }}>Col 2</span>
+          <span style={{ textAlign: 'center' }}>{t(table.col1_label || 'Col 1', table.col1_label_hi, language)}</span>
+          <span style={{ textAlign: 'center' }}>{t(table.col2_label || 'Col 2', table.col2_label_hi, language)}</span>
         </div>
         {topRows.map((row, i) => {
           const isIncomplete = incompleteIds.has(row.id)
           return (
           <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', borderTop: '1px solid #F5F3F5', padding: '10px 14px', alignItems: 'center', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
             <span style={{ fontSize: 12, color: '#1C0D14', lineHeight: 1.4 }}>
-              {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{row.sno_label}.</span>}
-              {row.row_label}
+              {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+              {t(row.row_label, row.row_label_hi, language)}
             </span>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <input type="checkbox" checked={rowValues[row.id]?.status === 'col1'} onChange={e => setRowStatus(row.id, e.target.checked ? 'col1' : '')} style={{ width: 20, height: 20, accentColor: '#7D1D3F' }} />
@@ -551,8 +599,8 @@ function renderTable(
         return (
         <div key={row.id} style={{ padding: '12px 14px', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
           <div style={{ fontSize: 12, color: '#374151', marginBottom: 6, fontWeight: 500 }}>
-            {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{row.sno_label}.</span>}
-            {row.row_label}
+            {row.sno_label && <span style={{ color: '#7A6870', marginRight: 4 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+            {t(row.row_label, row.row_label_hi, language)}
           </div>
           <input
             type={statusType === 'measurement' ? 'number' : 'text'}
@@ -571,17 +619,18 @@ function renderTable(
 // Memoized so typing into one field (or drawing a signature) doesn't re-render every
 // other field/table row in a large form — previously the whole form re-rendered on
 // every keystroke since nothing below FormFillView was isolated.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete }: {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, language }: {
   field: MobileFormField
   value: string
   onChange: (id: string, value: string) => void
   bordered: boolean
   isIncomplete: boolean
+  language: Language
 }) {
   return (
     <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-        {field.label}
+        {t(field.label, field.label_hi, language)}
         {!(field.prefill_from_job && field.read_only_on_mobile) && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
         {field.prefill_from_job && (
           <span style={{ fontSize: 9, background: '#F9EEF2', color: '#7D1D3F', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>Auto-filled</span>
@@ -647,15 +696,16 @@ interface RowProps {
   setRowStatus: (id: string, status: string) => void
   setRowRemarks: (id: string, remarks: string) => void
   isIncomplete: boolean
+  language: Language
 }
 
-const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete }: RowProps) {
+const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete, language }: RowProps) {
   const val = value
   return (
     <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: isIncomplete ? '#FEF2F2' : indent ? '#FAFAFA' : '#fff', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
-        {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{row.sno_label}.</span>}
-        {row.row_label}
+        {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+        {t(row.row_label, row.row_label_hi, language)}
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: val.status ? 8 : 0 }}>
         <button
@@ -702,13 +752,13 @@ const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatu
   )
 })
 
-const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete }: RowProps) {
+const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete, language }: RowProps) {
   const val = value
   return (
     <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: isIncomplete ? '#FEF2F2' : indent ? '#FAFAFA' : '#fff', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
-        {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{row.sno_label}.</span>}
-        {row.row_label}
+        {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+        {t(row.row_label, row.row_label_hi, language)}
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: val.status ? 8 : 0 }}>
         <button
