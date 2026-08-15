@@ -39,13 +39,13 @@ interface SettingsShape {
 // matching doc comment in lib/messaging/whatsapp.ts (the actual source of truth this
 // mirrors).
 const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string }[] = [
-  { key: 'whatsapp_campaign_assigned_engineer', label: 'Assigned / reassigned — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Customer name  4) Scheduled date' },
-  { key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Scheduled date' },
+  { key: 'whatsapp_campaign_assigned_engineer', label: 'Assigned / reassigned — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Customer name  4) Transformer serial no.  5) Scheduled date' },
+  { key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Transformer serial no.  5) Scheduled date' },
   { key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign', params: '1) Customer name  2) Engineer name  3) Notification number  4) Start-by time' },
   { key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Completion date' },
   { key: 'whatsapp_campaign_pending', label: 'Notification pending (follow-up) — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Follow-up date' },
   { key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Status  4) Product name' },
-  { key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign', params: '1) Notification number  2) Engineer name  3) Reason' },
+  { key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign', params: '1) Notification number  2) Engineer name  3) Transformer serial no.  4) Reason' },
 ]
 
 interface Props {

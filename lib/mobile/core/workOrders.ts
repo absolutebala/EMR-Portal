@@ -507,11 +507,21 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
           entityType: 'work_order', entityId: params.workOrderId, linkPath: `/work-orders/${params.workOrderId}`,
         }).catch(() => {})
 
-        const { data: admins } = await admin.from('profiles').select('first_name, phone')
-          .in('role', ['Super Admin', 'Head of Service', 'Service Manager']).not('phone', 'is', null)
+        const [{ data: admins }, { data: wotRowsForEscalation }] = await Promise.all([
+          admin.from('profiles').select('first_name, phone').in('role', ['Super Admin', 'Head of Service', 'Service Manager']).not('phone', 'is', null),
+          admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', params.workOrderId),
+        ])
+        const escalationSerials = (wotRowsForEscalation || [])
+          .map(row => {
+            const t = (row as { transformers?: unknown }).transformers
+            const obj = Array.isArray(t) ? t[0] : t
+            return (obj as { serial_number?: string } | null)?.serial_number || null
+          })
+          .filter(Boolean)
+          .join(', ')
         sendWhatsApp(admin, 'escalation',
           (admins || []).map(a => ({ phone: a.phone, userName: a.first_name })),
-          [wo?.wo_number || '', engineerName, 'Needs reassignment']).catch(() => {})
+          [wo?.wo_number || '', engineerName, escalationSerials, 'Needs reassignment']).catch(() => {})
       }
     }
 

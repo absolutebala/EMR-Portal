@@ -8,18 +8,20 @@ import { sendCombirdsMessage } from './combirds'
 // is the single source of truth for that order — keep it in sync with the Settings UI
 // helper text (app/(app)/settings/SettingsPageClient.tsx).
 //
-//   assigned_engineer (4): 1) engineer first name, 2) WO number, 3) customer name,
-//                          4) scheduled date ("DD MMM YYYY" or "Not scheduled")
-//   assigned_customer (4): 1) customer contact person, 2) WO number, 3) engineer full
-//                          name, 4) scheduled date
+//   assigned_engineer (5): 1) engineer first name, 2) WO number, 3) customer name,
+//                          4) transformer serial number(s) (comma-joined if more than
+//                          one), 5) scheduled date ("DD MMM YYYY" or "Not scheduled")
+//   assigned_customer (5): 1) customer contact person, 2) WO number, 3) engineer full
+//                          name, 4) transformer serial number(s), 5) scheduled date
 //   on_the_way        (4): 1) customer contact person, 2) engineer full name,
 //                          3) WO number, 4) start-by time ("HH:mm" or "")
 //   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,
 //                          4) product name
-//   escalation         (3): 1) WO number, 2) engineer full name, 3) reason
-//                          (recipient's own name comes from the top-level `userName`
-//                          field, not a templateParam, since it varies per recipient
-//                          in a broadcast and templateParams is shared across all of them)
+//   escalation         (4): 1) WO number, 2) engineer full name, 3) transformer serial
+//                          number(s), 4) reason (recipient's own name comes from the
+//                          top-level `userName` field, not a templateParam, since it
+//                          varies per recipient in a broadcast and templateParams is
+//                          shared across all of them)
 //   completed          (4): 1) customer contact person, 2) WO number, 3) engineer full
 //                          name, 4) completion date ("DD MMM YYYY")
 //   pending            (4): 1) customer contact person, 2) WO number, 3) engineer full
