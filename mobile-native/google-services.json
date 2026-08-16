@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "980054626890",
+    "project_id": "emr-global",
+    "storage_bucket": "emr-global.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:980054626890:android:04a4f8d5a7be0dcdb9ccb3",
+        "android_client_info": {
+          "package_name": "com.emrglobal.emrfieldapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3yxGtCYMDkXrm7wPUH6EF2EgzMKuABrQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

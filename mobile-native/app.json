@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.emrglobal.emrfieldapp",
+      "googleServicesFile": "./google-services.json",
       "enableProguardInReleaseBuilds": true,
       "adaptiveIcon": {
         "backgroundColor": "#7D1D3F",
