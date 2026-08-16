@@ -9,6 +9,7 @@ import NativeLocationGate from '@/components/NativeLocationGate';
 import PendingSyncBanner from '@/components/PendingSyncBanner';
 import UnreadNotificationsPopup from '@/components/UnreadNotificationsPopup';
 import ForegroundNotificationToast from '@/components/ForegroundNotificationToast';
+import CheckinDriftBanner from '@/components/CheckinDriftBanner';
 
 // Client-side equivalent of the PWA's per-page auth checks — there's no RN middleware,
 // so every screen under (app) is gated here once instead of individually. Order
@@ -57,6 +58,7 @@ export default function AppLayout() {
           assigns to a folder+index.tsx route (undocumented enough to not guess at). */}
       <Stack screenOptions={{ headerShown: false }} />
       <PendingSyncBanner />
+      <CheckinDriftBanner />
       <ForegroundNotificationToast />
       <UnreadNotificationsPopup />
     </NativeLocationGate>

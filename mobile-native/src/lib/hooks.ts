@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from './api';
+import { getCurrentPositionWithFallback } from './gps';
 import {
   CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY, SUBMIT_FORM_MUTATION_KEY, WORK_ORDER_FORM_QUERY_KEY,
   SUBMIT_PRODUCT_REQUEST_MUTATION_KEY, SUBMIT_EXPENSE_LOG_MUTATION_KEY,
@@ -9,7 +10,7 @@ import type {
   CheckInVariables, ClosureVariables, ErrorResponse, WorkOrderFormResponse, SubmitFormVariables, SubmitFormResult,
   ProductSearchResponse, ProductRequestsResponse, SubmitProductRequestVariables,
   ExpenseTypesResponse, ExpenseTypeResponse, ExpenseEligibilityResponse, ExpenseLogsResponse, SubmitExpenseLogVariables,
-  AlertsResponse,
+  AlertsResponse, CheckinDriftNotice,
 } from './types';
 
 export function useDashboard() {
@@ -40,6 +41,27 @@ export function useFollowUps() {
   return useQuery({
     queryKey: ['follow-ups'],
     queryFn: () => apiGet<FollowUpsResponse>('/api/mobile/v1/follow-ups'),
+  });
+}
+
+const CHECKIN_DRIFT_POLL_MS = 3 * 60 * 1000;
+
+// Periodic "have I wandered off the site since checking in" check while the app is
+// foregrounded — a fresh GPS fix is taken on every poll (not just once), since the
+// whole point is noticing movement over time. refetchIntervalInBackground defaults to
+// false, so this naturally pauses while the app is backgrounded/closed rather than
+// needing its own AppState wiring, and react-query's existing focus-refetch (wired in
+// queryClient.ts) means reopening the app triggers an immediate check too.
+export function useCheckinDriftNotice() {
+  return useQuery({
+    queryKey: ['checkin-drift'],
+    queryFn: async (): Promise<CheckinDriftNotice | null> => {
+      const loc = await getCurrentPositionWithFallback();
+      if (!loc) return null;
+      const data = await apiGet<FollowUpsResponse>(`/api/mobile/v1/follow-ups?lat=${loc.lat}&lng=${loc.lng}`);
+      return data.checkinDrift;
+    },
+    refetchInterval: CHECKIN_DRIFT_POLL_MS,
   });
 }
 

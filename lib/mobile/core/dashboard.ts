@@ -2,7 +2,7 @@ import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import {
   type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
-  type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice,
+  type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice, type CheckinDriftNotice,
   withTimeout, touchHeartbeat, haversineKm, fetchEngineerWorkOrders, getEngineerName, reverseGeocodeCore,
   logActivity,
 } from './shared'
@@ -380,6 +380,51 @@ export async function checkNotStartedFollowUpCore(admin: AdminClient, userId: st
     }
 
     return { notice: { projectLabel }, error: null }
+  } catch (e: unknown) {
+    return { notice: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+const CHECKIN_DRIFT_THRESHOLD_KM = 2
+
+// Companion to checkNotStartedFollowUpCore above, but the inverse direction: once an
+// engineer has actually checked in ('reached'), if their live location later drifts
+// away from where they checked in, nudge them to update the notification's status —
+// they may have left the site without marking progress. Unlike engineer_status_set_lat
+// /lng (only populated for travel statuses, see setEngineerStatusCore), 'reached' has
+// no location captured on `profiles` — the check-in coordinate lives on the latest
+// work_order_checkins row for the job instead (submitCheckInCore), which is what every
+// other "where did they last check in" consumer in this file already reads from.
+export async function checkCheckinDriftCore(admin: AdminClient, userId: string, currentLat: number, currentLng: number): Promise<{ notice: CheckinDriftNotice | null; error: string | null }> {
+  try {
+    const { data: profile } = await admin.from('profiles')
+      .select('engineer_status, engineer_status_work_order_id')
+      .eq('id', userId).maybeSingle()
+
+    if (profile?.engineer_status !== 'reached') return { notice: null, error: null }
+    const workOrderId = profile.engineer_status_work_order_id
+    if (!workOrderId) return { notice: null, error: null }
+
+    const { data: checkin } = await admin.from('work_order_checkins')
+      .select('latitude, longitude')
+      .eq('work_order_id', workOrderId).eq('engineer_id', userId)
+      .order('checked_in_at', { ascending: false }).limit(1).maybeSingle()
+    if (checkin?.latitude == null || checkin?.longitude == null) return { notice: null, error: null }
+
+    const distanceKm = haversineKm(checkin.latitude, checkin.longitude, currentLat, currentLng)
+    if (distanceKm < CHECKIN_DRIFT_THRESHOLD_KM) return { notice: null, error: null }
+
+    let projectLabel = 'the project'
+    const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
+    if (wo) {
+      const { data: wotRows } = await admin.from('work_order_transformers').select('transformers(customer_sites(site_name))').eq('work_order_id', workOrderId).limit(1)
+      type Row = { transformers: { customer_sites: { site_name: string } | null } | null }
+      const siteName = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.customer_sites?.site_name
+      const { data: customer } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+      projectLabel = siteName || customer?.name || projectLabel
+    }
+
+    return { notice: { workOrderId, projectLabel, distanceKm }, error: null }
   } catch (e: unknown) {
     return { notice: null, error: e instanceof Error ? e.message : String(e) }
   }

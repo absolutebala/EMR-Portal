@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveBearerUser } from '@/lib/mobile/apiAuth'
 import { adminClient } from '@/lib/mobile/core/shared'
-import { getOverdueFollowUpsCore, checkOpenVisitFollowUpCore, checkNotStartedFollowUpCore, rescheduleFollowUpCore } from '@/lib/mobile/core/dashboard'
+import { getOverdueFollowUpsCore, checkOpenVisitFollowUpCore, checkNotStartedFollowUpCore, checkCheckinDriftCore, rescheduleFollowUpCore } from '@/lib/mobile/core/dashboard'
 
-// Combines the three dashboard-load follow-up checks into one round trip: date-based
+// Combines the dashboard-load follow-up checks into one round trip: date-based
 // overdue jobs, the same-day "still checked in, never closed out" nudge, and (only
-// when ?lat=&lng= are supplied) the "committed to travel but hasn't moved" notice —
-// mirrors getOverdueFollowUps + checkOpenVisitFollowUp + checkNotStartedFollowUp.
+// when ?lat=&lng= are supplied) the "committed to travel but hasn't moved" and
+// "checked in but has since drifted away from the site" notices — mirrors
+// getOverdueFollowUps + checkOpenVisitFollowUp + checkNotStartedFollowUp + checkCheckinDrift.
 export async function GET(req: NextRequest) {
   const user = await resolveBearerUser(req)
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -16,20 +17,21 @@ export async function GET(req: NextRequest) {
   const lngParam = req.nextUrl.searchParams.get('lng')
   const lat = latParam ? Number(latParam) : null
   const lng = lngParam ? Number(lngParam) : null
+  const hasLocation = lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
 
-  const [overdue, openCheckin, notStarted] = await Promise.all([
+  const [overdue, openCheckin, notStarted, checkinDrift] = await Promise.all([
     getOverdueFollowUpsCore(admin, user.id),
     checkOpenVisitFollowUpCore(admin, user.id),
-    lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
-      ? checkNotStartedFollowUpCore(admin, user.id, lat, lng)
-      : Promise.resolve({ notice: null, error: null }),
+    hasLocation ? checkNotStartedFollowUpCore(admin, user.id, lat!, lng!) : Promise.resolve({ notice: null, error: null }),
+    hasLocation ? checkCheckinDriftCore(admin, user.id, lat!, lng!) : Promise.resolve({ notice: null, error: null }),
   ])
 
   return NextResponse.json({
     followUps: overdue.followUps,
     openCheckin: openCheckin.followUp,
     notStarted: notStarted.notice,
-    error: overdue.error || openCheckin.error || notStarted.error,
+    checkinDrift: checkinDrift.notice,
+    error: overdue.error || openCheckin.error || notStarted.error || checkinDrift.error,
   })
 }
 

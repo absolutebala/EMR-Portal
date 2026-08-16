@@ -62,6 +62,12 @@ export interface NotStartedNotice {
   projectLabel: string;
 }
 
+export interface CheckinDriftNotice {
+  workOrderId: string;
+  projectLabel: string;
+  distanceKm: number;
+}
+
 export interface MobileWorkOrderDetail {
   workOrder: MobileWorkOrderWithCustomer;
   hasCheckedIn: boolean;
@@ -112,6 +118,7 @@ export interface FollowUpsResponse {
   followUps: OverdueFollowUp[];
   openCheckin: OverdueFollowUp | null;
   notStarted: NotStartedNotice | null;
+  checkinDrift: CheckinDriftNotice | null;
   error: string | null;
 }
 

@@ -276,6 +276,12 @@ export interface NotStartedNotice {
   projectLabel: string
 }
 
+export interface CheckinDriftNotice {
+  workOrderId: string
+  projectLabel: string
+  distanceKm: number
+}
+
 export interface MobileWorkOrderDetail {
   workOrder: MobileWorkOrderWithCustomer
   hasCheckedIn: boolean
