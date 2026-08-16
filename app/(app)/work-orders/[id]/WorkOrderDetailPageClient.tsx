@@ -252,6 +252,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [reassignId, setReassignId] = useState('')
   const [showReassign, setShowReassign] = useState(false)
   const [reassignDate, setReassignDate] = useState('')
+  const [engineerSearch, setEngineerSearch] = useState('')
   const [engineerSchedule, setEngineerSchedule] = useState<EngineerScheduleEntry[]>([])
   const [loadingSchedule, setLoadingSchedule] = useState(false)
 
@@ -379,7 +380,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     const { error: err } = await reassignWorkOrderEngineer(wo.id, reassignId, reassignDate || null)
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
-    setReassignId(''); setReassignDate(''); setEngineerSchedule([]); setShowReassign(false); setActing(false)
+    setReassignId(''); setReassignDate(''); setEngineerSchedule([]); setShowReassign(false); setActing(false); setEngineerSearch('')
   }
 
   const nextStatuses = wo ? (STATUS_NEXT[wo.status] || []) : []
@@ -822,8 +823,19 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         <div style={{ fontSize: 10, fontWeight: 600, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .4 }}>
                           Suggested engineers — nearest to project first
                         </div>
+                        <input
+                          type="text"
+                          placeholder="Search engineer by name…"
+                          value={engineerSearch}
+                          onChange={e => setEngineerSearch(e.target.value)}
+                          style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
+                        />
                         <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                          {engineers.map(e => {
+                          {engineers
+                            // The currently assigned engineer isn't a real reassignment option.
+                            .filter(e => e.id !== wo.engineer_id)
+                            .filter(e => `${e.first_name} ${e.last_name}`.toLowerCase().includes(engineerSearch.trim().toLowerCase()))
+                            .map(e => {
                             const selected = e.id === reassignId
                             return (
                               <div key={e.id} onClick={() => { setReassignId(e.id); setReassignDate(prev => prev || new Date().toLocaleDateString('en-CA')) }}
@@ -891,7 +903,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                             style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: acting ? '#C4B5A0' : 'var(--m)', color: '#fff', cursor: (!reassignId || !reassignDate || acting) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: (!reassignId || !reassignDate) ? .5 : 1 }}>
                             {acting ? 'Assigning…' : 'Assign'}
                           </button>
-                          <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]) }} disabled={acting}
+                          <button onClick={() => { setShowReassign(false); setReassignId(''); setReassignDate(''); setEngineerSchedule([]); setEngineerSearch('') }} disabled={acting}
                             style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: acting ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: acting ? .5 : 1 }}>✕</button>
                         </div>
                       </div>
