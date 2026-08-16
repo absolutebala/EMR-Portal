@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -109,4 +109,32 @@ export function useNotificationResponseListener() {
     });
     return () => sub.remove();
   }, [router]);
+}
+
+export interface ForegroundToastData {
+  title: string;
+  body: string | null;
+  url: string | null;
+}
+
+// Handles the "a push arrives while the app is already open" case — distinct from
+// the response listener above, which only fires on tap. The OS banner set up via
+// setNotificationHandler at the top of this file still shows too; this additionally
+// surfaces an in-app toast so it's visible even if the OS banner is missed/dismissed.
+export function useForegroundNotificationToast() {
+  const [toast, setToast] = useState<ForegroundToastData | null>(null);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener(notification => {
+      const content = notification.request.content;
+      setToast({
+        title: content.title || 'New notification',
+        body: content.body ?? null,
+        url: (content.data?.url as string | undefined) ?? null,
+      });
+    });
+    return () => sub.remove();
+  }, []);
+
+  return { toast, dismiss: () => setToast(null) };
 }
