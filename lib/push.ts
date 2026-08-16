@@ -17,9 +17,13 @@ function ensureConfigured(): boolean {
 const expo = new Expo()
 
 // RN-side counterpart to sendPushToUser() below — additive, not a replacement for
-// Web Push (which the PWA keeps using). No env-var gate needed: Expo's push service
-// doesn't require any server-side credentials for a managed (non-FCM/APNs-direct)
-// Expo app, so this is always "configured".
+// Web Push (which the PWA keeps using). No env-var gate needed on THIS server: Expo's
+// push API itself doesn't require server-side credentials to accept a send request.
+// That's a different thing from actual delivery, though — for a standalone/production
+// Android build (not Expo Go/dev-client), Expo still has to relay the message on
+// through Google FCM, which requires an FCM V1 service-account key uploaded to Expo
+// via `eas credentials` plus a `google-services.json` in the app config. Missing that
+// shows up as a per-receipt delivery error below, not a failure here.
 export async function sendExpoPushToUser(
   admin: ReturnType<typeof adminClient>,
   userId: string,
@@ -51,19 +55,26 @@ export async function sendExpoPushToUser(
     for (const chunk of chunks) {
       const receipts = await expo.sendPushNotificationsAsync(chunk)
       receipts.forEach((r, i) => {
+        if (r.status !== 'error') return
         // DeviceNotRegistered means the OS/Expo has invalidated this token (e.g. the
         // app was uninstalled) — same cleanup principle as the 404/410 handling below
         // for Web Push subscriptions, so a dead token doesn't get retried forever.
-        if (r.status === 'error' && r.details?.error === 'DeviceNotRegistered') {
+        if (r.details?.error === 'DeviceNotRegistered') {
           invalidTokens.push(chunk[i].to as string)
+        } else {
+          // Any other failure (e.g. a misconfigured/missing FCM V1 credential for an
+          // Android standalone build) was previously swallowed with zero visibility —
+          // this is the only signal that a push was accepted by Expo but never actually
+          // reached the device.
+          console.error('sendExpoPushToUser: delivery error', { userId, error: r.details?.error, message: r.message })
         }
       })
     }
     if (invalidTokens.length) {
       await admin.from('expo_push_tokens').delete().in('expo_push_token', invalidTokens)
     }
-  } catch {
-    // best-effort only
+  } catch (e) {
+    console.error('sendExpoPushToUser: failed', e instanceof Error ? e.message : e)
   }
 }
 
