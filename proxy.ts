@@ -124,7 +124,7 @@ export async function proxy(request: NextRequest) {
   // this exemption, every unauthenticated visit to "/" was bounced straight to /login
   // by this same block before that redirect logic ever got a chance to run, on both
   // desktop and mobile alike.
-  if (!user && !isMobilePublic && !isApiPath && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/set-password')) {
+  if (!user && !isMobilePublic && !isApiPath && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/set-password') && !pathname.startsWith('/privacy-policy')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
