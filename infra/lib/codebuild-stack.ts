@@ -52,7 +52,7 @@ export class CodeBuildStack extends cdk.Stack {
         // Supabase vars removed entirely (2026-08-14 Supabase cutoff) — nothing in the
         // client bundle has needed them since auth moved server-side to Cognito.
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: { value: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI' },
-        NEXT_PUBLIC_SITE_URL: { value: 'http://EmrPor-Alb16-6ThX6OgVuHrJ-1597119572.ap-south-2.elb.amazonaws.com' },
+        NEXT_PUBLIC_SITE_URL: { value: 'https://portal.emr.global' },
       },
     })
 

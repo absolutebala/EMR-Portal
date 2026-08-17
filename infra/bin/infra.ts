@@ -48,7 +48,7 @@ const service = new ServiceStack(app, 'EmrPortalServiceStack', {
   cluster: foundation.cluster,
   repository: foundation.repository,
   logGroup: foundation.logGroup,
-  imageTag: '58e76d349ec61f4eff70052c93d53ef8be5a3a6f',
+  imageTag: '4c947c338d645f1523eb78c41744f492dec3aa00',
   maintenanceMode: false,
 })
 

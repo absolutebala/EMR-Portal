@@ -6,7 +6,16 @@ import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as logs from 'aws-cdk-lib/aws-logs'
 import * as iam from 'aws-cdk-lib/aws-iam'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import { Construct } from 'constructs'
+
+// portal.emr.global's CNAME points at this ALB (customer's own DNS host, outside AWS —
+// see the CNAME handed to them during the AWS migration). Cert requested + DNS-validated
+// out of band via `aws acm request-certificate` once the CNAME existed; referenced here
+// by ARN rather than provisioned by this stack since CDK can't complete DNS validation
+// against a third-party-hosted zone on its own.
+const PORTAL_DOMAIN = 'portal.emr.global'
+const PORTAL_CERT_ARN = 'arn:aws:acm:ap-south-2:945831803151:certificate/8ba57fae-bb20-4c72-bfbe-7170a4ac39f9'
 
 interface ServiceStackProps extends cdk.StackProps {
   vpc: ec2.Vpc
@@ -36,7 +45,8 @@ export class ServiceStack extends cdk.Stack {
       description: 'EMR Portal ALB - public HTTP',
       allowAllOutbound: true,
     })
-    albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Public HTTP')
+    albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Public HTTP (redirects to HTTPS)')
+    albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Public HTTPS')
 
     const taskSg = new ec2.SecurityGroup(this, 'TaskSecurityGroup', {
       vpc: props.vpc,
@@ -94,7 +104,7 @@ export class ServiceStack extends cdk.Stack {
         // the Supabase account can be safely canceled.
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: 'BDUG7j7J3eUCYwEmYr18c40F_CAvwPDmUx31t5ERG6vRoBvRMXWxyHJLcNGazXQK34ctqGWJW2UIdLutvqkOJOI',
         VAPID_SUBJECT: 'mailto:admin@emrglobal.com',
-        NEXT_PUBLIC_SITE_URL: `http://${this.loadBalancer.loadBalancerDnsName}`,
+        NEXT_PUBLIC_SITE_URL: `https://${PORTAL_DOMAIN}`,
         NODE_ENV: 'production',
         MAINTENANCE_MODE: props.maintenanceMode ? 'true' : 'false',
         AWS_REGION: cdk.Stack.of(this).region,
@@ -129,8 +139,14 @@ export class ServiceStack extends cdk.Stack {
       maxHealthyPercent: 200,
     })
 
-    const listener = this.loadBalancer.addListener('HttpListener', { port: 80, open: false })
-    listener.addTargets('EcsTargets', {
+    const portalCert = acm.Certificate.fromCertificateArn(this, 'PortalCertificate', PORTAL_CERT_ARN)
+
+    const httpsListener = this.loadBalancer.addListener('HttpsListener', {
+      port: 443,
+      open: false,
+      certificates: [portalCert],
+    })
+    httpsListener.addTargets('EcsTargets', {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [service],
@@ -139,6 +155,14 @@ export class ServiceStack extends cdk.Stack {
         healthyHttpCodes: '200',
         interval: cdk.Duration.seconds(30),
       },
+    })
+
+    // Plain HTTP now just redirects — the app itself no longer needs to be reachable
+    // over unencrypted HTTP now that a real domain + cert exist.
+    this.loadBalancer.addListener('HttpListener', {
+      port: 80,
+      open: false,
+      defaultAction: elbv2.ListenerAction.redirect({ port: '443', protocol: 'HTTPS', permanent: true }),
     })
 
     new cdk.CfnOutput(this, 'LoadBalancerDnsName', { value: this.loadBalancer.loadBalancerDnsName })
