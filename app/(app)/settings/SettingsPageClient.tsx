@@ -37,15 +37,44 @@ interface SettingsShape {
 // Each Combirds WhatsApp campaign must already exist and be "Live" in the org's own
 // Combirds dashboard, built to accept these exact params in this exact order — see the
 // matching doc comment in lib/messaging/whatsapp.ts (the actual source of truth this
-// mirrors).
-const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string }[] = [
-  { key: 'whatsapp_campaign_assigned_engineer', label: 'Assigned / reassigned — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Customer name  4) Transformer serial no.  5) Scheduled date' },
-  { key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Transformer serial no.  5) Scheduled date' },
-  { key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign', params: '1) Customer name  2) Engineer name  3) Notification number  4) Start-by time' },
-  { key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Completion date' },
-  { key: 'whatsapp_campaign_pending', label: 'Notification pending (follow-up) — Customer campaign', params: '1) Customer name  2) Notification number  3) Engineer name  4) Follow-up date' },
-  { key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign', params: '1) Engineer name  2) Notification number  3) Status  4) Product name' },
-  { key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign', params: '1) Notification number  2) Engineer name  3) Transformer serial no.  4) Reason' },
+// mirrors). `example` is the literal template text to paste into Combirds when building
+// each campaign — the {{n}} placeholders map 1:1 to the param order in `params`.
+const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string; example: string }[] = [
+  {
+    key: 'whatsapp_campaign_assigned_engineer', label: 'Assigned / reassigned — Engineer campaign',
+    params: '1) Engineer name  2) Notification number  3) Customer name  4) Transformer serial no.  5) Scheduled date',
+    example: 'Hi {{1}}, a new notification *{{2}}* has been assigned to you.\n\nCustomer: {{3}}\nTransformer S/N: {{4}}\nScheduled: {{5}}\n\nOpen the EMR Portal app for full details.',
+  },
+  {
+    key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign',
+    params: '1) Customer name  2) Notification number  3) Engineer name  4) Transformer serial no.  5) Scheduled date',
+    example: 'Hi {{1}}, your notification *{{2}}* has been assigned to {{3}}.\n\nTransformer S/N: {{4}}\nScheduled: {{5}}\n\nWe’ll keep you updated.',
+  },
+  {
+    key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign',
+    params: '1) Customer name  2) Engineer name  3) Notification number  4) Start-by time',
+    example: 'Hi {{1}}, {{2}} is on the way for your notification *{{3}}*.\n\nExpected by: {{4}}\n\nWe’ll keep you posted.',
+  },
+  {
+    key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign',
+    params: '1) Customer name  2) Notification number  3) Engineer name  4) Completion date',
+    example: 'Hi {{1}}, your notification *{{2}}* has been completed by {{3}} on {{4}}.\n\nThank you for choosing EMR Global.',
+  },
+  {
+    key: 'whatsapp_campaign_pending', label: 'Notification pending (follow-up) — Customer campaign',
+    params: '1) Customer name  2) Notification number  3) Engineer name  4) Follow-up date',
+    example: 'Hi {{1}}, your notification *{{2}}* is still in progress. {{3}} will follow up on {{4}}.\n\nWe’ll keep you updated.',
+  },
+  {
+    key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign',
+    params: '1) Engineer name  2) Notification number  3) Status  4) Product name',
+    example: 'Hi {{1}}, your product request for notification *{{2}}* has been {{3}}.\n\nItem: {{4}}\n\nCheck the EMR Portal app for details.',
+  },
+  {
+    key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign',
+    params: '1) Notification number  2) Engineer name  3) Transformer serial no.  4) Reason',
+    example: '⚠️ Notification *{{1}}* needs reassignment.\n\nEngineer: {{2}}\nTransformer S/N: {{3}}\nReason: {{4}}\n\nPlease review and reassign in the EMR Portal.',
+  },
 ]
 
 interface Props {
@@ -135,6 +164,11 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
                 <label style={fl2}>{f.label}</label>
                 <input style={fi2} value={settings[f.key]} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
                 <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
+                <pre style={{
+                  fontSize: 10, lineHeight: 1.5, color: 'var(--tx)', background: 'var(--gl)',
+                  border: '1px solid var(--gm)', borderRadius: 6, padding: '8px 10px', margin: '4px 0 0',
+                  whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, monospace',
+                }}>{f.example}</pre>
               </div>
             ))}
           </div>
