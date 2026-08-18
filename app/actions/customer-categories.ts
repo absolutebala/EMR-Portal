@@ -7,7 +7,7 @@ export interface CustomerCategory {
   name: string
 }
 
-export type CustomerCategoryType = 'utility' | 'industry'
+export type CustomerCategoryType = 'utility' | 'industry' | 'end_customer_type'
 
 // Lists are small (a handful of named categories per type) — fetched in full and
 // filtered client-side in the picker rather than a server-side search endpoint.

@@ -175,6 +175,17 @@ export function useSubmitProductRequest() {
   });
 }
 
+export function useMarkProductReceived() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => apiPost<ErrorResponse>(`/api/mobile/v1/product-requests/${itemId}/receive`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['product-requests'] });
+    },
+  });
+}
+
 // ── Expenses ─────────────────────────────────────────────────────────────────────
 
 export function useExpenseTypes() {

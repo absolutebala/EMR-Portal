@@ -7,13 +7,6 @@ import { saveSettings } from '@/app/actions/save-settings'
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
-const THEMES = [
-  { name: 'Maroon', color: '#7D1D3F', mdk: '#3A0A1C', ml: '#A8294F' },
-  { name: 'Navy', color: '#1E3A5F', mdk: '#0D2238', ml: '#2A4F7C' },
-  { name: 'Forest', color: '#064E3B', mdk: '#022C23', ml: '#065F46' },
-  { name: 'Graphite', color: '#374151', mdk: '#111827', ml: '#4B5563' },
-]
-
 interface SettingsShape {
   org_name: string
   theme_color: string
@@ -107,14 +100,6 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
     setTimeout(() => setSaved(null), 2000)
   }
 
-  function applyTheme(t: typeof THEMES[0]) {
-    document.documentElement.style.setProperty('--m', t.color)
-    document.documentElement.style.setProperty('--mdk', t.mdk)
-    document.documentElement.style.setProperty('--ml', t.ml)
-    set('theme_color', t.color)
-    save('theme', { theme_color: t.color })
-  }
-
   const ss: React.CSSProperties = { background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 20, marginBottom: 14 }
   const h3s: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--tx)', margin: 0, marginBottom: 3 }
   const ps: React.CSSProperties = { fontSize: 11, color: 'var(--txm)', marginBottom: 14, marginTop: 0 }
@@ -124,30 +109,6 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
     <>
       <Topbar title="Settings" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px', maxWidth: 800 }}>
-
-        {/* Colour theme */}
-        <div style={ss}>
-          <h3 style={h3s}>Colour theme</h3>
-          <p style={ps}>Portal primary colour. Currently: {THEMES.find(t => t.color === settings.theme_color)?.name || 'Maroon'}.</p>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            {THEMES.map(t => (
-              <div key={t.name} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => applyTheme(t)}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%', background: t.color, cursor: 'pointer',
-                  border: settings.theme_color === t.color ? `3px solid ${t.ml}` : '3px solid transparent',
-                  boxShadow: settings.theme_color === t.color ? `0 0 0 2px ${t.color}` : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontSize: 14, transition: 'all .15s',
-                }}>
-                  {settings.theme_color === t.color && '✓'}
-                </div>
-                <div style={{ fontSize: 9, color: 'var(--txm)', marginTop: 3 }}>{t.name}</div>
-              </div>
-            ))}
-            {saving === 'theme' && <span style={{ fontSize: 11, color: 'var(--txm)' }}>Saving…</span>}
-            {saved === 'theme' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
-          </div>
-        </div>
 
         {/* Notifications */}
         <div style={ss}>

@@ -176,3 +176,69 @@ export async function getMyProductRequestsCore(admin: AdminClient, userId: strin
     return { requests: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+export interface PendingProductItem {
+  id: string
+  productName: string
+  quantity: number
+  status: 'approved' | 'dispatched'
+  woNumber: string
+  workOrderId: string
+  deliveryEstimate: string | null
+}
+
+// Surfaced on the dashboard so an approval doesn't just sit unnoticed in the Requests
+// tab — stays visible until the item reaches 'delivered' (this query only ever
+// includes 'approved'/'dispatched', so it naturally drops off once the engineer marks
+// it received, or an admin marks it delivered from the desktop side).
+export async function getPendingProductItemsCore(admin: AdminClient, userId: string): Promise<{ items: PendingProductItem[]; error: string | null }> {
+  try {
+    const { data: reqs, error } = await admin.from('product_requests').select('id').eq('engineer_id', userId)
+    if (error) return { items: [], error: error.message }
+    const requestIds = (reqs || []).map(r => r.id)
+    if (!requestIds.length) return { items: [], error: null }
+
+    const views = await fetchRequestViews(admin, requestIds)
+    const items: PendingProductItem[] = []
+    for (const v of views) {
+      for (const it of v.items) {
+        if (it.status === 'approved' || it.status === 'dispatched') {
+          items.push({
+            id: it.id, productName: it.productName, quantity: it.quantity, status: it.status,
+            woNumber: v.woNumber, workOrderId: v.workOrderId, deliveryEstimate: it.deliveryEstimate,
+          })
+        }
+      }
+    }
+    return { items, error: null }
+  } catch (e: unknown) {
+    return { items: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// The one status transition a field engineer (not an admin) is allowed to make
+// themselves — confirming physical receipt of a dispatched item. Scoped two ways: only
+// from 'dispatched' (an engineer can't skip the admin's dispatch step), and only for
+// requests they own (checked via product_requests.engineer_id, not trusted from the
+// client) since this is reachable over the bearer-token mobile API.
+export async function markProductReceivedCore(admin: AdminClient, userId: string, itemId: string): Promise<{ error: string | null }> {
+  try {
+    const { data: item } = await admin.from('product_request_items').select('id, status, request_id').eq('id', itemId).maybeSingle()
+    if (!item) return { error: 'Item not found' }
+    if (item.status !== 'dispatched') return { error: 'This item is not yet dispatched.' }
+
+    const { data: req } = await admin.from('product_requests').select('engineer_id').eq('id', item.request_id).maybeSingle()
+    if (!req || req.engineer_id !== userId) return { error: 'Not authorized to update this item' }
+
+    const { error } = await admin.from('product_request_items').update({ status: 'delivered', delivered_at: new Date().toISOString() }).eq('id', itemId)
+    if (error) return { error: error.message }
+
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    logActivity(admin, { actorId: userId, actorName, action: 'Marked product request item received', entityType: 'product_request_item', entityId: itemId }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}

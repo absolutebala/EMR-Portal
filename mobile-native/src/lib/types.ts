@@ -101,11 +101,22 @@ export interface EngineerStreak {
   days: boolean[];
 }
 
+export interface PendingProductItem {
+  id: string;
+  productName: string;
+  quantity: number;
+  status: 'approved' | 'dispatched';
+  woNumber: string;
+  workOrderId: string;
+  deliveryEstimate: string | null;
+}
+
 export interface DashboardResponse {
   stats: MobileDashboardStats;
   recentJobs: MobileWorkOrder[];
   engineer: { name: string; avatarUrl: string | null } | null;
   streak: EngineerStreak;
+  pendingProducts: PendingProductItem[];
   error: string | null;
 }
 

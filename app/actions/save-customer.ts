@@ -10,6 +10,8 @@ export async function addCustomer(payload: {
   email: string | null
   whatsapp_number: string | null
   address: string | null
+  pincode: string
+  end_customer_type_id: string | null
   serial_number: string
   year_of_manufacture: string | null
   warranty_status: string
@@ -17,6 +19,8 @@ export async function addCustomer(payload: {
   site_address: string
 }): Promise<{ error: string | null; id?: string }> {
   try {
+    if (!/^\d{6}$/.test(payload.pincode)) return { error: 'Enter a valid 6-digit pincode' }
+
     const sb = adminClient()
 
     const { data: cust, error: ce } = await sb.from('customers').insert({
@@ -27,6 +31,8 @@ export async function addCustomer(payload: {
       email: payload.email,
       whatsapp_number: payload.whatsapp_number,
       address: payload.address,
+      pincode: payload.pincode,
+      end_customer_type_id: payload.end_customer_type_id,
     }).select().single()
     if (ce) return { error: ce.message }
 
@@ -78,9 +84,16 @@ export async function updateCustomer(
     email: string | null
     whatsapp_number: string | null
     address?: string | null
+    // Optional here (unlike addCustomer, where it's required) — not every edit surface
+    // in the app touches pincode/end customer type, and forcing them to would block
+    // saves on screens that were never asked to collect these fields.
+    pincode?: string
+    end_customer_type_id?: string | null
   }
 ): Promise<{ error: string | null }> {
   try {
+    if (payload.pincode !== undefined && !/^\d{6}$/.test(payload.pincode)) return { error: 'Enter a valid 6-digit pincode' }
+
     const sb = adminClient()
     const { error } = await sb.from('customers').update(payload).eq('id', customerId)
     return { error: error?.message || null }

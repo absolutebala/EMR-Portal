@@ -41,6 +41,9 @@ export interface Customer {
   whatsapp_number: string | null
   sap_customer_code: string | null
   address: string | null
+  pincode: string | null
+  end_customer_type_id: string | null
+  end_customer_type_name?: string | null
   created_at: string
 }
 

@@ -9,6 +9,7 @@ import JobCard from '@/components/JobCard';
 import AccountMenu from '@/components/AccountMenu';
 import StreakStrip from '@/components/StreakStrip';
 import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
+import PendingProductsCard from '@/components/PendingProductsCard';
 
 const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'completed'; label: string; color: string }[] = [
   { key: 'assigned', label: 'Assigned', color: '#92400E' },
@@ -77,6 +78,8 @@ export default function DashboardScreen() {
       </View>
 
       {data?.streak && <StreakStrip streak={data.streak} />}
+
+      {data?.pendingProducts && <PendingProductsCard items={data.pendingProducts} />}
 
       <Text style={styles.sectionTitle}>Recent jobs</Text>
       {data?.recentJobs.length ? (

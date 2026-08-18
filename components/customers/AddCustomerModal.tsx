@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Modal from '@/components/ui/Modal'
 import { addCustomer, updateCustomer } from '@/app/actions/save-customer'
+import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import type { Customer } from '@/lib/types'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
@@ -18,7 +19,8 @@ interface Props {
 
 export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder }: Props) {
   const [form, setForm] = useState({
-    name: '', type: 'both', contact_person: '', phone: '', email: '', address: '',
+    name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
+    end_customer_type_id: '', end_customer_type_name: '',
     whatsapp_number: '', site_name: '', site_address: '',
     serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
   })
@@ -39,12 +41,19 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
         phone: editCustomer.phone,
         email: editCustomer.email || '',
         address: editCustomer.address || '',
+        pincode: editCustomer.pincode || '',
+        end_customer_type_id: editCustomer.end_customer_type_id || '',
+        end_customer_type_name: editCustomer.end_customer_type_name || '',
         whatsapp_number: editCustomer.whatsapp_number || '',
         site_name: '', site_address: '',
         serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
       }))
     } else {
-      setForm({ name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty' })
+      setForm({
+        name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
+        end_customer_type_id: '', end_customer_type_name: '',
+        whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
+      })
     }
   }, [editCustomer, open])
 
@@ -70,6 +79,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
       setError('Project address is required once a project name is entered.')
       return
     }
+    if (!/^\d{6}$/.test(form.pincode.trim())) {
+      setError('Enter a valid 6-digit pincode.')
+      return
+    }
 
     setLoading(true)
     setError('')
@@ -81,6 +94,8 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           contact_person: form.contact_person, phone: form.phone,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
           address: form.address || null,
+          pincode: form.pincode.trim(),
+          end_customer_type_id: form.end_customer_type_id || null,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -91,6 +106,8 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           contact_person: form.contact_person, phone: form.phone,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
           address: form.address || null,
+          pincode: form.pincode.trim(),
+          end_customer_type_id: form.end_customer_type_id || null,
           serial_number: form.serial_number,
           year_of_manufacture: form.year_of_manufacture || null,
           warranty_status: form.warranty_status,
@@ -183,6 +200,15 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
             </select>
           </div>
           <div>
+            <label style={fl2}>End customer type</label>
+            <CustomerCategoryPicker
+              customerType="end_customer_type"
+              valueId={form.end_customer_type_id}
+              valueName={form.end_customer_type_name}
+              onChange={(id, name) => setForm(f => ({ ...f, end_customer_type_id: id, end_customer_type_name: name }))}
+            />
+          </div>
+          <div>
             <label style={fl2}>Contact person <span style={{ color: 'var(--m)' }}>*</span></label>
             <input required style={fi2} value={form.contact_person} onChange={e => set('contact_person', e.target.value)} placeholder="Primary contact name" />
           </div>
@@ -194,9 +220,13 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
             <label style={fl2}>Email</label>
             <input type="email" style={fi2} value={form.email} onChange={e => set('email', e.target.value)} placeholder="contact@customer.com" />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div>
             <label style={fl2}>Address</label>
             <input style={fi2} value={form.address} onChange={e => set('address', e.target.value)} placeholder="Customer's business address" />
+          </div>
+          <div>
+            <label style={fl2}>Pincode <span style={{ color: 'var(--m)' }}>*</span></label>
+            <input required style={fi2} value={form.pincode} onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" inputMode="numeric" maxLength={6} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>WhatsApp number</label>
