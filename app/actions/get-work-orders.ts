@@ -164,7 +164,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     if (!wo) return { ...empty, error: 'Not found' }
 
     const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }] = await Promise.all([
-      admin.from('customers').select('name').eq('id', wo.customer_id).single(),
+      admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -277,7 +277,16 @@ export async function getWorkOrderDetail(id: string): Promise<{
     const serialNumbers = rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[]
     const hasWarranty = rows.some(r => r.transformers?.warranty_status === 'under_warranty')
     const warrantyTiers = [...new Set(rows.map(r => r.transformers?.warranty_status).filter(Boolean))] as WorkOrder['warranty_tiers']
+    // First-linked-transformer's site only — kept as a simple fallback for callers that
+    // just want "a" site name; serialNumberSites below is the real per-transformer data.
     const siteName = rows[0]?.transformers?.customer_sites?.site_name || null
+    const serialNumberSites = rows
+      .filter(r => r.transformers?.serial_number)
+      .map(r => ({ serialNumber: r.transformers!.serial_number, siteName: r.transformers?.customer_sites?.site_name || null }))
+
+    const { data: endTypeRow } = customer?.end_customer_type_id
+      ? await admin.from('customer_categories').select('name').eq('id', customer.end_customer_type_id).maybeSingle()
+      : { data: null as { name: string } | null }
 
     const checkin: WorkOrderCheckinInfo | null = checkinRow ? {
       latitude: checkinRow.latitude,
@@ -352,6 +361,8 @@ export async function getWorkOrderDetail(id: string): Promise<{
         warranty_tiers: warrantyTiers,
         additional_engineers: additionalEngineers,
         customer_category_name: categoryRow?.name || null,
+        end_customer_type_name: endTypeRow?.name || null,
+        serial_number_sites: serialNumberSites,
       },
       activity: actRows || [],
       checkin,

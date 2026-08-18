@@ -135,6 +135,13 @@ export interface WorkOrder {
   warranty_tiers?: WarrantyStatus[]
   additional_engineers?: { id: string; name: string }[]
   customer_category_name?: string | null
+  // Customer-level End Customer Type (OEM/Solar/etc.) — distinct from customer_type
+  // above (Utility/Industry), which is a per-notification classification.
+  end_customer_type_name?: string | null
+  // Per-transformer project/site — site_name above only ever reflected the first
+  // linked transformer's site, silently wrong for a notification covering
+  // transformers from different sites.
+  serial_number_sites?: { serialNumber: string; siteName: string | null }[]
 }
 
 // Utility / Industry classification for a notification's customer — distinct from

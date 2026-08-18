@@ -922,7 +922,15 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 <div style={cardLabel}>Notification details</div>
                 {row('Ticket number', <span style={{ color: 'var(--m)' }}>{wo.ticket_number}</span>)}
                 {row('Notification', <span style={{ color: 'var(--m)' }}>{wo.wo_number}</span>)}
-                {row('Serial number(s)', <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
+                {row('Serial number(s)', wo.serial_number_sites && wo.serial_number_sites.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+                    {wo.serial_number_sites.map(s => (
+                      <span key={s.serialNumber} style={{ color: 'var(--m)', fontSize: 11 }}>
+                        {s.serialNumber}{s.siteName ? <span style={{ color: 'var(--txm)' }}> — {s.siteName}</span> : null}
+                      </span>
+                    ))}
+                  </div>
+                ) : <span style={{ color: 'var(--m)', fontSize: 11 }}>{wo.serial_numbers?.join(', ') || '—'}</span>)}
                 {row('Job type', JOB_LABELS[wo.job_type] || wo.job_type)}
                 {row('Created', new Date(wo.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}
                 {row('Scheduled', wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
@@ -941,6 +949,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Shipped to', wo.site_name || '—')}
                 {row('Project', wo.site_name || '—')}
                 {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : '—')}
+                {row('End Customer Type', wo.end_customer_type_name || '—')}
                 {row('Category', wo.customer_category_name || '—')}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
                 {wo.notes && row('Notes', wo.notes)}

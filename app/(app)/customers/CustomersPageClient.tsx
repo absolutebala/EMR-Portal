@@ -67,7 +67,7 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Customer', 'Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => (
+                  {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -86,6 +86,7 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
                       </div>
                     </td>
                     <td style={{ padding: '10px 14px' }}><CustomerTypeBadge type={c.type} /></td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{c.end_customer_type_name || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{c.contact_person}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{c.phone}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{c.site_count}</td>
