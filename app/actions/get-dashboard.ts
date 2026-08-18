@@ -11,6 +11,13 @@ export interface DashboardNotification {
   engineerName: string
   customerName: string
   alertReason?: 'missed' | 'at_risk_today'
+  transformers: { serialNumber: string; warrantyStatus: string }[]
+}
+
+export interface DashboardExpiredWarranty {
+  id: string
+  customerName: string
+  serialNumber: string
 }
 
 export interface DashboardWorkOrderBrief {
@@ -24,6 +31,7 @@ export interface DashboardApproval {
   quantity: number
   productName: string
   woNumber: string
+  status: string
 }
 
 export interface DashboardOffSiteUpdate {
@@ -52,10 +60,15 @@ export interface DashboardData {
   needsReassignList: DashboardWorkOrderBrief[]
   unassignedList: DashboardWorkOrderBrief[]
   offSiteUpdates: DashboardOffSiteUpdate[]
+  expiredWarrantyList: DashboardExpiredWarranty[]
   kpis: DashboardKpis
 }
 
-type NotifRow = { id: string; wo_number: string; status: string; scheduled_date: string | null; engineer_id: string | null; customers: { name: string } | null }
+type NotifRow = {
+  id: string; wo_number: string; status: string; scheduled_date: string | null; engineer_id: string | null
+  customers: { name: string } | null
+  work_order_transformers: { transformers: { serial_number: string; warranty_status: string } | null }[]
+}
 type BriefRow = { id: string; wo_number: string; customers: { name: string } | null }
 
 // Uses the admin (service-role) client throughout, not the session-scoped client —
@@ -77,11 +90,16 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: unassignedRows },
     { data: offSiteRows },
     { data: openWorkOrderRows },
+    { data: expiredTransformerRows },
     { count: pendingProductRequestsCount },
   ] = await Promise.all([
     getFieldEngineersOverview(),
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
-    admin.from('product_request_items').select('id, quantity, products(name), product_requests(work_orders(wo_number))').eq('status', 'pending').order('created_at', { ascending: false }).limit(6),
+    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name), work_order_transformers(transformers(serial_number, warranty_status))').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
+    // Anything the admin still needs to keep an eye on, not just what needs a decision
+    // right now — stays on the dashboard through approved/dispatched, only dropping off
+    // once it's delivered or rejected. Same "till delivered" scope as the mobile
+    // dashboard's equivalent card.
+    admin.from('product_request_items').select('id, quantity, status, products(name), product_requests(work_orders(wo_number))').in('status', ['pending', 'approved', 'dispatched']).order('created_at', { ascending: false }).limit(6),
     // Genuinely missed: still in_progress (was checked into / had a follow-up) but the
     // follow-up date has already passed with no closure since.
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
@@ -92,6 +110,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
+    // Straight off transformers.warranty_status (not scoped to open notifications like
+    // the KPI breakdown below) — every expired unit on record, regardless of whether it
+    // currently has an open job against it.
+    admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
     // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown, and
     // warranty-tier breakdown all derived from one pass over every open notification.
     admin.from('work_orders').select('id, status, job_type, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
@@ -132,6 +154,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     engineerName: w.engineer_id ? (engineerNameById[w.engineer_id] || 'Engineer') : 'Unassigned',
     customerName: w.customers?.name || 'Unknown customer',
     alertReason,
+    transformers: (w.work_order_transformers || [])
+      .map(wot => wot.transformers)
+      .filter((t): t is { serial_number: string; warranty_status: string } => !!t)
+      .map(t => ({ serialNumber: t.serial_number, warrantyStatus: t.warranty_status })),
   })
   const toBrief = (w: BriefRow): DashboardWorkOrderBrief => ({
     id: w.id,
@@ -147,12 +173,20 @@ export async function getDashboardData(): Promise<DashboardData> {
   const needsReassignList = ((needsReassignRows as unknown as BriefRow[]) || []).map(toBrief)
   const unassignedList = ((unassignedRows as unknown as BriefRow[]) || []).map(toBrief)
 
-  type ApprovalRowRaw = { id: string; quantity: number; products: { name: string } | null; product_requests: { work_orders: { wo_number: string } | null } | null }
+  type ApprovalRowRaw = { id: string; quantity: number; status: string; products: { name: string } | null; product_requests: { work_orders: { wo_number: string } | null } | null }
   const pendingApprovals: DashboardApproval[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || []).map(r => ({
     id: r.id,
     quantity: r.quantity,
     productName: r.products?.name || 'Unknown product',
     woNumber: r.product_requests?.work_orders?.wo_number || '—',
+    status: r.status,
+  }))
+
+  type ExpiredTransformerRow = { id: string; serial_number: string; customers: { name: string } | null }
+  const expiredWarrantyList: DashboardExpiredWarranty[] = ((expiredTransformerRows as unknown as ExpiredTransformerRow[]) || []).map(t => ({
+    id: t.id,
+    customerName: t.customers?.name || 'Unknown customer',
+    serialNumber: t.serial_number,
   }))
 
   const offSiteUpdates: DashboardOffSiteUpdate[] = ((offSiteRows as unknown as { id: string; actor_name: string; action: string; created_at: string }[]) || []).map(r => ({
@@ -192,5 +226,5 @@ export async function getDashboardData(): Promise<DashboardData> {
     jobTypeBreakdown,
   }
 
-  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, kpis }
+  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, kpis }
 }

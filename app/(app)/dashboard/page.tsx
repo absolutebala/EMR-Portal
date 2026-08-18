@@ -20,6 +20,18 @@ const WARRANTY_TIER_CFG: { key: 'under_warranty' | 'expired' | 'amc'; label: str
   { key: 'amc', label: 'AMC', color: '#1D4ED8' },
 ]
 
+const WARRANTY_BADGE_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  under_warranty: { bg: '#D1FAE5', color: '#065F46', label: 'Under Warranty' },
+  expired: { bg: '#FEE2E2', color: '#991B1B', label: 'Expired' },
+  amc: { bg: '#DBEAFE', color: '#1D4ED8', label: 'AMC' },
+}
+
+const PRODUCT_REQUEST_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
+  approved: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Approved' },
+  dispatched: { bg: '#EDE9FE', color: '#5B21B6', label: 'Dispatched' },
+}
+
 const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; label: string }> = {
   available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
   on_leave: { bg: '#F1F5F9', color: '#475569', label: 'On Leave' },
@@ -60,7 +72,7 @@ export default async function DashboardPage() {
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, kpis } = dashboard
+  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, kpis } = dashboard
   const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
 
   return (
@@ -136,6 +148,15 @@ export default async function DashboardPage() {
                     <>
                       <div>{wo.engineerName}</div>
                       {wo.scheduledDate && <div>{formatDate(wo.scheduledDate)}</div>}
+                      {wo.transformers.map(t => {
+                        const wcfg = WARRANTY_BADGE_CFG[t.warrantyStatus]
+                        return wcfg ? (
+                          <div key={t.serialNumber} style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 9.5, color: 'var(--txm)' }}>{t.serialNumber}</span>
+                            <Badge bg={wcfg.bg} color={wcfg.color} label={wcfg.label} />
+                          </div>
+                        ) : null
+                      })}
                     </>
                   }
                   href={`/work-orders/${wo.id}`}
@@ -149,10 +170,15 @@ export default async function DashboardPage() {
             })}
           </ListCard>
 
-          <ListCard title="Product request approvals" viewAllHref="/requests" empty="Nothing pending approval.">
-            {pendingApprovals.map(ap => (
-              <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests" />
-            ))}
+          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
+            {pendingApprovals.map(ap => {
+              const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
+              return (
+                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
+                  <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
+                </ListRow>
+              )
+            })}
           </ListCard>
         </div>
 
@@ -189,7 +215,13 @@ export default async function DashboardPage() {
           <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+          <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
+            {expiredWarrantyList.map(t => (
+              <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
+            ))}
+          </ListCard>
+
           <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
             {offSiteUpdates.map(u => (
               <ListRow key={u.id} title={u.actorName} subtitle={formatDateTime(u.createdAt)}>

@@ -158,23 +158,6 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
           </div>
         </div>
 
-        {/* General */}
-        <div style={ss}>
-          <h3 style={h3s}>General settings</h3>
-          <p style={ps}>Portal defaults and timezone configuration.</p>
-          <div style={grid2}>
-            <div><label style={fl2}>Organisation name</label><input style={fi2} value={settings.org_name} onChange={e => set('org_name', e.target.value)} /></div>
-            <div><label style={fl2}>Default timezone</label><select style={fi2} value={settings.timezone} onChange={e => set('timezone', e.target.value)}><option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option><option value="UTC">UTC</option></select></div>
-            <div><label style={fl2}>Date format</label><select style={fi2} value={settings.date_format} onChange={e => set('date_format', e.target.value)}><option value="DD MMM YYYY">DD MMM YYYY</option><option value="MM/DD/YYYY">MM/DD/YYYY</option></select></div>
-            <div><label style={fl2}>Admin email</label><input type="email" style={fi2} value={settings.admin_email} onChange={e => set('admin_email', e.target.value)} /></div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-            <button onClick={() => save('general', { org_name: settings.org_name, timezone: settings.timezone, date_format: settings.date_format, admin_email: settings.admin_email })} disabled={saving === 'general'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'general' ? .7 : 1 }}>
-              {saving === 'general' ? 'Saving…' : 'Save settings'}
-            </button>
-            {saved === 'general' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
-          </div>
-        </div>
       </div>
     </>
   )
