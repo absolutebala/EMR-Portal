@@ -157,12 +157,27 @@ export class ServiceStack extends cdk.Stack {
       },
     })
 
-    // Plain HTTP now just redirects — the app itself no longer needs to be reachable
-    // over unencrypted HTTP now that a real domain + cert exist.
-    this.loadBalancer.addListener('HttpListener', {
+    // Plain HTTP still forwards directly to the app — NOT a redirect to HTTPS. The
+    // installed mobile app fleet (EXPO_PUBLIC_API_BASE_URL baked in at build time) still
+    // calls this raw ALB hostname over plain HTTP; redirecting it to HTTPS broke every
+    // mobile API call, because the ACM cert on the 443 listener only covers
+    // portal.emr.global, not the ALB's own DNS name, so the redirect target fails TLS
+    // validation. Once every mobile build has been migrated to call
+    // https://portal.emr.global directly (a future EAS rebuild), this can safely become
+    // a redirect again — until then this must stay a direct forward.
+    const httpListener = this.loadBalancer.addListener('HttpListener', {
       port: 80,
       open: false,
-      defaultAction: elbv2.ListenerAction.redirect({ port: '443', protocol: 'HTTPS', permanent: true }),
+    })
+    httpListener.addTargets('EcsTargetsHttp', {
+      port: 3000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targets: [service],
+      healthCheck: {
+        path: '/api/health',
+        healthyHttpCodes: '200',
+        interval: cdk.Duration.seconds(30),
+      },
     })
 
     new cdk.CfnOutput(this, 'LoadBalancerDnsName', { value: this.loadBalancer.loadBalancerDnsName })
