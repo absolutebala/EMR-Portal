@@ -136,7 +136,7 @@ export default function JobFormScreen() {
       }
       for (const t of sec.tables) {
         for (const row of t.rows) {
-          const filled = t.status_type === 'observation' || t.status_type === 'measurement'
+          const filled = t.status_type === 'measurement'
             ? !!rowValues[row.id]?.remarks?.trim()
             : !!rowValues[row.id]?.status;
           if (!filled) missing.add(row.id);

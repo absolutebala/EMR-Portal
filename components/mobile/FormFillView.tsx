@@ -196,7 +196,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
       }
       for (const t of sec.tables) {
         for (const row of t.rows) {
-          const filled = t.status_type === 'observation' || t.status_type === 'measurement'
+          const filled = t.status_type === 'measurement'
             ? !!rowValues[row.id]?.remarks?.trim()
             : !!rowValues[row.id]?.status
           if (!filled) missing.add(row.id)
@@ -591,7 +591,22 @@ function renderTable(
     )
   }
 
-  // observation / measurement: text input per row
+  if (statusType === 'observation') {
+    return (
+      <div>
+        {topRows.map((row, i) => (
+          <div key={row.id}>
+            <ObservationRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} language={language} />
+            {(childMap[row.id] || []).map((child, ci) => (
+              <ObservationRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} language={language} />
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // measurement: numeric input per row
   return (
     <div>
       {topRows.map((row, i) => {
@@ -603,10 +618,10 @@ function renderTable(
             {t(row.row_label, row.row_label_hi, language)}
           </div>
           <input
-            type={statusType === 'measurement' ? 'number' : 'text'}
+            type="number"
             value={rowValues[row.id]?.remarks || ''}
             onChange={e => setRowRemarks(row.id, e.target.value)}
-            placeholder={statusType === 'measurement' ? 'Enter value' : 'Enter observation'}
+            placeholder="Enter value"
             style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }}
           />
         </div>
@@ -748,6 +763,57 @@ const YesNoRow = memo(function YesNoRow({ row, indent, index, value, setRowStatu
           style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E0E3', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }}
         />
       )}
+    </div>
+  )
+})
+
+// Matches the status buttons + remarks pattern mocked up in FormBuilder.tsx's
+// preview panel (opts/colors kept in sync with that file) — 'observation' tables
+// (Materials, Cable Requirement, etc.) previously fell through to a plain text input
+// here despite the builder preview already promising this UI.
+const OBSERVATION_OPTS = [
+  { k: 'progress', label: 'In Progress', bg: '#D97706' },
+  { k: 'completed', label: 'Completed', bg: '#059669' },
+  { k: 'na', label: 'N / A', bg: '#6B7280' },
+] as const
+
+const ObservationRow = memo(function ObservationRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete, language }: RowProps) {
+  return (
+    <div style={{ borderTop: index > 0 || indent ? '1px solid #F5F3F5' : 'none', padding: '12px 14px', paddingLeft: indent ? 28 : 14, background: isIncomplete ? '#FEF2F2' : indent ? '#FAFAFA' : '#fff', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
+      <div style={{ fontSize: 13, color: '#1C0D14', marginBottom: 10, lineHeight: 1.4 }}>
+        {row.sno_label && <span style={{ color: '#7A6870', marginRight: 5, fontWeight: 500 }}>{t(row.sno_label, row.sno_label_hi, language)}.</span>}
+        {t(row.row_label, row.row_label_hi, language)}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {OBSERVATION_OPTS.map(opt => {
+          const sel = value.status === opt.k
+          return (
+            <button
+              key={opt.k}
+              type="button"
+              onClick={() => setRowStatus(row.id, sel ? '' : opt.k)}
+              style={{
+                flex: 1, padding: '10px 4px',
+                background: sel ? opt.bg : '#fff',
+                color: sel ? '#fff' : '#374151',
+                border: `2px solid ${sel ? opt.bg : '#E5E0E3'}`,
+                borderRadius: 10, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+                transition: 'all 0.15s',
+              }}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+      <textarea
+        value={value.remarks}
+        onChange={e => setRowRemarks(row.id, e.target.value)}
+        placeholder="Details / Remarks…"
+        rows={2}
+        style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E0E3', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box' }}
+      />
     </div>
   )
 })

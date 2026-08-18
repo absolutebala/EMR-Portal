@@ -91,6 +91,51 @@ const TestedRow = memo(function TestedRow({ row, indent, index, value, setRowSta
   );
 });
 
+// Matches the status buttons + remarks pattern mocked up in the web FormBuilder's
+// preview panel — 'observation' tables (Materials, Cable Requirement, etc.) previously
+// fell through to a plain text input here despite that preview already promising this UI.
+const OBSERVATION_OPTS = [
+  { k: 'progress', label: 'In Progress', bg: '#D97706' },
+  { k: 'completed', label: 'Completed', bg: '#059669' },
+  { k: 'na', label: 'N / A', bg: '#6B7280' },
+] as const;
+
+const ObservationRow = memo(function ObservationRow({ row, indent, index, value, setRowStatus, setRowRemarks, isIncomplete }: RowProps) {
+  return (
+    <View style={[
+      styles.rowBase, indent && styles.rowIndent, (index > 0 || indent) && styles.rowBordered,
+      isIncomplete && styles.rowIncomplete,
+    ]}>
+      <Text style={styles.rowLabel}>
+        {row.sno_label ? <Text style={styles.snoLabel}>{row.sno_label}. </Text> : null}
+        {row.row_label}
+      </Text>
+      <View style={styles.buttonRow}>
+        {OBSERVATION_OPTS.map(opt => {
+          const sel = value.status === opt.k;
+          return (
+            <Pressable
+              key={opt.k}
+              style={[styles.toggleButton, sel && { backgroundColor: opt.bg, borderColor: opt.bg }]}
+              onPress={() => setRowStatus(row.id, sel ? '' : opt.k)}
+            >
+              <Text style={[styles.toggleButtonText, sel && styles.toggleButtonTextActive]}>{opt.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <TextInput
+        style={[styles.remarksInput, styles.observationRemarks]}
+        value={value.remarks}
+        onChangeText={v => setRowRemarks(row.id, v)}
+        placeholder="Details / Remarks…"
+        placeholderTextColor="#9CA3AF"
+        multiline
+      />
+    </View>
+  );
+});
+
 interface TableSectionProps {
   table: MobileFormTable;
   rowValues: RowValues;
@@ -199,7 +244,22 @@ export default function TableSection({ table, rowValues, setRowStatus, setRowRem
     );
   }
 
-  // observation / measurement: free-text or numeric input per row
+  if (table.status_type === 'observation') {
+    return (
+      <View>
+        {topRows.map((row, i) => (
+          <View key={row.id}>
+            <ObservationRow row={row} indent={false} index={i} value={rowValues[row.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(row.id)} />
+            {(childMap[row.id] || []).map((child, ci) => (
+              <ObservationRow key={child.id} row={child} indent index={ci} value={rowValues[child.id] || EMPTY_ROW_VALUE} setRowStatus={setRowStatus} setRowRemarks={setRowRemarks} isIncomplete={incompleteIds.has(child.id)} />
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  // measurement: numeric input per row
   return (
     <View>
       {topRows.map((row, i) => {
@@ -214,9 +274,9 @@ export default function TableSection({ table, rowValues, setRowStatus, setRowRem
               style={[styles.input, isIncomplete && styles.inputIncomplete]}
               value={rowValues[row.id]?.remarks || ''}
               onChangeText={v => setRowRemarks(row.id, v)}
-              placeholder={table.status_type === 'measurement' ? 'Enter value' : 'Enter observation'}
+              placeholder="Enter value"
               placeholderTextColor="#9CA3AF"
-              keyboardType={table.status_type === 'measurement' ? 'numeric' : 'default'}
+              keyboardType="numeric"
             />
           </View>
         );
@@ -244,6 +304,7 @@ const styles = StyleSheet.create({
     marginTop: 8, borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 8, paddingHorizontal: 12,
     paddingVertical: 9, fontSize: 13, color: '#1C0D14',
   },
+  observationRemarks: { minHeight: 60, textAlignVertical: 'top' },
   checkboxRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14 },
   checkboxRowLabel: { fontSize: 13, color: '#1C0D14', flex: 1, lineHeight: 18 },
   checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
