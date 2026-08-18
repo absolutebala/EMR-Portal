@@ -10,7 +10,10 @@ import type {
   CheckInVariables, ClosureVariables, ErrorResponse, WorkOrderFormResponse, SubmitFormVariables, SubmitFormResult,
   ProductSearchResponse, ProductRequestsResponse, SubmitProductRequestVariables,
   ExpenseTypesResponse, ExpenseTypeResponse, ExpenseEligibilityResponse, ExpenseLogsResponse, SubmitExpenseLogVariables,
+  ExpenseReminderResponse,
   AlertsResponse, CheckinDriftNotice,
+  ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
+  NearbyEngineersResponse,
 } from './types';
 
 export function useDashboard() {
@@ -62,6 +65,21 @@ export function useCheckinDriftNotice() {
       return data.checkinDrift;
     },
     refetchInterval: CHECKIN_DRIFT_POLL_MS,
+  });
+}
+
+// On-demand only — fetches once per dashboard view (mount/focus), not a background
+// timer. The server records this engineer's own location as a side effect of this same
+// call (see getNearbyEngineersCore), so an engineer only shows up as "nearby" to
+// others if they've opened the app recently enough themselves.
+export function useNearbyEngineers() {
+  return useQuery({
+    queryKey: ['nearby-engineers'],
+    queryFn: async (): Promise<NearbyEngineersResponse> => {
+      const loc = await getCurrentPositionWithFallback();
+      if (!loc) return { engineers: [], error: null };
+      return apiGet<NearbyEngineersResponse>(`/api/mobile/v1/nearby-engineers?lat=${loc.lat}&lng=${loc.lng}`);
+    },
   });
 }
 
@@ -195,6 +213,57 @@ export function useSubmitExpenseLog() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expense-logs'] });
     },
+  });
+}
+
+export function useSendExpenseReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<ExpenseReminderResponse>('/api/mobile/v1/expense-logs/remind', {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expense-logs'] });
+    },
+  });
+}
+
+// ── Profile ──────────────────────────────────────────────────────────────────────
+
+export function useMyProfile() {
+  return useQuery({
+    queryKey: ['profile'],
+    queryFn: () => apiGet<ProfileResponse>('/api/mobile/v1/profile'),
+  });
+}
+
+export function useUpdateMyProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: UpdateProfileVariables) => apiPost<ErrorResponse>('/api/mobile/v1/profile', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// Dashboard header's avatar bubble reads engineer.avatarUrl straight from
+// useDashboard() (already fetched there) rather than a separate query, so this needs
+// to invalidate that cache entry too, not just ['profile'], for the header to update
+// right after a new photo is uploaded.
+export function useUploadAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: AvatarUploadVariables) => apiPost<AvatarUploadResponse>('/api/mobile/v1/profile/avatar', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useChangeMyPassword() {
+  return useMutation({
+    mutationFn: (variables: ChangePasswordVariables) => apiPost<ErrorResponse>('/api/mobile/v1/profile/change-password', variables),
   });
 }
 

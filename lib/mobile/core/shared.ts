@@ -164,13 +164,13 @@ export async function fetchEngineerWorkOrders(admin: AdminClient, userId: string
   return rows.map(w => mapWorkOrderEmbed(w, engineerLoc, siteCoordsById))
 }
 
-export async function getEngineerName(admin: AdminClient, userId: string): Promise<{ name: string } | null> {
+export async function getEngineerName(admin: AdminClient, userId: string): Promise<{ name: string; avatarUrl: string | null } | null> {
   const { data: profile } = await admin
     .from('profiles')
-    .select('first_name, last_name')
+    .select('first_name, last_name, avatar_url')
     .eq('id', userId)
     .single()
-  return profile ? { name: `${profile.first_name} ${profile.last_name}` } : null
+  return profile ? { name: `${profile.first_name} ${profile.last_name}`, avatarUrl: profile.avatar_url } : null
 }
 
 export async function fetchSingleWorkOrder(admin: AdminClient, woId: string): Promise<MobileWorkOrderWithCustomer | null> {

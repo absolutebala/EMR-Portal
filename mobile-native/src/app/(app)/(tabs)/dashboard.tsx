@@ -6,6 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDashboard, useAlerts } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
 import JobCard from '@/components/JobCard';
+import AccountMenu from '@/components/AccountMenu';
+import StreakStrip from '@/components/StreakStrip';
+import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 
 const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'completed'; label: string; color: string }[] = [
   { key: 'assigned', label: 'Assigned', color: '#92400E' },
@@ -16,7 +19,7 @@ const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'comp
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { engineerName, signOut } = useAuth();
+  const { engineerName } = useAuth();
   const { data, isLoading, error } = useDashboard();
   const { data: alertsData } = useAlerts();
   const queryClient = useQueryClient();
@@ -58,9 +61,7 @@ export default function DashboardScreen() {
               </View>
             )}
           </Pressable>
-          <Pressable onPress={signOut}>
-            <Text style={styles.signOut}>Sign out</Text>
-          </Pressable>
+          <AccountMenu avatarUrl={data?.engineer?.avatarUrl ?? null} name={engineerName || data?.engineer?.name || null} />
         </View>
       </View>
 
@@ -75,12 +76,16 @@ export default function DashboardScreen() {
         ))}
       </View>
 
+      {data?.streak && <StreakStrip streak={data.streak} />}
+
       <Text style={styles.sectionTitle}>Recent jobs</Text>
       {data?.recentJobs.length ? (
         data.recentJobs.map(wo => <JobCard key={wo.id} wo={wo} />)
       ) : (
         <Text style={styles.empty}>No recent jobs</Text>
       )}
+
+      <NearbyEngineersStrip />
     </ScrollView>
   );
 }
@@ -100,7 +105,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  signOut: { fontSize: 12, color: '#7D1D3F', fontWeight: '600' },
   error: { color: '#DC2626', fontSize: 12, marginBottom: 12 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   statCard: {

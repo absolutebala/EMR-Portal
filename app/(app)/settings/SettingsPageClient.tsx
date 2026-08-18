@@ -28,6 +28,7 @@ interface SettingsShape {
   whatsapp_campaign_escalation: string
   whatsapp_campaign_completed: string
   whatsapp_campaign_pending: string
+  whatsapp_campaign_expense_reminder: string
   sms_gateway: string
   sms_api_key: string
   sms_sender_id: string
@@ -74,6 +75,11 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
     key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign',
     params: '1) Notification number  2) Engineer name  3) Transformer serial no.  4) Reason',
     example: '⚠️ Notification *{{1}}* needs reassignment.\n\nEngineer: {{2}}\nTransformer S/N: {{3}}\nReason: {{4}}\n\nPlease review and reassign in the EMR Portal.',
+  },
+  {
+    key: 'whatsapp_campaign_expense_reminder', label: 'Pending expense reminder — Admin campaign',
+    params: '1) Engineer name  2) Pending expense count',
+    example: 'Hi, {{1}} has {{2}} expense(s) awaiting your approval.\n\nPlease review in the EMR Portal.',
   },
 ]
 

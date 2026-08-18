@@ -7,7 +7,7 @@ import {
   logActivity,
 } from './shared'
 
-export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
+export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {
     touchHeartbeat(admin, userId)
     const [engineer, workOrders] = await Promise.all([
@@ -20,17 +20,79 @@ export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string
   }
 }
 
+export interface EngineerStreak {
+  count: number
+  // Oldest -> newest (today last), always length 5 — matches the mobile dashboard's
+  // 5-day dot row 1:1.
+  days: boolean[]
+}
+
+const STREAK_WINDOW_DAYS = 5
+
+function startOfDayUTC(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+}
+
+// A day counts as "clean" if the engineer closed out at least one job that day and
+// none of that day's closures needed reassignment — days with zero closures (a
+// rostered day off, or simply mid-job with nothing closed yet) are neither clean nor
+// dirty, they're just skipped when walking the streak backward from today. This is a
+// deliberately simple proxy for "days going well" built entirely from data already
+// recorded by the daily-closure flow — not a true schedule-adherence/SLA calculation,
+// which this app has no clean data source for.
+export async function getEngineerStreakCore(admin: AdminClient, userId: string): Promise<{ streak: EngineerStreak; error: string | null }> {
+  try {
+    const today = startOfDayUTC(new Date())
+    const windowStart = new Date(today.getTime() - (STREAK_WINDOW_DAYS - 1) * 86400000)
+
+    const { data: rows, error } = await admin
+      .from('work_order_daily_closures')
+      .select('created_at, needs_reassignment')
+      .eq('engineer_id', userId)
+      .gte('created_at', windowStart.toISOString())
+    if (error) return { streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, error: error.message }
+
+    // index 0 = today, ..., index 4 = 4 days ago
+    const dirty = Array(STREAK_WINDOW_DAYS).fill(false)
+    const hasAny = Array(STREAK_WINDOW_DAYS).fill(false)
+    for (const r of rows || []) {
+      const dayIndex = Math.floor((today.getTime() - startOfDayUTC(new Date(r.created_at)).getTime()) / 86400000)
+      if (dayIndex < 0 || dayIndex >= STREAK_WINDOW_DAYS) continue
+      hasAny[dayIndex] = true
+      if (r.needs_reassignment) dirty[dayIndex] = true
+    }
+
+    let count = 0
+    for (let i = 0; i < STREAK_WINDOW_DAYS; i++) {
+      if (!hasAny[i]) continue // no closures that day — skip, doesn't break the streak
+      if (dirty[i]) break
+      count++
+    }
+
+    const days = Array.from({ length: STREAK_WINDOW_DAYS }, (_, i) => {
+      const dayIndex = STREAK_WINDOW_DAYS - 1 - i // reverse to oldest -> newest
+      return hasAny[dayIndex] && !dirty[dayIndex]
+    })
+
+    return { streak: { count, days }, error: null }
+  } catch (e: unknown) {
+    return { streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function getMobileDashboardDataCore(admin: AdminClient, userId: string): Promise<{
   stats: MobileDashboardStats
   recentJobs: MobileWorkOrder[]
-  engineer: { name: string } | null
+  engineer: { name: string; avatarUrl: string | null } | null
+  streak: EngineerStreak
   error: string | null
 }> {
   try {
     touchHeartbeat(admin, userId)
-    const [engineer, workOrders] = await Promise.all([
+    const [engineer, workOrders, { streak }] = await Promise.all([
       getEngineerName(admin, userId),
       fetchEngineerWorkOrders(admin, userId),
+      getEngineerStreakCore(admin, userId),
     ])
 
     // "Pending" is no longer a distinct status — a visit that couldn't be finished in
@@ -44,9 +106,9 @@ export async function getMobileDashboardDataCore(admin: AdminClient, userId: str
 
     const recentJobs = workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment').slice(0, 3)
 
-    return { stats, recentJobs, engineer, error: null }
+    return { stats, recentJobs, engineer, streak, error: null }
   } catch (e: unknown) {
-    return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: e instanceof Error ? e.message : String(e) }
+    return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -180,7 +242,7 @@ export async function rescheduleFollowUpCore(admin: AdminClient, userId: string,
   }
 }
 
-export async function getMobileJobsListCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string } | null; error: string | null }> {
+export async function getMobileJobsListCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {
     touchHeartbeat(admin, userId)
     const [engineer, workOrders] = await Promise.all([

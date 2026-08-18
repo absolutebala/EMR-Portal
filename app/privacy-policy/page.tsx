@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
         <p style={p}>We collect the following categories of information:</p>
         <ul style={{ paddingLeft: 20, marginBottom: 10 }}>
           <li style={li}><strong>Account information:</strong> name, work email address, employee ID, phone number, department, and role, provided when an administrator creates your account.</li>
-          <li style={li}><strong>Location data:</strong> GPS coordinates, captured when you check in at a job site, submit certain forms, or while the app is open and your assigned status indicates you are traveling to or present at a site. Location is used to route job assignments to the nearest available engineer, confirm site check-ins, and remind you to update a job&apos;s status if you appear to have left a site without doing so. We do not track location continuously or while the app is closed.</li>
+          <li style={li}><strong>Location data:</strong> GPS coordinates, captured when you check in at a job site, submit certain forms, while the app is open and your assigned status indicates you are traveling to or present at a site, or when you view the &quot;Nearby Engineers&quot; list on your dashboard. Location is used to route job assignments to the nearest available engineer, confirm site check-ins, remind you to update a job&apos;s status if you appear to have left a site without doing so, and show you (and other engineers) approximately how far away nearby colleagues are. We do not track location continuously or while the app is closed — each of these is a one-time capture tied to that specific action.</li>
           <li style={li}><strong>Photos and signatures:</strong> site photographs, damage photographs, and digital signatures you capture or upload while completing inspection forms, check-ins, or job closures.</li>
           <li style={li}><strong>Job and customer data:</strong> work order details, equipment/serial numbers, site addresses, and the name, phone number, and site contact details of the customer associated with a job — entered by EMR Global staff as part of normal service delivery, not collected directly from customers by the app.</li>
           <li style={li}><strong>Communication data:</strong> phone numbers used to deliver WhatsApp and push notifications about job assignments, status changes, and reminders.</li>
@@ -44,6 +44,7 @@ export default function PrivacyPolicyPage() {
           <li style={li}>To let you check in/out of job sites, complete inspection and closure forms, and generate visit reports (PDF/Word documents) for completed work.</li>
           <li style={li}>To send you and, where applicable, the customer, notifications about job assignments, status changes, and reminders — via in-app alerts, push notifications, and WhatsApp messages.</li>
           <li style={li}>To remind you to update a job&apos;s status if your location suggests you have left a site you checked into.</li>
+          <li style={li}>To show you other nearby field engineers (and show your approximate location to them) for on-site coordination, when you view the &quot;Nearby Engineers&quot; list.</li>
           <li style={li}>To maintain records required for service delivery, quality, and business reporting.</li>
         </ul>
       </div>

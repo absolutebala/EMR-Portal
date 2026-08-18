@@ -71,8 +71,27 @@ function LogCard({ log }: { log: ExpenseLogView }) {
         </View>
         {!!log.photoUrl && <Image source={{ uri: log.photoUrl }} style={styles.receiptThumb} />}
       </View>
+      <ReviewerLine log={log} />
     </View>
   );
+}
+
+// status === 'rejected' can happen at either approval stage, but reviewed_by/reviewed_at
+// always records whoever made that final call either way, so a single "Rejected by" line
+// covers both. 'approved' likewise always means the second-stage (final) approver.
+// 'manager_approved' is the one case with no reviewedByName yet — first-level approval
+// only, shown as its own message so it's not confused with a final decision.
+function ReviewerLine({ log }: { log: ExpenseLogView }) {
+  if (log.status === 'rejected' && log.reviewedByName) {
+    return <Text style={styles.reviewerText}>Rejected by {log.reviewedByName}{log.reviewedAt ? ` · ${formatDate(log.reviewedAt)}` : ''}</Text>;
+  }
+  if (log.status === 'approved' && log.reviewedByName) {
+    return <Text style={styles.reviewerText}>Approved by {log.reviewedByName}{log.reviewedAt ? ` · ${formatDate(log.reviewedAt)}` : ''}</Text>;
+  }
+  if (log.status === 'manager_approved' && log.managerApprovedByName) {
+    return <Text style={styles.reviewerText}>First approved by {log.managerApprovedByName} · awaiting final approval</Text>;
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -95,6 +114,7 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   badgeText: { fontSize: 9, fontWeight: '600' },
   receiptThumb: { width: 34, height: 34, borderRadius: 6, borderWidth: 1, borderColor: '#E5E0E3' },
+  reviewerText: { fontSize: 10, color: '#7A6870', marginTop: 6 },
   footer: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E0E3', padding: 16 },
   submitButton: { backgroundColor: '#7D1D3F', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   submitText: { color: '#fff', fontSize: 14, fontWeight: '600' },

@@ -92,14 +92,68 @@ export interface MobileWorkOrderDetail {
 
 export interface AuthMeResponse {
   mustChangePassword: boolean;
-  engineer: { name: string } | null;
+  engineer: { name: string; avatarUrl: string | null } | null;
   error: string | null;
+}
+
+export interface EngineerStreak {
+  count: number;
+  days: boolean[];
 }
 
 export interface DashboardResponse {
   stats: MobileDashboardStats;
   recentJobs: MobileWorkOrder[];
-  engineer: { name: string } | null;
+  engineer: { name: string; avatarUrl: string | null } | null;
+  streak: EngineerStreak;
+  error: string | null;
+}
+
+export interface MyProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+}
+
+export interface ProfileResponse {
+  profile: MyProfile | null;
+  error: string | null;
+}
+
+export interface UpdateProfileVariables {
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+}
+
+export interface AvatarUploadVariables {
+  base64: string;
+  mimeType: string;
+  ext: string;
+}
+
+export interface AvatarUploadResponse {
+  url: string | null;
+  error: string | null;
+}
+
+export interface ChangePasswordVariables {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface NearbyEngineer {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  distanceKm: number;
+  lastSeenAt: string;
+}
+
+export interface NearbyEngineersResponse {
+  engineers: NearbyEngineer[];
   error: string | null;
 }
 
@@ -345,7 +399,13 @@ export interface ExpenseTypeResponse {
 
 export interface ExpenseLogsResponse {
   logs: ExpenseLogView[];
+  reminderSentAt: string | null;
   error: string | null;
+}
+
+export interface ExpenseReminderResponse {
+  error: string | null;
+  sentAt: string | null;
 }
 
 export interface SubmitExpenseLogVariables {

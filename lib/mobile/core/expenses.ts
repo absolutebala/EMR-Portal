@@ -2,6 +2,9 @@ import { logActivity } from '@/lib/activity-log'
 import { classifyCityTier, getEligibleLimit, isFlatAvailable, type CityTier, type ClaimType, type Grade } from '@/lib/travelGuidelines'
 import { type AdminClient, withTimeout } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
+import { sendWhatsApp } from '@/lib/messaging/whatsapp'
+
+const EXPENSE_REMINDER_COOLDOWN_MS = 60 * 60 * 1000
 
 export interface ExpenseType {
   id: string
@@ -267,14 +270,53 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
   }
 }
 
-export async function getMyExpenseLogsCore(admin: AdminClient, userId: string): Promise<{ logs: ExpenseLogView[]; error: string | null }> {
+export async function getMyExpenseLogsCore(admin: AdminClient, userId: string): Promise<{ logs: ExpenseLogView[]; reminderSentAt: string | null; error: string | null }> {
   try {
-    const { data: rows, error } = await admin.from('expense_logs').select('*').eq('engineer_id', userId)
-    if (error) return { logs: [], error: error.message }
+    const [{ data: rows, error }, { data: profile }] = await Promise.all([
+      admin.from('expense_logs').select('*').eq('engineer_id', userId),
+      admin.from('profiles').select('expense_reminder_sent_at').eq('id', userId).maybeSingle(),
+    ])
+    if (error) return { logs: [], reminderSentAt: null, error: error.message }
     const logs = await buildExpenseLogViews(admin, (rows as RawExpenseLog[]) || [])
-    return { logs, error: null }
+    return { logs, reminderSentAt: profile?.expense_reminder_sent_at ?? null, error: null }
   } catch (e: unknown) {
-    return { logs: [], error: e instanceof Error ? e.message : String(e) }
+    return { logs: [], reminderSentAt: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Lets a field engineer nudge Service Manager + Head of Service about their own
+// pending/manager_approved expenses via WhatsApp — the only user-initiated (as opposed
+// to status-change-triggered) sendWhatsApp() call site in the app. Cooldown is enforced
+// here, not just hidden client-side, so a second request within the window (e.g. from a
+// stale UI state) can't slip through.
+export async function sendExpenseReminderCore(admin: AdminClient, userId: string): Promise<{ error: string | null; sentAt: string | null }> {
+  try {
+    const { data: profile } = await admin.from('profiles').select('first_name, last_name, expense_reminder_sent_at').eq('id', userId).maybeSingle()
+    if (!profile) return { error: 'Profile not found', sentAt: null }
+
+    if (profile.expense_reminder_sent_at) {
+      const elapsed = Date.now() - new Date(profile.expense_reminder_sent_at).getTime()
+      if (elapsed < EXPENSE_REMINDER_COOLDOWN_MS) return { error: 'A reminder was already sent recently — please wait before sending another.', sentAt: profile.expense_reminder_sent_at }
+    }
+
+    const { count: pendingCount } = await admin.from('expense_logs').select('id', { count: 'exact', head: true })
+      .eq('engineer_id', userId).in('status', ['pending', 'manager_approved'])
+    if (!pendingCount) return { error: 'No pending expenses to remind about.', sentAt: profile.expense_reminder_sent_at ?? null }
+
+    const { data: approvers } = await admin.from('profiles').select('first_name, phone')
+      .in('role', ['Head of Service', 'Service Manager']).not('phone', 'is', null)
+
+    const engineerName = `${profile.first_name} ${profile.last_name}`
+    await sendWhatsApp(admin, 'expense_reminder',
+      (approvers || []).map(a => ({ phone: a.phone, userName: a.first_name })),
+      [engineerName, String(pendingCount)])
+
+    const sentAt = new Date().toISOString()
+    await admin.from('profiles').update({ expense_reminder_sent_at: sentAt }).eq('id', userId)
+
+    return { error: null, sentAt }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e), sentAt: null }
   }
 }
 

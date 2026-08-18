@@ -26,9 +26,12 @@ import { sendCombirdsMessage } from './combirds'
 //                          name, 4) completion date ("DD MMM YYYY")
 //   pending            (4): 1) customer contact person, 2) WO number, 3) engineer full
 //                          name, 4) follow-up/revisit date ("DD MMM YYYY" or "")
+//   expense_reminder    (2): 1) engineer full name, 2) count of expenses awaiting their
+//                          approval (recipient's own name comes from `userName`, same as
+//                          escalation)
 export type WhatsAppEvent =
   | 'assigned_engineer' | 'assigned_customer' | 'on_the_way' | 'product_request' | 'escalation'
-  | 'completed' | 'pending'
+  | 'completed' | 'pending' | 'expense_reminder'
 
 const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   assigned_engineer: 'whatsapp_campaign_assigned_engineer',
@@ -38,6 +41,7 @@ const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   escalation: 'whatsapp_campaign_escalation',
   completed: 'whatsapp_campaign_completed',
   pending: 'whatsapp_campaign_pending',
+  expense_reminder: 'whatsapp_campaign_expense_reminder',
 }
 
 function formatPhoneForWhatsApp(raw: string): string {

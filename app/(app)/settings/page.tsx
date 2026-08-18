@@ -27,6 +27,7 @@ export default async function SettingsPage() {
     whatsapp_campaign_escalation: data?.whatsapp_campaign_escalation || '',
     whatsapp_campaign_completed: data?.whatsapp_campaign_completed || '',
     whatsapp_campaign_pending: data?.whatsapp_campaign_pending || '',
+    whatsapp_campaign_expense_reminder: data?.whatsapp_campaign_expense_reminder || '',
     sms_gateway: data?.sms_gateway || 'twilio',
     sms_api_key: data?.sms_api_key || '',
     sms_sender_id: data?.sms_sender_id || '',

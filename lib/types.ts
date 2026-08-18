@@ -94,6 +94,7 @@ export interface AppSettings {
   whatsapp_campaign_escalation: string | null
   whatsapp_campaign_completed: string | null
   whatsapp_campaign_pending: string | null
+  whatsapp_campaign_expense_reminder: string | null
   sms_gateway: string | null
   sms_api_key: string | null
   sms_sender_id: string | null
