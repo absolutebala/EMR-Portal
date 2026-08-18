@@ -1,15 +1,17 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
+import { getOrCreateCustomerCategory } from './customer-categories'
 
 export interface BulkCustomerRow {
   name: string
-  type: string
   contact_person: string
   phone: string
   email: string
   whatsapp_number: string
   address: string
+  pincode: string
+  end_customer_type_name: string
   site_name: string
   site_address: string
   serial_number: string
@@ -31,6 +33,20 @@ export interface BulkCustomerResult {
 export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<BulkCustomerResult[]> {
   const admin = adminClient()
   const results: BulkCustomerResult[] = []
+  // Cached across the whole batch — real-world sheets repeat the same end-customer
+  // type ("OEM", "Solar"...) across many rows, and get-or-create-by-name shouldn't hit
+  // the DB again for a value this same import already resolved.
+  const endTypeCache = new Map<string, string>()
+
+  async function resolveEndCustomerTypeId(name: string): Promise<string | null> {
+    const trimmed = name.trim()
+    if (!trimmed) return null
+    const cached = endTypeCache.get(trimmed.toLowerCase())
+    if (cached) return cached
+    const { category } = await getOrCreateCustomerCategory('end_customer_type', trimmed)
+    if (category) endTypeCache.set(trimmed.toLowerCase(), category.id)
+    return category?.id ?? null
+  }
 
   for (const row of rows) {
     const { data: existingCust } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
@@ -45,14 +61,21 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<Bulk
       continue
     }
 
+    const endCustomerTypeId = await resolveEndCustomerTypeId(row.end_customer_type_name)
+
     const { data: cust, error: ce } = await admin.from('customers').insert({
       name: row.name,
-      type: row.type || 'both',
+      // Bulk-imported sheets don't distinguish Sold/Shipped/Both in practice — every
+      // real-world file seen so far uses this column position for end-customer type
+      // instead (OEM, Solar, etc.), handled separately below.
+      type: 'both',
       contact_person: row.contact_person,
       phone: row.phone,
       email: row.email || null,
       whatsapp_number: row.whatsapp_number || null,
       address: row.address || null,
+      pincode: row.pincode || null,
+      end_customer_type_id: endCustomerTypeId,
     }).select().single()
     if (ce || !cust) {
       results.push({ name: row.name, status: 'error', error: ce?.message || 'Could not create customer' })

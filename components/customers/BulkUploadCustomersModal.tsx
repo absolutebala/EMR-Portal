@@ -5,16 +5,22 @@ import * as XLSX from 'xlsx'
 import Modal from '@/components/ui/Modal'
 import { bulkImportCustomers, type BulkCustomerRow, type BulkCustomerResult } from '@/app/actions/bulk-import-customers'
 
-const VALID_TYPES = ['sold', 'shipped', 'both']
 const VALID_WARRANTY = ['under_warranty', 'expired', 'amc']
+// Real-world sheets say "Yes"/"Y"/"Active" for an in-warranty unit far more often than
+// they spell out our internal enum value — normalized to under_warranty rather than
+// rejecting the row over it.
+const WARRANTY_ALIASES: Record<string, string> = {
+  yes: 'under_warranty', y: 'under_warranty', active: 'under_warranty', true: 'under_warranty',
+  no: 'expired', n: 'expired', lapsed: 'expired',
+}
 
 const TEMPLATE_HEADERS = [
-  'Customer Name', 'Type', 'Contact Person', 'Phone', 'Email', 'WhatsApp Number', 'Address',
+  'Customer Name', 'End Customer Type', 'Contact Person', 'Phone', 'Email', 'WhatsApp Number', 'Address', 'Pincode',
   'Site Name', 'Site Address', 'Serial Number', 'Year of Manufacture', 'Warranty Status',
 ]
 const TEMPLATE_EXAMPLE = [
-  ['Acme Steel', 'both', 'Ravi Kumar', '+91 9876543210', 'ravi@acmesteel.com', '+91 9876543210', '123 Industrial Rd, Chennai', 'Plant 1', '123 Industrial Rd, Chennai', 'SN-00001', '2018', 'under_warranty'],
-  ['TANGEDCO', 'sold', 'Priya S', '+91 9876543211', '', '', 'Anna Salai, Chennai', 'Substation A', 'Anna Salai, Chennai', 'SN-00002', '2020', 'amc'],
+  ['Acme Steel', 'OEM', 'Ravi Kumar', '+91 9876543210', 'ravi@acmesteel.com', '+91 9876543210', '123 Industrial Rd, Chennai', '600001', 'Plant 1', '123 Industrial Rd, Chennai', 'SN-00001', '2018', 'under_warranty'],
+  ['TANGEDCO', 'Solar', 'Priya S', '+91 9876543211', '', '', 'Anna Salai, Chennai', '600002', 'Substation A', 'Anna Salai, Chennai', 'SN-00002', '2020', 'amc'],
 ]
 
 interface Props {
@@ -68,26 +74,39 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
 
         const headers = raw[headerIdx].map(h => String(h).toLowerCase().trim())
         const col = (name: string) => headers.findIndex(h => h.includes(name))
-        const colBoth = (a: string, b: string) => headers.findIndex(h => h.includes(a) && h.includes(b))
+        // Matches header text against several acceptable spellings/synonyms at once —
+        // real customer-provided sheets rarely use our exact template wording (e.g.
+        // "Warrenty Status" instead of "Warranty Status", "Project Name" instead of
+        // "Site Name").
+        const colAny = (names: string[]) => headers.findIndex(h => names.some(n => h.includes(n)))
+        const colBothAny = (as: string[], b: string) => headers.findIndex(h => h.includes(b) && as.some(a => h.includes(a)))
 
-        const iName = col('customer'), iType = col('type'), iContact = col('contact'), iPhone = col('phone'),
-          iEmail = col('email'), iWhatsapp = col('whatsapp'), iAddress = col('address'),
-          iSiteName = colBoth('site', 'name'), iSiteAddress = colBoth('site', 'address'),
-          iSerial = col('serial'), iYear = col('year'), iWarranty = col('warranty')
+        const iName = col('customer'),
+          iEndType = colAny(['end customer type', 'customer type', 'type']),
+          iContact = col('contact'), iPhone = col('phone'),
+          iEmail = col('email'), iWhatsapp = col('whatsapp'),
+          iAddress = colAny(['address']),
+          iPincode = colAny(['pincode', 'pin code', 'postal code']),
+          iSiteName = colBothAny(['site', 'project'], 'name'),
+          iSiteAddress = colBothAny(['site', 'project'], 'address'),
+          iSerial = col('serial'), iYear = col('year'),
+          iWarranty = colAny(['warranty', 'warrenty'])
 
         const parsed: ParsedRow[] = raw.slice(headerIdx + 1)
           .filter(r => r.some(c => String(c).trim()))
           .map(r => {
-            const type = String(r[iType] || 'both').trim().toLowerCase()
-            const warranty = String(r[iWarranty] || 'under_warranty').trim().toLowerCase()
+            const warrantyRaw = String(r[iWarranty] || '').trim().toLowerCase()
+            const warranty = VALID_WARRANTY.includes(warrantyRaw) ? warrantyRaw : (WARRANTY_ALIASES[warrantyRaw] || 'under_warranty')
+            const pincode = String(r[iPincode] || '').trim()
             const row: ParsedRow = {
               name: String(r[iName] || '').trim(),
-              type,
+              end_customer_type_name: String(r[iEndType] || '').trim(),
               contact_person: String(r[iContact] || '').trim(),
               phone: String(r[iPhone] || '').trim(),
               email: String(r[iEmail] || '').trim(),
               whatsapp_number: String(r[iWhatsapp] || '').trim(),
               address: String(r[iAddress] || '').trim(),
+              pincode,
               site_name: String(r[iSiteName] || '').trim(),
               site_address: String(r[iSiteAddress] || '').trim(),
               serial_number: String(r[iSerial] || '').trim(),
@@ -98,8 +117,7 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
             else if (!row.contact_person) row._error = 'Missing contact person'
             else if (!row.phone) row._error = 'Missing phone'
             else if (!row.serial_number) row._error = 'Missing serial number'
-            else if (!VALID_TYPES.includes(type)) row._error = `Invalid type: "${type}"`
-            else if (!VALID_WARRANTY.includes(warranty)) row._error = `Invalid warranty status: "${warranty}"`
+            else if (pincode && !/^\d{6}$/.test(pincode)) row._error = `Invalid pincode: "${pincode}"`
             else if (!row.site_address && !row.address) row._error = 'Missing address (or site address)'
             return row
           })
@@ -195,8 +213,8 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
             Customer Name, Contact Person, Phone, Serial Number, and one of Address / Site Address
           </div>
           <div style={{ marginTop: 4, fontSize: 11, color: 'var(--txm)' }}>
-            <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Valid types: </span>{VALID_TYPES.join(', ')}
-            <span style={{ fontWeight: 600, color: 'var(--tx)', marginLeft: 10 }}>Valid warranty status: </span>{VALID_WARRANTY.join(', ')}
+            <span style={{ fontWeight: 600, color: 'var(--tx)' }}>End Customer Type: </span>free text (e.g. OEM, Solar) — new values are added automatically.
+            <span style={{ fontWeight: 600, color: 'var(--tx)', marginLeft: 10 }}>Valid warranty status: </span>{VALID_WARRANTY.join(', ')} (Yes/No also accepted)
           </div>
         </div>
       )}
@@ -221,7 +239,7 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ background: '#FAFAFA', position: 'sticky', top: 0 }}>
-                  {['Customer', 'Contact', 'Phone', 'Serial No.', 'Warranty', 'Status'].map(h => (
+                  {['Customer', 'End Type', 'Contact', 'Phone', 'Serial No.', 'Warranty', 'Status'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--txm)', borderBottom: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -230,6 +248,7 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
                 {rows.map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--gm)', background: r._error ? '#FFF5F5' : '' }}>
                     <td style={{ padding: '8px 12px', color: 'var(--tx)' }}>{r.name}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--txm)' }}>{r.end_customer_type_name || '—'}</td>
                     <td style={{ padding: '8px 12px', color: 'var(--txm)' }}>{r.contact_person}</td>
                     <td style={{ padding: '8px 12px', color: 'var(--txm)' }}>{r.phone || '—'}</td>
                     <td style={{ padding: '8px 12px', color: 'var(--txm)' }}>{r.serial_number}</td>
