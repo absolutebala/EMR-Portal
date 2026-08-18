@@ -7,6 +7,11 @@ import { getIdVerifier } from '@/lib/cognito/verifier'
 import { getChallengeCookie, clearChallengeCookie, setSessionCookie } from '@/lib/cognito/session'
 import { adminClient } from '@/lib/db/admin-client'
 
+// Duplicated from login.ts rather than imported — a 'use server' file's compiler
+// expects every top-level export to be an async function, so a plain constant can't
+// safely be re-exported from that file.
+const MOBILE_ONLY_MESSAGE = 'This mobile app is only for Field Engineers. Please access the application from your computer: https://portal.emr.global/login'
+
 // Completes the NEW_PASSWORD_REQUIRED challenge login() started (see
 // app/actions/login.ts) — the single form every temp-password user (freshly invited,
 // or admin-reset) goes through now, replacing the old set-password page's three
@@ -14,7 +19,7 @@ import { adminClient } from '@/lib/db/admin-client'
 // separate "already authenticated, just update the password" flow. Cognito never
 // issues real tokens for a temp-password user until this challenge is answered, so
 // there is no "already signed in, now let them change it" state to handle anymore.
-export async function completeNewPassword(newPassword: string): Promise<{ error: string | null }> {
+export async function completeNewPassword(newPassword: string, options?: { requireRole?: string }): Promise<{ error: string | null }> {
   const challenge = await getChallengeCookie()
   if (!challenge) return { error: 'Your session has expired. Please sign in again.' }
 
@@ -32,6 +37,14 @@ export async function completeNewPassword(newPassword: string): Promise<{ error:
     }
 
     const payload = await getIdVerifier().verify(auth.IdToken)
+
+    if (options?.requireRole) {
+      const { data: profile } = await adminClient().from('profiles').select('role').eq('cognito_sub', payload.sub).maybeSingle()
+      if (profile?.role !== options.requireRole) {
+        await clearChallengeCookie()
+        return { error: MOBILE_ONLY_MESSAGE }
+      }
+    }
 
     await setSessionCookie({ idToken: auth.IdToken, accessToken: auth.AccessToken, refreshToken: auth.RefreshToken })
     await clearChallengeCookie()

@@ -23,7 +23,7 @@ export default function MobileChangePasswordPage() {
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     setSaving(true)
     setError('')
-    const { error } = await completeNewPassword(password)
+    const { error } = await completeNewPassword(password, { requireRole: 'Field Engineer' })
     if (error) { setError(error); setSaving(false); return }
     window.location.href = '/mobile/dashboard'
   }

@@ -17,7 +17,7 @@ export default function MobileLoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const result = await login(email, password)
+    const result = await login(email, password, { requireRole: 'Field Engineer' })
     if (result.status === 'error') {
       setError(result.error)
       setLoading(false)

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { completeNewPassword } from '@/lib/auth';
+import { useAuth } from '@/lib/AuthContext';
 
 // Completes the NEW_PASSWORD_REQUIRED challenge login.tsx started for a temp-password
 // account (freshly invited, or admin-reset) — session/email were passed as route
@@ -12,6 +13,7 @@ import { completeNewPassword } from '@/lib/auth';
 // an existing session goes through a full sign-out + fresh login instead of landing here.
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const { refreshMe } = useAuth();
   const { session, email } = useLocalSearchParams<{ session: string; email: string }>();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -34,9 +36,16 @@ export default function ChangePasswordScreen() {
     setLoading(true);
     setError(null);
     const { error: changeError } = await completeNewPassword(email, session, password);
-    setLoading(false);
     if (changeError) {
+      setLoading(false);
       setError(changeError);
+      return;
+    }
+    // Same Field-Engineer-only check as login.tsx, before navigating in.
+    const { accessDenied } = await refreshMe();
+    setLoading(false);
+    if (accessDenied) {
+      setError(accessDenied);
       return;
     }
     router.replace('/(app)/(tabs)/dashboard');

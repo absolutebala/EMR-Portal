@@ -93,6 +93,7 @@ export interface MobileWorkOrderDetail {
 export interface AuthMeResponse {
   mustChangePassword: boolean;
   engineer: { name: string; avatarUrl: string | null } | null;
+  role: string | null;
   error: string | null;
 }
 

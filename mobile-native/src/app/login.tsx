@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { login } from '@/lib/auth';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { refreshMe } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,17 +20,27 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     const result = await login(email.trim(), password);
-    setLoading(false);
     if (result.status === 'error') {
       setError(result.error);
+      setLoading(false);
       return;
     }
     if (result.status === 'challenge') {
+      setLoading(false);
       // Temp-password (freshly invited, or admin-reset) accounts get no tokens until
       // this challenge is answered — the session/email are passed as route params
       // rather than persisted anywhere, since they're only needed for this one
       // screen transition.
       router.push({ pathname: '/change-password', params: { session: result.session, email: result.email } });
+      return;
+    }
+    // Tokens are set at this point, but this app is Field-Engineer-only — check role
+    // (and sign back out if it doesn't match) before navigating in, so a rejected user
+    // never sees so much as a flash of the dashboard.
+    const { accessDenied } = await refreshMe();
+    setLoading(false);
+    if (accessDenied) {
+      setError(accessDenied);
       return;
     }
     router.replace('/');

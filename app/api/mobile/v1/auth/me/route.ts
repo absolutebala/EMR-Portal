@@ -8,10 +8,14 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const admin = adminClient()
-  const [mustChangePassword, engineer] = await Promise.all([
+  const [mustChangePassword, engineer, { data: profile }] = await Promise.all([
     mustChangePasswordCore(admin, user.id),
     getEngineerName(admin, user.id),
+    admin.from('profiles').select('role').eq('id', user.id).maybeSingle(),
   ])
 
-  return NextResponse.json({ mustChangePassword, engineer, error: null })
+  // The RN app is Field-Engineer-only — AuthContext.tsx signs out and blocks access
+  // for any other role using this field, same restriction the PWA's login/challenge
+  // actions enforce server-side before ever setting a session cookie.
+  return NextResponse.json({ mustChangePassword, engineer, role: profile?.role ?? null, error: null })
 }
