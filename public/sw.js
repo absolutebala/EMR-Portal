@@ -61,12 +61,19 @@ self.addEventListener('fetch', event => {
   )
 })
 
-// Background sync: retry pending form submissions when back online
+// Background sync: retry pending form submissions / check-ins when back online
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-form-submissions') {
     event.waitUntil(
       self.clients.matchAll().then(clients =>
         clients.forEach(client => client.postMessage({ type: 'SYNC_SUBMISSIONS' }))
+      )
+    )
+  }
+  if (event.tag === 'sync-checkin-submissions') {
+    event.waitUntil(
+      self.clients.matchAll().then(clients =>
+        clients.forEach(client => client.postMessage({ type: 'SYNC_CHECKINS' }))
       )
     )
   }

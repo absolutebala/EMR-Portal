@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
-import { getCheckInSyncStatus, clearCheckInSyncStatus, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
+import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
 
 interface Props {
   detail: MobileWorkOrderDetail
@@ -44,6 +44,25 @@ export default function JobDetailClient({ detail }: Props) {
     window.addEventListener('emr-checkin-sync', handleSync)
     return () => { clearTimeout(t); window.removeEventListener('emr-checkin-sync', handleSync) }
   }, [wo.id, detail.hasCheckedIn, router])
+
+  // Retries a queued offline check-in as soon as the connection comes back — the
+  // browser "online" event fires everywhere (including iOS Safari, which has no
+  // Background Sync API at all); the service worker message below is an extra chance
+  // to catch it on platforms that do support background sync.
+  useEffect(() => {
+    window.addEventListener('online', syncPendingCheckins)
+    if (navigator.onLine) syncPendingCheckins()
+
+    function handleSwMessage(e: MessageEvent) {
+      if (e.data?.type === 'SYNC_CHECKINS') syncPendingCheckins()
+    }
+    navigator.serviceWorker?.addEventListener('message', handleSwMessage)
+
+    return () => {
+      window.removeEventListener('online', syncPendingCheckins)
+      navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
+    }
+  }, [])
 
   // Ever having gone pending puts "Pending" into the progression permanently for this
   // work order, even if the engineer has since checked back in and moved past it.
@@ -156,13 +175,22 @@ export default function JobDetailClient({ detail }: Props) {
           <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#991B1B', margin: '0 0 3px' }}>Check-in didn&apos;t sync</p>
             <p style={{ fontSize: 11, color: '#991B1B', margin: '0 0 8px' }}>{checkInSync.message}</p>
-            <button
-              className="mtap"
-              onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
-              style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
-            >
-              Retry check-in
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="mtap"
+                onClick={() => { if (!retryCheckIn(wo.id)) router.push(`/mobile/work-orders/${wo.id}/checkin`) }}
+                style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                Retry
+              </button>
+              <button
+                className="mtap"
+                onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
+                style={{ background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                Start over
+              </button>
+            </div>
           </div>
         ) : !detail.hasCheckedIn ? (
           <button

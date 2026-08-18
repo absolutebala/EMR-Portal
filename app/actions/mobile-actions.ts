@@ -14,7 +14,7 @@ import {
 } from '@/lib/mobile/core/dashboard'
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
-  submitCheckInCore, submitDailyClosureCore,
+  submitDailyClosureCore,
 } from '@/lib/mobile/core/workOrders'
 // NOTE: MobileWorkOrder, MobileWorkOrderWithCustomer, MobileDashboardStats,
 // OverdueFollowUp, EngineerStatusValue, AssignableSite, EngineerStatusPrompt,
@@ -129,20 +129,6 @@ export async function getMobileWorkOrderWithForm(woId: string) {
   const user = await getAuthedUser()
   if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
   return getMobileWorkOrderWithFormCore(adminClient(), user.id, woId)
-}
-
-export async function submitCheckIn(params: {
-  workOrderId: string
-  latitude: number | null
-  longitude: number | null
-  placeName: string | null
-  photoBase64: string
-  mimeType: string
-  ext: string
-}): Promise<{ error: string | null }> {
-  const user = await getAuthedUser()
-  if (!user) return { error: 'Not authenticated' }
-  return submitCheckInCore(adminClient(), user.id, params)
 }
 
 export async function submitDailyClosure(params: {
