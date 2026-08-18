@@ -157,17 +157,24 @@ export class ServiceStack extends cdk.Stack {
       },
     })
 
-    // Plain HTTP still forwards directly to the app — NOT a redirect to HTTPS. The
-    // installed mobile app fleet (EXPO_PUBLIC_API_BASE_URL baked in at build time) still
-    // calls this raw ALB hostname over plain HTTP; redirecting it to HTTPS broke every
-    // mobile API call, because the ACM cert on the 443 listener only covers
-    // portal.emr.global, not the ALB's own DNS name, so the redirect target fails TLS
-    // validation. Once every mobile build has been migrated to call
-    // https://portal.emr.global directly (a future EAS rebuild), this can safely become
-    // a redirect again — until then this must stay a direct forward.
+    // Plain HTTP's default action forwards directly to the app — NOT a redirect — for
+    // the same reason as before: the installed mobile app fleet (EXPO_PUBLIC_API_BASE_URL
+    // baked in at build time) still calls the raw ALB hostname over plain HTTP, and that
+    // hostname has no valid cert on 443 to redirect to. But requests for the real
+    // domain, portal.emr.global (browsers, PWA installs, bookmarks), should always be
+    // forced to HTTPS — plain HTTP silently breaks the Geolocation API (browsers only
+    // expose it in a secure context), which is what actually caused an infinite
+    // "Location access is required" loop in the PWA for anyone who opened it via an old
+    // http:// link. A host-header rule handles the redirect for that one hostname only,
+    // ahead of the un-redirected default action everything else still falls through to.
     const httpListener = this.loadBalancer.addListener('HttpListener', {
       port: 80,
       open: false,
+    })
+    httpListener.addAction('RedirectPortalDomainToHttps', {
+      priority: 1,
+      conditions: [elbv2.ListenerCondition.hostHeaders([PORTAL_DOMAIN])],
+      action: elbv2.ListenerAction.redirect({ port: '443', protocol: 'HTTPS', permanent: true }),
     })
     httpListener.addTargets('EcsTargetsHttp', {
       port: 3000,
