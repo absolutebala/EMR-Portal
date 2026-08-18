@@ -110,13 +110,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
     admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
-    // Straight off transformers.warranty_status (not scoped to open notifications like
-    // the KPI breakdown below) — every expired unit on record, regardless of whether it
-    // currently has an open job against it.
-    admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
     // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown, and
     // warranty-tier breakdown all derived from one pass over every open notification.
     admin.from('work_orders').select('id, status, job_type, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
+    // Straight off transformers.warranty_status (not scoped to open notifications like
+    // the KPI breakdown above) — every expired unit on record, regardless of whether it
+    // currently has an open job against it.
+    admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
     admin.from('product_request_items').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ])
 
