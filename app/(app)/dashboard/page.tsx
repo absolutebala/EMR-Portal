@@ -122,13 +122,21 @@ export default async function DashboardPage() {
           <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
             {engineers.slice(0, 6).map(e => {
               const cfg = ENGINEER_STATUS_CFG[e.status]
-              const label = (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached' || e.status === 'completed') && e.statusSiteName
-                ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
+              // A job scheduled for today takes priority over the plain "Available"
+              // label — an engineer who hasn't tapped "On the way" yet still has
+              // something lined up, so "Available" would be misleading.
+              const scheduledToday = e.status === 'available' && e.scheduledTodayCustomer
+              const label = scheduledToday
+                ? `Scheduled to ${e.scheduledTodayCustomer}`
+                : (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached' || e.status === 'completed') && e.statusSiteName
+                  ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
+              const badgeBg = scheduledToday ? '#DBEAFE' : cfg.bg
+              const badgeColor = scheduledToday ? '#1D4ED8' : cfg.color
               const showsStartBy = (e.status === 'on_the_way' || e.status === 'travelling') && e.statusStartBy
               return (
                 <ListRow key={e.id} title={e.name} subtitle={e.lastSeen?.placeName || 'No location yet'}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <Badge bg={cfg.bg} color={cfg.color} label={label} />
+                    <Badge bg={badgeBg} color={badgeColor} label={label} />
                     {showsStartBy && <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(e.statusStartBy!)}</span>}
                     <span style={{ fontSize: 10, color: 'var(--txm)' }}>{e.openWorkOrders} open job{e.openWorkOrders !== 1 ? 's' : ''}</span>
                   </div>

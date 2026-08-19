@@ -171,6 +171,7 @@ export function useSubmitProductRequest() {
       apiPost<ErrorResponse>(`/api/mobile/v1/work-orders/${variables.workOrderId}/product-requests`, variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['product-requests'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

@@ -84,9 +84,14 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
   const overLimitCount = expenses.filter(e => e.overLimit).length
   const pendingProductItems = productRequests.flatMap(r => r.items).filter(i => i.status === 'pending').length
 
-  const statusCfg = ENGINEER_STATUS_CFG[profile.status] || ENGINEER_STATUS_CFG.available
-  const statusLabel = (profile.status === 'on_the_way' || profile.status === 'travelling' || profile.status === 'reached') && profile.statusSiteName
-    ? `${statusCfg.label} — ${profile.statusSiteName}` : statusCfg.label
+  const scheduledToday = profile.status === 'available' && profile.scheduledTodayCustomer
+  const statusCfg = scheduledToday
+    ? { bg: '#DBEAFE', color: '#1D4ED8', label: `Scheduled to ${profile.scheduledTodayCustomer}` }
+    : ENGINEER_STATUS_CFG[profile.status] || ENGINEER_STATUS_CFG.available
+  const statusLabel = scheduledToday
+    ? statusCfg.label
+    : (profile.status === 'on_the_way' || profile.status === 'travelling' || profile.status === 'reached') && profile.statusSiteName
+      ? `${statusCfg.label} — ${profile.statusSiteName}` : statusCfg.label
 
   return (
     <>

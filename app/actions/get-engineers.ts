@@ -26,6 +26,12 @@ export interface FieldEngineerOverview {
   nextAssigned: { customerName: string; scheduledDate: string | null; woNumber: string } | null
   openWorkOrders: number
   completedToday: number
+  // Customer of an open work order scheduled for today, if any — overrides the
+  // "Available" status label in the UI to "Scheduled to X" so an engineer with a job
+  // lined up today doesn't read as free just because they haven't started travel yet.
+  // Distinct from `nextAssigned`, which picks the *earliest* open scheduled_date
+  // (could be an older overdue job) rather than specifically today's.
+  scheduledTodayCustomer: string | null
 }
 
 export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEngineerOverview[]; error: string | null }> {
@@ -132,6 +138,8 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         ? (siteNameByWo[p.engineer_status_work_order_id] || (statusWo ? custMap[statusWo.customer_id] : null) || null)
         : null
 
+      const scheduledToday = theirWOs.find(w => w.scheduled_date === todayStr && w.status !== 'completed' && w.status !== 'needs_reassignment')
+
       const checkin = latestCheckinByEng[p.id]
       const pingAt = p.last_seen_at
       let lastSeen: { placeName: string | null; at: string } | null = null
@@ -166,6 +174,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         nextAssigned: upcoming ? { customerName: custMap[upcoming.customer_id] || '', scheduledDate: upcoming.scheduled_date, woNumber: upcoming.wo_number } : null,
         openWorkOrders: theirWOs.filter(w => w.status !== 'completed').length,
         completedToday: theirWOs.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
+        scheduledTodayCustomer: scheduledToday ? (custMap[scheduledToday.customer_id] || null) : null,
       }
     })
 
@@ -190,6 +199,7 @@ export interface EngineerProfileDetail {
   statusUpdatedAt: string | null
   lastSeen: { placeName: string | null; at: string } | null
   lastActiveAt: string | null
+  scheduledTodayCustomer: string | null
 }
 
 export async function getEngineerProfile(id: string): Promise<{ profile: EngineerProfileDetail | null; error: string | null }> {
@@ -237,6 +247,23 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
       lastSeen = { placeName: null, at: p.last_active_at }
     }
 
+    // Same "Scheduled to X" override signal as getFieldEngineersOverview — an open
+    // work order scheduled specifically for today, distinct from the general
+    // notifications list already shown further down this page.
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const { data: scheduledTodayRows } = await admin.from('work_orders')
+      .select('customer_id')
+      .eq('engineer_id', id)
+      .eq('scheduled_date', todayStr)
+      .neq('status', 'completed')
+      .neq('status', 'needs_reassignment')
+      .limit(1)
+    let scheduledTodayCustomer: string | null = null
+    if (scheduledTodayRows?.[0]) {
+      const { data: cust } = await admin.from('customers').select('name').eq('id', scheduledTodayRows[0].customer_id).maybeSingle()
+      scheduledTodayCustomer = cust?.name || null
+    }
+
     return {
       profile: {
         id: p.id,
@@ -253,6 +280,7 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
         statusUpdatedAt: p.engineer_status_updated_at,
         lastSeen,
         lastActiveAt: p.last_active_at,
+        scheduledTodayCustomer,
       },
       error: null,
     }

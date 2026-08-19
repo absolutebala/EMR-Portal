@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDashboard, useAlerts } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,6 +27,19 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const unreadAlerts = alertsData?.unreadCount ?? 0;
+
+  // The dashboard query's own 30s staleTime otherwise only refetches on remount or
+  // app foreground — an admin reassigning a job, or a product request being approved
+  // elsewhere, wouldn't show up here until then. Refetching on every tab focus (skip
+  // the first — the query already fetches on mount) keeps "Assigned"/"In Progress"/
+  // product-request counts current whenever the engineer switches back to this tab.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) { hasFocusedOnce.current = true; return; }
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }, [queryClient])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

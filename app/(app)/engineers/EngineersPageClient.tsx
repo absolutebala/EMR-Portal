@@ -14,14 +14,20 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
 }
 
-function StatusBadge({ status, statusSiteName, statusStartBy }: { status: EngineerStatus; statusSiteName: string | null; statusStartBy: string | null }) {
+function StatusBadge({ status, statusSiteName, statusStartBy, scheduledTodayCustomer }: { status: EngineerStatus; statusSiteName: string | null; statusStartBy: string | null; scheduledTodayCustomer: string | null }) {
   const c = STATUS_CONFIG[status]
   const showsSite = status === 'on_the_way' || status === 'travelling' || status === 'reached' || status === 'completed'
-  const label = showsSite && statusSiteName ? `${c.label} — ${statusSiteName}` : c.label
+  // A job scheduled for today takes priority over the plain "Available" label — an
+  // engineer who hasn't tapped "On the way" yet still has something lined up, so
+  // "Available" would be misleading.
+  const scheduledToday = status === 'available' && scheduledTodayCustomer
+  const label = scheduledToday ? `Scheduled to ${scheduledTodayCustomer}` : showsSite && statusSiteName ? `${c.label} — ${statusSiteName}` : c.label
+  const bg = scheduledToday ? '#DBEAFE' : c.bg
+  const color = scheduledToday ? '#1D4ED8' : c.color
   const showsStartBy = (status === 'on_the_way' || status === 'travelling') && statusStartBy
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
-      <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: bg, color, whiteSpace: 'nowrap' }}>{label}</span>
       {showsStartBy && (
         <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(statusStartBy)}</span>
       )}
@@ -79,7 +85,7 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
                         <Link href={`/engineers/${e.id}`} style={{ color: 'var(--m)', textDecoration: 'none' }}>{e.name}</Link>
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} statusStartBy={e.statusStartBy} /></td>
+                      <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} statusStartBy={e.statusStartBy} scheduledTodayCustomer={e.scheduledTodayCustomer} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)' }}>
                         {e.lastSeen ? (
                           <>
