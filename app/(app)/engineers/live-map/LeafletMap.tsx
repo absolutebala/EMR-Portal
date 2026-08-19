@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
@@ -19,14 +20,6 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
 }
 
-// Staleness of the last-known *position*, independent of the engineer's own status.
-function stalenessColor(at: string): string {
-  const ageMs = Date.now() - new Date(at).getTime()
-  if (ageMs <= 30 * 60_000) return '#059669' // seen in the last 30 min
-  if (ageMs <= 4 * 3_600_000) return '#D97706' // seen in the last 4h
-  return '#6B7280' // stale
-}
-
 function formatRelativeTime(at: string): string {
   const ageMs = Date.now() - new Date(at).getTime()
   const mins = Math.round(ageMs / 60_000)
@@ -38,29 +31,65 @@ function formatRelativeTime(at: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`
 }
 
+// Classic "map pin" teardrop shape (a rotated rounded square) in the app's brand
+// maroon, with an upright person glyph inside — built as a divIcon (inline HTML/SVG)
+// rather than an external image file, so there's no icon asset to host or a bundler
+// asset-path issue to work around (the well-known reason Leaflet's *default* marker
+// icon breaks under most bundlers, Next.js included).
+const TECHNICIAN_ICON = L.divIcon({
+  className: 'technician-marker',
+  html: `
+    <div style="width:32px;height:32px;border-radius:50% 50% 50% 0;background:#7D1D3F;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
+      <div style="transform:rotate(45deg);display:flex;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+      </div>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -30],
+})
+
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
 
 // Leaflet has no declarative "fit to markers" prop — this reaches into the map
 // instance imperatively via useMap(), the documented way to do it with react-leaflet.
+// Only runs once (the first time real bounds are available), not on every data
+// refresh — otherwise the periodic 60s auto-refresh would silently reset the admin's
+// own pan/zoom every minute.
 function FitBounds({ bounds }: { bounds: LatLngBoundsExpression | null }) {
   const map = useMap()
+  const hasFit = useRef(false)
   useEffect(() => {
-    if (bounds) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+    if (bounds && !hasFit.current) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+      hasFit.current = true
+    }
   }, [map, bounds])
+  return null
+}
+
+function FlyToSelected({ target }: { target: [number, number] | null }) {
+  const map = useMap()
+  useEffect(() => {
+    if (target) map.flyTo(target, Math.max(map.getZoom(), 13))
+  }, [map, target])
   return null
 }
 
 interface Props {
   engineers: FieldEngineerOverview[]
+  selectedId: string | null
 }
 
-export default function LeafletMap({ engineers }: Props) {
+export default function LeafletMap({ engineers, selectedId }: Props) {
   const points = engineers.flatMap(e => {
     const ls = e.lastSeen
     if (!ls || ls.lat == null || ls.lng == null) return []
     return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName }]
   })
   const bounds: LatLngBoundsExpression | null = points.length ? points.map(p => [p.lat, p.lng] as [number, number]) : null
+  const selected = points.find(p => p.engineer.id === selectedId)
 
   return (
     <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
@@ -69,15 +98,11 @@ export default function LeafletMap({ engineers }: Props) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitBounds bounds={bounds} />
+      <FlyToSelected target={selected ? [selected.lat, selected.lng] : null} />
       {points.map(p => {
         const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
         return (
-          <CircleMarker
-            key={p.engineer.id}
-            center={[p.lat, p.lng]}
-            radius={9}
-            pathOptions={{ color: '#fff', weight: 2, fillColor: stalenessColor(p.at), fillOpacity: 1 }}
-          >
+          <Marker key={p.engineer.id} position={[p.lat, p.lng]} icon={TECHNICIAN_ICON}>
             <Popup>
               <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{p.engineer.name}</div>
@@ -91,7 +116,7 @@ export default function LeafletMap({ engineers }: Props) {
                 </Link>
               </div>
             </Popup>
-          </CircleMarker>
+          </Marker>
         )
       })}
     </MapContainer>
