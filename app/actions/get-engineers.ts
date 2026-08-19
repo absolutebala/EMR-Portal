@@ -21,8 +21,10 @@ export interface FieldEngineerOverview {
   statusUpdatedAt: string | null
   lastActiveAt: string | null
   // Whichever is more recent: the passive app-open location ping, or the last job
-  // check-in — both are just "where was this engineer last known to be".
-  lastSeen: { placeName: string | null; at: string } | null
+  // check-in — both are just "where was this engineer last known to be". lat/lng are
+  // null on the rare fallback branch (last_active_at heartbeat with no GPS-tagged
+  // signal at all — e.g. location permission was denied).
+  lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null } | null
   nextAssigned: { customerName: string; scheduledDate: string | null; woNumber: string } | null
   openWorkOrders: number
   completedToday: number
@@ -75,7 +77,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
       // getAssignableEngineers() (get-work-orders.ts), instead of scanning every
       // checkin ever logged org-wide on every Dashboard/Field Engineers page load.
       admin.from('work_order_checkins')
-        .select('engineer_id, place_name, checked_in_at')
+        .select('engineer_id, place_name, checked_in_at, latitude, longitude')
         .in('engineer_id', engineerIds)
         .order('checked_in_at', { ascending: false })
         .limit(500),
@@ -105,10 +107,10 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     })
 
     // Latest check-in per engineer (checkins already ordered desc, so first match wins)
-    const latestCheckinByEng: Record<string, { placeName: string | null; checkedInAt: string }> = {}
+    const latestCheckinByEng: Record<string, { placeName: string | null; checkedInAt: string; lat: number | null; lng: number | null }> = {}
     for (const c of checkins || []) {
       if (!latestCheckinByEng[c.engineer_id]) {
-        latestCheckinByEng[c.engineer_id] = { placeName: c.place_name, checkedInAt: c.checked_in_at }
+        latestCheckinByEng[c.engineer_id] = { placeName: c.place_name, checkedInAt: c.checked_in_at, lat: c.latitude, lng: c.longitude }
       }
     }
 
@@ -142,22 +144,22 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
 
       const checkin = latestCheckinByEng[p.id]
       const pingAt = p.last_seen_at
-      let lastSeen: { placeName: string | null; at: string } | null = null
+      let lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null } | null = null
       if (checkin && pingAt) {
         lastSeen = new Date(pingAt) > new Date(checkin.checkedInAt)
-          ? { placeName: p.last_seen_place_label, at: pingAt }
-          : { placeName: checkin.placeName, at: checkin.checkedInAt }
+          ? { placeName: p.last_seen_place_label, at: pingAt, lat: p.last_seen_lat, lng: p.last_seen_lng }
+          : { placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng }
       } else if (checkin) {
-        lastSeen = { placeName: checkin.placeName, at: checkin.checkedInAt }
+        lastSeen = { placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng }
       } else if (pingAt) {
-        lastSeen = { placeName: p.last_seen_place_label, at: pingAt }
+        lastSeen = { placeName: p.last_seen_place_label, at: pingAt, lat: p.last_seen_lat, lng: p.last_seen_lng }
       } else if (p.last_active_at) {
         // No check-in and no GPS-tagged ping (e.g. location permission was denied),
         // but the app-usage heartbeat still shows they were recently active — surface
         // that rather than showing "No location yet" for someone who clearly opened
         // the app today (this is the same last_active_at the Users page's Last Login
         // column falls back to, so the two should never visibly contradict each other).
-        lastSeen = { placeName: null, at: p.last_active_at }
+        lastSeen = { placeName: null, at: p.last_active_at, lat: null, lng: null }
       }
 
       return {

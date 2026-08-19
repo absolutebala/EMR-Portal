@@ -18,6 +18,7 @@ const NAV = [
     { label: 'Dashboard',       icon: 'dashboard',  path: '/dashboard',    permKey: 'Dashboard' },
     { label: 'Notifications',   icon: 'workorders', path: '/work-orders',  permKey: 'Notifications — View' },
     { label: 'Field Engineers', icon: 'engineers',  path: '/engineers',    permKey: 'Field Engineers — View' },
+    { label: 'Live Map',        icon: 'map',        path: '/engineers/live-map', permKey: 'Field Engineers — View' },
     { label: 'Attendance',      icon: 'attendance', path: '/attendance',   permKey: 'Attendance — View' },
   ]},
   { section: 'Management', items: [
@@ -40,6 +41,7 @@ const ICONS: Record<string, React.ReactElement> = {
   dashboard: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
   workorders: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>,
   engineers: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+  map: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 6l6-3 8 3 6-3v15l-6 3-8-3-6 3z"/><path d="M9 3v15M17 6v15"/><circle cx="12" cy="10" r="2" fill="currentColor" stroke="none"/></svg>,
   users: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   customers: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   products: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
@@ -64,6 +66,12 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   }
   const pathname = usePathname()
   const router = useRouter()
+  // Longest-prefix match, not "does it start with this item's path" per item in
+  // isolation — otherwise a nested route (e.g. /engineers/live-map under /engineers)
+  // would highlight both its own nav item and its parent's simultaneously.
+  const bestMatchPath = NAV.flatMap(s => s.items.map(i => i.path))
+    .filter(p => pathname === p || pathname.startsWith(p + '/'))
+    .sort((a, b) => b.length - a.length)[0]
   const [modOpen, setModOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
@@ -154,7 +162,7 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
             <div key={section}>
               <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>
               {visible.map(item => {
-                const active = pathname === item.path || pathname.startsWith(item.path + '/')
+                const active = item.path === bestMatchPath
                 const isLoading = navigating === item.path
                 return (
                   <div
