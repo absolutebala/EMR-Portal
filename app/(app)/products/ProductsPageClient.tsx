@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
+import BulkUploadProductsModal from '@/components/products/BulkUploadProductsModal'
 import { createProduct, updateProduct, deleteProduct } from '@/app/actions/products'
 import type { Product } from '@/lib/mobile/core/products'
 
@@ -20,22 +21,25 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [name, setName] = useState('')
   const [sapCode, setSapCode] = useState('')
+  const [hierarchy, setHierarchy] = useState('')
+  const [level1, setLevel1] = useState('')
   const [stockQty, setStockQty] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   function openAdd() {
     setEditing(null)
-    setName(''); setSapCode(''); setStockQty('0'); setError('')
+    setName(''); setSapCode(''); setHierarchy(''); setLevel1(''); setStockQty('0'); setError('')
     setModalOpen(true)
   }
 
   function openEdit(p: Product) {
     setEditing(p)
-    setName(p.name); setSapCode(p.sap_code || ''); setStockQty(String(p.stock_qty)); setError('')
+    setName(p.name); setSapCode(p.sap_code || ''); setHierarchy(p.hierarchy || ''); setLevel1(p.level_1 || ''); setStockQty(String(p.stock_qty)); setError('')
     setModalOpen(true)
   }
 
@@ -43,7 +47,10 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     if (!name.trim()) { setError('Product name is required'); return }
     setSaving(true)
     setError('')
-    const payload = { name: name.trim(), sapCode: sapCode.trim() || null, stockQty: parseInt(stockQty, 10) || 0 }
+    const payload = {
+      name: name.trim(), sapCode: sapCode.trim() || null, stockQty: parseInt(stockQty, 10) || 0,
+      hierarchy: hierarchy.trim() || null, level1: level1.trim() || null,
+    }
     const result = editing ? await updateProduct(editing.id, payload) : await createProduct(payload)
     setSaving(false)
     if (result.error) { setError(result.error); return }
@@ -61,6 +68,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     const q = search.trim().toLowerCase()
     if (!q) return true
     return p.name.toLowerCase().includes(q) || (p.sap_code || '').toLowerCase().includes(q)
+      || (p.hierarchy || '').toLowerCase().includes(q) || (p.level_1 || '').toLowerCase().includes(q)
   })
 
   return (
@@ -70,9 +78,12 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '7px 12px', flex: 1, maxWidth: 320 }}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or SAP code…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, ID, or hierarchy…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
           </div>
-          <button onClick={openAdd} style={{ marginLeft: 'auto', background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+          <button onClick={() => setBulkOpen(true)} style={{ marginLeft: 'auto', background: '#fff', color: 'var(--m)', border: '1px solid var(--m)', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+            Bulk Upload
+          </button>
+          <button onClick={openAdd} style={{ background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
             + Add Product
           </button>
         </div>
@@ -86,7 +97,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'SAP Code', 'Stock', 'Actions'].map(h => (
+                  {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Stock', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
                   ))}
                 </tr>
@@ -96,6 +107,8 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{p.name}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.sap_code || '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.hierarchy || '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.level_1 || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12 }}>
                       <span style={{
                         fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600,
@@ -123,8 +136,16 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
           <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="e.g. Oil Surge Relay" />
         </div>
         <div style={{ marginBottom: 12 }}>
-          <label style={labelStyle}>SAP code</label>
+          <label style={labelStyle}>Product ID</label>
           <input value={sapCode} onChange={e => setSapCode(e.target.value)} style={inputStyle} placeholder="e.g. 1000234" />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Product hierarchy</label>
+          <input value={hierarchy} onChange={e => setHierarchy(e.target.value)} style={inputStyle} placeholder="e.g. 10.20.30" />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Level 1</label>
+          <input value={level1} onChange={e => setLevel1(e.target.value)} style={inputStyle} placeholder="e.g. Protection Devices" />
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Stock quantity</label>
@@ -139,6 +160,8 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
           {saving ? 'Saving…' : editing ? 'Save changes' : 'Add product'}
         </button>
       </Modal>
+
+      <BulkUploadProductsModal open={bulkOpen} onClose={() => setBulkOpen(false)} onSaved={() => router.refresh()} />
     </>
   )
 }

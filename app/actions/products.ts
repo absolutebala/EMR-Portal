@@ -18,7 +18,7 @@ import {
 export async function getProductsCatalog(): Promise<{ products: Product[]; error: string | null }> {
   try {
     const admin = adminClient()
-    const { data, error } = await admin.from('products').select('id, name, sap_code, stock_qty').order('name')
+    const { data, error } = await admin.from('products').select('id, name, sap_code, stock_qty, hierarchy, level_1').order('name')
     if (error) return { products: [], error: error.message }
     return { products: data || [], error: null }
   } catch (e: unknown) {
@@ -26,13 +26,15 @@ export async function getProductsCatalog(): Promise<{ products: Product[]; error
   }
 }
 
-export async function createProduct(params: { name: string; sapCode: string | null; stockQty: number }): Promise<{ error: string | null }> {
+export async function createProduct(params: { name: string; sapCode: string | null; stockQty: number; hierarchy: string | null; level1: string | null }): Promise<{ error: string | null }> {
   try {
     const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
-    const { error } = await admin.from('products').insert({ name: params.name, sap_code: params.sapCode, stock_qty: params.stockQty })
+    const { error } = await admin.from('products').insert({
+      name: params.name, sap_code: params.sapCode, stock_qty: params.stockQty, hierarchy: params.hierarchy, level_1: params.level1,
+    })
     if (error) return { error: error.message }
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
@@ -45,14 +47,15 @@ export async function createProduct(params: { name: string; sapCode: string | nu
   }
 }
 
-export async function updateProduct(id: string, params: { name: string; sapCode: string | null; stockQty: number }): Promise<{ error: string | null }> {
+export async function updateProduct(id: string, params: { name: string; sapCode: string | null; stockQty: number; hierarchy: string | null; level1: string | null }): Promise<{ error: string | null }> {
   try {
     const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
     const { error } = await admin.from('products').update({
-      name: params.name, sap_code: params.sapCode, stock_qty: params.stockQty, updated_at: new Date().toISOString(),
+      name: params.name, sap_code: params.sapCode, stock_qty: params.stockQty, hierarchy: params.hierarchy, level_1: params.level1,
+      updated_at: new Date().toISOString(),
     }).eq('id', id)
     if (error) return { error: error.message }
 

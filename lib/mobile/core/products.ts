@@ -7,6 +7,8 @@ export interface Product {
   name: string
   sap_code: string | null
   stock_qty: number
+  hierarchy: string | null
+  level_1: string | null
 }
 
 export interface ProductRequestItemView {
@@ -103,7 +105,7 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
 // typing anything) instead of nothing — only an actual query string filters it down.
 export async function searchProductsCore(admin: AdminClient, query: string): Promise<{ products: Product[]; error: string | null }> {
   try {
-    let q = admin.from('products').select('id, name, sap_code, stock_qty').order('name').limit(20)
+    let q = admin.from('products').select('id, name, sap_code, stock_qty, hierarchy, level_1').order('name').limit(20)
     const trimmed = query.trim()
     if (trimmed) q = q.or(`name.ilike.%${trimmed}%,sap_code.ilike.%${trimmed}%`)
     const { data, error } = await q
