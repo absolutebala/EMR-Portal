@@ -7,6 +7,7 @@ import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import SignaturePad from './SignaturePad'
 import PhotoField from './PhotoField'
+import { safeSetItem } from '@/lib/mobile/offlineStorage'
 
 type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
@@ -124,15 +125,10 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
 
   useEffect(() => {
     function saveDraft() {
-      try {
-        localStorage.setItem(draftKey, JSON.stringify({
-          fields: latestValuesRef.current.fieldValues,
-          table_rows: latestValuesRef.current.rowValues,
-        }))
-      } catch {
-        // Most likely localStorage quota exceeded (signature/photo fields are large
-        // base64 blobs) — nothing useful to do client-side beyond not crashing.
-      }
+      safeSetItem(draftKey, JSON.stringify({
+        fields: latestValuesRef.current.fieldValues,
+        table_rows: latestValuesRef.current.rowValues,
+      }))
     }
     const interval = setInterval(saveDraft, 5000)
     return () => { saveDraft(); clearInterval(interval) }
@@ -175,7 +171,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
         remaining.push(item)
       }
     }
-    localStorage.setItem(pendingKey, JSON.stringify(remaining))
+    safeSetItem(pendingKey, JSON.stringify(remaining))
     if (remaining.length < pending.length) router.refresh()
   }
 
@@ -220,7 +216,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
       const raw = localStorage.getItem(pendingKey)
       const pending = raw ? JSON.parse(raw) : []
       pending.push({ ...payload, timestamp: Date.now() })
-      localStorage.setItem(pendingKey, JSON.stringify(pending))
+      safeSetItem(pendingKey, JSON.stringify(pending))
 
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready.catch(() => null)

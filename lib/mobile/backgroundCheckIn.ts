@@ -1,3 +1,5 @@
+import { safeSetItem } from './offlineStorage'
+
 export type CheckInSyncStatus = { status: 'pending' } | { status: 'error'; message: string }
 
 interface CheckInPayload {
@@ -48,7 +50,7 @@ function queueForAutoRetry(payload: CheckInPayload) {
   const raw = localStorage.getItem(pendingKey)
   const pending: (CheckInPayload & { timestamp: number })[] = raw ? JSON.parse(raw) : []
   pending.push({ ...payload, timestamp: Date.now() })
-  localStorage.setItem(pendingKey, JSON.stringify(pending))
+  safeSetItem(pendingKey, JSON.stringify(pending))
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
@@ -75,8 +77,8 @@ function queueForAutoRetry(payload: CheckInPayload) {
 // auto-retry — retrying a definite rejection forever is pointless — but the payload
 // stays cached so retryCheckIn() can resubmit it instantly without recapturing GPS/photo.
 export function startBackgroundCheckIn(params: CheckInPayload) {
-  localStorage.setItem(payloadKeyFor(params.workOrderId), JSON.stringify(params))
-  localStorage.setItem(keyFor(params.workOrderId), JSON.stringify({ status: 'pending' }))
+  safeSetItem(payloadKeyFor(params.workOrderId), JSON.stringify(params))
+  safeSetItem(keyFor(params.workOrderId), JSON.stringify({ status: 'pending' }))
   notify(params.workOrderId)
 
   if (!navigator.onLine) {
@@ -88,7 +90,7 @@ export function startBackgroundCheckIn(params: CheckInPayload) {
   submitCheckInRequest(params).then(
     ({ error }) => {
       if (error) {
-        localStorage.setItem(keyFor(params.workOrderId), JSON.stringify({ status: 'error', message: error }))
+        safeSetItem(keyFor(params.workOrderId), JSON.stringify({ status: 'error', message: error }))
       } else {
         clearCheckInSyncStatus(params.workOrderId)
       }
@@ -138,5 +140,5 @@ export async function syncPendingCheckins() {
     }
     notify(item.workOrderId)
   }
-  localStorage.setItem(pendingKey, JSON.stringify(remaining))
+  safeSetItem(pendingKey, JSON.stringify(remaining))
 }

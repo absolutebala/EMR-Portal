@@ -6,6 +6,7 @@ import MobileHeader from '@/components/mobile/MobileHeader'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
 import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
+import { getClosureSyncStatus, retryClosure, syncPendingClosures, type ClosureSyncStatus } from '@/lib/mobile/backgroundClosure'
 
 interface Props {
   detail: MobileWorkOrderDetail
@@ -23,6 +24,7 @@ export default function JobDetailClient({ detail }: Props) {
   const router = useRouter()
   const { workOrder: wo } = detail
   const [checkInSync, setCheckInSync] = useState<CheckInSyncStatus | null>(null)
+  const [closureSync, setClosureSync] = useState<ClosureSyncStatus | null>(null)
 
   useEffect(() => {
     router.prefetch(`/mobile/work-orders/${wo.id}/checkin`)
@@ -45,21 +47,39 @@ export default function JobDetailClient({ detail }: Props) {
     return () => { clearTimeout(t); window.removeEventListener('emr-checkin-sync', handleSync) }
   }, [wo.id, detail.hasCheckedIn, router])
 
-  // Retries a queued offline check-in as soon as the connection comes back — the
-  // browser "online" event fires everywhere (including iOS Safari, which has no
+  // Same pattern as the check-in sync status above, for a closure submitted from
+  // ClosureView's "Mark job pending" button.
+  useEffect(() => {
+    const t = setTimeout(() => setClosureSync(getClosureSyncStatus(wo.id)), 0)
+
+    function handleSync(e: Event) {
+      const id = (e as CustomEvent<{ workOrderId: string }>).detail?.workOrderId
+      if (id !== wo.id) return
+      const next = getClosureSyncStatus(wo.id)
+      setClosureSync(next)
+      if (!next) router.refresh() // background closure landed — pull the fresh status
+    }
+    window.addEventListener('emr-closure-sync', handleSync)
+    return () => { clearTimeout(t); window.removeEventListener('emr-closure-sync', handleSync) }
+  }, [wo.id, router])
+
+  // Retries a queued offline check-in / closure as soon as the connection comes back —
+  // the browser "online" event fires everywhere (including iOS Safari, which has no
   // Background Sync API at all); the service worker message below is an extra chance
   // to catch it on platforms that do support background sync.
   useEffect(() => {
-    window.addEventListener('online', syncPendingCheckins)
-    if (navigator.onLine) syncPendingCheckins()
+    function syncAll() { syncPendingCheckins(); syncPendingClosures() }
+    window.addEventListener('online', syncAll)
+    if (navigator.onLine) syncAll()
 
     function handleSwMessage(e: MessageEvent) {
       if (e.data?.type === 'SYNC_CHECKINS') syncPendingCheckins()
+      if (e.data?.type === 'SYNC_CLOSURES') syncPendingClosures()
     }
     navigator.serviceWorker?.addEventListener('message', handleSwMessage)
 
     return () => {
-      window.removeEventListener('online', syncPendingCheckins)
+      window.removeEventListener('online', syncAll)
       navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
     }
   }, [])
@@ -158,6 +178,39 @@ export default function JobDetailClient({ detail }: Props) {
         ) : isClosed ? (
           <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#065F46' }}>
             This visit is marked completed.
+          </div>
+        ) : closureSync?.status === 'pending' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%', border: '2px solid #E8C5D0', borderTopColor: '#7D1D3F',
+              animation: 'checkinspin 0.7s linear infinite', flexShrink: 0,
+            }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#7D1D3F', margin: 0 }}>Saving closure…</p>
+              <span style={{ fontSize: 10, color: '#7A6870' }}>Syncing in the background — you can keep working</span>
+            </div>
+            <style>{`@keyframes checkinspin { to { transform: rotate(360deg) } }`}</style>
+          </div>
+        ) : closureSync?.status === 'error' ? (
+          <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#991B1B', margin: '0 0 3px' }}>Closure didn&apos;t sync</p>
+            <p style={{ fontSize: 11, color: '#991B1B', margin: '0 0 8px' }}>{closureSync.message}</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="mtap"
+                onClick={() => { if (!retryClosure(wo.id)) router.push(`/mobile/work-orders/${wo.id}/closure`) }}
+                style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                Retry
+              </button>
+              <button
+                className="mtap"
+                onClick={() => router.push(`/mobile/work-orders/${wo.id}/closure`)}
+                style={{ background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                Start over
+              </button>
+            </div>
           </div>
         ) : checkInSync?.status === 'pending' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 10, padding: '12px 14px' }}>

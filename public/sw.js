@@ -77,6 +77,13 @@ self.addEventListener('sync', event => {
       )
     )
   }
+  if (event.tag === 'sync-closure-submissions') {
+    event.waitUntil(
+      self.clients.matchAll().then(clients =>
+        clients.forEach(client => client.postMessage({ type: 'SYNC_CLOSURES' }))
+      )
+    )
+  }
 })
 
 // Push notifications: server sends { title, body, url } as the payload (see

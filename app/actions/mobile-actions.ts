@@ -14,7 +14,6 @@ import {
 } from '@/lib/mobile/core/dashboard'
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
-  submitDailyClosureCore,
 } from '@/lib/mobile/core/workOrders'
 // NOTE: MobileWorkOrder, MobileWorkOrderWithCustomer, MobileDashboardStats,
 // OverdueFollowUp, EngineerStatusValue, AssignableSite, EngineerStatusPrompt,
@@ -129,26 +128,4 @@ export async function getMobileWorkOrderWithForm(woId: string) {
   const user = await getAuthedUser()
   if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
   return getMobileWorkOrderWithFormCore(adminClient(), user.id, woId)
-}
-
-export async function submitDailyClosure(params: {
-  workOrderId: string
-  outcome: 'completed' | 'pending'
-  summary: string
-  pendingReason: string | null
-  materialsRequired: string | null
-  revisitDate: string | null
-  needsReassignment: boolean
-  engineerSignature: string
-  clientName: string
-  clientSignature: string
-  // Self-reported completion from the "still checked in" dashboard prompt when the
-  // engineer says they're no longer at the site — client signature is skipped (they're
-  // not there to get one), everything else (engineer signature, PDF/Word, activity log)
-  // still happens as normal, plus a flagged entry for the manager's Dashboard card.
-  offSite?: boolean
-}): Promise<{ error: string | null }> {
-  const user = await getAuthedUser()
-  if (!user) return { error: 'Not authenticated' }
-  return submitDailyClosureCore(adminClient(), user.id, params)
 }

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import SignaturePad from '@/components/mobile/SignaturePad'
-import { submitDailyClosure } from '@/app/actions/mobile-actions'
+import { startBackgroundClosure } from '@/lib/mobile/backgroundClosure'
 import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 
 interface Props {
@@ -57,7 +57,7 @@ export default function ClosureView({ workOrder }: Props) {
   // this screen — "completed" hands off entirely to the job form (Complete Form
   // button below), which will capture sign-off as one of the form's own fields and
   // generate the visit PDF/Word doc once that backend piece is wired up.
-  async function handleSubmit() {
+  function handleSubmit() {
     if (outcome !== 'pending' || isProductRequest) return
     if (!summary.trim()) {
       setError('Please describe what remains to be done')
@@ -74,34 +74,23 @@ export default function ClosureView({ workOrder }: Props) {
     setSubmitting(true)
     setError('')
 
-    // The server action bounds its own DB calls, but the request itself can still
-    // hang client-side on a dropped mobile connection (browser fetch has no default
-    // timeout) — race it so the button always recovers instead of spinning forever.
-    const TIMEOUT_MS = 30000
-    const result = await Promise.race([
-      submitDailyClosure({
-        workOrderId: workOrder.id,
-        outcome: 'pending',
-        summary: summary.trim(),
-        pendingReason,
-        materialsRequired: materialsRequired.trim() || null,
-        revisitDate: revisitDate || null,
-        needsReassignment,
-        engineerSignature,
-        clientName: clientName.trim(),
-        clientSignature,
-        offSite: false,
-      }),
-      new Promise<{ error: string | null }>(resolve =>
-        setTimeout(() => resolve({ error: 'Network is too slow to save right now — check your connection and try again.' }), TIMEOUT_MS)
-      ),
-    ])
-
-    if (result.error) {
-      setError(result.error)
-      setSubmitting(false)
-      return
-    }
+    // Fire the closure request in the background (queuing automatically if offline or
+    // the connection drops mid-flight) and move on immediately — the request keeps
+    // running after navigation and the job hub picks up the result, same as
+    // CheckInView's startBackgroundCheckIn.
+    startBackgroundClosure({
+      workOrderId: workOrder.id,
+      outcome: 'pending',
+      summary: summary.trim(),
+      pendingReason,
+      materialsRequired: materialsRequired.trim() || null,
+      revisitDate: revisitDate || null,
+      needsReassignment,
+      engineerSignature,
+      clientName: clientName.trim(),
+      clientSignature,
+      offSite: false,
+    })
     router.push(`/mobile/work-orders/${workOrder.id}`)
   }
 
