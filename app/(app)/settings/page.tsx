@@ -1,13 +1,15 @@
 import { getAuthedUser } from '@/lib/cognito/server'
 import SettingsPageClient from './SettingsPageClient'
+import { getHolidays } from '@/app/actions/holidays'
 import { adminClient } from '@/lib/db/admin-client'
 
 export default async function SettingsPage() {
   const user = await getAuthedUser()
 
-  const [{ data: profile }, { data }] = await Promise.all([
+  const [{ data: profile }, { data }, { holidays }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     adminClient().from('settings').select('*').single(),
+    getHolidays(),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
@@ -38,6 +40,7 @@ export default async function SettingsPage() {
     <SettingsPageClient
       initialSettings={initialSettings}
       settingsId={data?.id || null}
+      initialHolidays={holidays}
       userName={userName}
       userRole={userRole}
     />

@@ -15,6 +15,7 @@ import {
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
 } from '@/lib/mobile/core/workOrders'
+import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 // NOTE: MobileWorkOrder, MobileWorkOrderWithCustomer, MobileDashboardStats,
 // OverdueFollowUp, EngineerStatusValue, AssignableSite, EngineerStatusPrompt,
 // NotStartedNotice, MobileWorkOrderDetail, MobileForm(+Section/Field/Table/Row) now
@@ -38,10 +39,11 @@ export async function getMobileDashboardData(): Promise<{
   stats: MobileDashboardStats
   recentJobs: MobileWorkOrder[]
   engineer: { name: string } | null
+  attendanceStatus: AttendanceEffectiveStatus
   error: string | null
 }> {
   const user = await getAuthedUser()
-  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, error: 'Not authenticated' }
+  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, attendanceStatus: { kind: 'pending' }, error: 'Not authenticated' }
   return getMobileDashboardDataCore(adminClient(), user.id)
 }
 

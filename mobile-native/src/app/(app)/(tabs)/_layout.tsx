@@ -23,6 +23,10 @@ export default function TabsLayout() {
         options={{ title: 'Jobs', tabBarIcon: ({ color }) => <TabIcon symbol="☰" color={color} /> }}
       />
       <Tabs.Screen
+        name="attendance"
+        options={{ title: 'Attendance', tabBarIcon: ({ color }) => <TabIcon symbol="✓" color={color} /> }}
+      />
+      <Tabs.Screen
         name="requests"
         options={{ title: 'Requests', tabBarIcon: ({ color }) => <TabIcon symbol="▦" color={color} /> }}
       />

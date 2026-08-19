@@ -14,6 +14,7 @@ import type {
   AlertsResponse, CheckinDriftNotice,
   ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
   NearbyEngineersResponse,
+  AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
 } from './types';
 
 export function useDashboard() {
@@ -183,6 +184,36 @@ export function useMarkProductReceived() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['product-requests'] });
+    },
+  });
+}
+
+// ── Attendance ───────────────────────────────────────────────────────────────────
+
+export function useAttendanceStatus() {
+  return useQuery({
+    queryKey: ['attendance-status'],
+    queryFn: () => apiGet<AttendanceStatusResponse>('/api/mobile/v1/attendance'),
+  });
+}
+
+export function useAttendanceCalendar(from: string, to: string) {
+  return useQuery({
+    queryKey: ['attendance-calendar', from, to],
+    queryFn: () => apiGet<AttendanceCalendarResponse>(`/api/mobile/v1/attendance/calendar?from=${from}&to=${to}`),
+  });
+}
+
+// Not registered as an offline-queueable mutation (unlike useSubmitCheckIn) — v1
+// assumes GPS + network are available for this quick daily action.
+export function useMarkAttendance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: MarkAttendanceVariables) => apiPost<MarkAttendanceResponse>('/api/mobile/v1/attendance', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
     },
   });
 }

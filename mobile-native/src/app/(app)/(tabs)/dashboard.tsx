@@ -10,6 +10,7 @@ import AccountMenu from '@/components/AccountMenu';
 import StreakStrip from '@/components/StreakStrip';
 import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
+import type { AttendanceEffectiveStatus } from '@/lib/types';
 
 const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'completed'; label: string; color: string }[] = [
   { key: 'assigned', label: 'Assigned', color: '#92400E' },
@@ -17,6 +18,29 @@ const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'comp
   { key: 'needsReassignment', label: 'Need Reassign', color: '#9A3412' },
   { key: 'completed', label: 'Completed', color: '#065F46' },
 ];
+
+// Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 11am window is
+// still open, red once closed (or a late amendment is pending/rejected), green once
+// present is confirmed. Holiday/Weekly Off get a neutral color.
+function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
+  switch (status.kind) {
+    case 'pending':
+      return { bg: '#FEF3C7', color: '#92400E', label: 'Mark attendance', sub: 'Before 11:00 AM' };
+    case 'leave':
+      return {
+        bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
+        sub: status.pendingApproval ? 'Amendment pending approval' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
+      };
+    case 'present':
+      return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present', sub: null };
+    case 'holiday':
+      return { bg: '#F1F5F9', color: '#475569', label: 'Holiday', sub: status.name };
+    case 'weekly_off':
+      return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off', sub: null };
+    case 'not_applicable':
+      return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null };
+  }
+}
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -81,6 +105,24 @@ export default function DashboardScreen() {
 
       {(error || data?.error) && <Text style={styles.error}>{data?.error || 'Failed to load dashboard'}</Text>}
 
+      {data?.attendanceStatus && (() => {
+        const cfg = attendanceCardStyle(data.attendanceStatus);
+        const clickable = data.attendanceStatus.kind === 'pending' || data.attendanceStatus.kind === 'leave';
+        return (
+          <Pressable
+            style={[styles.attendanceCard, { backgroundColor: cfg.bg }]}
+            onPress={() => clickable && router.push('/(app)/(tabs)/attendance')}
+          >
+            <View>
+              <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
+              <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
+              {cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
+            </View>
+            {clickable && <Text style={[styles.attendanceChevron, { color: cfg.color }]}>›</Text>}
+          </Pressable>
+        );
+      })()}
+
       <View style={styles.statsGrid}>
         {STAT_CARDS.map(card => (
           <View key={card.key} style={styles.statCard}>
@@ -122,6 +164,14 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   error: { color: '#DC2626', fontSize: 12, marginBottom: 12 },
+  attendanceCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 12, padding: 14, marginBottom: 12,
+  },
+  attendanceEyebrow: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5, opacity: 0.75, marginBottom: 2 },
+  attendanceLabel: { fontSize: 15, fontWeight: '700' },
+  attendanceSub: { fontSize: 11, opacity: 0.85, marginTop: 1 },
+  attendanceChevron: { fontSize: 22, fontWeight: '700' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   statCard: {
     flexBasis: '47%', backgroundColor: '#fff', borderRadius: 12, padding: 14,

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import { saveSettings } from '@/app/actions/save-settings'
+import { addHoliday, deleteHoliday, type Holiday } from '@/app/actions/holidays'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
@@ -79,14 +81,41 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
 interface Props {
   initialSettings: SettingsShape
   settingsId: string | null
+  initialHolidays: Holiday[]
   userName: string
   userRole: string
 }
 
-export default function SettingsPageClient({ initialSettings, settingsId, userName, userRole }: Props) {
+export default function SettingsPageClient({ initialSettings, settingsId, initialHolidays, userName, userRole }: Props) {
+  const router = useRouter()
   const [settings, setSettings] = useState<SettingsShape>(initialSettings)
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+
+  const [newHolidayDate, setNewHolidayDate] = useState('')
+  const [newHolidayName, setNewHolidayName] = useState('')
+  const [addingHoliday, setAddingHoliday] = useState(false)
+  const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null)
+  const [holidayError, setHolidayError] = useState('')
+
+  async function handleAddHoliday() {
+    setHolidayError('')
+    if (!newHolidayDate || !newHolidayName.trim()) { setHolidayError('Date and name are required'); return }
+    setAddingHoliday(true)
+    const { error } = await addHoliday(newHolidayDate, newHolidayName)
+    setAddingHoliday(false)
+    if (error) { setHolidayError(error); return }
+    setNewHolidayDate('')
+    setNewHolidayName('')
+    router.refresh()
+  }
+
+  async function handleDeleteHoliday(id: string) {
+    setDeletingHolidayId(id)
+    await deleteHoliday(id)
+    setDeletingHolidayId(null)
+    router.refresh()
+  }
 
   function set(k: string, v: string) { setSettings(s => ({ ...s, [k]: v })) }
 
@@ -156,6 +185,53 @@ export default function SettingsPageClient({ initialSettings, settingsId, userNa
             </button>
             {saved === 'notifications' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
           </div>
+        </div>
+
+        {/* Holidays */}
+        <div style={ss}>
+          <h3 style={h3s}>Holidays</h3>
+          <p style={ps}>A day marked here shows the holiday name instead of &quot;Leave&quot; on the attendance calendar for every field engineer, even if no one marks attendance that day.</p>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 14 }}>
+            <div>
+              <label style={fl2}>Date</label>
+              <input type="date" style={fi2} value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={fl2}>Name</label>
+              <input style={fi2} value={newHolidayName} onChange={e => setNewHolidayName(e.target.value)} placeholder="e.g. Diwali" />
+            </div>
+            <button
+              onClick={handleAddHoliday}
+              disabled={addingHoliday}
+              style={{ padding: '9px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: addingHoliday ? .7 : 1, whiteSpace: 'nowrap' }}
+            >
+              {addingHoliday ? 'Adding…' : '+ Add holiday'}
+            </button>
+          </div>
+
+          {holidayError && <div style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 7, padding: '8px 10px', fontSize: 11, marginBottom: 12 }}>{holidayError}</div>}
+
+          {initialHolidays.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--txm)' }}>No holidays added yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {initialHolidays.map(h => (
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--gl)', borderRadius: 7 }}>
+                  <span style={{ fontSize: 12, color: 'var(--tx)' }}>
+                    <strong>{new Date(`${h.date}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong> — {h.name}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteHoliday(h.id)}
+                    disabled={deletingHolidayId === h.id}
+                    style={{ background: 'none', border: 'none', color: '#991B1B', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}
+                  >
+                    {deletingHolidayId === h.id ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

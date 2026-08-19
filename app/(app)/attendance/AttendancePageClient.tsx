@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceGrid, type AttendanceEngineer, type AttendanceCells } from '@/app/actions/get-attendance'
+import { approveRejectAttendanceAmendment, getAttendanceExportRows } from '@/app/actions/attendance'
+import type { PendingAmendment } from '@/lib/mobile/core/attendance'
 import { toDateStr, getRange, type ViewMode } from './dateRange'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -34,17 +37,24 @@ interface Props {
   initialDates: string[]
   initialCells: AttendanceCells
   initialError: string | null
+  initialAmendments: PendingAmendment[]
+  canApprove: boolean
   userName: string
   userRole: string
 }
 
-export default function AttendancePageClient({ initialEngineers, initialDates, initialCells, initialError, userName, userRole }: Props) {
+export default function AttendancePageClient({ initialEngineers, initialDates, initialCells, initialError, initialAmendments, canApprove, userName, userRole }: Props) {
   const [engineers, setEngineers] = useState(initialEngineers)
   const [dates, setDates] = useState(initialDates)
   const [cells, setCells] = useState(initialCells)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const isFirstRun = useRef(true)
+
+  const [amendments, setAmendments] = useState(initialAmendments)
+  const [actingOn, setActingOn] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [anchorDate, setAnchorDate] = useState(new Date())
@@ -54,6 +64,35 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
 
   const range = useMemo(() => getRange(viewMode, anchorDate, customFrom, customTo), [viewMode, anchorDate, customFrom, customTo])
   const customInvalid = viewMode === 'custom' && (!customFrom || !customTo || customFrom > customTo)
+
+  async function handleDecision(id: string, decision: 'approved' | 'rejected') {
+    setActingOn(id)
+    const { error: err } = await approveRejectAttendanceAmendment(id, decision)
+    setActingOn(null)
+    if (err) { setExportError(err); return }
+    setAmendments(prev => prev.filter(a => a.id !== id))
+  }
+
+  async function handleExport() {
+    setExporting(true)
+    setExportError('')
+    const { rows, error: err } = await getAttendanceExportRows(range.from, range.to)
+    setExporting(false)
+    if (err) { setExportError(err); return }
+    if (!rows.length) { setExportError('No attendance data in this range to export.'); return }
+
+    const headers = ['Engineer', 'Date', 'Status', 'Marked At', 'Reason']
+    const aoa = [headers, ...rows.map(r => [
+      r.engineerName, r.date, r.status,
+      r.markedAt ? new Date(r.markedAt).toLocaleString('en-IN') : '',
+      r.reason || '',
+    ])]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = headers.map(() => ({ wch: 22 }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
+    XLSX.writeFile(wb, `attendance_${range.from}_to_${range.to}.xlsx`)
+  }
 
   const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
@@ -137,6 +176,57 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
 
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{error}</div>
+        )}
+
+        {exportError && (
+          <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{exportError}</div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 14, flexShrink: 0 }}>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            {exporting ? 'Exporting…' : `Export ${range.label} to Excel`}
+          </button>
+        </div>
+
+        {canApprove && amendments.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', marginBottom: 14, flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gm)', fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+              Pending attendance amendments ({amendments.length})
+            </div>
+            {amendments.map((a, i) => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < amendments.length - 1 ? '1px solid var(--gl)' : 'none' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{a.engineerName} — {a.attendanceDate}</div>
+                  <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>
+                    {a.markedAt ? new Date(a.markedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    {a.placeName ? ` · ${a.placeName}` : ''}
+                  </div>
+                  {a.reason && <div style={{ fontSize: 11, color: 'var(--tx)', marginTop: 4 }}>Reason: {a.reason}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleDecision(a.id, 'approved')}
+                    disabled={actingOn === a.id}
+                    style={{ background: '#D1FAE5', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#065F46', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleDecision(a.id, 'rejected')}
+                    disabled={actingOn === a.id}
+                    style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#991B1B', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>

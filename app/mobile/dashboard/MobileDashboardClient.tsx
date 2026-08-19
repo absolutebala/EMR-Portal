@@ -9,15 +9,40 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
+import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 
 interface Props {
   stats: MobileDashboardStats
   recentJobs: MobileWorkOrder[]
   engineer: { name: string } | null
+  attendanceStatus: AttendanceEffectiveStatus
   error: string | null
   overdueFollowUps: OverdueFollowUp[]
   statusPrompt: EngineerStatusPrompt | null
   unreadAlerts: number
+}
+
+// Orange while the 11am window is still open and nothing's marked, red once it's
+// closed (or a late amendment is pending/rejected), green once present is confirmed.
+// Holiday/Weekly Off get a neutral color — they're not an attendance outcome at all.
+function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
+  switch (status.kind) {
+    case 'pending':
+      return { bg: '#FEF3C7', color: '#92400E', label: 'Mark attendance', sub: 'Before 11:00 AM' }
+    case 'leave':
+      return {
+        bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
+        sub: status.pendingApproval ? 'Amendment pending approval' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
+      }
+    case 'present':
+      return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present', sub: null }
+    case 'holiday':
+      return { bg: '#F1F5F9', color: '#475569', label: `Holiday`, sub: status.name }
+    case 'weekly_off':
+      return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off', sub: null }
+    case 'not_applicable':
+      return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null }
+  }
 }
 
 const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; color: string }> = {
@@ -74,7 +99,7 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
   })
 }
 
-export default function MobileDashboardClient({ stats, recentJobs, engineer, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
+export default function MobileDashboardClient({ stats, recentJobs, engineer, attendanceStatus, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
   const router = useRouter()
   const [queue, setQueue] = useState(overdueFollowUps)
   const [askingAtSite, setAskingAtSite] = useState<{ workOrderId: string; action: 'completed' | 'reschedule' } | null>(null)
@@ -549,6 +574,31 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, err
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
+
+        {(() => {
+          const cfg = attendanceCardStyle(attendanceStatus)
+          const clickable = attendanceStatus.kind === 'pending' || attendanceStatus.kind === 'leave'
+          return (
+            <button
+              className="mtap"
+              onClick={() => clickable && router.push('/mobile/attendance')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                marginBottom: 12, padding: '13px 14px', borderRadius: 12, border: 'none',
+                background: cfg.bg, cursor: clickable ? 'pointer' : 'default', fontFamily: 'Poppins, sans-serif', textAlign: 'left',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                {cfg.sub && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>}
+              </div>
+              {clickable && (
+                <svg width="14" height="14" fill="none" stroke={cfg.color} strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              )}
+            </button>
+          )
+        })()}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 16 }}>
           {STAT_CARDS.map(card => (

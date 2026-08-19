@@ -21,6 +21,7 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Product Requests — Deliver':        'Product Requests — View',
   'Expenses — Approve':                'Expenses — View',
   'Expenses — Final Approve':          'Expenses — View',
+  'Attendance — Approve':              'Attendance — View',
 }
 
 const ROLE_ORDER = [
@@ -42,6 +43,7 @@ const MODULES = [
   'Field Engineers — View',
   'Field Engineers — Manage',
   'Attendance — View',
+  'Attendance — Approve',
   'Users — View',
   'Users — Create / Edit',
   'Users — Roles View',

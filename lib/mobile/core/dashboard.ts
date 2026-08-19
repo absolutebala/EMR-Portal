@@ -7,6 +7,7 @@ import {
   logActivity,
 } from './shared'
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
+import { getMyAttendanceStatusCore, type AttendanceEffectiveStatus } from './attendance'
 
 export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {
@@ -87,15 +88,17 @@ export async function getMobileDashboardDataCore(admin: AdminClient, userId: str
   engineer: { name: string; avatarUrl: string | null } | null
   streak: EngineerStreak
   pendingProducts: PendingProductItem[]
+  attendanceStatus: AttendanceEffectiveStatus
   error: string | null
 }> {
   try {
     touchHeartbeat(admin, userId)
-    const [engineer, workOrders, { streak }, { items: pendingProducts }] = await Promise.all([
+    const [engineer, workOrders, { streak }, { items: pendingProducts }, { status: attendanceStatus }] = await Promise.all([
       getEngineerName(admin, userId),
       fetchEngineerWorkOrders(admin, userId),
       getEngineerStreakCore(admin, userId),
       getPendingProductItemsCore(admin, userId),
+      getMyAttendanceStatusCore(admin, userId),
     ])
 
     // "Pending" is no longer a distinct status — a visit that couldn't be finished in
@@ -109,9 +112,13 @@ export async function getMobileDashboardDataCore(admin: AdminClient, userId: str
 
     const recentJobs = workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment').slice(0, 3)
 
-    return { stats, recentJobs, engineer, streak, pendingProducts, error: null }
+    return { stats, recentJobs, engineer, streak, pendingProducts, attendanceStatus, error: null }
   } catch (e: unknown) {
-    return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, pendingProducts: [], error: e instanceof Error ? e.message : String(e) }
+    return {
+      stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null,
+      streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, pendingProducts: [],
+      attendanceStatus: { kind: 'pending' }, error: e instanceof Error ? e.message : String(e),
+    }
   }
 }
 

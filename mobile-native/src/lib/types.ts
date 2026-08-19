@@ -112,12 +112,50 @@ export interface PendingProductItem {
   deliveryEstimate: string | null;
 }
 
+// Mirrors lib/mobile/core/attendance.ts's AttendanceEffectiveStatus on the backend.
+export type AttendanceEffectiveStatus =
+  | { kind: 'holiday'; name: string }
+  | { kind: 'weekly_off' }
+  | { kind: 'not_applicable' }
+  | { kind: 'pending' }
+  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null }
+  | { kind: 'present'; reason: string | null; amended: boolean };
+
+export interface AttendanceCalendarDay {
+  date: string;
+  status: AttendanceEffectiveStatus;
+  activity: { action: string; actorName: string; createdAt: string }[];
+}
+
+export interface AttendanceCalendarResponse {
+  days: AttendanceCalendarDay[];
+  error: string | null;
+}
+
+export interface AttendanceStatusResponse {
+  status: AttendanceEffectiveStatus | null;
+  error: string | null;
+}
+
+export interface MarkAttendanceVariables {
+  latitude: number | null;
+  longitude: number | null;
+  placeName: string | null;
+  reason?: string | null;
+}
+
+export interface MarkAttendanceResponse {
+  error: string | null;
+  needsApproval: boolean;
+}
+
 export interface DashboardResponse {
   stats: MobileDashboardStats;
   recentJobs: MobileWorkOrder[];
   engineer: { name: string; avatarUrl: string | null } | null;
   streak: EngineerStreak;
   pendingProducts: PendingProductItem[];
+  attendanceStatus: AttendanceEffectiveStatus;
   error: string | null;
 }
 
