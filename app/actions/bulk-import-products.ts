@@ -18,8 +18,7 @@ export interface BulkProductResult {
 // Same shape as bulkImportCustomers — loop rows with their own duplicate checks (name
 // has no DB-level uniqueness, so that check is app-layer only; Product ID maps to the
 // existing sap_code column, which also isn't DB-unique but is still worth flagging as
-// a likely mistake). New products start at 0 stock — the sheet has no quantity column,
-// stock is adjusted separately via the catalog page.
+// a likely mistake).
 export async function bulkImportProducts(rows: BulkProductRow[]): Promise<BulkProductResult[]> {
   const admin = adminClient()
   const results: BulkProductResult[] = []
@@ -44,7 +43,6 @@ export async function bulkImportProducts(rows: BulkProductRow[]): Promise<BulkPr
       sap_code: row.productId || null,
       hierarchy: row.hierarchy || null,
       level_1: row.level1 || null,
-      stock_qty: 0,
     })
     if (error) {
       results.push({ name: row.name, status: 'error', error: error.message })

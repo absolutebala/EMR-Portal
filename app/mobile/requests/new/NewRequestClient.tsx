@@ -66,7 +66,6 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   }
 
   function addToCart(product: Product) {
-    if (product.stock_qty === 0) return
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity || 0) + 1 } }))
   }
 
@@ -181,21 +180,14 @@ export default function NewRequestClient({ workOrders, error }: Props) {
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid #F5F3F5' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, color: '#1C0D14' }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: '#7A6870' }}>
-                  {p.sap_code ? `SAP: ${p.sap_code} · ` : ''}
-                  <span style={{ color: p.stock_qty === 0 ? '#DC2626' : p.stock_qty <= 3 ? '#D97706' : '#059669', fontWeight: 500 }}>
-                    {p.stock_qty === 0 ? 'Out of stock' : `In stock: ${p.stock_qty}`}
-                  </span>
-                </div>
+                {p.sap_code && <div style={{ fontSize: 10, color: '#7A6870' }}>SAP: {p.sap_code}</div>}
               </div>
               <button
                 className="mtap"
                 onClick={() => addToCart(p)}
-                disabled={p.stock_qty === 0}
                 style={{
                   border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins, sans-serif',
-                  background: p.stock_qty === 0 ? '#E5E0E3' : '#7D1D3F', color: p.stock_qty === 0 ? '#7A6870' : '#fff',
-                  cursor: p.stock_qty === 0 ? 'not-allowed' : 'pointer',
+                  background: '#7D1D3F', color: '#fff', cursor: 'pointer',
                 }}
               >
                 Add

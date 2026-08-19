@@ -27,19 +27,18 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
   const [sapCode, setSapCode] = useState('')
   const [hierarchy, setHierarchy] = useState('')
   const [level1, setLevel1] = useState('')
-  const [stockQty, setStockQty] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   function openAdd() {
     setEditing(null)
-    setName(''); setSapCode(''); setHierarchy(''); setLevel1(''); setStockQty('0'); setError('')
+    setName(''); setSapCode(''); setHierarchy(''); setLevel1(''); setError('')
     setModalOpen(true)
   }
 
   function openEdit(p: Product) {
     setEditing(p)
-    setName(p.name); setSapCode(p.sap_code || ''); setHierarchy(p.hierarchy || ''); setLevel1(p.level_1 || ''); setStockQty(String(p.stock_qty)); setError('')
+    setName(p.name); setSapCode(p.sap_code || ''); setHierarchy(p.hierarchy || ''); setLevel1(p.level_1 || ''); setError('')
     setModalOpen(true)
   }
 
@@ -48,7 +47,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     setSaving(true)
     setError('')
     const payload = {
-      name: name.trim(), sapCode: sapCode.trim() || null, stockQty: parseInt(stockQty, 10) || 0,
+      name: name.trim(), sapCode: sapCode.trim() || null,
       hierarchy: hierarchy.trim() || null, level1: level1.trim() || null,
     }
     const result = editing ? await updateProduct(editing.id, payload) : await createProduct(payload)
@@ -97,7 +96,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Stock', 'Actions'].map(h => (
+                  {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
                   ))}
                 </tr>
@@ -109,15 +108,6 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.sap_code || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.hierarchy || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.level_1 || '—'}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12 }}>
-                      <span style={{
-                        fontSize: 10, padding: '2px 9px', borderRadius: 20, fontWeight: 600,
-                        background: p.stock_qty === 0 ? '#FEE2E2' : p.stock_qty <= 3 ? '#FEF3C7' : '#D1FAE5',
-                        color: p.stock_qty === 0 ? '#991B1B' : p.stock_qty <= 3 ? '#92400E' : '#065F46',
-                      }}>
-                        {p.stock_qty === 0 ? 'Out of stock' : `${p.stock_qty} in stock`}
-                      </span>
-                    </td>
                     <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(p)} style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Edit</button>
                       <button onClick={() => handleDelete(p)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, color: '#991B1B', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Delete</button>
@@ -146,10 +136,6 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>Level 1</label>
           <input value={level1} onChange={e => setLevel1(e.target.value)} style={inputStyle} placeholder="e.g. Protection Devices" />
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Stock quantity</label>
-          <input type="number" min="0" value={stockQty} onChange={e => setStockQty(e.target.value)} style={inputStyle} />
         </div>
         {error && <div style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 7, padding: '8px 10px', fontSize: 11, marginBottom: 12 }}>{error}</div>}
         <button

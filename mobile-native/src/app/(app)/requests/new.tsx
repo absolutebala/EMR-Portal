@@ -51,7 +51,6 @@ export default function NewRequestScreen() {
   }
 
   function addToCart(product: Product) {
-    if (product.stock_qty === 0) return;
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity || 0) + 1 } }));
   }
 
@@ -160,15 +159,10 @@ export default function NewRequestScreen() {
             <View key={p.id} style={styles.resultRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.resultName}>{p.name}</Text>
-                <Text style={styles.resultMeta}>
-                  {p.sap_code ? `SAP: ${p.sap_code} · ` : ''}
-                  <Text style={{ color: p.stock_qty === 0 ? '#DC2626' : p.stock_qty <= 3 ? '#D97706' : '#059669', fontWeight: '500' }}>
-                    {p.stock_qty === 0 ? 'Out of stock' : `In stock: ${p.stock_qty}`}
-                  </Text>
-                </Text>
+                {!!p.sap_code && <Text style={styles.resultMeta}>SAP: {p.sap_code}</Text>}
               </View>
-              <Pressable style={[styles.addButton, p.stock_qty === 0 && styles.addButtonDisabled]} onPress={() => addToCart(p)} disabled={p.stock_qty === 0}>
-                <Text style={[styles.addButtonText, p.stock_qty === 0 && styles.addButtonTextDisabled]}>Add</Text>
+              <Pressable style={styles.addButton} onPress={() => addToCart(p)}>
+                <Text style={styles.addButtonText}>Add</Text>
               </Pressable>
             </View>
           ))}
@@ -254,9 +248,7 @@ const styles = StyleSheet.create({
   resultName: { fontSize: 12, fontWeight: '500', color: '#1C0D14' },
   resultMeta: { fontSize: 10, color: '#7A6870', marginTop: 2 },
   addButton: { borderRadius: 7, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#7D1D3F' },
-  addButtonDisabled: { backgroundColor: '#E5E0E3' },
   addButtonText: { fontSize: 11, fontWeight: '600', color: '#fff' },
-  addButtonTextDisabled: { color: '#7A6870' },
   noResults: { fontSize: 11, color: '#7A6870', marginTop: 4 },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoThumbWrap: { width: 60, height: 60 },

@@ -297,7 +297,6 @@ export interface Product {
   id: string;
   name: string;
   sap_code: string | null;
-  stock_qty: number;
 }
 
 export type ProductRequestItemStatus = 'pending' | 'approved' | 'rejected' | 'dispatched' | 'delivered';
