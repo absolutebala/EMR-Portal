@@ -3,15 +3,23 @@ import Topbar from '@/components/layout/Topbar'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
 import type { EngineerStatus } from '@/app/actions/get-engineers'
-import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
+import { ListCard, ListRow, Badge, BreakdownCard } from '@/components/dashboard/DashboardCards'
 import AssignableList from '@/components/dashboard/AssignableList'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 import { adminClient } from '@/lib/db/admin-client'
 
-const KPI_CARDS: { key: 'inProgressCount' | 'unassignedCount' | 'pendingProductRequestsCount'; label: string; href: string; color: string; bg: string }[] = [
-  { key: 'inProgressCount', label: 'In Progress', href: '/work-orders?status=in_progress', color: '#D97706', bg: '#FEF3C7' },
-  { key: 'unassignedCount', label: 'Unassigned', href: '/work-orders?status=unassigned', color: '#6B7280', bg: '#F3F4F6' },
-  { key: 'pendingProductRequestsCount', label: 'Pending Product Requests', href: '/requests', color: '#7D1D3F', bg: '#F9EEF2' },
+const NOTIFICATION_BREAKDOWN_CFG: { key: 'unassigned' | 'assigned' | 'in_progress' | 'needs_reassignment'; label: string; color: string; href: string }[] = [
+  { key: 'unassigned', label: 'Unassigned', color: '#6B7280', href: '/work-orders?status=unassigned' },
+  { key: 'assigned', label: 'Assigned', color: '#1D4ED8', href: '/work-orders?status=assigned' },
+  { key: 'in_progress', label: 'In Progress', color: '#D97706', href: '/work-orders?status=in_progress' },
+  { key: 'needs_reassignment', label: 'Needs Reassignment', color: '#9A3412', href: '/work-orders?status=needs_reassignment' },
+]
+
+const PRODUCT_REQUEST_BREAKDOWN_CFG: { key: 'pending' | 'approved' | 'dispatched' | 'delivered'; label: string; color: string; href: string }[] = [
+  { key: 'pending', label: 'Requested', color: '#92400E', href: '/requests?tab=pending' },
+  { key: 'approved', label: 'Approved', color: '#1D4ED8', href: '/requests?tab=approved' },
+  { key: 'dispatched', label: 'Dispatched', color: '#5B21B6', href: '/requests?tab=dispatched' },
+  { key: 'delivered', label: 'Delivered', color: '#065F46', href: '/requests?tab=delivered' },
 ]
 
 const WARRANTY_TIER_CFG: { key: 'under_warranty' | 'expired' | 'amc'; label: string; color: string }[] = [
@@ -74,30 +82,26 @@ export default async function DashboardPage() {
   const userRole = profile?.role || 'User'
   const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, kpis } = dashboard
   const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
+  const notificationTotal = kpis.notificationBreakdown.unassigned + kpis.notificationBreakdown.assigned + kpis.notificationBreakdown.in_progress + kpis.notificationBreakdown.needs_reassignment
+  const productRequestTotal = kpis.productRequestBreakdown.pending + kpis.productRequestBreakdown.approved + kpis.productRequestBreakdown.dispatched + kpis.productRequestBreakdown.delivered
 
   return (
     <>
       <Topbar title="Dashboard" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
-          {KPI_CARDS.map(card => (
-            <Link key={card.key} href={card.href} style={{ textDecoration: 'none', background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: `3px solid ${card.color}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--tx)', lineHeight: 1 }}>{kpis[card.key]}</div>
-              <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 6, fontWeight: 500 }}>{card.label}</div>
-            </Link>
-          ))}
-
-          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: '3px solid #7D1D3F', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 500 }}>Warranty Status ({warrantyTotal})</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {WARRANTY_TIER_CFG.map(tier => (
-                <Link key={tier.key} href={`/work-orders?warranty=${tier.key}`} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                  <span style={{ color: 'var(--txm)' }}>{tier.label}</span>
-                  <span style={{ fontWeight: 700, color: tier.color }}>{kpis.warrantyBreakdown[tier.key]}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
+          <BreakdownCard
+            title="Notifications" total={notificationTotal} borderColor="#D97706"
+            rows={NOTIFICATION_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.notificationBreakdown[s.key], color: s.color, href: s.href }))}
+          />
+          <BreakdownCard
+            title="Product Requests" total={productRequestTotal} borderColor="#7D1D3F"
+            rows={PRODUCT_REQUEST_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.productRequestBreakdown[s.key], color: s.color, href: s.href }))}
+          />
+          <BreakdownCard
+            title="Warranty Status" total={warrantyTotal} borderColor="#7D1D3F"
+            rows={WARRANTY_TIER_CFG.map(t => ({ key: t.key, label: t.label, count: kpis.warrantyBreakdown[t.key], color: t.color, href: `/work-orders?warranty=${t.key}` }))}
+          />
         </div>
 
         {kpis.jobTypeBreakdown.length > 0 && (
@@ -119,6 +123,66 @@ export default async function DashboardPage() {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
+          <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
+            {expiredWarrantyList.map(t => (
+              <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
+            ))}
+          </ListCard>
+
+          <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
+            {offSiteUpdates.map(u => (
+              <ListRow key={u.id} title={u.actorName} subtitle={formatDateTime(u.createdAt)}>
+                <span style={{ fontSize: 11, color: 'var(--txm)', textAlign: 'right', maxWidth: 320 }}>{u.action}</span>
+              </ListRow>
+            ))}
+          </ListCard>
+
+          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
+            {pendingApprovals.map(ap => {
+              const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
+              return (
+                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
+                  <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
+                </ListRow>
+              )
+            })}
+          </ListCard>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+          <ListCard title="Missed & at-risk follow-ups" viewAllHref="/work-orders" empty="Nothing missed or at risk.">
+            {overdueList.map(wo => (
+              <ListRow
+                key={wo.id}
+                title={wo.woNumber}
+                subtitle={
+                  <>
+                    <div>{wo.engineerName}</div>
+                    {wo.scheduledDate && <div>{formatDate(wo.scheduledDate)}</div>}
+                  </>
+                }
+                href={`/work-orders/${wo.id}`}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                  <span style={{
+                    fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600,
+                    background: wo.alertReason === 'missed' ? '#FEE2E2' : '#FEF3C7',
+                    color: wo.alertReason === 'missed' ? '#991B1B' : '#92400E',
+                  }}>
+                    {wo.alertReason === 'missed' ? 'Missed' : 'Due today'}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
+                </div>
+              </ListRow>
+            ))}
+          </ListCard>
+
+          <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
+
+          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
           <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
             {engineers.slice(0, 6).map(e => {
               const cfg = ENGINEER_STATUS_CFG[e.status]
@@ -176,66 +240,6 @@ export default async function DashboardPage() {
                 </ListRow>
               )
             })}
-          </ListCard>
-
-          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
-            {pendingApprovals.map(ap => {
-              const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
-              return (
-                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
-                  <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
-                </ListRow>
-              )
-            })}
-          </ListCard>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-          <ListCard title="Missed & at-risk follow-ups" viewAllHref="/work-orders" empty="Nothing missed or at risk.">
-            {overdueList.map(wo => (
-              <ListRow
-                key={wo.id}
-                title={wo.woNumber}
-                subtitle={
-                  <>
-                    <div>{wo.engineerName}</div>
-                    {wo.scheduledDate && <div>{formatDate(wo.scheduledDate)}</div>}
-                  </>
-                }
-                href={`/work-orders/${wo.id}`}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                  <span style={{
-                    fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600,
-                    background: wo.alertReason === 'missed' ? '#FEE2E2' : '#FEF3C7',
-                    color: wo.alertReason === 'missed' ? '#991B1B' : '#92400E',
-                  }}>
-                    {wo.alertReason === 'missed' ? 'Missed' : 'Due today'}
-                  </span>
-                  <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
-                </div>
-              </ListRow>
-            ))}
-          </ListCard>
-
-          <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
-
-          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
-          <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
-            {expiredWarrantyList.map(t => (
-              <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
-            ))}
-          </ListCard>
-
-          <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
-            {offSiteUpdates.map(u => (
-              <ListRow key={u.id} title={u.actorName} subtitle={formatDateTime(u.createdAt)}>
-                <span style={{ fontSize: 11, color: 'var(--txm)', textAlign: 'right', maxWidth: 320 }}>{u.action}</span>
-              </ListRow>
-            ))}
           </ListCard>
         </div>
       </div>

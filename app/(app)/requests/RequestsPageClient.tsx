@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import { updateProductRequestItemStatus } from '@/app/actions/products'
@@ -16,6 +16,7 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
 }
 
 type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'delivered' | 'rejected'
+const TAB_IDS: TabId[] = ['all', 'pending', 'approved', 'dispatched', 'delivered', 'rejected']
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -33,7 +34,12 @@ interface Props {
 
 export default function RequestsPageClient({ requests, userName, userRole, canApprove, canDispatch, canDeliver }: Props) {
   const router = useRouter()
-  const [tab, setTab] = useState<TabId>('all')
+  const searchParams = useSearchParams()
+  // Lets the dashboard's Product Requests breakdown card deep-link straight into a
+  // tab (e.g. /requests?tab=dispatched) instead of always landing on "All".
+  const tabParam = searchParams.get('tab')
+  const initialTab: TabId = TAB_IDS.includes(tabParam as TabId) ? (tabParam as TabId) : 'all'
+  const [tab, setTab] = useState<TabId>(initialTab)
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [acting, setActing] = useState<{ id: string; status: string } | null>(null)
 
@@ -62,7 +68,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
       <Topbar title="Product Requests" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {(['all', 'pending', 'approved', 'dispatched', 'delivered', 'rejected'] as TabId[]).map(t => (
+          {TAB_IDS.map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}

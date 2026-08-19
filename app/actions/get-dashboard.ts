@@ -42,9 +42,14 @@ export interface DashboardOffSiteUpdate {
 }
 
 export interface DashboardKpis {
-  inProgressCount: number
-  unassignedCount: number
-  pendingProductRequestsCount: number
+  // Open (non-completed) notifications by work_orders.status — "reached"/"checked in"
+  // etc. are engineer-side live-status signals, not a separate work order status;
+  // checking in already flips the work order itself to in_progress, so those are
+  // already folded into the in_progress bucket here without any extra derivation.
+  notificationBreakdown: { unassigned: number; assigned: number; in_progress: number; needs_reassignment: number }
+  // product_request_items by status — 'rejected' is deliberately left out (a dead-end,
+  // not a pipeline stage worth surfacing on the summary card).
+  productRequestBreakdown: { pending: number; approved: number; dispatched: number; delivered: number }
   // Open (non-completed) notifications by their linked transformer's warranty tier —
   // counted per notification (matches /work-orders?warranty=<tier>), so one covering
   // multiple transformers in the same tier still only counts once.
@@ -91,7 +96,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: offSiteRows },
     { data: openWorkOrderRows },
     { data: expiredTransformerRows },
-    { count: pendingProductRequestsCount },
+    { data: productRequestStatusRows },
   ] = await Promise.all([
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name), work_order_transformers(transformers(serial_number, warranty_status))').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
@@ -117,7 +122,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     // the KPI breakdown above) — every expired unit on record, regardless of whether it
     // currently has an open job against it.
     admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
-    admin.from('product_request_items').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    // Powers the Product Requests breakdown card — one pass over every item's status.
+    admin.from('product_request_items').select('status'),
   ])
 
   // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
@@ -198,8 +204,19 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   type OpenWoRow = { id: string; status: string; job_type: string; work_order_transformers: { transformers: { warranty_status: string } | null }[] }
   const openWoRows = (openWorkOrderRows as unknown as OpenWoRow[]) || []
-  const inProgressCount = openWoRows.filter(w => w.status === 'in_progress').length
-  const unassignedCount = openWoRows.filter(w => w.status === 'unassigned').length
+  const notificationBreakdown = {
+    unassigned: openWoRows.filter(w => w.status === 'unassigned').length,
+    assigned: openWoRows.filter(w => w.status === 'assigned').length,
+    in_progress: openWoRows.filter(w => w.status === 'in_progress').length,
+    needs_reassignment: openWoRows.filter(w => w.status === 'needs_reassignment').length,
+  }
+
+  const productRequestBreakdown = { pending: 0, approved: 0, dispatched: 0, delivered: 0 }
+  ;((productRequestStatusRows as unknown as { status: string }[]) || []).forEach(r => {
+    if (r.status === 'pending' || r.status === 'approved' || r.status === 'dispatched' || r.status === 'delivered') {
+      productRequestBreakdown[r.status]++
+    }
+  })
 
   const jobTypeCounts: Record<string, number> = {}
   openWoRows.forEach(w => { jobTypeCounts[w.job_type] = (jobTypeCounts[w.job_type] || 0) + 1 })
@@ -219,9 +236,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   })
 
   const kpis: DashboardKpis = {
-    inProgressCount,
-    unassignedCount,
-    pendingProductRequestsCount: pendingProductRequestsCount || 0,
+    notificationBreakdown,
+    productRequestBreakdown,
     warrantyBreakdown,
     jobTypeBreakdown,
   }

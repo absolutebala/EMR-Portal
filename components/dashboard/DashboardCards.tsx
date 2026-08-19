@@ -43,3 +43,27 @@ export function Badge({ bg, color, label }: { bg: string; color: string; label: 
     </span>
   )
 }
+
+// Small summary-card pattern shared by the top-of-dashboard KPI cards (Notifications,
+// Product Requests, Warranty Status) — a total, then a clickable list of the
+// statuses/tiers that make it up.
+export function BreakdownCard({ title, total, borderColor, rows }: {
+  title: string
+  total: number
+  borderColor: string
+  rows: { key: string; label: string; count: number; color: string; href: string }[]
+}) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: `3px solid ${borderColor}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 500 }}>{title} ({total})</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {rows.map(row => (
+          <Link key={row.key} href={row.href} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'var(--txm)' }}>{row.label}</span>
+            <span style={{ fontWeight: 700, color: row.color }}>{row.count}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
