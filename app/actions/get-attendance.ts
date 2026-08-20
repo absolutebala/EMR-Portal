@@ -1,33 +1,51 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
+import { computeEffectiveStatus, getISTDateStr, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
 
-export interface AttendanceEngineer {
-  id: string
-  name: string
-}
-
-export interface AttendanceJob {
+export interface AttendanceOverviewJob {
   workOrderId: string
-  customerName: string
-  location: string | null
   woNumber: string
-  status: string
+  // The transformer's site name (first linked transformer) — matches the Work
+  // Order detail page's "Project" field convention, not the Field Engineers
+  // page's customer-company-name convention.
+  projectName: string | null
+  // All linked transformers' serial numbers, comma-joined — a work order can
+  // cover more than one.
+  serialNumbers: string
+  endUserType: string | null // 'Utility' | 'Industry', from customers.customer_type
+  state:
+    | { kind: 'assigned' } // future date, not yet due
+    | { kind: 'no_show' } // due (today or past), no check-in that day
+    | { kind: 'in_progress'; checkedInAt: string; followUpDate: string | null; needsReassignment: boolean }
+    | { kind: 'completed'; checkedInAt: string; completedAt: string }
 }
 
-// engineerId -> 'YYYY-MM-DD' -> jobs scheduled/visited that day (usually one, but an
-// engineer can have more than one job on the same date, or the same job can appear on
-// more than one date if it spanned multiple visits — see the "revisited days" note
-// below).
-export type AttendanceCells = Record<string, Record<string, AttendanceJob[]>>
+export interface AttendanceOverviewRow {
+  engineerId: string
+  engineerName: string
+  date: string
+  attendance: AttendanceEffectiveStatus
+  // Raw timestamp of whatever attendance row exists for this engineer/date (if
+  // any) — kept alongside the computed `attendance` status so the UI can show a
+  // real time for both Present and explicit Leave without re-deriving it per kind.
+  markedAt: string | null
+  jobs: AttendanceOverviewJob[]
+}
+
+function eachDateStr(fromStr: string, toStr: string): string[] {
+  const dates: string[] = []
+  for (let d = new Date(`${fromStr}T00:00:00Z`); d <= new Date(`${toStr}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10))
+  }
+  return dates
+}
 
 // from/to are 'YYYY-MM-DD', inclusive on both ends — the caller (the This
 // Week / This Month / Custom filter on the Attendance page) works out the
-// actual range; this just builds the grid for whatever range it's given.
-export async function getAttendanceGrid(from: string, to: string): Promise<{
-  engineers: AttendanceEngineer[]
-  dates: string[]
-  cells: AttendanceCells
+// actual range; this just builds the rows for whatever range it's given.
+export async function getAttendanceOverview(from: string, to: string): Promise<{
+  rows: AttendanceOverviewRow[]
   error: string | null
 }> {
   try {
@@ -35,39 +53,31 @@ export async function getAttendanceGrid(from: string, to: string): Promise<{
 
     const { data: profiles, error: profErr } = await admin
       .from('profiles')
-      .select('id, first_name, last_name')
+      .select('id, first_name, last_name, created_at')
       .eq('role', 'Field Engineer')
       .order('first_name')
-    if (profErr) return { engineers: [], dates: [], cells: {}, error: profErr.message }
+    if (profErr) return { rows: [], error: profErr.message }
 
-    const engineers: AttendanceEngineer[] = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }))
+    const engineers = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}`, createdAt: p.created_at as string | null }))
+    if (!engineers.length) return { rows: [], error: null }
 
-    const todayStr = new Date().toLocaleDateString('en-CA')
-
-    const dates: string[] = []
-    const cursor = new Date(`${from}T00:00:00`)
-    const end = new Date(`${to}T00:00:00`)
-    while (cursor <= end) {
-      dates.push(cursor.toLocaleDateString('en-CA'))
-      cursor.setDate(cursor.getDate() + 1)
-    }
-
-    if (!engineers.length) return { engineers, dates, cells: {}, error: null }
-
+    const todayStr = getISTDateStr()
+    const dates = eachDateStr(from, to)
     const engineerIds = engineers.map(e => e.id)
-    const WO_SELECT = 'id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(customer_sites(site_address, place_label)))'
 
-    // A job's scheduled_date now doubles as its follow-up date once marked pending
-    // (see submitDailyClosure) — so a job visited on day 1 and pushed to day 5 would
-    // otherwise vanish from day 1's cell entirely once its scheduled_date moves. Also
-    // pull in any work order with a check-in in this range, regardless of its current
+    const WO_SELECT = 'id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(serial_number, customer_sites(site_name)))'
+
+    // A job's scheduled_date doubles as its follow-up date once marked pending (see
+    // submitDailyClosure) — so a job visited on day 1 and pushed to day 5 would
+    // otherwise vanish from day 1 entirely once its scheduled_date moves. Also pull
+    // in any work order with a check-in in this range regardless of its current
     // scheduled_date, so the day it actually happened still shows up.
     const [{ data: wosByScheduledDate }, { data: checkinsInRange }] = await Promise.all([
       admin.from('work_orders').select(WO_SELECT).in('engineer_id', engineerIds).gte('scheduled_date', from).lte('scheduled_date', to),
       admin.from('work_order_checkins').select('work_order_id, engineer_id, checked_in_at').in('engineer_id', engineerIds).gte('checked_in_at', `${from}T00:00:00`).lte('checked_in_at', `${to}T23:59:59`),
     ])
 
-    type WotRow = { transformers: { customer_sites: { site_address: string; place_label: string | null } | null } | null }
+    type WotRow = { transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }
     type Row = {
       id: string; engineer_id: string | null; scheduled_date: string | null; customer_id: string
       wo_number: string; status: string; work_order_transformers: WotRow[]
@@ -86,78 +96,117 @@ export async function getAttendanceGrid(from: string, to: string): Promise<{
     const customerIds = [...new Set(wos.map(w => w.customer_id).filter(Boolean))]
     const workOrderIds = wos.map(w => w.id)
 
-    const [{ data: customers }, { data: closures }, { data: checkins }] = await Promise.all([
+    const [{ data: customers }, { data: closures }, { data: checkins }, { data: attendanceRows }, { data: holidays }] = await Promise.all([
       customerIds.length
-        ? admin.from('customers').select('id, name').in('id', customerIds)
-        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        ? admin.from('customers').select('id, name, customer_type').in('id', customerIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; customer_type: string | null }[] }),
       workOrderIds.length
-        ? admin.from('work_order_daily_closures').select('work_order_id, outcome, needs_reassignment, created_at').in('work_order_id', workOrderIds)
-        : Promise.resolve({ data: [] as { work_order_id: string; outcome: string; needs_reassignment: boolean; created_at: string }[] }),
+        ? admin.from('work_order_daily_closures').select('work_order_id, outcome, needs_reassignment, revisit_date, created_at').in('work_order_id', workOrderIds)
+        : Promise.resolve({ data: [] as { work_order_id: string; outcome: string; needs_reassignment: boolean; revisit_date: string | null; created_at: string }[] }),
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
+      admin.from('attendance').select('engineer_id, attendance_date, status, marked_at, reason, approval_status').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
-    const custMap: Record<string, string> = {}
-    customers?.forEach(c => { custMap[c.id] = c.name })
+    const custMap: Record<string, { name: string; customerType: string | null }> = {}
+    customers?.forEach(c => { custMap[c.id] = { name: c.name, customerType: c.customer_type } })
 
-    // work_order_id -> 'YYYY-MM-DD' -> outcome status, for reconstructing what
-    // actually happened on a past date rather than showing today's live status.
-    const closuresByWoDate: Record<string, Record<string, string>> = {}
+    // work_order_id -> 'YYYY-MM-DD' -> earliest check-in that day.
+    const checkinTimeByWoDay: Record<string, Record<string, string>> = {}
+    for (const c of checkins || []) {
+      const day = getISTDateStr(new Date(c.checked_in_at))
+      if (!checkinTimeByWoDay[c.work_order_id]) checkinTimeByWoDay[c.work_order_id] = {}
+      const existing = checkinTimeByWoDay[c.work_order_id][day]
+      if (!existing || c.checked_in_at < existing) checkinTimeByWoDay[c.work_order_id][day] = c.checked_in_at
+    }
+    // work_order_id -> 'YYYY-MM-DD' -> that day's closure (last one wins if more
+    // than one was somehow submitted the same day).
+    const closureByWoDay: Record<string, Record<string, { outcome: string; needsReassignment: boolean; revisitDate: string | null; createdAt: string }>> = {}
     for (const c of closures || []) {
-      const day = new Date(c.created_at).toLocaleDateString('en-CA')
-      if (!closuresByWoDate[c.work_order_id]) closuresByWoDate[c.work_order_id] = {}
-      closuresByWoDate[c.work_order_id][day] = c.needs_reassignment ? 'needs_reassignment' : c.outcome
+      const day = getISTDateStr(new Date(c.created_at))
+      if (!closureByWoDay[c.work_order_id]) closureByWoDay[c.work_order_id] = {}
+      closureByWoDay[c.work_order_id][day] = { outcome: c.outcome, needsReassignment: c.needs_reassignment, revisitDate: c.revisit_date, createdAt: c.created_at }
     }
     const checkinDaysByWo: Record<string, Set<string>> = {}
-    for (const c of checkins || []) {
-      const day = new Date(c.checked_in_at).toLocaleDateString('en-CA')
-      if (!checkinDaysByWo[c.work_order_id]) checkinDaysByWo[c.work_order_id] = new Set()
-      checkinDaysByWo[c.work_order_id].add(day)
-    }
+    for (const woId of Object.keys(checkinTimeByWoDay)) checkinDaysByWo[woId] = new Set(Object.keys(checkinTimeByWoDay[woId]))
 
-    function reconstructStatus(w: Row, day: string): string {
-      if (day >= todayStr || w.status === 'completed') return w.status
-      const closureOutcome = closuresByWoDate[w.id]?.[day]
-      if (closureOutcome) return closureOutcome
-      if (checkinDaysByWo[w.id]?.has(day)) return 'in_progress'
-      return 'not_started'
-    }
+    const attendanceByEngDate: Record<string, AttendanceRowCore & { marked_at: string | null }> = {}
+    ;(attendanceRows || []).forEach(r => { attendanceByEngDate[`${r.engineer_id}:${r.attendance_date}`] = r })
+    const holidayByDate: Record<string, string> = {}
+    ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
-    const cells: AttendanceCells = {}
-    function pushCell(w: Row, day: string) {
-      if (!w.engineer_id) return
-      if (!cells[w.engineer_id]) cells[w.engineer_id] = {}
-      if (!cells[w.engineer_id][day]) cells[w.engineer_id][day] = []
+    function buildJob(w: Row, day: string): AttendanceOverviewJob {
+      const wot = w.work_order_transformers || []
+      const site = wot[0]?.transformers?.customer_sites
+      const serialNumbers = wot.map(t => t.transformers?.serial_number).filter(Boolean).join(', ') || '—'
+      const cust = custMap[w.customer_id]
+      const endUserType = cust?.customerType === 'utility' ? 'Utility' : cust?.customerType === 'industry' ? 'Industry' : null
 
-      const site = w.work_order_transformers?.[0]?.transformers?.customer_sites
-      cells[w.engineer_id][day].push({
-        workOrderId: w.id,
-        customerName: custMap[w.customer_id] || 'Unknown customer',
-        location: site?.place_label || site?.site_address || null,
-        woNumber: w.wo_number,
-        status: reconstructStatus(w, day),
-      })
-    }
-
-    for (const w of wos) {
-      // Current/latest relevant date (original assignment, or the follow-up date once
-      // rescheduled) — shows what actually happened that day if it's in the past.
-      if (w.scheduled_date && w.scheduled_date >= from && w.scheduled_date <= to) {
-        pushCell(w, w.scheduled_date)
+      let state: AttendanceOverviewJob['state']
+      const checkedInAt = checkinTimeByWoDay[w.id]?.[day] ?? null
+      if (day > todayStr) {
+        state = { kind: 'assigned' }
+      } else if (!checkedInAt) {
+        state = { kind: 'no_show' }
+      } else {
+        const closure = closureByWoDay[w.id]?.[day]
+        if (closure && closure.outcome === 'completed' && !closure.needsReassignment) {
+          state = { kind: 'completed', checkedInAt, completedAt: closure.createdAt }
+        } else {
+          state = { kind: 'in_progress', checkedInAt, followUpDate: closure?.revisitDate ?? null, needsReassignment: !!closure?.needsReassignment }
+        }
       }
-      // Any other day within range this job was actually visited (checked in) — a
-      // day that's since been superseded by a later scheduled/follow-up date would
-      // otherwise disappear from the grid entirely.
+
+      return {
+        workOrderId: w.id,
+        woNumber: w.wo_number,
+        projectName: site?.site_name ?? null,
+        serialNumbers,
+        endUserType,
+        state,
+      }
+    }
+
+    // engineerId:date -> jobs that day
+    const jobsByEngDate: Record<string, AttendanceOverviewJob[]> = {}
+    function pushJob(w: Row, day: string) {
+      if (!w.engineer_id) return
+      const key = `${w.engineer_id}:${day}`
+      if (!jobsByEngDate[key]) jobsByEngDate[key] = []
+      jobsByEngDate[key].push(buildJob(w, day))
+    }
+    for (const w of wos) {
+      if (w.scheduled_date && w.scheduled_date >= from && w.scheduled_date <= to) {
+        pushJob(w, w.scheduled_date)
+      }
       for (const day of checkinDaysByWo[w.id] || []) {
         if (day === w.scheduled_date) continue
         if (day < from || day > to) continue
-        pushCell(w, day)
+        pushJob(w, day)
       }
     }
 
-    return { engineers, dates, cells, error: null }
+    const rows: AttendanceOverviewRow[] = []
+    for (const eng of engineers) {
+      const profileCreatedAtDateStr = eng.createdAt ? getISTDateStr(new Date(eng.createdAt)) : null
+      for (const dateStr of dates) {
+        const row = attendanceByEngDate[`${eng.id}:${dateStr}`] ?? null
+        const attendance = computeEffectiveStatus({ dateStr, todayStr, row, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr })
+        rows.push({
+          engineerId: eng.id,
+          engineerName: eng.name,
+          date: dateStr,
+          attendance,
+          markedAt: row?.marked_at ?? null,
+          jobs: jobsByEngDate[`${eng.id}:${dateStr}`] || [],
+        })
+      }
+    }
+
+    return { rows, error: null }
   } catch (e: unknown) {
-    return { engineers: [], dates: [], cells: {}, error: e instanceof Error ? e.message : String(e) }
+    return { rows: [], error: e instanceof Error ? e.message : String(e) }
   }
 }

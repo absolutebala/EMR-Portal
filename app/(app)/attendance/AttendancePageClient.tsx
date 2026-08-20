@@ -3,22 +3,33 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
-import { getAttendanceGrid, type AttendanceEngineer, type AttendanceCells } from '@/app/actions/get-attendance'
+import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob } from '@/app/actions/get-attendance'
 import { approveRejectAttendanceAmendment, getAttendanceExportRows } from '@/app/actions/attendance'
-import type { PendingAmendment } from '@/lib/mobile/core/attendance'
+import { getAttendanceStatusLabel, type PendingAmendment, type AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
+import PendingAmendmentsModal from './PendingAmendmentsModal'
 import { toDateStr, getRange, type ViewMode } from './dateRange'
 
-const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
-  unassigned: { bg: '#F3F4F6', color: '#6B7280', label: 'Unassigned' },
+const JOB_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   assigned: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Assigned' },
+  no_show: { bg: '#FEE2E2', color: '#DC2626', label: "Engineer didn't show up" },
   in_progress: { bg: '#FEF3C7', color: '#D97706', label: 'In Progress' },
-  pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
-  needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
-  not_started: { bg: '#F3F4F6', color: '#6B7280', label: 'Not Started' },
 }
 
-function formatColumnDate(dateStr: string): { weekday: string; dayMonth: string } {
+const ATTENDANCE_CFG: Record<AttendanceEffectiveStatus['kind'], { bg: string; color: string }> = {
+  present: { bg: '#D1FAE5', color: '#065F46' },
+  leave: { bg: '#FEE2E2', color: '#DC2626' },
+  holiday: { bg: '#F1F5F9', color: '#475569' },
+  weekly_off: { bg: '#F3F4F6', color: '#6B7280' },
+  pending: { bg: '#FEF3C7', color: '#D97706' },
+  not_applicable: { bg: '#F3F4F6', color: '#B0A8AC' },
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatDateCell(dateStr: string): { weekday: string; dayMonth: string } {
   const d = new Date(`${dateStr}T00:00:00`)
   return {
     weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }),
@@ -32,10 +43,58 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
 })
 
+function AttendanceCell({ row }: { row: AttendanceOverviewRow }) {
+  const cfg = ATTENDANCE_CFG[row.attendance.kind]
+  const label = getAttendanceStatusLabel(row.attendance)
+  let timeLabel: string | null = null
+  if (row.attendance.kind === 'present') timeLabel = row.markedAt ? formatTime(row.markedAt) : null
+  else if (row.attendance.kind === 'leave') timeLabel = row.attendance.markedAt ? formatTime(row.attendance.markedAt) : '11:00 AM'
+
+  return (
+    <div>
+      <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '3px 9px' }}>
+        {label}
+      </span>
+      {timeLabel && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>{timeLabel}</div>}
+    </div>
+  )
+}
+
+function JobCard({ job }: { job: AttendanceOverviewJob }) {
+  const cfg = JOB_STATUS_CFG[job.state.kind]
+  return (
+    <div style={{ padding: '7px 9px', borderRadius: 6, background: cfg.bg + '40', borderLeft: `3px solid ${cfg.color}` }}>
+      <div style={{ fontWeight: 600, color: 'var(--tx)', fontSize: 11 }}>{job.projectName || '—'}</div>
+      <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>Serial: {job.serialNumbers}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+        {job.endUserType && <span style={{ fontSize: 9, color: 'var(--txm)' }}>{job.endUserType}</span>}
+        <span style={{ fontSize: 10, color: 'var(--txm)' }}>{job.woNumber}</span>
+      </div>
+      <div style={{ marginTop: 4 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
+        {job.state.kind === 'in_progress' && (
+          <>
+            <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>Checked in {formatTime(job.state.checkedInAt)}</div>
+            {job.state.followUpDate && <div style={{ fontSize: 10, color: 'var(--txm)' }}>Follow-up: {job.state.followUpDate}</div>}
+            {job.state.needsReassignment && (
+              <span style={{ display: 'inline-block', marginTop: 2, fontSize: 9, fontWeight: 600, color: '#9A3412', background: '#FED7AA', borderRadius: 20, padding: '1px 7px' }}>
+                Needs reassignment
+              </span>
+            )}
+          </>
+        )}
+        {job.state.kind === 'completed' && (
+          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+            Checked in {formatTime(job.state.checkedInAt)} · Completed {formatTime(job.state.completedAt)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface Props {
-  initialEngineers: AttendanceEngineer[]
-  initialDates: string[]
-  initialCells: AttendanceCells
+  initialRows: AttendanceOverviewRow[]
   initialError: string | null
   initialAmendments: PendingAmendment[]
   canApprove: boolean
@@ -43,16 +102,15 @@ interface Props {
   userRole: string
 }
 
-export default function AttendancePageClient({ initialEngineers, initialDates, initialCells, initialError, initialAmendments, canApprove, userName, userRole }: Props) {
-  const [engineers, setEngineers] = useState(initialEngineers)
-  const [dates, setDates] = useState(initialDates)
-  const [cells, setCells] = useState(initialCells)
+export default function AttendancePageClient({ initialRows, initialError, initialAmendments, canApprove, userName, userRole }: Props) {
+  const [rows, setRows] = useState(initialRows)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const isFirstRun = useRef(true)
 
   const [amendments, setAmendments] = useState(initialAmendments)
   const [actingOn, setActingOn] = useState<string | null>(null)
+  const [showAmendmentsModal, setShowAmendmentsModal] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
 
@@ -70,19 +128,23 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
     const { error: err } = await approveRejectAttendanceAmendment(id, decision)
     setActingOn(null)
     if (err) { setExportError(err); return }
-    setAmendments(prev => prev.filter(a => a.id !== id))
+    setAmendments(prev => {
+      const next = prev.filter(a => a.id !== id)
+      if (next.length === 0) setShowAmendmentsModal(false)
+      return next
+    })
   }
 
   async function handleExport() {
     setExporting(true)
     setExportError('')
-    const { rows, error: err } = await getAttendanceExportRows(range.from, range.to)
+    const { rows: exportRows, error: err } = await getAttendanceExportRows(range.from, range.to)
     setExporting(false)
     if (err) { setExportError(err); return }
-    if (!rows.length) { setExportError('No attendance data in this range to export.'); return }
+    if (!exportRows.length) { setExportError('No attendance data in this range to export.'); return }
 
     const headers = ['Engineer', 'Date', 'Status', 'Marked At', 'Reason']
-    const aoa = [headers, ...rows.map(r => [
+    const aoa = [headers, ...exportRows.map(r => [
       r.engineerName, r.date, r.status,
       r.markedAt ? new Date(r.markedAt).toLocaleString('en-IN') : '',
       r.reason || '',
@@ -96,10 +158,8 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
 
   const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
-    const { engineers: eng, dates: d, cells: c, error: err } = await getAttendanceGrid(from, to)
-    setEngineers(eng)
-    setDates(d)
-    setCells(c)
+    const { rows: r, error: err } = await getAttendanceOverview(from, to)
+    setRows(r)
     setError(err)
     setLoading(false)
   }, [])
@@ -130,16 +190,25 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
 
   const todayStr = new Date().toLocaleDateString('en-CA')
 
+  // Group consecutive rows by engineer (server already sorts engineer-then-date) so
+  // the Field Engineer column can span the whole group instead of repeating the name
+  // on every date row.
+  const groups = useMemo(() => {
+    const g: { engineerId: string; engineerName: string; rows: AttendanceOverviewRow[] }[] = []
+    for (const row of rows) {
+      const last = g[g.length - 1]
+      if (last && last.engineerId === row.engineerId) last.rows.push(row)
+      else g.push({ engineerId: row.engineerId, engineerName: row.engineerName, rows: [row] })
+    }
+    return g
+  }, [rows])
+
   return (
     <>
       <Topbar title="Attendance" userName={userName} userRole={userRole} />
-      {/* min-width/min-height: 0 on every level of this flex chain is load-bearing —
-          without it, a flex item won't shrink below its content's intrinsic size
-          (in either axis), so the wide table forces the page itself to grow and
-          scroll instead of being contained inside the grid's own scrollbox. */}
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
-          Scheduled jobs by field engineer. Past dates show what actually happened that day; today and upcoming dates show the job&apos;s current status.
+          Daily attendance and job detail by field engineer. Past dates show what actually happened that day; today and upcoming dates show current status.
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 14, flexShrink: 0 }}>
@@ -182,7 +251,16 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{exportError}</div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 14, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 12, flexWrap: 'wrap' }}>
+          {canApprove && amendments.length > 0 ? (
+            <button
+              onClick={() => setShowAmendmentsModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+            >
+              Pending attendance amendments ({amendments.length})
+            </button>
+          ) : <span />}
+
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -193,127 +271,81 @@ export default function AttendancePageClient({ initialEngineers, initialDates, i
           </button>
         </div>
 
-        {canApprove && amendments.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', marginBottom: 14, flexShrink: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gm)', fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
-              Pending attendance amendments ({amendments.length})
-            </div>
-            {amendments.map((a, i) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < amendments.length - 1 ? '1px solid var(--gl)' : 'none' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{a.engineerName} — {a.attendanceDate}</div>
-                  <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>
-                    {a.markedAt ? new Date(a.markedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                    {a.placeName ? ` · ${a.placeName}` : ''}
-                  </div>
-                  {a.reason && <div style={{ fontSize: 11, color: 'var(--tx)', marginTop: 4 }}>Reason: {a.reason}</div>}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button
-                    onClick={() => handleDecision(a.id, 'approved')}
-                    disabled={actingOn === a.id}
-                    style={{ background: '#D1FAE5', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#065F46', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleDecision(a.id, 'rejected')}
-                    disabled={actingOn === a.id}
-                    style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#991B1B', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {showAmendmentsModal && (
+          <PendingAmendmentsModal amendments={amendments} actingOn={actingOn} onDecision={handleDecision} onClose={() => setShowAmendmentsModal(false)} />
         )}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading attendance…</div>
-          ) : engineers.length === 0 ? (
+          ) : groups.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No field engineers found.</div>
           ) : (
-            // Grid scrolls within its own box (both axes) rather than the page, so the
-            // header row (top) and Field Engineer column (left) can use plain
-            // position: sticky relative to a predictable scrollport instead of trying
-            // to track the page's scroll position / Topbar height. Capped with a
-            // maxHeight (not flex:1) so the card shrink-wraps to its content when
-            // there's little data instead of always stretching to fill the page.
             <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{
-                      position: 'sticky', top: 0, left: 0, zIndex: 3, minWidth: 170, padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
-                      color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', borderRight: '1px solid var(--gm)',
-                      background: '#FAFAFA', whiteSpace: 'nowrap',
-                    }}>
-                      Field Engineer
-                    </th>
-                    {dates.map(dateStr => {
-                      const { weekday, dayMonth } = formatColumnDate(dateStr)
-                      const isToday = dateStr === todayStr
-                      const isPast = dateStr < todayStr
-                      const isWeekend = weekday === 'Sun' || weekday === 'Sat'
-                      return (
-                        <th key={dateStr} style={{
-                          position: 'sticky', top: 0, zIndex: 2, minWidth: 190, padding: '9px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600,
-                          color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
-                          background: isToday ? 'var(--mp)' : isPast ? '#F5F3F5' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
-                        }}>
-                          <div>{weekday}</div>
-                          <div style={{ fontSize: 11, marginTop: 1 }}>{dayMonth}</div>
-                        </th>
-                      )
-                    })}
+                    {['Field Engineer', 'Date', 'Attendance', 'Jobs'].map((h, i) => (
+                      <th key={h} style={{
+                        position: 'sticky', top: 0, zIndex: 2, minWidth: i === 0 ? 140 : i === 1 ? 100 : i === 2 ? 120 : 260,
+                        padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
+                        color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)',
+                        background: '#FAFAFA', whiteSpace: 'nowrap',
+                      }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {engineers.map((e, ei) => (
-                    <tr key={e.id}>
-                      <td style={{
-                        position: 'sticky', left: 0, zIndex: 1, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
-                        background: '#fff', borderRight: '1px solid var(--gm)',
-                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
-                      }}>
-                        {e.name}
-                      </td>
-                      {dates.map(dateStr => {
-                        const jobs = cells[e.id]?.[dateStr]
-                        const isToday = dateStr === todayStr
-                        const isPast = dateStr < todayStr
-                        return (
-                          <td key={dateStr} style={{
-                            padding: '8px 8px', fontSize: 11, textAlign: jobs && jobs.length > 0 ? 'left' : 'center', verticalAlign: jobs && jobs.length > 0 ? 'top' : 'middle',
-                            background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
-                            borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
+                  {groups.map((g, gi) => g.rows.map((row, ri) => {
+                    const isToday = row.date === todayStr
+                    const isPast = row.date < todayStr
+                    const { weekday, dayMonth } = formatDateCell(row.date)
+                    const isLastRowOfGroup = ri === g.rows.length - 1
+                    return (
+                      <tr key={`${row.engineerId}:${row.date}`}>
+                        {ri === 0 && (
+                          <td rowSpan={g.rows.length} style={{
+                            padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
+                            background: '#fff', borderRight: '1px solid var(--gm)',
+                            borderBottom: gi < groups.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
                           }}>
-                            {jobs && jobs.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {jobs.map(job => {
-                                  const cfg = STATUS_CFG[job.status] || STATUS_CFG.unassigned
-                                  return (
-                                    <div key={job.workOrderId} style={{ padding: '6px 8px 6px 9px', borderRadius: 6, background: cfg.bg, borderLeft: `3px solid ${cfg.color}` }}>
-                                      <div style={{ fontWeight: 600, color: 'var(--tx)', fontSize: 11 }}>{job.customerName}</div>
-                                      {job.location && <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.location}</div>}
-                                      <div style={{ color: 'var(--txm)', fontSize: 10, marginTop: 2 }}>{job.woNumber}</div>
-                                      <span style={{ display: 'inline-block', marginTop: 4, fontSize: 9, fontWeight: 700, color: cfg.color }}>
-                                        {cfg.label}
-                                      </span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            ) : (
-                              <span style={{ color: '#D8D2D5' }}>—</span>
-                            )}
+                            {g.engineerName}
                           </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
+                        )}
+                        <td style={{
+                          padding: '10px 14px', fontSize: 11, verticalAlign: 'top', whiteSpace: 'nowrap',
+                          color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--tx)',
+                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
+                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
+                        }}>
+                          <div>{weekday}</div>
+                          <div style={{ fontSize: 10, marginTop: 1 }}>{dayMonth}</div>
+                        </td>
+                        <td style={{
+                          padding: '10px 14px', verticalAlign: 'top',
+                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
+                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
+                        }}>
+                          <AttendanceCell row={row} />
+                        </td>
+                        <td style={{
+                          padding: '8px 14px', verticalAlign: 'top',
+                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
+                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
+                        }}>
+                          {row.jobs.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {row.jobs.map(job => <JobCard key={job.workOrderId} job={job} />)}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#D8D2D5', fontSize: 11 }}>No job scheduled</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  }))}
                 </tbody>
               </table>
             </div>

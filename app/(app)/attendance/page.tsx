@@ -1,5 +1,5 @@
 import { getAuthedUser } from '@/lib/cognito/server'
-import { getAttendanceGrid } from '@/app/actions/get-attendance'
+import { getAttendanceOverview } from '@/app/actions/get-attendance'
 import { getPendingAttendanceAmendments } from '@/app/actions/attendance'
 import { getMyPermissions } from '@/app/actions/roles-actions'
 import { getRange } from './dateRange'
@@ -11,9 +11,9 @@ export default async function AttendancePage() {
 
   const defaultRange = getRange('week', new Date(), '', '')
 
-  const [{ data: profile }, { engineers, dates, cells, error }, { amendments }, { permissions, role }] = await Promise.all([
+  const [{ data: profile }, { rows, error }, { amendments }, { permissions, role }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
-    getAttendanceGrid(defaultRange.from, defaultRange.to),
+    getAttendanceOverview(defaultRange.from, defaultRange.to),
     getPendingAttendanceAmendments(),
     getMyPermissions(),
   ])
@@ -26,9 +26,7 @@ export default async function AttendancePage() {
 
   return (
     <AttendancePageClient
-      initialEngineers={engineers}
-      initialDates={dates}
-      initialCells={cells}
+      initialRows={rows}
       initialError={error}
       initialAmendments={amendments}
       canApprove={canApprove}

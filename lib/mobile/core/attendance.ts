@@ -45,10 +45,11 @@ function eachDateStr(fromStr: string, toStr: string): string[] {
   return dates
 }
 
-interface AttendanceRowCore {
+export interface AttendanceRowCore {
   status: 'present' | 'leave'
   approval_status: 'pending' | 'approved' | 'rejected' | null
   reason: string | null
+  marked_at: string | null
 }
 
 export type AttendanceEffectiveStatus =
@@ -56,10 +57,10 @@ export type AttendanceEffectiveStatus =
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null }
+  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null }
   | { kind: 'present'; reason: string | null; amended: boolean }
 
-function computeEffectiveStatus(params: {
+export function computeEffectiveStatus(params: {
   dateStr: string
   todayStr: string
   row: AttendanceRowCore | null
@@ -70,17 +71,24 @@ function computeEffectiveStatus(params: {
 
   if (row && row.status === 'present') {
     if (row.approval_status === 'pending' || row.approval_status === 'rejected') {
-      return { kind: 'leave', pendingApproval: row.approval_status === 'pending', rejected: row.approval_status === 'rejected', reason: row.reason }
+      return { kind: 'leave', pendingApproval: row.approval_status === 'pending', rejected: row.approval_status === 'rejected', reason: row.reason, markedAt: row.marked_at }
     }
     return { kind: 'present', reason: row.reason, amended: row.approval_status === 'approved' }
+  }
+
+  // An explicit self-marked Leave (e.g. via the mobile "On Leave" status prompt,
+  // see setEngineerStatusCore) — distinct from the auto-computed "no row at all"
+  // case below, since this one carries a real timestamp of when it was set.
+  if (row && row.status === 'leave') {
+    return { kind: 'leave', pendingApproval: false, rejected: false, reason: row.reason, markedAt: row.marked_at }
   }
 
   if (holidayName) return { kind: 'holiday', name: holidayName }
   if (isSunday(dateStr)) return { kind: 'weekly_off' }
   if (profileCreatedAtDateStr && dateStr < profileCreatedAtDateStr) return { kind: 'not_applicable' }
 
-  if (dateStr === todayStr) return isPastAttendanceCutoff() ? { kind: 'leave', pendingApproval: false, rejected: false, reason: null } : { kind: 'pending' }
-  if (dateStr < todayStr) return { kind: 'leave', pendingApproval: false, rejected: false, reason: null }
+  if (dateStr === todayStr) return isPastAttendanceCutoff() ? { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null } : { kind: 'pending' }
+  if (dateStr < todayStr) return { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null }
   return { kind: 'not_applicable' } // future date
 }
 
@@ -104,7 +112,7 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
   try {
     const todayStr = getISTDateStr()
     const [{ data: row }, { data: holiday }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('status, approval_status, reason').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
+      admin.from('attendance').select('status, approval_status, reason, marked_at').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
       admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle(),
       getProfileCreatedAtDateStr(admin, userId),
     ])

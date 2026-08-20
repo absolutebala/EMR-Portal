@@ -7,7 +7,7 @@ import {
   logActivity,
 } from './shared'
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
-import { getMyAttendanceStatusCore, type AttendanceEffectiveStatus } from './attendance'
+import { getMyAttendanceStatusCore, getISTDateStr, type AttendanceEffectiveStatus } from './attendance'
 
 export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {
@@ -405,6 +405,36 @@ export async function setEngineerStatusCore(
       available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project', completed: 'Completed',
     }
     logSystemActivity(admin, { actorId: userId, actorName, action: `Set status to ${STATUS_LABEL[status]}`, entityType: 'engineer_status', entityId: userId }).catch(() => {})
+
+    // "On Leave" here (profiles.engineer_status) and the Attendance feature's
+    // present/leave tracking (the `attendance` table) were previously two
+    // disconnected systems that both happened to use the word "leave" — this
+    // records a real self-marked Leave row so the Attendance page shows an actual
+    // timestamp instead of only the auto-computed 11am-cutoff placeholder. No
+    // approval needed: this isn't correcting anything, it's a same-day self-report.
+    if (status === 'on_leave') {
+      const todayStr = getISTDateStr()
+      ;(async () => {
+        const { data: existing } = await admin.from('attendance').select('status').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+        // Don't clobber an already-marked Present for today — this is a passive
+        // convenience write, not an amendment flow.
+        if (existing?.status === 'present') return
+        await admin.from('attendance').upsert({
+          engineer_id: userId,
+          attendance_date: todayStr,
+          status: 'leave',
+          marked_at: new Date().toISOString(),
+          latitude: currentLat ?? null,
+          longitude: currentLng ?? null,
+          place_name: null,
+          reason: null,
+          approval_status: null,
+          approved_by: null,
+          approved_at: null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'engineer_id,attendance_date' })
+      })().catch(() => {})
+    }
 
     if (status === 'on_the_way' && workOrderId) {
       const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id').eq('id', workOrderId).maybeSingle()
