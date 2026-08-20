@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob } from '@/app/actions/get-attendance'
 import { approveRejectAttendanceAmendment, getAttendanceExportRows } from '@/app/actions/attendance'
-import { getAttendanceStatusLabel, type PendingAmendment, type AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
+import type { PendingAmendment, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
 import { toDateStr, getRange, type ViewMode } from './dateRange'
 
@@ -29,6 +29,21 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Duplicated from lib/mobile/core/attendance.ts's getAttendanceStatusLabel rather
+// than imported — that module also pulls in server-only code (web-push via
+// lib/notifications.ts), which breaks the client bundle if imported at runtime
+// (not just as a type) from a 'use client' file.
+function attendanceLabel(s: AttendanceEffectiveStatus): string {
+  switch (s.kind) {
+    case 'present': return s.amended ? 'Present (amended)' : 'Present'
+    case 'leave': return s.rejected ? 'Leave (amendment rejected)' : s.pendingApproval ? 'Leave (pending approval)' : 'Leave'
+    case 'holiday': return `Holiday: ${s.name}`
+    case 'weekly_off': return 'Weekly Off'
+    case 'pending': return 'Pending'
+    case 'not_applicable': return '—'
+  }
+}
+
 function formatDateCell(dateStr: string): { weekday: string; dayMonth: string } {
   const d = new Date(`${dateStr}T00:00:00`)
   return {
@@ -45,7 +60,7 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
 
 function AttendanceCell({ row }: { row: AttendanceOverviewRow }) {
   const cfg = ATTENDANCE_CFG[row.attendance.kind]
-  const label = getAttendanceStatusLabel(row.attendance)
+  const label = attendanceLabel(row.attendance)
   let timeLabel: string | null = null
   if (row.attendance.kind === 'present') timeLabel = row.markedAt ? formatTime(row.markedAt) : null
   else if (row.attendance.kind === 'leave') timeLabel = row.attendance.markedAt ? formatTime(row.attendance.markedAt) : '11:00 AM'
