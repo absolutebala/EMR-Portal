@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
@@ -51,19 +51,6 @@ const TECHNICIAN_ICON = L.divIcon({
 })
 
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
-
-// Faded, smaller pin used for an engineer's earlier check-in locations (the "trail"
-// shown once they're selected from the list) — same teardrop shape as the current-
-// position marker but visually de-emphasized so it reads as history, not "also here now".
-const HISTORY_ICON = L.divIcon({
-  className: 'technician-history-marker',
-  html: `
-    <div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#B98A9B;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);opacity:0.85;"></div>
-  `,
-  iconSize: [20, 20],
-  iconAnchor: [10, 20],
-  popupAnchor: [0, -18],
-})
 
 // Two engineers can ping from coordinates that only differ a few meters apart (e.g.
 // both checked in from the same office) — round to ~111m grid cells to detect those
@@ -123,18 +110,13 @@ function FlyToSelected({ target }: { target: [number, number] | null }) {
 interface Props {
   engineers: FieldEngineerOverview[]
   selectedId: string | null
-  // Earlier check-in locations for whichever engineer is selected, most recent
-  // first — fetched by the parent on selection, not all-engineers-at-once (would be
-  // a lot of unused data fetched on every load for a trail that's only ever shown
-  // for one engineer at a time).
-  history: { placeName: string | null; at: string; lat: number; lng: number }[]
 }
 
-export default function LeafletMap({ engineers, selectedId, history }: Props) {
+export default function LeafletMap({ engineers, selectedId }: Props) {
   const rawPoints = engineers.flatMap(e => {
     const ls = e.lastSeen
     if (!ls || ls.lat == null || ls.lng == null) return []
-    return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName }]
+    return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
   })
   const points = jitterOverlapping(rawPoints)
   const bounds: LatLngBoundsExpression | null = points.length ? points.map(p => [p.lat, p.lng] as [number, number]) : null
@@ -144,14 +126,6 @@ export default function LeafletMap({ engineers, selectedId, history }: Props) {
   useEffect(() => {
     if (selectedId) markerRefs.current[selectedId]?.openPopup()
   }, [selectedId])
-
-  // Skip the first history row — it's the same check-in already shown as the
-  // current position above, so it would otherwise render as a redundant history pin
-  // right on top of the live one.
-  const trail = selected ? history.filter(h => !(h.lat === selected.lat && h.lng === selected.lng)).slice(0, 5) : []
-  const trailLine: [number, number][] = selected
-    ? [[selected.lat, selected.lng], ...trail.map(h => [h.lat, h.lng] as [number, number])]
-    : []
 
   return (
     <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
@@ -181,6 +155,13 @@ export default function LeafletMap({ engineers, selectedId, history }: Props) {
                 </span>
                 <div style={{ fontSize: 11, color: '#7A6870', marginTop: 6 }}>{p.placeName || 'Location unavailable'}</div>
                 <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>Last seen {formatRelativeTime(p.at)}</div>
+                {p.previousSeen && (
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #F1E7EB' }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF' }}>Previous location</div>
+                    <div style={{ fontSize: 11, color: '#7A6870', marginTop: 2 }}>{p.previousSeen.placeName || 'Location unavailable'}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>{formatRelativeTime(p.previousSeen.at)}</div>
+                  </div>
+                )}
                 <Link href={`/engineers/${p.engineer.id}`} style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: '#7D1D3F', fontWeight: 500 }}>
                   View profile →
                 </Link>
@@ -189,20 +170,6 @@ export default function LeafletMap({ engineers, selectedId, history }: Props) {
           </Marker>
         )
       })}
-      {trail.map((h, i) => (
-        <Marker key={`hist-${i}-${h.at}`} position={[h.lat, h.lng]} icon={HISTORY_ICON}>
-          <Popup>
-            <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 140 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#7A6870' }}>Previous location</div>
-              <div style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>{h.placeName || 'Location unavailable'}</div>
-              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{formatRelativeTime(h.at)}</div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-      {trailLine.length > 1 && (
-        <Polyline positions={trailLine} pathOptions={{ color: '#B98A9B', weight: 2, dashArray: '4 6', opacity: 0.8 }} />
-      )}
     </MapContainer>
   )
 }

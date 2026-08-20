@@ -25,6 +25,11 @@ export interface FieldEngineerOverview {
   // null on the rare fallback branch (last_active_at heartbeat with no GPS-tagged
   // signal at all — e.g. location permission was denied).
   lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null } | null
+  // The check-in immediately before the one lastSeen is based on (e.g. the previous
+  // job site) — null if there's no earlier check-in on record. Shown on the Live Map
+  // pin alongside the current position, purely informational (not rendered as its
+  // own marker).
+  previousSeen: { placeName: string | null; at: string; lat: number; lng: number } | null
   nextAssigned: { customerName: string; scheduledDate: string | null; woNumber: string } | null
   openWorkOrders: number
   completedToday: number
@@ -106,13 +111,16 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
       if (siteName && !siteNameByWo[r.work_order_id]) siteNameByWo[r.work_order_id] = siteName
     })
 
-    // Latest check-in per engineer (checkins already ordered desc, so first match wins)
-    const latestCheckinByEng: Record<string, { placeName: string | null; checkedInAt: string; lat: number | null; lng: number | null }> = {}
+    // Checkins per engineer, most recent first (checkins query is already ordered
+    // desc) — [0] is their latest, [1] is the one immediately before it (exposed as
+    // previousSeen below).
+    const checkinsByEng: Record<string, { placeName: string | null; checkedInAt: string; lat: number | null; lng: number | null }[]> = {}
     for (const c of checkins || []) {
-      if (!latestCheckinByEng[c.engineer_id]) {
-        latestCheckinByEng[c.engineer_id] = { placeName: c.place_name, checkedInAt: c.checked_in_at, lat: c.latitude, lng: c.longitude }
-      }
+      const list = checkinsByEng[c.engineer_id] || (checkinsByEng[c.engineer_id] = [])
+      list.push({ placeName: c.place_name, checkedInAt: c.checked_in_at, lat: c.latitude, lng: c.longitude })
     }
+    const latestCheckinByEng: Record<string, { placeName: string | null; checkedInAt: string; lat: number | null; lng: number | null }> = {}
+    Object.entries(checkinsByEng).forEach(([engId, list]) => { latestCheckinByEng[engId] = list[0] })
 
     const todayStr = new Date().toLocaleDateString('en-CA')
 
@@ -162,6 +170,14 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         lastSeen = { placeName: null, at: p.last_active_at, lat: null, lng: null }
       }
 
+      // First earlier check-in (after the latest one already used above) that has
+      // real coordinates — skips over any older rows with missing lat/lng rather
+      // than giving up entirely on "previous location" for that engineer.
+      const earlierCheckin = (checkinsByEng[p.id] || []).slice(1).find(c => c.lat != null && c.lng != null)
+      const previousSeen = earlierCheckin
+        ? { placeName: earlierCheckin.placeName, at: earlierCheckin.checkedInAt, lat: earlierCheckin.lat!, lng: earlierCheckin.lng! }
+        : null
+
       return {
         id: p.id,
         name: `${p.first_name} ${p.last_name}`,
@@ -173,6 +189,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         statusUpdatedAt: p.engineer_status_updated_at,
         lastActiveAt: p.last_active_at,
         lastSeen,
+        previousSeen,
         nextAssigned: upcoming ? { customerName: custMap[upcoming.customer_id] || '', scheduledDate: upcoming.scheduled_date, woNumber: upcoming.wo_number } : null,
         openWorkOrders: theirWOs.filter(w => w.status !== 'completed').length,
         completedToday: theirWOs.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
@@ -183,40 +200,6 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     return { engineers, error: null }
   } catch (e: unknown) {
     return { engineers: [], error: e instanceof Error ? e.message : String(e) }
-  }
-}
-
-export interface EngineerLocationPoint {
-  placeName: string | null
-  at: string
-  lat: number
-  lng: number
-}
-
-// Recent check-in locations for one engineer, most recent first — used to draw a
-// "previous locations" trail on the Live Map once an engineer is selected, rather
-// than showing only their single current position.
-export async function getEngineerLocationHistory(engineerId: string, limit = 5): Promise<{ points: EngineerLocationPoint[]; error: string | null }> {
-  try {
-    const admin = adminClient()
-    const { data, error } = await admin.from('work_order_checkins')
-      .select('place_name, checked_in_at, latitude, longitude')
-      .eq('engineer_id', engineerId)
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null)
-      .order('checked_in_at', { ascending: false })
-      .limit(limit)
-    if (error) return { points: [], error: error.message }
-
-    const points: EngineerLocationPoint[] = (data || []).map(r => ({
-      placeName: r.place_name,
-      at: r.checked_in_at,
-      lat: r.latitude,
-      lng: r.longitude,
-    }))
-    return { points, error: null }
-  } catch (e: unknown) {
-    return { points: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
 

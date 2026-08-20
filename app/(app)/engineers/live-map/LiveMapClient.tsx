@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Topbar from '@/components/layout/Topbar'
-import type { FieldEngineerOverview, EngineerLocationPoint } from '@/app/actions/get-engineers'
-import { getEngineerLocationHistory } from '@/app/actions/get-engineers'
+import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
 
 // Leaflet touches window/document at import time, so it can't run during SSR/prerender
 // — this is the first place in the app that needs a client-only dynamic import.
@@ -53,8 +52,6 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [history, setHistory] = useState<EngineerLocationPoint[]>([])
-  const [historyForId, setHistoryForId] = useState<string | null>(null)
 
   // "Live" here means "refreshes on its own" — the underlying data is each engineer's
   // last-known position (updated passively when their app is open), not a continuous
@@ -64,23 +61,6 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
     const id = setInterval(() => router.refresh(), REFRESH_MS)
     return () => clearInterval(id)
   }, [router])
-
-  // Fetch the selected engineer's earlier check-in locations on demand — not
-  // prefetched for everyone, since the trail is only ever shown for one engineer
-  // at a time.
-  useEffect(() => {
-    if (!selectedId) return
-    let cancelled = false
-    getEngineerLocationHistory(selectedId).then(({ points }) => {
-      if (!cancelled) { setHistory(points); setHistoryForId(selectedId) }
-    })
-    return () => { cancelled = true }
-  }, [selectedId])
-
-  // Only trust `history` when it was actually fetched for the currently-selected
-  // engineer — otherwise a stale previous engineer's trail would flash briefly
-  // while the new fetch is in flight, or linger after deselecting.
-  const displayedHistory = selectedId && historyForId === selectedId ? history : []
 
   const filteredEngineers = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -102,7 +82,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
 
         <div style={{ flex: 1, minHeight: 400, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <LeafletMap engineers={engineers} selectedId={selectedId} history={displayedHistory} />
+            <LeafletMap engineers={engineers} selectedId={selectedId} />
           </div>
 
           <div style={{ width: 280, flexShrink: 0, borderLeft: '1px solid var(--gm)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
