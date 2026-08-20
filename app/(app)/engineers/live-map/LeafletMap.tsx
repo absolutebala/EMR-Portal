@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polyline, useMap } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
@@ -52,6 +52,49 @@ const TECHNICIAN_ICON = L.divIcon({
 
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
 
+// Faded, smaller pin used for an engineer's earlier check-in locations (the "trail"
+// shown once they're selected from the list) — same teardrop shape as the current-
+// position marker but visually de-emphasized so it reads as history, not "also here now".
+const HISTORY_ICON = L.divIcon({
+  className: 'technician-history-marker',
+  html: `
+    <div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#B98A9B;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);opacity:0.85;"></div>
+  `,
+  iconSize: [20, 20],
+  iconAnchor: [10, 20],
+  popupAnchor: [0, -18],
+})
+
+// Two engineers can ping from coordinates that only differ a few meters apart (e.g.
+// both checked in from the same office) — round to ~111m grid cells to detect those
+// clusters, then nudge every point after the first outward along a golden-angle
+// spiral so overlapping pins become visually distinguishable instead of stacking
+// into what looks like a single marker.
+const GOLDEN_ANGLE = 137.508 * (Math.PI / 180)
+function jitterOverlapping<T extends { lat: number; lng: number }>(items: T[]): T[] {
+  const clusters = new Map<string, T[]>()
+  items.forEach(item => {
+    const key = `${item.lat.toFixed(3)},${item.lng.toFixed(3)}`
+    const list = clusters.get(key)
+    if (list) list.push(item)
+    else clusters.set(key, [item])
+  })
+
+  const result: T[] = []
+  clusters.forEach(group => {
+    group.forEach((item, i) => {
+      if (i === 0) {
+        result.push(item)
+        return
+      }
+      const angle = i * GOLDEN_ANGLE
+      const radius = 0.00012 * Math.sqrt(i)
+      result.push({ ...item, lat: item.lat + radius * Math.cos(angle), lng: item.lng + radius * Math.sin(angle) })
+    })
+  })
+  return result
+}
+
 // Leaflet has no declarative "fit to markers" prop — this reaches into the map
 // instance imperatively via useMap(), the documented way to do it with react-leaflet.
 // Only runs once (the first time real bounds are available), not on every data
@@ -80,16 +123,35 @@ function FlyToSelected({ target }: { target: [number, number] | null }) {
 interface Props {
   engineers: FieldEngineerOverview[]
   selectedId: string | null
+  // Earlier check-in locations for whichever engineer is selected, most recent
+  // first — fetched by the parent on selection, not all-engineers-at-once (would be
+  // a lot of unused data fetched on every load for a trail that's only ever shown
+  // for one engineer at a time).
+  history: { placeName: string | null; at: string; lat: number; lng: number }[]
 }
 
-export default function LeafletMap({ engineers, selectedId }: Props) {
-  const points = engineers.flatMap(e => {
+export default function LeafletMap({ engineers, selectedId, history }: Props) {
+  const rawPoints = engineers.flatMap(e => {
     const ls = e.lastSeen
     if (!ls || ls.lat == null || ls.lng == null) return []
     return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName }]
   })
+  const points = jitterOverlapping(rawPoints)
   const bounds: LatLngBoundsExpression | null = points.length ? points.map(p => [p.lat, p.lng] as [number, number]) : null
   const selected = points.find(p => p.engineer.id === selectedId)
+
+  const markerRefs = useRef<Record<string, L.Marker | null>>({})
+  useEffect(() => {
+    if (selectedId) markerRefs.current[selectedId]?.openPopup()
+  }, [selectedId])
+
+  // Skip the first history row — it's the same check-in already shown as the
+  // current position above, so it would otherwise render as a redundant history pin
+  // right on top of the live one.
+  const trail = selected ? history.filter(h => !(h.lat === selected.lat && h.lng === selected.lng)).slice(0, 5) : []
+  const trailLine: [number, number][] = selected
+    ? [[selected.lat, selected.lng], ...trail.map(h => [h.lat, h.lng] as [number, number])]
+    : []
 
   return (
     <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
@@ -102,7 +164,15 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
       {points.map(p => {
         const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
         return (
-          <Marker key={p.engineer.id} position={[p.lat, p.lng]} icon={TECHNICIAN_ICON}>
+          <Marker
+            key={p.engineer.id}
+            position={[p.lat, p.lng]}
+            icon={TECHNICIAN_ICON}
+            ref={el => { markerRefs.current[p.engineer.id] = el }}
+          >
+            <Tooltip direction="top" offset={[0, -30]} permanent opacity={0.95}>
+              {p.engineer.name}
+            </Tooltip>
             <Popup>
               <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{p.engineer.name}</div>
@@ -119,6 +189,20 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
           </Marker>
         )
       })}
+      {trail.map((h, i) => (
+        <Marker key={`hist-${i}-${h.at}`} position={[h.lat, h.lng]} icon={HISTORY_ICON}>
+          <Popup>
+            <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 140 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#7A6870' }}>Previous location</div>
+              <div style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>{h.placeName || 'Location unavailable'}</div>
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{formatRelativeTime(h.at)}</div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+      {trailLine.length > 1 && (
+        <Polyline positions={trailLine} pathOptions={{ color: '#B98A9B', weight: 2, dashArray: '4 6', opacity: 0.8 }} />
+      )}
     </MapContainer>
   )
 }

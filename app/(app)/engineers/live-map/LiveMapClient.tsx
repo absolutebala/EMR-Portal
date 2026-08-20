@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Topbar from '@/components/layout/Topbar'
-import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
+import type { FieldEngineerOverview, EngineerLocationPoint } from '@/app/actions/get-engineers'
+import { getEngineerLocationHistory } from '@/app/actions/get-engineers'
 
 // Leaflet touches window/document at import time, so it can't run during SSR/prerender
 // — this is the first place in the app that needs a client-only dynamic import.
@@ -51,6 +52,9 @@ interface Props {
 export default function LiveMapClient({ engineers, error, userName, userRole }: Props) {
   const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [history, setHistory] = useState<EngineerLocationPoint[]>([])
+  const [historyForId, setHistoryForId] = useState<string | null>(null)
 
   // "Live" here means "refreshes on its own" — the underlying data is each engineer's
   // last-known position (updated passively when their app is open), not a continuous
@@ -60,6 +64,29 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
     const id = setInterval(() => router.refresh(), REFRESH_MS)
     return () => clearInterval(id)
   }, [router])
+
+  // Fetch the selected engineer's earlier check-in locations on demand — not
+  // prefetched for everyone, since the trail is only ever shown for one engineer
+  // at a time.
+  useEffect(() => {
+    if (!selectedId) return
+    let cancelled = false
+    getEngineerLocationHistory(selectedId).then(({ points }) => {
+      if (!cancelled) { setHistory(points); setHistoryForId(selectedId) }
+    })
+    return () => { cancelled = true }
+  }, [selectedId])
+
+  // Only trust `history` when it was actually fetched for the currently-selected
+  // engineer — otherwise a stale previous engineer's trail would flash briefly
+  // while the new fetch is in flight, or linger after deselecting.
+  const displayedHistory = selectedId && historyForId === selectedId ? history : []
+
+  const filteredEngineers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return engineers
+    return engineers.filter(e => e.name.toLowerCase().includes(q))
+  }, [engineers, search])
 
   return (
     <>
@@ -75,35 +102,54 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
 
         <div style={{ flex: 1, minHeight: 400, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <LeafletMap engineers={engineers} selectedId={selectedId} />
+            <LeafletMap engineers={engineers} selectedId={selectedId} history={displayedHistory} />
           </div>
 
-          <div style={{ width: 280, flexShrink: 0, borderLeft: '1px solid var(--gm)', overflowY: 'auto', background: '#fff' }}>
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gm)', fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', background: '#FAFAFA', position: 'sticky', top: 0 }}>
-              All field engineers ({engineers.length})
+          <div style={{ width: 280, flexShrink: 0, borderLeft: '1px solid var(--gm)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gm)', flexShrink: 0, background: '#FAFAFA' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+                All field engineers ({filteredEngineers.length}{search ? ` of ${engineers.length}` : ''})
+              </div>
+              <input
+                type="text"
+                value={search}
+                onChange={ev => setSearch(ev.target.value)}
+                placeholder="Search engineer…"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', fontSize: 12, border: '1px solid var(--gm)', borderRadius: 6, outline: 'none' }}
+              />
             </div>
-            {engineers.map(e => {
-              const cfg = STATUS_CFG[e.status] || STATUS_CFG.available
-              const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
-              return (
-                <div
-                  key={e.id}
-                  onClick={() => hasLocation && setSelectedId(e.id)}
-                  style={{
-                    padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
-                    background: selectedId === e.id ? 'var(--mp)' : 'transparent',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                    <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{cfg.label}</span>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredEngineers.map(e => {
+                const cfg = STATUS_CFG[e.status] || STATUS_CFG.available
+                const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
+                return (
+                  <div
+                    key={e.id}
+                    onClick={() => hasLocation && setSelectedId(e.id)}
+                    style={{
+                      padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
+                      background: selectedId === e.id ? 'var(--mp)' : 'transparent',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                      <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{cfg.label}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
+                    </div>
+                    {hasLocation && (
+                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
+                        Last seen {formatRelativeTime(e.lastSeen!.at)}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>
-                    {hasLocation ? `Last seen ${formatRelativeTime(e.lastSeen!.at)}` : 'No location on file yet'}
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+              {filteredEngineers.length === 0 && (
+                <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>No engineers match “{search}”.</div>
+              )}
+            </div>
           </div>
         </div>
       </div>

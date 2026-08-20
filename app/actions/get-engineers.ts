@@ -186,6 +186,40 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
   }
 }
 
+export interface EngineerLocationPoint {
+  placeName: string | null
+  at: string
+  lat: number
+  lng: number
+}
+
+// Recent check-in locations for one engineer, most recent first — used to draw a
+// "previous locations" trail on the Live Map once an engineer is selected, rather
+// than showing only their single current position.
+export async function getEngineerLocationHistory(engineerId: string, limit = 5): Promise<{ points: EngineerLocationPoint[]; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const { data, error } = await admin.from('work_order_checkins')
+      .select('place_name, checked_in_at, latitude, longitude')
+      .eq('engineer_id', engineerId)
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .order('checked_in_at', { ascending: false })
+      .limit(limit)
+    if (error) return { points: [], error: error.message }
+
+    const points: EngineerLocationPoint[] = (data || []).map(r => ({
+      placeName: r.place_name,
+      at: r.checked_in_at,
+      lat: r.latitude,
+      lng: r.longitude,
+    }))
+    return { points, error: null }
+  } catch (e: unknown) {
+    return { points: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export interface EngineerProfileDetail {
   id: string
   name: string
