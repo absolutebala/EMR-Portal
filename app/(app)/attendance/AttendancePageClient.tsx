@@ -205,17 +205,21 @@ export default function AttendancePageClient({ initialRows, initialError, initia
 
   const todayStr = new Date().toLocaleDateString('en-CA')
 
-  // Group consecutive rows by engineer (server already sorts engineer-then-date) so
-  // the Field Engineer column can span the whole group instead of repeating the name
-  // on every date row.
-  const groups = useMemo(() => {
-    const g: { engineerId: string; engineerName: string; rows: AttendanceOverviewRow[] }[] = []
+// Pivots the flat engineer/date rows back into an engineer x date matrix — the
+// server always returns one row per engineer per date in the range (see
+// getAttendanceOverview), so every engineer has an entry for every date.
+  const { engineers, dates, cellByEngDate } = useMemo(() => {
+    const engList: { id: string; name: string }[] = []
+    const seenEng = new Set<string>()
+    const dateList: string[] = []
+    const seenDate = new Set<string>()
+    const cells: Record<string, AttendanceOverviewRow> = {}
     for (const row of rows) {
-      const last = g[g.length - 1]
-      if (last && last.engineerId === row.engineerId) last.rows.push(row)
-      else g.push({ engineerId: row.engineerId, engineerName: row.engineerName, rows: [row] })
+      if (!seenEng.has(row.engineerId)) { seenEng.add(row.engineerId); engList.push({ id: row.engineerId, name: row.engineerName }) }
+      if (!seenDate.has(row.date)) { seenDate.add(row.date); dateList.push(row.date) }
+      cells[`${row.engineerId}:${row.date}`] = row
     }
-    return g
+    return { engineers: engList, dates: dateList, cellByEngDate: cells }
   }, [rows])
 
   return (
@@ -293,74 +297,73 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>Loading attendance…</div>
-          ) : groups.length === 0 ? (
+          ) : engineers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No field engineers found.</div>
           ) : (
             <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
                   <tr>
-                    {['Field Engineer', 'Date', 'Attendance', 'Jobs'].map((h, i) => (
-                      <th key={h} style={{
-                        position: 'sticky', top: 0, zIndex: 2, minWidth: i === 0 ? 140 : i === 1 ? 100 : i === 2 ? 120 : 260,
-                        padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
-                        color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)',
-                        background: '#FAFAFA', whiteSpace: 'nowrap',
-                      }}>
-                        {h}
-                      </th>
-                    ))}
+                    <th style={{
+                      position: 'sticky', top: 0, left: 0, zIndex: 3, minWidth: 150, padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600,
+                      color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', borderRight: '1px solid var(--gm)',
+                      background: '#FAFAFA', whiteSpace: 'nowrap',
+                    }}>
+                      Field Engineer
+                    </th>
+                    {dates.map(dateStr => {
+                      const { weekday, dayMonth } = formatDateCell(dateStr)
+                      const isToday = dateStr === todayStr
+                      const isPast = dateStr < todayStr
+                      const isWeekend = weekday === 'Sun' || weekday === 'Sat'
+                      return (
+                        <th key={dateStr} style={{
+                          position: 'sticky', top: 0, zIndex: 2, minWidth: 230, padding: '9px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600,
+                          color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
+                          background: isToday ? 'var(--mp)' : isPast ? '#F5F3F5' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
+                        }}>
+                          <div>{weekday}</div>
+                          <div style={{ fontSize: 11, marginTop: 1 }}>{dayMonth}</div>
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {groups.map((g, gi) => g.rows.map((row, ri) => {
-                    const isToday = row.date === todayStr
-                    const isPast = row.date < todayStr
-                    const { weekday, dayMonth } = formatDateCell(row.date)
-                    const isLastRowOfGroup = ri === g.rows.length - 1
-                    return (
-                      <tr key={`${row.engineerId}:${row.date}`}>
-                        {ri === 0 && (
-                          <td rowSpan={g.rows.length} style={{
-                            padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
-                            background: '#fff', borderRight: '1px solid var(--gm)',
-                            borderBottom: gi < groups.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
+                  {engineers.map((eng, ei) => (
+                    <tr key={eng.id}>
+                      <td style={{
+                        position: 'sticky', left: 0, zIndex: 1, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
+                        background: '#fff', borderRight: '1px solid var(--gm)',
+                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
+                      }}>
+                        {eng.name}
+                      </td>
+                      {dates.map(dateStr => {
+                        const row = cellByEngDate[`${eng.id}:${dateStr}`]
+                        const isToday = dateStr === todayStr
+                        const isPast = dateStr < todayStr
+                        return (
+                          <td key={dateStr} style={{
+                            padding: '8px 10px', verticalAlign: 'top',
+                            background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
+                            borderBottom: ei < engineers.length - 1 ? '1px solid var(--gl)' : 'none',
                           }}>
-                            {g.engineerName}
+                            {row && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <AttendanceCell row={row} />
+                                {row.jobs.length > 0 ? (
+                                  row.jobs.map(job => <JobCard key={job.workOrderId} job={job} />)
+                                ) : (
+                                  <span style={{ color: '#D8D2D5', fontSize: 11 }}>No job scheduled</span>
+                                )}
+                              </div>
+                            )}
                           </td>
-                        )}
-                        <td style={{
-                          padding: '10px 14px', fontSize: 11, verticalAlign: 'top', whiteSpace: 'nowrap',
-                          color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--tx)',
-                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
-                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
-                        }}>
-                          <div>{weekday}</div>
-                          <div style={{ fontSize: 10, marginTop: 1 }}>{dayMonth}</div>
-                        </td>
-                        <td style={{
-                          padding: '10px 14px', verticalAlign: 'top',
-                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
-                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
-                        }}>
-                          <AttendanceCell row={row} />
-                        </td>
-                        <td style={{
-                          padding: '8px 14px', verticalAlign: 'top',
-                          background: isToday ? '#FDF7F9' : isPast ? '#FBFAFB' : '#fff',
-                          borderBottom: (isLastRowOfGroup && gi < groups.length - 1) || !isLastRowOfGroup ? '1px solid var(--gl)' : 'none',
-                        }}>
-                          {row.jobs.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {row.jobs.map(job => <JobCard key={job.workOrderId} job={job} />)}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#D8D2D5', fontSize: 11 }}>No job scheduled</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  }))}
+                        )
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
