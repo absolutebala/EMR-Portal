@@ -32,12 +32,14 @@ function todayDatePrefix(): string {
   const d = new Date()
   const dd = String(d.getDate()).padStart(2, '0')
   const mm = String(d.getMonth() + 1).padStart(2, '0')
-  return `${dd}${mm}${d.getFullYear()}`
+  return `${d.getFullYear()}${mm}${dd}`
 }
 
-// DDMMYYYY-N, N resetting each day. Computed from the highest existing N for
+// YYYYMMDD-N, N resetting each day. Computed from the highest existing N for
 // today's prefix rather than a plain count, so it stays correct even if a
-// previous attempt failed partway through (see the retry loop below).
+// previous attempt failed partway through (see the retry loop below). Existing
+// historical ticket numbers keep their old DDMMYYYY-N format — only new ones use
+// this format going forward.
 async function nextTicketNumber(admin: ReturnType<typeof adminClient>): Promise<string> {
   const prefix = todayDatePrefix()
   const { data } = await admin.from('work_orders').select('ticket_number').like('ticket_number', `${prefix}-%`)
@@ -255,6 +257,16 @@ export async function updateWorkOrder(id: string, payload: {
       )
     }
 
+    // An additional engineer's serial carve-out (work_order_engineer_assignments)
+    // can be left pointing at a transformer that's no longer on this WO if an admin
+    // just removed that serial number above — clean up the orphan rather than leaving
+    // a stale assignment.
+    if (payload.transformer_ids.length) {
+      await admin.from('work_order_engineer_assignments').delete().eq('work_order_id', id).not('transformer_id', 'in', `(${payload.transformer_ids.join(',')})`)
+    } else {
+      await admin.from('work_order_engineer_assignments').delete().eq('work_order_id', id).not('transformer_id', 'is', null)
+    }
+
     // Replace additional (visibility-only) engineers — only meaningful when
     // the solution is Virtual, so an empty list clears them either way.
     await admin.from('work_order_additional_engineers').delete().eq('work_order_id', id)
@@ -376,5 +388,123 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Real multi-engineer assignment (work_order_engineer_assignments) — distinct from
+// work_order_additional_engineers, the pre-existing visibility-only list for Virtual
+// participants. An engineer added here gets the job on their own mobile "my jobs"
+// list and can independently check in/close for it (see fetchEngineerWorkOrders /
+// submitCheckInCore / submitDailyClosureCore) — the primary work_orders.engineer_id
+// stays the sole driver of the notification's own status field.
+export async function addAdditionalEngineer(workOrderId: string, engineerId: string, transformerIds: string[]): Promise<{ error: string | null }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { data: wo } = await admin.from('work_orders').select('wo_number, engineer_id, customer_id').eq('id', workOrderId).maybeSingle()
+    if (!wo) return { error: 'Notification not found' }
+    if (wo.engineer_id === engineerId) return { error: 'This engineer is already the primary assignee.' }
+
+    const { data: existing } = await admin.from('work_order_engineer_assignments').select('id').eq('work_order_id', workOrderId).eq('engineer_id', engineerId).limit(1)
+    if (existing?.length) return { error: 'This engineer is already assigned to this notification.' }
+
+    const rows: { work_order_id: string; engineer_id: string; transformer_id: string | null; assigned_by: string }[] = transformerIds.length
+      ? transformerIds.map(tid => ({ work_order_id: workOrderId, engineer_id: engineerId, transformer_id: tid, assigned_by: user.id }))
+      : [{ work_order_id: workOrderId, engineer_id: engineerId, transformer_id: null, assigned_by: user.id }]
+    const { error: insertErr } = await admin.from('work_order_engineer_assignments').insert(rows)
+    if (insertErr) return { error: insertErr.message }
+
+    const [{ data: actor }, { data: eng }] = await Promise.all([
+      admin.from('profiles').select('first_name, last_name').eq('id', user.id).single(),
+      admin.from('profiles').select('first_name, last_name, phone').eq('id', engineerId).single(),
+    ])
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
+    const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
+
+    await admin.from('work_order_activity').insert({ work_order_id: workOrderId, action: `Added ${engName} as an additional engineer`, actor_name: actorName })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Added ${engName} as an additional engineer on ${wo.wo_number}`, entityType: 'work_order', entityId: workOrderId })
+
+    notifyUsers(admin, [{ userId: engineerId }], {
+      type: 'work_order_assigned',
+      title: `New notification assigned: ${wo.wo_number}`,
+      body: `${actorName} assigned you to this notification.`,
+      entityType: 'work_order', entityId: workOrderId, linkPath: `/mobile/work-orders/${workOrderId}`,
+    }).catch(() => {})
+
+    // No customer-facing WhatsApp here — that stays a primary-assignment-only send,
+    // the customer doesn't need a message per additional engineer added.
+    const serials = await serialNumbersForTransformerIds(admin, transformerIds)
+    sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
+      [eng?.first_name || 'Engineer', wo.wo_number || '', '', serials, formatScheduledDate(null)]).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function removeAdditionalEngineer(workOrderId: string, engineerId: string): Promise<{ error: string | null }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const [{ data: wo }, { data: actor }, { data: eng }] = await Promise.all([
+      admin.from('work_orders').select('wo_number').eq('id', workOrderId).maybeSingle(),
+      admin.from('profiles').select('first_name, last_name').eq('id', user.id).single(),
+      admin.from('profiles').select('first_name, last_name').eq('id', engineerId).single(),
+    ])
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
+    const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
+
+    const { error } = await admin.from('work_order_engineer_assignments').delete().eq('work_order_id', workOrderId).eq('engineer_id', engineerId)
+    if (error) return { error: error.message }
+
+    await admin.from('work_order_activity').insert({ work_order_id: workOrderId, action: `Removed ${engName} as an additional engineer`, actor_name: actorName })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Removed ${engName} from ${wo?.wo_number || 'a notification'}`, entityType: 'work_order', entityId: workOrderId })
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Read-side helper for the WO detail admin panel: additional engineers grouped
+// with the serial number(s) (if any) they're carved out for.
+export interface AdditionalEngineerAssignment {
+  engineerId: string
+  engineerName: string
+  serialNumbers: string[] // empty = whole notification, no split
+}
+
+export async function getAdditionalEngineers(workOrderId: string): Promise<{ assignments: AdditionalEngineerAssignment[]; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const { data: rows, error } = await admin
+      .from('work_order_engineer_assignments')
+      .select('engineer_id, transformer_id, profiles!work_order_engineer_assignments_engineer_id_fkey(first_name, last_name), transformers(serial_number)')
+      .eq('work_order_id', workOrderId)
+    if (error) return { assignments: [], error: error.message }
+
+    type Row = { engineer_id: string; transformer_id: string | null; profiles: unknown; transformers: unknown }
+    const one = <T,>(v: unknown): T | null => (Array.isArray(v) ? (v[0] as T | undefined) ?? null : (v as T | null))
+
+    const byEngineer = new Map<string, AdditionalEngineerAssignment>()
+    for (const r of (rows as unknown as Row[]) || []) {
+      const profile = one<{ first_name: string; last_name: string }>(r.profiles)
+      const transformer = one<{ serial_number: string }>(r.transformers)
+      const existing = byEngineer.get(r.engineer_id)
+      const name = profile ? `${profile.first_name} ${profile.last_name}` : 'Engineer'
+      if (existing) {
+        if (transformer?.serial_number) existing.serialNumbers.push(transformer.serial_number)
+      } else {
+        byEngineer.set(r.engineer_id, { engineerId: r.engineer_id, engineerName: name, serialNumbers: transformer?.serial_number ? [transformer.serial_number] : [] })
+      }
+    }
+    return { assignments: [...byEngineer.values()], error: null }
+  } catch (e: unknown) {
+    return { assignments: [], error: e instanceof Error ? e.message : String(e) }
   }
 }

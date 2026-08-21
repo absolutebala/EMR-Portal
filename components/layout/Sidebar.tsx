@@ -99,8 +99,8 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
       {/* Brand */}
       <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, background: 'var(--m)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+          <div style={{ background: '#fff', borderRadius: 8, padding: '5px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <img src="/emr-logo.png" alt="EMR" style={{ height: 20, width: 'auto', display: 'block' }} />
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '-.3px' }}>EMR Portal</div>

@@ -130,6 +130,10 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   const assignableRoles = roles
   const selectedRole = roles.find(r => r.name === form.role)
   const requiresManager = selectedRole?.requires_manager ?? false
+  // Grade is a Field-Engineer-specific travel/pay classification — deliberately not
+  // tied to requiresManager, which also happens to be true for Service Engineer,
+  // Service Manager, and Head of Service (an unrelated, admin-toggleable flag).
+  const isFieldEngineer = form.role === 'Field Engineer'
   const MANAGER_ROLES_FOR: Record<string, string[]> = {
     'Field Engineer': ['Service Manager'],
     'Service Manager': ['Head of Service'],
@@ -217,13 +221,17 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           </div>
           <div>
             <label style={fl2}>Role <span style={{ color: 'var(--m)' }}>*</span></label>
-            <select required style={fi2} value={form.role} onChange={e => { set('role', e.target.value); set('manager_id', '') }}>
+            <select required style={fi2} value={form.role} onChange={e => {
+              set('role', e.target.value)
+              set('manager_id', '')
+              if (e.target.value !== 'Field Engineer') set('grade', '')
+            }}>
               <option value="">Select role</option>
               {assignableRoles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
             </select>
           </div>
 
-          {requiresManager && (
+          {isFieldEngineer && (
             <div>
               <label style={fl2}>Grade</label>
               <select style={fi2} value={form.grade} onChange={e => set('grade', e.target.value)}>

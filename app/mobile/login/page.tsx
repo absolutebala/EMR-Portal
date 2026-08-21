@@ -43,19 +43,16 @@ export default function MobileLoginPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: 32 }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{
-            width: 72, height: 72,
-            background: 'rgba(255,255,255,0.15)',
-            backdropFilter: 'blur(12px)',
-            border: '1.5px solid rgba(255,255,255,0.25)',
+            background: '#fff',
             borderRadius: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px',
+            padding: '16px 22px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
           }}>
-            <svg width="34" height="34" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9z"/>
-            </svg>
+            <img src="/emr-logo.png" alt="EMR" style={{ height: 38, width: 'auto', display: 'block' }} />
           </div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>EMR Field</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: '#fff', margin: 0, letterSpacing: '-0.3px' }}>Field</h1>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4, fontWeight: 300 }}>Field Engineer App</p>
         </div>
 

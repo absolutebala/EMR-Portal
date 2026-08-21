@@ -109,7 +109,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { detail: null, error: 'Notification not found' }
 
-    const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }] = await Promise.all([
+    const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }, { data: myAssignmentRows }] = await Promise.all([
       // Scoped to the viewing engineer specifically — not just the work order — so
       // "have I checked in today" reflects this engineer's own state. Without the
       // engineer_id filter, a second engineer opening an in-progress-but-unclosed job
@@ -123,7 +123,19 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         .order('created_at', { ascending: false })
         .limit(1),
       admin.from('work_order_transformers').select('transformer_id').eq('work_order_id', woId),
+      admin.from('work_order_engineer_assignments').select('transformer_id').eq('work_order_id', woId).eq('engineer_id', userId),
     ])
+
+    // null = whole notification (no carve-out) — either the primary engineer with no
+    // assignment rows against them, or an additional engineer assigned without a
+    // specific serial. Non-null = the serials this engineer is specifically
+    // responsible for.
+    let myAssignedSerials: string[] | null = null
+    const myTransformerIds = (myAssignmentRows || []).map(r => r.transformer_id).filter((id): id is string => !!id)
+    if (myTransformerIds.length) {
+      const { data: myTransformers } = await admin.from('transformers').select('serial_number').in('id', myTransformerIds)
+      myAssignedSerials = (myTransformers || []).map(t => t.serial_number).filter(Boolean)
+    }
 
     // "Previous visits" is history for the same equipment (serial number), not the
     // customer as a whole.
@@ -180,6 +192,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         latestClosure,
         handoverFromOtherEngineer: !!(latestClosure?.engineerId && latestClosure.engineerId !== userId),
         previousVisits: previous || [],
+        myAssignedSerials,
       },
       error: null,
     }
@@ -201,7 +214,7 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
     touchHeartbeat(admin, userId)
 
     const existingWoResult = await withTimeout(
-      admin.from('work_orders').select('status').eq('id', params.workOrderId).single(),
+      admin.from('work_orders').select('status, engineer_id').eq('id', params.workOrderId).single(),
       8000
     )
     const existingWo = existingWoResult?.data
@@ -235,7 +248,11 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
     if (!insResult) return { error: 'Check-in is taking longer than expected — please check your connection and try again.' }
     if (insResult.error) return { error: insResult.error.message }
 
-    if (existingWo && existingWo.status !== 'in_progress' && existingWo.status !== 'completed') {
+    // Only the primary engineer's check-in drives the notification's overall status —
+    // an additional engineer (see work_order_engineer_assignments) can independently
+    // check in and gets their own row recorded above, but doesn't flip the shared
+    // status badge, avoiding it flapping between engineers finishing at different times.
+    if (existingWo && existingWo.engineer_id === userId && existingWo.status !== 'in_progress' && existingWo.status !== 'completed') {
       await withTimeout(
         admin.from('work_orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', params.workOrderId),
         8000
@@ -380,6 +397,10 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
 
     touchHeartbeat(admin, userId)
 
+    // Fetched once, reused below for the primary-engineer status gate, the
+    // customer-facing WhatsApp send, and the off-site/needs-reassignment activity log.
+    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id').eq('id', params.workOrderId).maybeSingle()
+
     const actorResult = await withTimeout(
       admin.from('profiles').select('first_name, last_name').eq('id', userId).single(),
       8000
@@ -446,17 +467,22 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     // 'pending' is no longer a distinct status — with scheduled_date carrying the
     // follow-up date so "what's next for this job" stays in one consistent field
     // across every status, not a separate untouched original-assignment date.
-    const newStatus = params.outcome === 'pending'
-      ? (params.needsReassignment ? 'needs_reassignment' : 'in_progress')
-      : params.outcome
-    await withTimeout(
-      admin.from('work_orders').update({
-        status: newStatus,
-        ...(params.outcome === 'pending' ? { scheduled_date: params.revisitDate } : {}),
-        updated_at: new Date().toISOString(),
-      }).eq('id', params.workOrderId),
-      8000
-    )
+    // Same primary-engineer-only rule as submitCheckInCore — an additional engineer's
+    // closure is fully recorded above (work_order_daily_closures.engineer_id), but only
+    // the primary's closure moves the shared status badge.
+    if (wo?.engineer_id === userId) {
+      const newStatus = params.outcome === 'pending'
+        ? (params.needsReassignment ? 'needs_reassignment' : 'in_progress')
+        : params.outcome
+      await withTimeout(
+        admin.from('work_orders').update({
+          status: newStatus,
+          ...(params.outcome === 'pending' ? { scheduled_date: params.revisitDate } : {}),
+          updated_at: new Date().toISOString(),
+        }).eq('id', params.workOrderId),
+        8000
+      )
+    }
 
     // Marking the job completed also flips the engineer's live status from
     // "Reached — <project>" to "Completed — <project>" (same fire-and-forget
@@ -469,10 +495,6 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
         engineer_status_updated_at: new Date().toISOString(),
       }).eq('id', userId).then(() => {}, () => {})
     }
-
-    // Fetched once, reused below both for the customer-facing WhatsApp send (every
-    // closure outcome) and the off-site/needs-reassignment activity log further down.
-    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id').eq('id', params.workOrderId).maybeSingle()
 
     if (wo?.customer_id) {
       const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()

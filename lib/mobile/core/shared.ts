@@ -132,8 +132,12 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: n
 // a main query followed by separate round trips for each related table — those extra
 // round trips were the main reason mobile pages felt slow.
 export async function fetchEngineerWorkOrders(admin: AdminClient, userId: string): Promise<MobileWorkOrder[]> {
-  const [{ data: wos, error }, engineerLoc] = await Promise.all([
+  const [{ data: wos, error }, { data: additionalAssignments }, engineerLoc] = await Promise.all([
     admin.from('work_orders').select(WORK_ORDER_SELECT).eq('engineer_id', userId).order('scheduled_date', { ascending: true }),
+    // Jobs where this engineer is an additional (non-primary) assignee — see
+    // work_order_engineer_assignments. Real, mobile-visible assignment, distinct from
+    // the visibility-only work_order_additional_engineers (virtual-call participants).
+    admin.from('work_order_engineer_assignments').select('work_order_id').eq('engineer_id', userId),
     getEngineerLocation(admin, userId),
   ])
 
@@ -144,7 +148,20 @@ export async function fetchEngineerWorkOrders(admin: AdminClient, userId: string
     console.error('fetchEngineerWorkOrders:', error.message)
     throw new Error(error.message)
   }
-  const rows = (wos as unknown as WorkOrderEmbed[]) || []
+  const primaryRows = (wos as unknown as WorkOrderEmbed[]) || []
+
+  const additionalWoIds = [...new Set((additionalAssignments || []).map(a => a.work_order_id))]
+    .filter(id => !primaryRows.some(w => w.id === id))
+  let additionalRows: WorkOrderEmbed[] = []
+  if (additionalWoIds.length) {
+    const { data: extraWos, error: extraError } = await admin.from('work_orders').select(WORK_ORDER_SELECT).in('id', additionalWoIds)
+    if (extraError) {
+      console.error('fetchEngineerWorkOrders (additional assignments):', extraError.message)
+      throw new Error(extraError.message)
+    }
+    additionalRows = (extraWos as unknown as WorkOrderEmbed[]) || []
+  }
+  const rows = [...primaryRows, ...additionalRows]
 
   let siteCoordsById: Record<string, { lat: number; lng: number }> = {}
   if (engineerLoc) {
@@ -293,6 +310,11 @@ export interface MobileWorkOrderDetail {
   } | null
   handoverFromOtherEngineer: boolean
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
+  // Serial numbers the viewing engineer is specifically responsible for, from
+  // work_order_engineer_assignments — null means "whole notification, no split"
+  // (the primary engineer with no carve-outs against them, or an additional
+  // engineer assigned without a specific serial).
+  myAssignedSerials: string[] | null
 }
 
 export interface MobileFormRow {

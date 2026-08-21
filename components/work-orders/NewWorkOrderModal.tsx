@@ -63,6 +63,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [customerType, setCustomerType] = useState<CustomerCategoryType | ''>('')
   const [customerCategoryId, setCustomerCategoryId] = useState('')
   const [customerCategoryName, setCustomerCategoryName] = useState('')
+  const [engineerId, setEngineerId] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
 
   // Customer name search
   const [custQuery, setCustQuery] = useState('')
@@ -85,6 +87,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setSnQuery(''); setSnResults([]); setCustQuery(''); setCustResults([]); setError('')
       setReportedDate(''); setReportedThrough(''); setCustomerMessage(''); setSolutionThrough(''); setAdditionalEngineerIds([])
       setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
+      setEngineerId(''); setScheduledDate('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
@@ -176,14 +179,15 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     if (!jobType) { setError('Please select a job type.'); return }
     if (!selectedCustomerId) { setError('Please select a customer.'); return }
     if (!checkedSNs.length) { setError('Please select at least one serial number.'); return }
+    if (engineerId && !scheduledDate) { setError('Please pick a scheduled date for the assigned engineer.'); return }
     setLoading(true); setError('')
     const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
       job_type: jobType,
       customer_id: selectedCustomerId,
       transformer_ids: checkedSNs.map(s => s.transformer_id),
-      engineer_id: null,
-      scheduled_date: null,
+      engineer_id: engineerId || null,
+      scheduled_date: engineerId ? scheduledDate : null,
       notes: notes || null,
       reported_date: reportedDate || null,
       reported_through: reportedThrough || null,
@@ -229,7 +233,19 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
-          <div />
+          <div>
+            <label style={fl2}>Assign engineer</label>
+            <select style={fi2} value={engineerId} onChange={e => setEngineerId(e.target.value)}>
+              <option value="">Unassigned — assign later</option>
+              {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+            </select>
+          </div>
+          {engineerId ? (
+            <div>
+              <label style={fl2}>Scheduled date <span style={{ color: 'var(--m)' }}>*</span></label>
+              <input type="date" required style={fi2} value={scheduledDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setScheduledDate(e.target.value)} />
+            </div>
+          ) : <div />}
 
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>
@@ -335,7 +351,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>End user type</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: customerType ? 10 : 0 }}>
-              {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
+              {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }, { value: 'oem', label: 'OEM' }].map(o => (
                 <button key={o.value} type="button"
                   onClick={() => { setCustomerType(o.value as CustomerCategoryType); setCustomerCategoryId(''); setCustomerCategoryName('') }}
                   style={{

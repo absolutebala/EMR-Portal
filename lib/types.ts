@@ -144,9 +144,10 @@ export interface WorkOrder {
   serial_number_sites?: { serialNumber: string; siteName: string | null }[]
 }
 
-// Utility / Industry classification for a notification's customer — distinct from
-// Customer.type ("sold" | "shipped" | "both") above, which is an unrelated concept.
-export type NotificationCustomerType = 'utility' | 'industry'
+// Utility / Industry / OEM classification for a notification's customer — distinct
+// from Customer.type ("sold" | "shipped" | "both") above, which is an unrelated
+// concept.
+export type NotificationCustomerType = 'utility' | 'industry' | 'oem'
 
 export type ReportedThrough = 'whatsapp' | 'email' | 'phone' | 'other'
 export type SolutionThrough = 'virtual' | 'on_site'

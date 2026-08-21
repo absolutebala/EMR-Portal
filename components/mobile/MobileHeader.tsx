@@ -46,12 +46,10 @@ export default function MobileHeader({ title, subtitle, backHref, rightSlot }: P
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
           <div style={{
-            width: 28, height: 28, background: '#A8294F', borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            background: '#fff', borderRadius: 8, padding: '4px 6px',
+            display: 'flex', alignItems: 'center', flexShrink: 0,
           }}>
-            <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9z" />
-            </svg>
+            <img src="/emr-logo.png" alt="EMR" style={{ height: 16, width: 'auto', display: 'block' }} />
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{title}</div>

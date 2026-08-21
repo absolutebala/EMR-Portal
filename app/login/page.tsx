@@ -73,10 +73,10 @@ export default function LoginPage() {
       <div style={{ position:'relative', margin:'auto', width:420, minHeight:'100vh', display:'flex', flexDirection:'column', justifyContent:'center', padding:'40px 0' }}>
         {/* Brand */}
         <div style={{ textAlign:'center', marginBottom:28 }}>
-          <div style={{ width:54, height:54, background:'rgba(255,255,255,.15)', backdropFilter:'blur(10px)', border:'1px solid rgba(255,255,255,.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
-            <svg width="26" height="26" fill="none" stroke="white" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+          <div style={{ background:'#fff', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', padding:'12px 18px', boxShadow:'0 8px 24px rgba(0,0,0,.15)' }}>
+            <img src="/emr-logo.png" alt="EMR" style={{ height:30, width:'auto', display:'block' }} />
           </div>
-          <h1 style={{ fontSize:26, fontWeight:700, color:'#fff', letterSpacing:'-.5px', margin:0 }}>EMR Global</h1>
+          <h1 style={{ fontSize:20, fontWeight:600, color:'#fff', letterSpacing:'-.3px', margin:0 }}>Global</h1>
           <p style={{ fontSize:12, color:'rgba(255,255,255,.55)', marginTop:3, fontWeight:300 }}>Field Service Management Portal</p>
         </div>
 

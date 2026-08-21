@@ -9,7 +9,10 @@ import {
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
 import { getCurrentUserSummary } from '@/app/actions/get-current-user'
-import { updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder } from '@/app/actions/create-work-order'
+import {
+  updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder,
+  addAdditionalEngineer, removeAdditionalEngineer, getAdditionalEngineers, type AdditionalEngineerAssignment,
+} from '@/app/actions/create-work-order'
 import { getProductRequestsForWorkOrder } from '@/app/actions/products'
 import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
@@ -256,6 +259,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [engineerSchedule, setEngineerSchedule] = useState<EngineerScheduleEntry[]>([])
   const [loadingSchedule, setLoadingSchedule] = useState(false)
 
+  const [additionalEngineers, setAdditionalEngineers] = useState<AdditionalEngineerAssignment[]>([])
+  const [showAddEngineer, setShowAddEngineer] = useState(false)
+  const [addEngineerId, setAddEngineerId] = useState('')
+  const [addEngineerSearch, setAddEngineerSearch] = useState('')
+  const [addEngineerSerials, setAddEngineerSerials] = useState<string[]>([]) // selected transformer_ids
+
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditForm>({
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
@@ -272,6 +281,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     setActivity(act as WorkOrderActivity[])
     setSubmittedForm(sf)
     setVisits(vs)
+    const { assignments } = await getAdditionalEngineers(workOrderId)
+    setAdditionalEngineers(assignments)
   }
 
   useEffect(() => {
@@ -381,6 +392,24 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
     setReassignId(''); setReassignDate(''); setEngineerSchedule([]); setShowReassign(false); setActing(false); setEngineerSearch('')
+  }
+
+  async function handleAddEngineer() {
+    if (!wo || !addEngineerId) return
+    setActing(true); setError('')
+    const { error: err } = await addAdditionalEngineer(wo.id, addEngineerId, addEngineerSerials)
+    if (err) { setError(err); setActing(false); return }
+    await refreshDetail()
+    setAddEngineerId(''); setAddEngineerSerials([]); setShowAddEngineer(false); setActing(false); setAddEngineerSearch('')
+  }
+
+  async function handleRemoveEngineer(engineerId: string) {
+    if (!wo) return
+    setActing(true); setError('')
+    const { error: err } = await removeAdditionalEngineer(wo.id, engineerId)
+    if (err) { setError(err); setActing(false); return }
+    await refreshDetail()
+    setActing(false)
   }
 
   const nextStatuses = wo ? (STATUS_NEXT[wo.status] || []) : []
@@ -522,7 +551,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
                       {fieldLabel('End user type')}
                       <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
-                        {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }].map(o => (
+                        {[{ value: 'utility', label: 'Utility' }, { value: 'industry', label: 'Industry' }, { value: 'oem', label: 'OEM' }].map(o => (
                           <button key={o.value} type="button"
                             onClick={() => setForm(f => ({ ...f, customer_type: o.value, customer_category_id: '', customer_category_name: '' }))}
                             style={{
@@ -908,6 +937,93 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         </div>
                       </div>
                     )}
+
+                    {additionalEngineers.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {additionalEngineers.map(a => (
+                          <div key={a.engineerId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 7, border: '1px solid var(--gl)', background: 'var(--gl)' }}>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{a.engineerName}</div>
+                              <div style={{ fontSize: 10, color: 'var(--txm)' }}>
+                                {a.serialNumbers.length ? a.serialNumbers.join(', ') : 'Whole notification'}
+                              </div>
+                            </div>
+                            <button onClick={() => handleRemoveEngineer(a.engineerId)} disabled={acting}
+                              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: acting ? 'not-allowed' : 'pointer', fontSize: 11, fontFamily: 'Poppins,sans-serif', color: 'var(--txm)', opacity: acting ? .5 : 1 }}>
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!isComplete && wo.status !== 'unassigned' && (
+                      <button onClick={() => setShowAddEngineer(!showAddEngineer)}
+                        style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                        Add engineer
+                      </button>
+                    )}
+                    {showAddEngineer && (
+                      <div style={{ background: 'var(--mp)', border: '1px solid var(--m)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Search engineer by name…"
+                          value={addEngineerSearch}
+                          onChange={e => setAddEngineerSearch(e.target.value)}
+                          style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }}
+                        />
+                        <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {engineers
+                            .filter(e => e.id !== wo.engineer_id)
+                            .filter(e => !additionalEngineers.some(a => a.engineerId === e.id))
+                            .filter(e => `${e.first_name} ${e.last_name}`.toLowerCase().includes(addEngineerSearch.trim().toLowerCase()))
+                            .map(e => {
+                              const selected = e.id === addEngineerId
+                              return (
+                                <div key={e.id} onClick={() => { setAddEngineerId(e.id); setAddEngineerSerials([]) }}
+                                  style={{
+                                    padding: '8px 10px', borderRadius: 7, cursor: 'pointer',
+                                    border: `1.5px solid ${selected ? 'var(--m)' : 'var(--gm)'}`,
+                                    background: selected ? '#fff' : '#fff',
+                                  }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: selected ? 'var(--m)' : 'var(--tx)' }}>{e.first_name} {e.last_name}</span>
+                                </div>
+                              )
+                            })}
+                        </div>
+
+                        {addEngineerId && (wo.transformer_ids || []).length >= 2 && (
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--m)', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 4 }}>
+                              Which serial number(s) do they cover?
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {(wo.transformer_ids || []).map((tid, i) => {
+                                const label = wo.serial_number_sites?.[i]?.serialNumber || tid
+                                const checked = addEngineerSerials.includes(tid)
+                                return (
+                                  <label key={tid} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--tx)', cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={checked}
+                                      onChange={() => setAddEngineerSerials(prev => checked ? prev.filter(t => t !== tid) : [...prev, tid])} />
+                                    {label}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={handleAddEngineer} disabled={!addEngineerId || acting}
+                            style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: 'none', background: acting ? '#C4B5A0' : 'var(--m)', color: '#fff', cursor: (!addEngineerId || acting) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: !addEngineerId ? .5 : 1 }}>
+                            {acting ? 'Adding…' : 'Add'}
+                          </button>
+                          <button onClick={() => { setShowAddEngineer(false); setAddEngineerId(''); setAddEngineerSerials([]); setAddEngineerSearch('') }} disabled={acting}
+                            style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: acting ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif', opacity: acting ? .5 : 1 }}>✕</button>
+                        </div>
+                      </div>
+                    )}
+
                     {nextStatuses.map(s => (
                       <button key={s.value} onClick={() => handleStatusUpdate(s.value)} disabled={acting}
                         style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: s.color, color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: acting ? .7 : 1 }}>
@@ -948,7 +1064,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('Sold customer', wo.customer_name || '—')}
                 {row('Shipped to', wo.site_name || '—')}
                 {row('Project', wo.site_name || '—')}
-                {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : '—')}
+                {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—')}
                 {row('End Customer Type', wo.end_customer_type_name || '—')}
                 {row('Category', wo.customer_category_name || '—')}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
