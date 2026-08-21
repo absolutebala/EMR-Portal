@@ -118,8 +118,8 @@ export type AttendanceEffectiveStatus =
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean };
+  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
+  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null };
 
 export interface AttendanceCalendarDay {
   date: string;

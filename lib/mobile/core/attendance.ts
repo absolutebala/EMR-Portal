@@ -50,6 +50,8 @@ export interface AttendanceRowCore {
   approval_status: 'pending' | 'approved' | 'rejected' | null
   reason: string | null
   marked_at: string | null
+  approved_by_name: string | null
+  approved_at: string | null
 }
 
 export type AttendanceEffectiveStatus =
@@ -57,8 +59,8 @@ export type AttendanceEffectiveStatus =
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean }
+  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
+  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null }
 
 export function computeEffectiveStatus(params: {
   dateStr: string
@@ -71,25 +73,44 @@ export function computeEffectiveStatus(params: {
 
   if (row && row.status === 'present') {
     if (row.approval_status === 'pending' || row.approval_status === 'rejected') {
-      return { kind: 'leave', pendingApproval: row.approval_status === 'pending', rejected: row.approval_status === 'rejected', reason: row.reason, markedAt: row.marked_at }
+      return {
+        kind: 'leave', pendingApproval: row.approval_status === 'pending', rejected: row.approval_status === 'rejected',
+        reason: row.reason, markedAt: row.marked_at, approvedByName: row.approved_by_name, approvedAt: row.approved_at,
+      }
     }
-    return { kind: 'present', reason: row.reason, amended: row.approval_status === 'approved' }
+    return { kind: 'present', reason: row.reason, amended: row.approval_status === 'approved', approvedByName: row.approved_by_name, approvedAt: row.approved_at }
   }
 
   // An explicit self-marked Leave (e.g. via the mobile "On Leave" status prompt,
   // see setEngineerStatusCore) — distinct from the auto-computed "no row at all"
   // case below, since this one carries a real timestamp of when it was set.
   if (row && row.status === 'leave') {
-    return { kind: 'leave', pendingApproval: false, rejected: false, reason: row.reason, markedAt: row.marked_at }
+    return { kind: 'leave', pendingApproval: false, rejected: false, reason: row.reason, markedAt: row.marked_at, approvedByName: null, approvedAt: null }
   }
 
   if (holidayName) return { kind: 'holiday', name: holidayName }
   if (isSunday(dateStr)) return { kind: 'weekly_off' }
   if (profileCreatedAtDateStr && dateStr < profileCreatedAtDateStr) return { kind: 'not_applicable' }
 
-  if (dateStr === todayStr) return isPastAttendanceCutoff() ? { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null } : { kind: 'pending' }
-  if (dateStr < todayStr) return { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null }
+  if (dateStr === todayStr) {
+    return isPastAttendanceCutoff()
+      ? { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null, approvedByName: null, approvedAt: null }
+      : { kind: 'pending' }
+  }
+  if (dateStr < todayStr) return { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null, approvedByName: null, approvedAt: null }
   return { kind: 'not_applicable' } // future date
+}
+
+// Resolves a set of `attendance.approved_by` uuids to display names in one query —
+// every caller that builds AttendanceRowCore objects uses this rather than
+// duplicating the lookup.
+export async function resolveApprovedByNames(admin: AdminClient, approvedByIds: (string | null)[]): Promise<Record<string, string>> {
+  const ids = [...new Set(approvedByIds.filter((id): id is string => !!id))]
+  if (!ids.length) return {}
+  const { data } = await admin.from('profiles').select('id, first_name, last_name').in('id', ids)
+  const map: Record<string, string> = {}
+  ;(data || []).forEach(p => { map[p.id] = `${p.first_name} ${p.last_name}` })
+  return map
 }
 
 export function getAttendanceStatusLabel(s: AttendanceEffectiveStatus): string {
@@ -112,13 +133,16 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
   try {
     const todayStr = getISTDateStr()
     const [{ data: row }, { data: holiday }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('status, approval_status, reason, marked_at').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
+      admin.from('attendance').select('status, approval_status, reason, marked_at, approved_by, approved_at').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
       admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle(),
       getProfileCreatedAtDateStr(admin, userId),
     ])
 
+    const nameByApprover = await resolveApprovedByNames(admin, [row?.approved_by ?? null])
+    const rowWithName: AttendanceRowCore | null = row ? { ...row, approved_by_name: row.approved_by ? nameByApprover[row.approved_by] ?? null : null } : null
+
     const status = computeEffectiveStatus({
-      dateStr: todayStr, todayStr, row: row ?? null, holidayName: holiday?.name ?? null, profileCreatedAtDateStr,
+      dateStr: todayStr, todayStr, row: rowWithName, holidayName: holiday?.name ?? null, profileCreatedAtDateStr,
     })
     return { status, error: null }
   } catch (e: unknown) {
@@ -218,13 +242,14 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
     const todayStr = getISTDateStr()
 
     const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
       getProfileCreatedAtDateStr(admin, userId),
     ])
 
+    const nameByApprover = await resolveApprovedByNames(admin, (rows || []).map(r => r.approved_by))
     const rowByDate: Record<string, AttendanceRowCore> = {}
-    ;(rows || []).forEach(r => { rowByDate[r.attendance_date] = r })
+    ;(rows || []).forEach(r => { rowByDate[r.attendance_date] = { ...r, approved_by_name: r.approved_by ? nameByApprover[r.approved_by] ?? null : null } })
     const holidayByDate: Record<string, string> = {}
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
@@ -304,47 +329,3 @@ export async function approveRejectAmendmentCore(admin: AdminClient, managerId: 
   }
 }
 
-export interface AttendanceExportRow {
-  engineerName: string
-  date: string
-  status: string
-  markedAt: string | null
-  reason: string | null
-}
-
-export async function getAttendanceExportRowsCore(admin: AdminClient, from: string, to: string): Promise<{ rows: AttendanceExportRow[]; error: string | null }> {
-  try {
-    const todayStr = getISTDateStr()
-    const [{ data: engineers }, { data: rows }, { data: holidays }] = await Promise.all([
-      admin.from('profiles').select('id, first_name, last_name, created_at').eq('role', 'Field Engineer'),
-      admin.from('attendance').select('engineer_id, attendance_date, status, marked_at, reason, approval_status').gte('attendance_date', from).lte('attendance_date', to),
-      admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
-    ])
-
-    const rowByEngDate: Record<string, AttendanceRowCore & { marked_at: string | null }> = {}
-    ;(rows || []).forEach(r => { rowByEngDate[`${r.engineer_id}:${r.attendance_date}`] = r })
-    const holidayByDate: Record<string, string> = {}
-    ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
-
-    const dates = eachDateStr(from, to)
-    const exportRows: AttendanceExportRow[] = []
-    for (const eng of engineers || []) {
-      const profileCreatedAtDateStr = eng.created_at ? getISTDateStr(new Date(eng.created_at)) : null
-      for (const dateStr of dates) {
-        const row = rowByEngDate[`${eng.id}:${dateStr}`] ?? null
-        const eff = computeEffectiveStatus({ dateStr, todayStr, row, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr })
-        if (eff.kind === 'not_applicable') continue
-        exportRows.push({
-          engineerName: `${eng.first_name} ${eng.last_name}`,
-          date: dateStr,
-          status: getAttendanceStatusLabel(eff),
-          markedAt: row?.marked_at ?? null,
-          reason: row?.reason ?? null,
-        })
-      }
-    }
-    return { rows: exportRows, error: null }
-  } catch (e: unknown) {
-    return { rows: [], error: e instanceof Error ? e.message : String(e) }
-  }
-}

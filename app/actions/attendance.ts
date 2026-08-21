@@ -4,8 +4,8 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/mobile/core/shared'
 import {
   getMyAttendanceStatusCore, markAttendanceCore, getAttendanceCalendarCore,
-  getPendingAmendmentsCore, approveRejectAmendmentCore, getAttendanceExportRowsCore,
-  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment, type AttendanceExportRow,
+  getPendingAmendmentsCore, approveRejectAmendmentCore,
+  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment,
 } from '@/lib/mobile/core/attendance'
 // Thin auth-resolution wrappers only — business logic lives in
 // lib/mobile/core/attendance.ts, shared with the React Native REST routes
@@ -47,10 +47,4 @@ export async function approveRejectAttendanceAmendment(attendanceId: string, dec
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return approveRejectAmendmentCore(adminClient(), user.id, attendanceId, decision)
-}
-
-export async function getAttendanceExportRows(from: string, to: string): Promise<{ rows: AttendanceExportRow[]; error: string | null }> {
-  const user = await getAuthedUser()
-  if (!user) return { rows: [], error: 'Not authenticated' }
-  return getAttendanceExportRowsCore(adminClient(), from, to)
 }

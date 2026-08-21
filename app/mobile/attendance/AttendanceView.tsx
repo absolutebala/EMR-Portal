@@ -12,6 +12,7 @@ interface Props {
   initialDays: AttendanceCalendarDay[]
   initialError: string | null
   todayStr: string
+  engineerName: string
 }
 
 function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string } {
@@ -44,6 +45,10 @@ function formatDayLabel(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 function toDateStr(d: Date): string {
   return d.toLocaleDateString('en-CA')
 }
@@ -73,21 +78,25 @@ function monthRangeFor(dateStr: string): { from: string; to: string } {
   return { from: toDateStr(from), to: toDateStr(to) }
 }
 
-function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filenameSuffix: string) {
-  const headers = ['Date', 'Status', 'Marked At', 'Reason']
+function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
+  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date']
   const aoa = [headers, ...exportDays.map(d => {
-    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : (d.status.kind === 'leave' ? '11:00 AM' : '')
+    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : ''
     const reason = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.reason || '') : ''
-    return [d.date, attendanceLabel(d.status), markedAt, reason]
+    const approvedBy = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.approvedByName || '') : ''
+    const approvedAt = d.status.kind === 'present' || d.status.kind === 'leave'
+      ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN') : '')
+      : ''
+    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt]
   })]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   ws['!cols'] = headers.map(() => ({ wch: 20 }))
   XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
-  XLSX.writeFile(wb, `attendance_${filenameSuffix}.xlsx`)
+  XLSX.writeFile(wb, filename)
 }
 
-export default function AttendanceView({ initialDays, initialError, todayStr }: Props) {
+export default function AttendanceView({ initialDays, initialError, todayStr, engineerName }: Props) {
   // Anchored to the server-provided IST "today" (not a fresh client Date()) so the
   // initial week matches exactly what page.tsx already fetched.
   const [anchorDate, setAnchorDate] = useState(() => new Date(`${todayStr}T00:00:00`))
@@ -107,11 +116,6 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
   const [justSubmitted, setJustSubmitted] = useState<'pending' | 'approval' | null>(null)
 
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
-  const [amendCoords, setAmendCoords] = useState<{ lat: number; lng: number } | null>(null)
-  const [amendPlaceName, setAmendPlaceName] = useState('')
-  const [amendGpsError, setAmendGpsError] = useState('')
-  const [amendGpsRequested, setAmendGpsRequested] = useState(false)
-  const [amendGpsResolved, setAmendGpsResolved] = useState(false)
   const [amendReason, setAmendReason] = useState('')
   const [amendError, setAmendError] = useState('')
   const [amendSubmitting, setAmendSubmitting] = useState(false)
@@ -203,41 +207,11 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
     if (!isAmendable(day)) return
     if (expandedDate === day.date) { setExpandedDate(null); return }
     setExpandedDate(day.date)
-    setAmendCoords(null); setAmendPlaceName(''); setAmendGpsError('')
-    setAmendGpsRequested(false); setAmendGpsResolved(false); setAmendReason(''); setAmendError('')
+    setAmendReason(''); setAmendError('')
   }
 
-  function startAmendGpsCapture() {
-    setAmendGpsRequested(true)
-    setAmendGpsError('')
-    if (!('geolocation' in navigator)) {
-      setAmendGpsResolved(true)
-      setAmendGpsError('GPS not available on this device')
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-        setAmendCoords(c)
-        setAmendGpsResolved(true)
-        reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) setAmendPlaceName(label) })
-      },
-      () => {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-            setAmendCoords(c)
-            setAmendGpsResolved(true)
-            reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) setAmendPlaceName(label) })
-          },
-          () => { setAmendGpsResolved(true); setAmendGpsError('Could not get location — you can still submit without it') },
-          { enableHighAccuracy: false, timeout: 10000 }
-        )
-      },
-      { enableHighAccuracy: true, timeout: 12000 }
-    )
-  }
-
+  // Past-day amendments don't need GPS — only marking *today* does. Submits
+  // straight from reason -> server.
   async function handleAmendSubmit(dateStr: string) {
     setAmendError('')
     if (!amendReason.trim()) {
@@ -246,9 +220,9 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
     }
     setAmendSubmitting(true)
     const result = await markAttendance({
-      latitude: amendCoords?.lat ?? null,
-      longitude: amendCoords?.lng ?? null,
-      placeName: amendPlaceName || null,
+      latitude: null,
+      longitude: null,
+      placeName: null,
       reason: amendReason.trim(),
       attendanceDate: dateStr,
     })
@@ -264,7 +238,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
     getAttendanceCalendar(range.from, range.to).then(({ days: d, error: err }) => {
       setExporting(false)
       if (err) { setExportError(err); return }
-      exportDaysToXlsx(d, `${range.from}_to_${range.to}`)
+      exportDaysToXlsx(d, `${engineerName}_attendance_${range.from}_to_${range.to}.xlsx`)
     })
   }
 
@@ -275,7 +249,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
     getAttendanceCalendar(from, to).then(({ days: d, error: err }) => {
       setExporting(false)
       if (err) { setExportError(err); return }
-      exportDaysToXlsx(d, `month_${from.slice(0, 7)}`)
+      exportDaysToXlsx(d, `${engineerName}_attendance_${from}_to_${to}.xlsx`)
     })
   }
 
@@ -403,6 +377,11 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
             const badge = getStatusBadge(day.status)
             const amendable = isAmendable(day)
             const expanded = expandedDate === day.date
+            const s = day.status
+            const hasReason = (s.kind === 'present' || s.kind === 'leave') && !!s.reason
+            const hasRequested = s.kind === 'leave' && (s.pendingApproval || s.rejected) && !!s.markedAt
+            const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected)
+            const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved'
             return (
               <div
                 key={day.date}
@@ -414,55 +393,41 @@ export default function AttendanceView({ initialDays, initialError, todayStr }: 
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{formatDayLabel(day.date)}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, background: badge.bg, color: badge.color, borderRadius: 20, padding: '3px 9px' }}>{badge.label}</span>
                 </div>
-                {day.status.kind === 'present' && day.status.reason && (
-                  <div style={{ fontSize: 10, color: '#7A6870', marginTop: 6 }}>Reason: {day.status.reason}</div>
+                {hasRequested && s.markedAt && (
+                  <div style={{ fontSize: 10, color: '#7A6870', marginTop: 6 }}>Requested: {formatDateTime(s.markedAt)}</div>
                 )}
-                {day.status.kind === 'leave' && day.status.rejected && day.date !== todayStr && (
-                  <div style={{ fontSize: 10, color: '#B91C1C', marginTop: 6 }}>Previous request rejected — you can resubmit.</div>
+                {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
+                  <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>Reason: {s.reason}</div>
+                )}
+                {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
+                  <>
+                    {s.approvedByName && <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>{decisionLabel} by: {s.approvedByName}</div>}
+                    {s.approvedAt && <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>{decisionLabel}: {formatDateTime(s.approvedAt)}</div>}
+                  </>
                 )}
                 {amendable && !expanded && (
                   <div style={{ fontSize: 10, color: '#7D1D3F', marginTop: 6, fontWeight: 600 }}>Tap to request Present for this day →</div>
                 )}
                 {expanded && amendable && (
                   <div style={{ marginTop: 10, borderTop: '1px solid #F5F3F5', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
-                    {!amendGpsRequested ? (
-                      <button
-                        className="mtap"
-                        onClick={startAmendGpsCapture}
-                        style={{ width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        Capture location &amp; continue
-                      </button>
-                    ) : (
-                      <div style={{ background: amendCoords ? 'linear-gradient(135deg,#065F46,#059669)' : amendGpsResolved ? '#B91C1C' : 'linear-gradient(135deg,#1E3A5F,#2563EB)', borderRadius: 10, padding: 10, textAlign: 'center' }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>
-                          {amendCoords ? (amendPlaceName || 'GPS location captured') : amendGpsResolved ? (amendGpsError || 'GPS unavailable') : 'GPS location capturing…'}
-                        </div>
-                      </div>
-                    )}
-
-                    {amendGpsRequested && (
-                      <textarea
-                        value={amendReason}
-                        onChange={e => setAmendReason(e.target.value)}
-                        placeholder="Reason (required)"
-                        rows={3}
-                        style={{ width: '100%', marginTop: 10, padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box' }}
-                      />
-                    )}
+                    <textarea
+                      value={amendReason}
+                      onChange={e => setAmendReason(e.target.value)}
+                      placeholder="Reason (required)"
+                      rows={3}
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box' }}
+                    />
 
                     {amendError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{amendError}</div>}
 
-                    {amendGpsRequested && amendGpsResolved && (
-                      <button
-                        className="mtap"
-                        onClick={() => handleAmendSubmit(day.date)}
-                        disabled={amendSubmitting}
-                        style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: amendSubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 600, cursor: amendSubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
-                      >
-                        {amendSubmitting ? 'Submitting…' : 'Submit for approval'}
-                      </button>
-                    )}
+                    <button
+                      className="mtap"
+                      onClick={() => handleAmendSubmit(day.date)}
+                      disabled={amendSubmitting}
+                      style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: amendSubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 600, cursor: amendSubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
+                    >
+                      {amendSubmitting ? 'Submitting…' : 'Submit for approval'}
+                    </button>
                   </div>
                 )}
               </div>

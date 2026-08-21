@@ -5,12 +5,16 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getAttendanceCalendar } from '@/app/actions/attendance'
 import { getISTDateStr } from '@/lib/mobile/core/attendance'
+import { adminClient } from '@/lib/db/admin-client'
 import AttendanceView from './AttendanceView'
 
 export default async function MobileAttendancePage() {
   const user = await getAuthedUser()
   if (!user) redirect('/mobile/login')
   await requireMobilePasswordChanged(user.id)
+
+  const { data: profile } = await adminClient().from('profiles').select('first_name,last_name').eq('id', user.id).single()
+  const engineerName = profile ? `${profile.first_name} ${profile.last_name}` : 'Engineer'
 
   // Computed from the IST calendar date, not the server's own (UTC) local date
   // components — the 11am cutoff this whole feature is built around only makes sense
@@ -31,5 +35,5 @@ export default async function MobileAttendancePage() {
 
   const { days, error } = await getAttendanceCalendar(fromStr, toStr)
 
-  return <AttendanceView initialDays={days} initialError={error} todayStr={toStrToday} />
+  return <AttendanceView initialDays={days} initialError={error} todayStr={toStrToday} engineerName={engineerName} />
 }

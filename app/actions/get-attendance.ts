@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { computeEffectiveStatus, getISTDateStr, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
+import { computeEffectiveStatus, getISTDateStr, resolveApprovedByNames, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
 
 export interface AttendanceOverviewJob {
   workOrderId: string
@@ -30,6 +30,9 @@ export interface AttendanceOverviewRow {
   // any) — kept alongside the computed `attendance` status so the UI can show a
   // real time for both Present and explicit Leave without re-deriving it per kind.
   markedAt: string | null
+  // The raw attendance row's own id, null when no row exists for this date — used
+  // to target the approve/reject action directly from the grid cell.
+  attendanceId: string | null
   jobs: AttendanceOverviewJob[]
 }
 
@@ -106,7 +109,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
-      admin.from('attendance').select('engineer_id, attendance_date, status, marked_at, reason, approval_status').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
@@ -132,8 +135,11 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
     const checkinDaysByWo: Record<string, Set<string>> = {}
     for (const woId of Object.keys(checkinTimeByWoDay)) checkinDaysByWo[woId] = new Set(Object.keys(checkinTimeByWoDay[woId]))
 
-    const attendanceByEngDate: Record<string, AttendanceRowCore & { marked_at: string | null }> = {}
-    ;(attendanceRows || []).forEach(r => { attendanceByEngDate[`${r.engineer_id}:${r.attendance_date}`] = r })
+    const nameByApprover = await resolveApprovedByNames(admin, (attendanceRows || []).map(r => r.approved_by))
+    const attendanceByEngDate: Record<string, AttendanceRowCore & { id: string }> = {}
+    ;(attendanceRows || []).forEach(r => {
+      attendanceByEngDate[`${r.engineer_id}:${r.attendance_date}`] = { ...r, approved_by_name: r.approved_by ? nameByApprover[r.approved_by] ?? null : null }
+    })
     const holidayByDate: Record<string, string> = {}
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
@@ -200,6 +206,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
           date: dateStr,
           attendance,
           markedAt: row?.marked_at ?? null,
+          attendanceId: row?.id ?? null,
           jobs: jobsByEngDate[`${eng.id}:${dateStr}`] || [],
         })
       }

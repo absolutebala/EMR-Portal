@@ -29,6 +29,10 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 // Duplicated from lib/mobile/core/attendance.ts's getAttendanceStatusLabel rather
 // than imported — that module also pulls in server-only code (web-push via
 // lib/notifications.ts), which breaks the client bundle if imported at runtime
@@ -58,19 +62,71 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
 })
 
-function AttendanceCell({ row }: { row: AttendanceOverviewRow }) {
-  const cfg = ATTENDANCE_CFG[row.attendance.kind]
-  const label = attendanceLabel(row.attendance)
+interface AttendanceCellProps {
+  row: AttendanceOverviewRow
+  canApprove: boolean
+  actingOn: string | null
+  onDecision: (id: string, decision: 'approved' | 'rejected') => void
+}
+
+function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCellProps) {
+  const s = row.attendance
+  const cfg = ATTENDANCE_CFG[s.kind]
+  const label = attendanceLabel(s)
+
+  // Present and a plain (not pending/rejected) explicit Leave show their own real
+  // timestamp, unlabeled, matching how it read before this cell grew the
+  // Requested/Reason/Approved lines below — auto-computed Leave with no row at all
+  // shows nothing here (no fake placeholder).
   let timeLabel: string | null = null
-  if (row.attendance.kind === 'present') timeLabel = row.markedAt ? formatTime(row.markedAt) : null
-  else if (row.attendance.kind === 'leave') timeLabel = row.attendance.markedAt ? formatTime(row.attendance.markedAt) : '11:00 AM'
+  if (s.kind === 'present') timeLabel = row.markedAt ? formatTime(row.markedAt) : null
+  else if (s.kind === 'leave' && !s.pendingApproval && !s.rejected) timeLabel = s.markedAt ? formatTime(s.markedAt) : null
+
+  const hasReason = (s.kind === 'present' || s.kind === 'leave') && !!s.reason
+  const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected)
+  const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved'
+  const showPendingActions = canApprove && s.kind === 'leave' && s.pendingApproval && !!row.attendanceId
 
   return (
     <div>
-      <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '3px 9px' }}>
-        {label}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '3px 9px' }}>
+          {label}
+        </span>
+        {showPendingActions && (
+          <>
+            <button
+              onClick={() => onDecision(row.attendanceId!, 'approved')}
+              disabled={actingOn === row.attendanceId}
+              title="Approve"
+              style={{ width: 17, height: 17, borderRadius: '50%', border: 'none', background: '#D1FAE5', color: '#065F46', fontSize: 10, fontWeight: 700, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+            >
+              ✓
+            </button>
+            <button
+              onClick={() => onDecision(row.attendanceId!, 'rejected')}
+              disabled={actingOn === row.attendanceId}
+              title="Reject"
+              style={{ width: 17, height: 17, borderRadius: '50%', border: 'none', background: '#FEE2E2', color: '#991B1B', fontSize: 10, fontWeight: 700, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+            >
+              ✗
+            </button>
+          </>
+        )}
+      </div>
       {timeLabel && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>{timeLabel}</div>}
+      {s.kind === 'leave' && s.pendingApproval && s.markedAt && (
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>Requested: {formatDateTime(s.markedAt)}</div>
+      )}
+      {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>Reason: {s.reason}</div>
+      )}
+      {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
+        <>
+          {s.approvedByName && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{decisionLabel} by: {s.approvedByName}</div>}
+          {s.approvedAt && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{decisionLabel}: {formatDateTime(s.approvedAt)}</div>}
+        </>
+      )}
     </div>
   )
 }
@@ -148,6 +204,11 @@ export default function AttendancePageClient({ initialRows, initialError, initia
       if (next.length === 0) setShowAmendmentsModal(false)
       return next
     })
+    // Refresh the grid too — not just the separate pending-amendments list — so the
+    // cell itself flips from "Leave (pending)" to "Present (amended)"/rejected
+    // immediately, whether the decision came from the popup or the inline cell
+    // buttons.
+    load(range.from, range.to)
   }
 
   // Built from the already-loaded `rows` (same data the table renders) rather than a
@@ -158,21 +219,24 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     setExportError('')
     if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Reason', 'Project Name', 'Job Status']
+    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date', 'Project Name', 'Job Status']
     const aoa: string[][] = [headers]
     for (const row of rows) {
-      const attendanceStatus = attendanceLabel(row.attendance)
-      const markedAt = row.attendance.kind === 'present'
+      const s = row.attendance
+      const attendanceStatus = attendanceLabel(s)
+      const markedAt = s.kind === 'present'
         ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN') : '')
-        : row.attendance.kind === 'leave'
-          ? (row.attendance.markedAt ? new Date(row.attendance.markedAt).toLocaleString('en-IN') : '11:00 AM')
+        : s.kind === 'leave'
+          ? (s.markedAt ? new Date(s.markedAt).toLocaleString('en-IN') : '')
           : ''
-      const reason = row.attendance.kind === 'present' || row.attendance.kind === 'leave' ? (row.attendance.reason || '') : ''
+      const reason = s.kind === 'present' || s.kind === 'leave' ? (s.reason || '') : ''
+      const approvedBy = s.kind === 'present' || s.kind === 'leave' ? (s.approvedByName || '') : ''
+      const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN') : '') : ''
       if (row.jobs.length === 0) {
-        aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, '', ''])
+        aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, '', ''])
       } else {
         for (const job of row.jobs) {
-          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
+          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
         }
       }
     }
@@ -365,7 +429,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                           }}>
                             {row && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <AttendanceCell row={row} />
+                                <AttendanceCell row={row} canApprove={canApprove} actingOn={actingOn} onDecision={handleDecision} />
                                 {row.jobs.length > 0 ? (
                                   row.jobs.map(job => <JobCard key={job.workOrderId} job={job} />)
                                 ) : (

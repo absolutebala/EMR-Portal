@@ -7,7 +7,7 @@ import {
   logActivity,
 } from './shared'
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
-import { getMyAttendanceStatusCore, getISTDateStr, type AttendanceEffectiveStatus } from './attendance'
+import { getMyAttendanceStatusCore, getISTDateStr, markAttendanceCore, type AttendanceEffectiveStatus } from './attendance'
 
 export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {
@@ -434,6 +434,16 @@ export async function setEngineerStatusCore(
           updated_at: new Date().toISOString(),
         }, { onConflict: 'engineer_id,attendance_date' })
       })().catch(() => {})
+    }
+
+    // "Available" marks Present the same way — but through markAttendanceCore
+    // itself, not a raw upsert, so the 11am-cutoff/reason/approval safeguard still
+    // applies: before cutoff this silently marks Present with a real timestamp,
+    // after cutoff it silently no-ops (no reason was collected here), leaving the
+    // day as Leave until the engineer goes through the proper amend-with-reason
+    // flow. Selecting "Available" can never become a backdoor around approval.
+    if (status === 'available') {
+      markAttendanceCore(admin, userId, { latitude: currentLat ?? null, longitude: currentLng ?? null, placeName: null }).catch(() => {})
     }
 
     if (status === 'on_the_way' && workOrderId) {

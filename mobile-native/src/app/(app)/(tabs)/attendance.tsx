@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
-import { reverseGeocode, useAttendanceCalendar, useMarkAttendance } from '@/lib/hooks';
+import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMyProfile } from '@/lib/hooks';
 import { apiGet } from '@/lib/api';
 import { apiErrorMessage } from '@/lib/offlineSubmit';
 import type { AttendanceEffectiveStatus, AttendanceCalendarDay, AttendanceCalendarResponse } from '@/lib/types';
@@ -65,19 +65,27 @@ function formatDayLabel(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filenameSuffix: string) {
-  const headers = ['Date', 'Status', 'Marked At', 'Reason'];
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
+  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date'];
   const aoa = [headers, ...exportDays.map(d => {
-    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : (d.status.kind === 'leave' ? '11:00 AM' : '');
+    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : '';
     const reason = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.reason || '') : '';
-    return [d.date, attendanceLabel(d.status), markedAt, reason];
+    const approvedBy = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.approvedByName || '') : '';
+    const approvedAt = d.status.kind === 'present' || d.status.kind === 'leave'
+      ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN') : '')
+      : '';
+    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt];
   })];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
   const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 
-  const file = new File(Paths.document, `attendance_${filenameSuffix}.xlsx`);
+  const file = new File(Paths.document, filename);
   file.create({ overwrite: true });
   file.write(base64, { encoding: 'base64' });
 
@@ -96,6 +104,8 @@ export default function AttendanceScreen() {
 
   const { data, isLoading, error } = useAttendanceCalendar(range.from, range.to);
   const markAttendance = useMarkAttendance();
+  const { data: profileData } = useMyProfile();
+  const engineerName = profileData?.profile ? `${profileData.profile.firstName} ${profileData.profile.lastName}` : 'Engineer';
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [placeName, setPlaceName] = useState('');
@@ -105,10 +115,6 @@ export default function AttendanceScreen() {
   const [markError, setMarkError] = useState('');
 
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const [amendCoords, setAmendCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [amendPlaceName, setAmendPlaceName] = useState('');
-  const [amendGpsResolved, setAmendGpsResolved] = useState(false);
-  const [amendGpsRequested, setAmendGpsRequested] = useState(false);
   const [amendReason, setAmendReason] = useState('');
   const [amendError, setAmendError] = useState('');
   const [amendSubmitting, setAmendSubmitting] = useState(false);
@@ -168,21 +174,10 @@ export default function AttendanceScreen() {
     if (!isAmendable(day)) return;
     if (expandedDate === day.date) { setExpandedDate(null); return; }
     setExpandedDate(day.date);
-    setAmendCoords(null); setAmendPlaceName(''); setAmendGpsRequested(false); setAmendGpsResolved(false);
     setAmendReason(''); setAmendError('');
   }
 
-  function startAmendGpsCapture() {
-    setAmendGpsRequested(true);
-    getCurrentPositionWithFallback().then(pos => {
-      setAmendCoords(pos);
-      setAmendGpsResolved(true);
-      if (pos) {
-        reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) setAmendPlaceName(label); }).catch(() => {});
-      }
-    });
-  }
-
+  // Past-day amendments don't need GPS — only marking *today* does.
   async function handleAmendSubmit(dateStr: string) {
     setAmendError('');
     if (!amendReason.trim()) {
@@ -192,9 +187,9 @@ export default function AttendanceScreen() {
     setAmendSubmitting(true);
     try {
       const result = await markAttendance.mutateAsync({
-        latitude: amendCoords?.lat ?? null,
-        longitude: amendCoords?.lng ?? null,
-        placeName: amendPlaceName || null,
+        latitude: null,
+        longitude: null,
+        placeName: null,
         reason: amendReason.trim(),
         attendanceDate: dateStr,
       });
@@ -213,7 +208,7 @@ export default function AttendanceScreen() {
     try {
       const resp = await apiGet<AttendanceCalendarResponse>(`/api/mobile/v1/attendance/calendar?from=${range.from}&to=${range.to}`);
       if (resp.error) { setExportError(resp.error); return; }
-      await exportDaysToXlsx(resp.days, `${range.from}_to_${range.to}`);
+      await exportDaysToXlsx(resp.days, `${engineerName}_attendance_${range.from}_to_${range.to}.xlsx`);
     } catch (e) {
       setExportError(apiErrorMessage(e));
     } finally {
@@ -228,7 +223,7 @@ export default function AttendanceScreen() {
     try {
       const resp = await apiGet<AttendanceCalendarResponse>(`/api/mobile/v1/attendance/calendar?from=${from}&to=${to}`);
       if (resp.error) { setExportError(resp.error); return; }
-      await exportDaysToXlsx(resp.days, `month_${from.slice(0, 7)}`);
+      await exportDaysToXlsx(resp.days, `${engineerName}_attendance_${from}_to_${to}.xlsx`);
     } catch (e) {
       setExportError(apiErrorMessage(e));
     } finally {
@@ -317,6 +312,11 @@ export default function AttendanceScreen() {
           const badge = getStatusBadge(day.status);
           const amendable = isAmendable(day);
           const expanded = expandedDate === day.date;
+          const s = day.status;
+          const hasReason = (s.kind === 'present' || s.kind === 'leave') && !!s.reason;
+          const hasRequested = s.kind === 'leave' && (s.pendingApproval || s.rejected) && !!s.markedAt;
+          const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected);
+          const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved';
           return (
             <View key={day.date} style={styles.dayRow}>
               <Pressable style={styles.dayRowHeader} onPress={() => toggleDay(day)} disabled={!amendable}>
@@ -325,41 +325,35 @@ export default function AttendanceScreen() {
                   <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
                 </View>
               </Pressable>
-              {day.status.kind === 'present' && day.status.reason && <Text style={styles.reasonNote}>Reason: {day.status.reason}</Text>}
-              {day.status.kind === 'leave' && day.status.rejected && day.date !== todayStr && (
-                <Text style={styles.rejectedNote}>Previous request rejected — you can resubmit.</Text>
+              {hasRequested && s.markedAt && (
+                <Text style={styles.reasonNote}>Requested: {formatDateTime(s.markedAt)}</Text>
+              )}
+              {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
+                <Text style={styles.reasonNote}>Reason: {s.reason}</Text>
+              )}
+              {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
+                <>
+                  {s.approvedByName && <Text style={styles.reasonNote}>{decisionLabel} by: {s.approvedByName}</Text>}
+                  {s.approvedAt && <Text style={styles.reasonNote}>{decisionLabel}: {formatDateTime(s.approvedAt)}</Text>}
+                </>
               )}
               {amendable && !expanded && <Text style={styles.amendHint}>Tap to request Present for this day →</Text>}
               {expanded && amendable && (
                 <View style={styles.amendForm}>
-                  {!amendGpsRequested ? (
-                    <Pressable style={styles.gpsButton} onPress={startAmendGpsCapture}>
-                      <Text style={styles.gpsButtonText}>Capture location &amp; continue</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={[styles.gpsCard, { backgroundColor: amendCoords ? '#059669' : '#2563EB' }]}>
-                      <Text style={styles.gpsTitle}>{amendCoords ? (amendPlaceName || 'GPS location captured') : amendGpsResolved ? 'GPS unavailable' : 'GPS location capturing…'}</Text>
-                    </View>
-                  )}
-
-                  {amendGpsRequested && (
-                    <TextInput
-                      style={styles.reasonInput}
-                      placeholder="Reason (required)"
-                      placeholderTextColor="#9CA3AF"
-                      value={amendReason}
-                      onChangeText={setAmendReason}
-                      multiline
-                    />
-                  )}
+                  <TextInput
+                    style={styles.reasonInput}
+                    placeholder="Reason (required)"
+                    placeholderTextColor="#9CA3AF"
+                    value={amendReason}
+                    onChangeText={setAmendReason}
+                    multiline
+                  />
 
                   {!!amendError && <Text style={styles.markError}>{amendError}</Text>}
 
-                  {amendGpsRequested && amendGpsResolved && (
-                    <Pressable style={[styles.submitButton, amendSubmitting && styles.submitButtonDisabled]} onPress={() => handleAmendSubmit(day.date)} disabled={amendSubmitting}>
-                      {amendSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit for approval</Text>}
-                    </Pressable>
-                  )}
+                  <Pressable style={[styles.submitButton, amendSubmitting && styles.submitButtonDisabled]} onPress={() => handleAmendSubmit(day.date)} disabled={amendSubmitting}>
+                    {amendSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit for approval</Text>}
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -403,7 +397,6 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   reasonNote: { fontSize: 10, color: '#7A6870', marginTop: 6 },
-  rejectedNote: { fontSize: 10, color: '#B91C1C', marginTop: 6 },
   amendHint: { fontSize: 10, color: '#7D1D3F', marginTop: 6, fontWeight: '600' },
   amendForm: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#F5F3F5', paddingTop: 10 },
 });
