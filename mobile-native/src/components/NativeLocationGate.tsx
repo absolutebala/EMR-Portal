@@ -15,6 +15,12 @@ export default function NativeLocationGate({ children }: { children: ReactNode }
   // AppState becoming active again), so the gate doesn't flash back to a blank state
   // for an engineer who already has permission granted.
   const [status, setStatus] = useState<Location.PermissionStatus | null>(null);
+  // Android 12+ lets a user grant location while choosing only "Approximate"
+  // (coarse) — attendance/check-in need real precision, so that's treated as its
+  // own blocked state below, distinct from an outright denial. iOS doesn't surface
+  // an equivalent flag in this response shape, so this stays null there and the
+  // coarse-specific block never triggers on iOS.
+  const [androidAccuracy, setAndroidAccuracy] = useState<'fine' | 'coarse' | 'none' | null>(null);
 
   // Written as an explicit .then() chain rather than async/await — the setState calls
   // only ever run inside a .then() callback (an external-system notification, per the
@@ -22,11 +28,15 @@ export default function NativeLocationGate({ children }: { children: ReactNode }
   // within an effect body, which an async function invoked directly from an effect
   // does not satisfy even when its own setState calls come after an await.
   const check = useCallback(() => {
-    Location.getForegroundPermissionsAsync().then(({ status: current }) => {
-      if (current === Location.PermissionStatus.UNDETERMINED) {
-        Location.requestForegroundPermissionsAsync().then(({ status: requested }) => setStatus(requested));
+    Location.getForegroundPermissionsAsync().then(response => {
+      if (response.status === Location.PermissionStatus.UNDETERMINED) {
+        Location.requestForegroundPermissionsAsync().then(requested => {
+          setStatus(requested.status);
+          setAndroidAccuracy(requested.android?.accuracy ?? null);
+        });
       } else {
-        setStatus(current);
+        setStatus(response.status);
+        setAndroidAccuracy(response.android?.accuracy ?? null);
       }
     });
   }, []);
@@ -51,6 +61,25 @@ export default function NativeLocationGate({ children }: { children: ReactNode }
         <Text style={styles.body}>
           The EMR Field App needs your location for site check-ins and to show your current position to your
           supervisor. Please enable location access in Settings.
+        </Text>
+        <Pressable style={styles.button} onPress={() => Linking.openSettings()}>
+          <Text style={styles.buttonText}>Open Settings</Text>
+        </Pressable>
+        <Pressable style={styles.retryButton} onPress={check}>
+          <Text style={styles.retryText}>I&apos;ve enabled it — try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (status === Location.PermissionStatus.GRANTED && androidAccuracy === 'coarse') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Precise location is required</Text>
+        <Text style={styles.body}>
+          The EMR Field App needs your exact location for accurate site check-ins and attendance —
+          &quot;Approximate&quot; location isn&apos;t enough. Please enable Precise location for this app in
+          Settings.
         </Text>
         <Pressable style={styles.button} onPress={() => Linking.openSettings()}>
           <Text style={styles.buttonText}>Open Settings</Text>
