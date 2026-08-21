@@ -1,6 +1,5 @@
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
-import { DEPARTMENTS } from '@/lib/departments'
 import {
   type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
   type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice, type CheckinDriftNotice,
@@ -10,9 +9,13 @@ import {
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
 import { getMyAttendanceStatusCore, getISTDateStr, markAttendanceCore, type AttendanceEffectiveStatus } from './attendance'
 
-const UNASSIGNED_DEPARTMENT = 'Unassigned'
+// Sentinel used in place of a real department UUID for engineers with no
+// department assigned — matches the client-facing '/mobile/department-jobs?dept='
+// query param, since a real department is always a UUID.
+export const UNASSIGNED_DEPARTMENT_ID = 'unassigned'
 
 export interface DepartmentOpenCount {
+  departmentId: string
   department: string
   count: number
 }
@@ -32,7 +35,7 @@ type WorkOrderWithEngineerDept = {
   id: string; wo_number: string; status: string; scheduled_date: string | null
   customers: { name: string } | null
   work_order_transformers: { transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }[]
-  profiles: { first_name: string; last_name: string; department: string | null } | null
+  profiles: { first_name: string; last_name: string; department_id: string | null } | null
 }
 
 // Org-wide, not per-engineer like every other stat on this dashboard — deliberately
@@ -42,24 +45,25 @@ type WorkOrderWithEngineerDept = {
 // is small enough that a JS tally is simpler and safer than embed-filter syntax.
 export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
   try {
-    const { data, error } = await admin
-      .from('work_orders')
-      .select('engineer_id, profiles!work_orders_engineer_id_fkey(department)')
-      .neq('status', 'completed')
+    const [{ data: departments, error: deptError }, { data, error }] = await Promise.all([
+      admin.from('departments').select('id, name').order('name'),
+      admin.from('work_orders').select('engineer_id, profiles!work_orders_engineer_id_fkey(department_id)').neq('status', 'completed'),
+    ])
+    if (deptError) return { counts: [], error: deptError.message }
     if (error) return { counts: [], error: error.message }
 
-    type Row = { engineer_id: string | null; profiles: { department: string | null } | null }
+    type Row = { engineer_id: string | null; profiles: { department_id: string | null } | null }
     const rows = (data as unknown as Row[]) || []
     const tally: Record<string, number> = {}
-    for (const d of DEPARTMENTS) tally[d] = 0
+    for (const d of departments || []) tally[d.id] = 0
     let unassigned = 0
     for (const r of rows) {
-      const dept = r.profiles?.department
-      if (dept && (DEPARTMENTS as readonly string[]).includes(dept)) tally[dept]++
+      const deptId = r.profiles?.department_id
+      if (deptId && deptId in tally) tally[deptId]++
       else unassigned++
     }
-    const counts: DepartmentOpenCount[] = DEPARTMENTS.map(d => ({ department: d, count: tally[d] }))
-    if (unassigned > 0) counts.push({ department: UNASSIGNED_DEPARTMENT, count: unassigned })
+    const counts: DepartmentOpenCount[] = (departments || []).map(d => ({ departmentId: d.id, department: d.name, count: tally[d.id] }))
+    if (unassigned > 0) counts.push({ departmentId: UNASSIGNED_DEPARTMENT_ID, department: 'Unassigned', count: unassigned })
     return { counts, error: null }
   } catch (e: unknown) {
     return { counts: [], error: e instanceof Error ? e.message : String(e) }
@@ -70,19 +74,19 @@ export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{
 // doesn't reuse fetchEngineerWorkOrders/MobileWorkOrder (which are shaped around "my
 // own jobs" and carry per-viewer fields like distanceKm) since this list is about
 // who's assigned what, not the viewer's own relationship to the job.
-export async function getDepartmentOpenJobsCore(admin: AdminClient, department: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
+export async function getDepartmentOpenJobsCore(admin: AdminClient, departmentId: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
   try {
     const { data, error } = await admin
       .from('work_orders')
-      .select(`${WORK_ORDER_SELECT}, profiles!work_orders_engineer_id_fkey(first_name, last_name, department)`)
+      .select(`${WORK_ORDER_SELECT}, profiles!work_orders_engineer_id_fkey(first_name, last_name, department_id)`)
       .neq('status', 'completed')
       .order('scheduled_date', { ascending: true })
     if (error) return { jobs: [], error: error.message }
 
     const rows = (data as unknown as WorkOrderWithEngineerDept[]) || []
     const filtered = rows.filter(r => {
-      const dept = r.profiles?.department
-      return department === UNASSIGNED_DEPARTMENT ? !dept : dept === department
+      const deptId = r.profiles?.department_id
+      return departmentId === UNASSIGNED_DEPARTMENT_ID ? !deptId : deptId === departmentId
     })
 
     const jobs: DepartmentOpenJob[] = filtered.map(r => {

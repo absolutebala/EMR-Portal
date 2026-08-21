@@ -9,7 +9,7 @@ export interface Profile {
   employee_id: string
   email: string
   phone: string | null
-  department: string | null
+  department_id: string | null
   role: UserRole
   is_active: boolean
   invite_pending: boolean

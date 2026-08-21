@@ -38,7 +38,10 @@ export async function inviteUser(payload: {
   role: string
   manager_id: string | null
   grade: string | null
-  department: string | null
+  department_id: string | null
+  // Multi-department assignment (Service Manager and other non-Field-Engineer
+  // roles) — not a profiles column, inserted into profile_departments below.
+  department_ids: string[]
 }): Promise<{ error: string | null; tempPassword?: string }> {
   const currentUser = await getAuthedUser()
   const admin = adminClient()
@@ -108,7 +111,7 @@ export async function inviteUser(payload: {
     role: payload.role,
     manager_id: payload.manager_id,
     grade: payload.grade,
-    department: payload.department,
+    department_id: payload.department_id,
     created_by: createdBy,
     invite_pending: true,
     must_change_password: true,
@@ -118,6 +121,10 @@ export async function inviteUser(payload: {
     // Don't leave an orphaned Cognito identity with no profile row behind.
     await cognitoClient.send(new AdminDeleteUserCommand({ UserPoolId: COGNITO_USER_POOL_ID, Username: payload.email })).catch(() => {})
     return { error: profileError.message }
+  }
+
+  if (payload.department_ids.length) {
+    await admin.from('profile_departments').insert(payload.department_ids.map(department_id => ({ profile_id: profileId, department_id })))
   }
 
   await admin.from('user_module_access').insert({

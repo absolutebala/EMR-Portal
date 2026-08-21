@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import { saveSettings } from '@/app/actions/save-settings'
 import { addHoliday, deleteHoliday, type Holiday } from '@/app/actions/holidays'
+import { addDepartment } from '@/app/actions/departments'
+import type { Department } from '@/lib/departments'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
@@ -82,11 +84,12 @@ interface Props {
   initialSettings: SettingsShape
   settingsId: string | null
   initialHolidays: Holiday[]
+  initialDepartments: Department[]
   userName: string
   userRole: string
 }
 
-export default function SettingsPageClient({ initialSettings, settingsId, initialHolidays, userName, userRole }: Props) {
+export default function SettingsPageClient({ initialSettings, settingsId, initialHolidays, initialDepartments, userName, userRole }: Props) {
   const router = useRouter()
   const [settings, setSettings] = useState<SettingsShape>(initialSettings)
   const [saving, setSaving] = useState<string | null>(null)
@@ -97,6 +100,10 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
   const [addingHoliday, setAddingHoliday] = useState(false)
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null)
   const [holidayError, setHolidayError] = useState('')
+
+  const [newDepartmentName, setNewDepartmentName] = useState('')
+  const [addingDepartment, setAddingDepartment] = useState(false)
+  const [departmentError, setDepartmentError] = useState('')
 
   async function handleAddHoliday() {
     setHolidayError('')
@@ -114,6 +121,17 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
     setDeletingHolidayId(id)
     await deleteHoliday(id)
     setDeletingHolidayId(null)
+    router.refresh()
+  }
+
+  async function handleAddDepartment() {
+    setDepartmentError('')
+    if (!newDepartmentName.trim()) { setDepartmentError('Department name is required'); return }
+    setAddingDepartment(true)
+    const { error } = await addDepartment(newDepartmentName)
+    setAddingDepartment(false)
+    if (error) { setDepartmentError(error); return }
+    setNewDepartmentName('')
     router.refresh()
   }
 
@@ -229,6 +247,40 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
                     {deletingHolidayId === h.id ? 'Removing…' : 'Remove'}
                   </button>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Departments */}
+        <div style={ss}>
+          <h3 style={h3s}>Departments</h3>
+          <p style={ps}>Field Engineers belong to one department; Service Managers (and other roles) can be assigned to one or more. Requests from a Field Engineer — expenses, attendance amendments, product requests — route to whoever&apos;s assigned to their department.</p>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={fl2}>Name</label>
+              <input style={fi2} value={newDepartmentName} onChange={e => setNewDepartmentName(e.target.value)} placeholder="e.g. NIFPS 3" />
+            </div>
+            <button
+              onClick={handleAddDepartment}
+              disabled={addingDepartment}
+              style={{ padding: '9px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: addingDepartment ? .7 : 1, whiteSpace: 'nowrap' }}
+            >
+              {addingDepartment ? 'Adding…' : '+ Add department'}
+            </button>
+          </div>
+
+          {departmentError && <div style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 7, padding: '8px 10px', fontSize: 11, marginBottom: 12 }}>{departmentError}</div>}
+
+          {initialDepartments.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--txm)' }}>No departments added yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {initialDepartments.map(d => (
+                <span key={d.id} style={{ padding: '6px 12px', background: 'var(--gl)', borderRadius: 20, fontSize: 12, color: 'var(--tx)' }}>
+                  {d.name}
+                </span>
               ))}
             </div>
           )}

@@ -593,9 +593,9 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
             const colors = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length]
             return (
               <button
-                key={dept.department}
+                key={dept.departmentId}
                 className="mtap"
-                onClick={() => router.push(`/mobile/department-jobs?dept=${encodeURIComponent(dept.department)}`)}
+                onClick={() => router.push(`/mobile/department-jobs?dept=${encodeURIComponent(dept.departmentId)}&name=${encodeURIComponent(dept.department)}`)}
                 style={{
                   background: '#fff', borderRadius: 12, padding: 12, textAlign: 'left',
                   border: 'none', cursor: 'pointer', boxShadow: '0 1px 4px rgba(125,29,63,0.05)',

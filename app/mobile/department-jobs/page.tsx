@@ -7,7 +7,7 @@ import { getDepartmentOpenJobs } from '@/app/actions/department-jobs'
 import DepartmentJobsClient from './DepartmentJobsClient'
 
 interface Props {
-  searchParams: Promise<{ dept?: string }>
+  searchParams: Promise<{ dept?: string; name?: string }>
 }
 
 export default async function MobileDepartmentJobsPage({ searchParams }: Props) {
@@ -15,9 +15,9 @@ export default async function MobileDepartmentJobsPage({ searchParams }: Props) 
   if (!user) redirect('/mobile/login')
   await requireMobilePasswordChanged(user.id)
 
-  const { dept } = await searchParams
-  const department = dept || ''
-  const { jobs, error } = department ? await getDepartmentOpenJobs(department) : { jobs: [], error: 'No department specified' }
+  const { dept, name } = await searchParams
+  const departmentId = dept || ''
+  const { jobs, error } = departmentId ? await getDepartmentOpenJobs(departmentId) : { jobs: [], error: 'No department specified' }
 
-  return <DepartmentJobsClient department={department} jobs={jobs} error={error} />
+  return <DepartmentJobsClient department={name || 'Department'} jobs={jobs} error={error} />
 }

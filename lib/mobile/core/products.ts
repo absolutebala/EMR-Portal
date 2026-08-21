@@ -1,6 +1,8 @@
 import { logActivity } from '@/lib/activity-log'
 import { type AdminClient, withTimeout } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
+import { notifyUsers } from '@/lib/notifications'
+import { getDepartmentApproverIdsCore } from './departmentApprovers'
 
 export interface Product {
   id: string
@@ -146,12 +148,13 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
     }).select('id').single()
     if (reqError || !request) return { error: reqError?.message || 'Could not create request' }
 
-    const [{ error: itemsError }, { data: actor }, { data: wo }] = await Promise.all([
+    const [{ error: itemsError }, { data: actor }, { data: wo }, { data: submitterProfile }] = await Promise.all([
       admin.from('product_request_items').insert(
         params.items.map(i => ({ request_id: request.id, product_id: i.productId, quantity: i.quantity }))
       ),
       admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle(),
       admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle(),
+      admin.from('profiles').select('department_id').eq('id', userId).maybeSingle(),
     ])
     if (itemsError) return { error: itemsError.message }
 
@@ -161,6 +164,24 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
       action: `Requested ${params.items.length} product${params.items.length > 1 ? 's' : ''} for notification ${wo?.wo_number || ''}`,
       entityType: 'product_request', entityId: request.id,
     }).catch(() => {})
+
+    // Route to whoever's assigned to this engineer's department with Product
+    // Requests — Approve — previously this flow sent no notification at all on
+    // submission, approvers only found it via page access.
+    ;(async () => {
+      const departmentApproverIds = await getDepartmentApproverIdsCore(admin, submitterProfile?.department_id ?? null, 'Product Requests — Approve')
+      const targets = [
+        ...departmentApproverIds.map(id => ({ userId: id })),
+        { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+      ]
+      notifyUsers(admin, targets, {
+        type: 'product_request_pending',
+        title: 'Product request needs approval',
+        body: `${actorName} requested ${params.items.length} product${params.items.length > 1 ? 's' : ''} for ${wo?.wo_number || 'a notification'}.`,
+        entityType: 'product_request', entityId: request.id,
+        linkPath: '/requests',
+      }).catch(() => {})
+    })().catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {

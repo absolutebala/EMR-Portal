@@ -14,6 +14,7 @@
 // process's own timezone (UTC on this app's ECS tasks).
 import { type AdminClient, withTimeout } from './shared'
 import { notifyUsers } from '@/lib/notifications'
+import { getDepartmentApproverIdsCore } from './departmentApprovers'
 
 const IST_TZ = 'Asia/Kolkata'
 const CUTOFF_HOUR = 11 // 11:00 AM IST
@@ -211,15 +212,27 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     if (result.error) return { error: result.error.message, needsApproval: false }
 
     if (late && result.data) {
-      notifyUsers(admin, [{ role: 'Service Manager' }, { role: 'Head of Service' }, { role: 'Super Admin' }], {
-        type: 'attendance_amendment_pending',
-        title: 'Attendance amendment needs approval',
-        body: isToday
-          ? 'An engineer requested to mark today present after the 11am cutoff.'
-          : `An engineer requested to amend their attendance for ${targetDateStr} to Present.`,
-        entityType: 'attendance', entityId: result.data.id,
-        linkPath: '/attendance',
-      }).catch(() => {})
+      // Field Engineers no longer report to one fixed Service Manager — route to
+      // whoever's assigned to this engineer's department with Attendance — Approve
+      // instead of broadcasting to every Service Manager org-wide. Head of Service
+      // and Super Admin stay a global, unscoped safety net.
+      ;(async () => {
+        const { data: profile } = await admin.from('profiles').select('department_id').eq('id', userId).maybeSingle()
+        const departmentApproverIds = await getDepartmentApproverIdsCore(admin, profile?.department_id ?? null, 'Attendance — Approve')
+        const targets = [
+          ...departmentApproverIds.map(id => ({ userId: id })),
+          { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+        ]
+        notifyUsers(admin, targets, {
+          type: 'attendance_amendment_pending',
+          title: 'Attendance amendment needs approval',
+          body: isToday
+            ? 'An engineer requested to mark today present after the 11am cutoff.'
+            : `An engineer requested to amend their attendance for ${targetDateStr} to Present.`,
+          entityType: 'attendance', entityId: result.data!.id,
+          linkPath: '/attendance',
+        }).catch(() => {})
+      })().catch(() => {})
     }
 
     return { error: null, needsApproval: late }
