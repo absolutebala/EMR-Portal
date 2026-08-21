@@ -63,6 +63,8 @@ export default function AccountMenu() {
           }}>
             <button className="mtap" onClick={() => go('/mobile/profile')} style={menuItemStyle}>Profile</button>
             <div style={dividerStyle} />
+            <button className="mtap" onClick={() => go('/mobile/my-analytics')} style={menuItemStyle}>My Analytics</button>
+            <div style={dividerStyle} />
             <button className="mtap" onClick={() => go('/mobile/account-password')} style={menuItemStyle}>Change Password</button>
             <div style={dividerStyle} />
             <button className="mtap" onClick={handleLogout} style={{ ...menuItemStyle, color: '#DC2626' }}>Logout</button>

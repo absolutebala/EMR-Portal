@@ -25,6 +25,10 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   rating: string | null;
   manufacturer: string | null;
   engineer_name?: string | null;
+  // Utility/Industry/OEM classification — "End User Type" in the UI.
+  customer_type: string | null;
+  // Per-transformer detail — additive alongside the flat `serial_numbers` above.
+  transformers: { serialNumber: string; dispatchDate: string | null; warrantyYears: number | null }[];
 }
 
 export interface MobileDashboardStats {
@@ -85,7 +89,15 @@ export interface MobileWorkOrderDetail {
     materialsRequired: string | null;
   } | null;
   handoverFromOtherEngineer: boolean;
+  // Gates the "View form entries filled by X" button — whether the PREVIOUS
+  // (handover) engineer has their own submission, independent of whether the
+  // viewing engineer has theirs.
+  handoverEngineerHasFormSubmission: boolean;
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[];
+  // Which serials this engineer is scoped to when the notification covers 2+
+  // transformers and they're an additional (non-primary) assignee — null when
+  // not applicable (primary engineer, or a single-transformer job).
+  myAssignedSerials: string[] | null;
 }
 
 // ── Endpoint response shapes ────────────────────────────────────────────────────
@@ -157,6 +169,63 @@ export interface DashboardResponse {
   streak: EngineerStreak;
   pendingProducts: PendingProductItem[];
   attendanceStatus: AttendanceEffectiveStatus;
+  error: string | null;
+}
+
+export interface DepartmentOpenCount {
+  departmentId: string;
+  department: string;
+  count: number;
+}
+
+export interface DepartmentCountsResponse {
+  counts: DepartmentOpenCount[];
+  error: string | null;
+}
+
+export interface DepartmentOpenJob {
+  id: string;
+  woNumber: string;
+  customerName: string;
+  siteName: string | null;
+  serialNumbers: string[];
+  status: string;
+  scheduledDate: string | null;
+  engineerName: string;
+}
+
+export interface DepartmentJobsResponse {
+  jobs: DepartmentOpenJob[];
+  error: string | null;
+}
+
+export interface EngineerAnalyticsSummary {
+  assigned: number;
+  resolved: number;
+  reassigned: number;
+  expenseTotal: number;
+  present: number;
+  leave: number;
+}
+
+export interface MyAnalyticsResponse {
+  summary: EngineerAnalyticsSummary;
+  error: string | null;
+}
+
+export type AnalyticsMetric = 'assigned' | 'resolved' | 'reassigned' | 'expenses' | 'present' | 'leave';
+
+export interface AnalyticsDrilldownRow {
+  id: string;
+  woNumber: string | null;
+  customerName: string | null;
+  status: string | null;
+  date: string | null;
+  amount: number | null;
+}
+
+export interface MyAnalyticsDrilldownResponse {
+  rows: AnalyticsDrilldownRow[];
   error: string | null;
 }
 
@@ -312,6 +381,10 @@ export interface WorkOrderFormResponse {
   workOrder: MobileWorkOrderWithCustomer | null;
   form: MobileForm | null;
   existingSubmission: { id: string; form_data: { fields: Record<string, string>; table_rows: Record<string, { status: string; remarks: string }> } } | null;
+  // Set when fetched with ?view=<engineerId> — viewing a handover engineer's own
+  // submission read-only, not the current viewer's own (possibly still-editable) one.
+  readOnly: boolean;
+  viewedEngineerName: string | null;
   error: string | null;
 }
 

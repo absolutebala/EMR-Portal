@@ -11,10 +11,11 @@ import TableSection from '@/components/form/TableSection';
 import type { FieldValues, RowValues } from '@/lib/types';
 
 export default function JobFormScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, view } = useLocalSearchParams<{ id: string; view?: string }>();
   const router = useRouter();
-  const { data, isLoading, error: loadError } = useJobForm(id);
+  const { data, isLoading, error: loadError } = useJobForm(id, view);
   const submitJobForm = useSubmitJobForm();
+  const readOnly = !!data?.readOnly;
 
   const [fieldValues, setFieldValues] = useState<FieldValues>({});
   const [rowValues, setRowValues] = useState<RowValues>({});
@@ -38,7 +39,9 @@ export default function JobFormScreen() {
       let loadedFields: FieldValues = {};
       let loadedRows: RowValues = {};
 
-      const raw = await AsyncStorage.getItem(draftKey);
+      // Read-only (viewing a handover engineer's submission): always show their
+      // existingSubmission, never the current viewer's own local draft for this job.
+      const raw = readOnly ? null : await AsyncStorage.getItem(draftKey);
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -67,7 +70,7 @@ export default function JobFormScreen() {
       setRowValues(loadedRows);
       setLoadedDraft(true);
     })();
-  }, [data, loadedDraft, draftKey]);
+  }, [data, loadedDraft, draftKey, readOnly]);
 
   // Autosave every 5s (not on every keystroke) — a ref holds the latest values so the
   // interval always saves current state without needing to be recreated on every change.
@@ -75,7 +78,7 @@ export default function JobFormScreen() {
   latestValuesRef.current = { fieldValues, rowValues };
 
   useEffect(() => {
-    if (!loadedDraft) return;
+    if (!loadedDraft || readOnly) return;
     async function saveDraft() {
       try {
         await AsyncStorage.setItem(draftKey, JSON.stringify({
@@ -88,7 +91,7 @@ export default function JobFormScreen() {
     }
     const interval = setInterval(saveDraft, 5000);
     return () => { saveDraft(); clearInterval(interval); };
-  }, [draftKey, loadedDraft]);
+  }, [draftKey, loadedDraft, readOnly]);
 
   const setField = useCallback((fieldId: string, value: string) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
@@ -225,6 +228,12 @@ export default function JobFormScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: true, title: workOrder.wo_number, headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <ScrollView contentContainerStyle={styles.content}>
+        {readOnly && (
+          <View style={styles.readOnlyBanner}>
+            <Text style={styles.readOnlyBannerText}>Viewing form filled by {data?.viewedEngineerName || 'another engineer'} — read only</Text>
+          </View>
+        )}
+        <View style={readOnly ? styles.readOnlyBody : undefined} pointerEvents={readOnly ? 'none' : 'auto'}>
         <View style={styles.summaryCard}>
           <Text style={styles.jobTypeBadgeText}>{JOB_TYPE_LABELS[workOrder.job_type] || workOrder.job_type}</Text>
           {workOrder.serial_numbers.length > 0 && (
@@ -274,9 +283,10 @@ export default function JobFormScreen() {
             })}
           </>
         )}
+        </View>
       </ScrollView>
 
-      {!!form && (
+      {!!form && !readOnly && (
         <View style={styles.footer}>
           {!!submitError && <Text style={styles.footerError}>{submitError}</Text>}
           <Pressable style={[styles.submitButton, submitting && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={submitting}>
@@ -297,6 +307,9 @@ const styles = StyleSheet.create({
   successButton: { backgroundColor: '#7D1D3F', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32 },
   successButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   content: { padding: 16, paddingBottom: 110 },
+  readOnlyBanner: { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 10, padding: 10, marginBottom: 12 },
+  readOnlyBannerText: { fontSize: 11, fontWeight: '600', color: '#9A3412' },
+  readOnlyBody: { opacity: 0.65 },
   summaryCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#E5E0E3' },
   jobTypeBadgeText: { alignSelf: 'flex-start', backgroundColor: '#F9EEF2', color: '#7D1D3F', fontSize: 11, fontWeight: '500', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, overflow: 'hidden' },
   summarySerials: { fontSize: 11, color: '#7A6870', marginTop: 8 },

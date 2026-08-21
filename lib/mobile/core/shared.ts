@@ -86,19 +86,26 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   rating: string | null
   manufacturer: string | null
   engineer_name?: string | null
+  // Utility/Industry/OEM classification — desktop-only concept until now
+  // ("End User Type" in the desktop UI, `customer_type` in code/DB).
+  customer_type: string | null
+  // Per-transformer detail (dispatch date, warranty years) — additive alongside the
+  // flat `serial_numbers` on the base MobileWorkOrder, which stays as-is since it's
+  // used broadly for lists/distance display. Desktop-only concept until now.
+  transformers: { serialNumber: string; dispatchDate: string | null; warrantyYears: number | null }[]
 }
 
 type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
-  scheduled_date: string | null; notes: string | null; customer_id: string
+  scheduled_date: string | null; notes: string | null; customer_id: string; customer_type: string | null
   customers: { name: string; contact_person: string; phone: string } | null
-  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
+  work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; dispatch_date: string | null; warranty_years: number | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 export const WORK_ORDER_SELECT = `
-  id, wo_number, job_type, status, scheduled_date, notes, customer_id,
+  id, wo_number, job_type, status, scheduled_date, notes, customer_id, customer_type,
   customers ( name, contact_person, phone ),
-  work_order_transformers ( transformers ( serial_number, rating, manufacturer, customer_sites ( id, site_name, site_address ) ) )
+  work_order_transformers ( transformers ( serial_number, rating, manufacturer, dispatch_date, warranty_years, customer_sites ( id, site_name, site_address ) ) )
 `
 
 // Site coordinates are looked up via a separate flat query (like getSiteCoordinates()
@@ -210,6 +217,10 @@ export async function fetchSingleWorkOrder(admin: AdminClient, woId: string): Pr
     site_address: rows[0]?.transformers?.customer_sites?.site_address || null,
     rating: rows[0]?.transformers?.rating || null,
     manufacturer: rows[0]?.transformers?.manufacturer || null,
+    customer_type: w.customer_type,
+    transformers: rows
+      .filter((r): r is typeof r & { transformers: NonNullable<(typeof rows)[number]['transformers']> } => !!r.transformers?.serial_number)
+      .map(r => ({ serialNumber: r.transformers!.serial_number, dispatchDate: r.transformers!.dispatch_date, warrantyYears: r.transformers!.warranty_years })),
   }
 }
 

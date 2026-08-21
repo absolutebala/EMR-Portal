@@ -341,11 +341,27 @@ export default function JobDetailClient({ detail }: Props) {
           <InfoRow label="Scheduled date" value={formatDate(wo.scheduled_date)} last />
         </div>
 
+        {wo.transformers.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Transformers</p>
+            {wo.transformers.map((t, i) => (
+              <div key={t.serialNumber + i} style={{ padding: '8px 0', borderTop: i > 0 ? '1px solid #F5F3F5' : undefined }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{t.serialNumber}</div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#7A6870' }}>
+                  <span>Dispatch date: {formatDate(t.dispatchDate)}</span>
+                  <span>Warranty: {t.warrantyYears != null ? `${t.warrantyYears} yr${t.warrantyYears === 1 ? '' : 's'}` : '—'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Customer information</p>
           <InfoRow label="Customer" value={wo.customer_name} />
           <InfoRow label="Contact" value={wo.customer_contact || '—'} />
           <InfoRow label="Phone" value={wo.customer_phone || '—'} />
+          <InfoRow label="End user type" value={wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—'} />
           <InfoRow label="Project" value={wo.site_name || '—'} />
           <InfoRow label="Project address" value={wo.site_address || '—'} last />
         </div>

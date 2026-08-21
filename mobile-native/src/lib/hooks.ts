@@ -15,12 +15,47 @@ import type {
   ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
+  DepartmentCountsResponse, DepartmentJobsResponse,
+  MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
 } from './types';
 
 export function useDashboard() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: () => apiGet<DashboardResponse>('/api/mobile/v1/dashboard'),
+  });
+}
+
+// Org-wide, not per-engineer like the rest of the dashboard — a dispatcher-style
+// view of open-notification load per department, matching the PWA dashboard's
+// department cards.
+export function useDepartmentCounts() {
+  return useQuery({
+    queryKey: ['department-counts'],
+    queryFn: () => apiGet<DepartmentCountsResponse>('/api/mobile/v1/dashboard/department-counts'),
+  });
+}
+
+export function useDepartmentJobs(dept: string | undefined) {
+  return useQuery({
+    queryKey: ['department-jobs', dept],
+    queryFn: () => apiGet<DepartmentJobsResponse>(`/api/mobile/v1/dashboard/department-jobs?dept=${encodeURIComponent(dept!)}`),
+    enabled: !!dept,
+  });
+}
+
+export function useMyAnalytics(month: string) {
+  return useQuery({
+    queryKey: ['my-analytics', month],
+    queryFn: () => apiGet<MyAnalyticsResponse>(`/api/mobile/v1/user-analytics?month=${month}`),
+  });
+}
+
+export function useMyAnalyticsDrilldown(month: string, metric: AnalyticsMetric | null) {
+  return useQuery({
+    queryKey: ['my-analytics-drilldown', month, metric],
+    queryFn: () => apiGet<MyAnalyticsDrilldownResponse>(`/api/mobile/v1/user-analytics/drilldown?month=${month}&metric=${metric}`),
+    enabled: !!metric,
   });
 }
 
@@ -127,10 +162,12 @@ export function useSubmitClosure() {
   });
 }
 
-export function useJobForm(workOrderId: string | undefined) {
+// view: pass the handover engineer's id to fetch their submission read-only instead
+// of the current viewer's own.
+export function useJobForm(workOrderId: string | undefined, view?: string) {
   return useQuery({
-    queryKey: [WORK_ORDER_FORM_QUERY_KEY, workOrderId],
-    queryFn: () => apiGet<WorkOrderFormResponse>(`/api/mobile/v1/work-orders/${workOrderId}/form`),
+    queryKey: [WORK_ORDER_FORM_QUERY_KEY, workOrderId, view],
+    queryFn: () => apiGet<WorkOrderFormResponse>(`/api/mobile/v1/work-orders/${workOrderId}/form${view ? `?view=${view}` : ''}`),
     enabled: !!workOrderId,
   });
 }

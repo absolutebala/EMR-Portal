@@ -128,11 +128,27 @@ export default function WorkOrderDetailScreen() {
         <InfoRow label="Scheduled date" value={formatDate(wo.scheduled_date)} last />
       </View>
 
+      {wo.transformers.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Transformers</Text>
+          {wo.transformers.map((t, i) => (
+            <View key={t.serialNumber + i} style={[styles.transformerRow, i > 0 && styles.transformerRowBordered]}>
+              <Text style={styles.transformerSerial}>{t.serialNumber}</Text>
+              <View style={styles.transformerMetaRow}>
+                <Text style={styles.transformerMeta}>Dispatch date: {formatDate(t.dispatchDate)}</Text>
+                <Text style={styles.transformerMeta}>Warranty: {t.warrantyYears != null ? `${t.warrantyYears} yr${t.warrantyYears === 1 ? '' : 's'}` : '—'}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Customer information</Text>
         <InfoRow label="Customer" value={wo.customer_name} />
         <InfoRow label="Contact" value={wo.customer_contact || '—'} />
         <InfoRow label="Phone" value={wo.customer_phone || '—'} />
+        <InfoRow label="End user type" value={wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—'} />
         <InfoRow label="Project" value={wo.site_name || '—'} />
         <InfoRow label="Project address" value={wo.site_address || '—'} last />
       </View>
@@ -152,7 +168,15 @@ export default function WorkOrderDetailScreen() {
             }
             last={!detail.latestClosure.pendingReason}
           />
-          {!!detail.latestClosure.pendingReason && <InfoRow label="Reason" value={detail.latestClosure.pendingReason} last />}
+          {!!detail.latestClosure.pendingReason && <InfoRow label="Reason" value={detail.latestClosure.pendingReason} last={!detail.handoverEngineerHasFormSubmission} />}
+          {detail.handoverEngineerHasFormSubmission && (
+            <Pressable
+              style={styles.handoverFormButton}
+              onPress={() => router.push({ pathname: '/(app)/work-orders/[id]/form', params: { id, view: detail.latestClosure!.engineerId! } })}
+            >
+              <Text style={styles.handoverFormButtonText}>View form entries filled by {detail.latestClosure.engineerName}</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -231,6 +255,13 @@ const styles = StyleSheet.create({
 
   handoverCard: { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' },
   handoverTitle: { fontSize: 12, fontWeight: '600', color: '#9A3412', marginBottom: 8 },
+  handoverFormButton: { marginTop: 10, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#FED7AA', backgroundColor: '#fff', alignItems: 'center' },
+  handoverFormButtonText: { fontSize: 11, fontWeight: '600', color: '#9A3412' },
+  transformerRow: { paddingVertical: 8 },
+  transformerRowBordered: { borderTopWidth: 1, borderTopColor: '#F5F3F5' },
+  transformerSerial: { fontSize: 12, fontWeight: '600', color: '#1C0D14', marginBottom: 4 },
+  transformerMetaRow: { flexDirection: 'row', gap: 16 },
+  transformerMeta: { fontSize: 11, color: '#7A6870' },
 
   visitRow: { backgroundColor: '#F8F5F6', borderRadius: 8, padding: 10, marginBottom: 6 },
   visitJobType: { fontSize: 12, fontWeight: '500', color: '#1C0D14' },

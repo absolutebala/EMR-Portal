@@ -22,7 +22,7 @@ export default function AccountMenu({ avatarUrl, name }: Props) {
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
-  function go(path: '/(app)/profile' | '/(app)/account-password') {
+  function go(path: '/(app)/profile' | '/(app)/my-analytics' | '/(app)/account-password') {
     setOpen(false);
     router.push(path);
   }
@@ -43,6 +43,10 @@ export default function AccountMenu({ avatarUrl, name }: Props) {
             <View style={styles.menu}>
               <Pressable style={styles.menuItem} onPress={() => go('/(app)/profile')}>
                 <Text style={styles.menuItemText}>Profile</Text>
+              </Pressable>
+              <View style={styles.divider} />
+              <Pressable style={styles.menuItem} onPress={() => go('/(app)/my-analytics')}>
+                <Text style={styles.menuItemText}>My Analytics</Text>
               </Pressable>
               <View style={styles.divider} />
               <Pressable style={styles.menuItem} onPress={() => go('/(app)/account-password')}>

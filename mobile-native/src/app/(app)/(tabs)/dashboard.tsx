@@ -3,7 +3,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
 import JobCard from '@/components/JobCard';
 import AccountMenu from '@/components/AccountMenu';
@@ -12,11 +12,17 @@ import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
 import type { AttendanceEffectiveStatus } from '@/lib/types';
 
-const STAT_CARDS: { key: 'assigned' | 'inProgress' | 'needsReassignment' | 'completed'; label: string; color: string }[] = [
-  { key: 'assigned', label: 'Assigned', color: '#92400E' },
-  { key: 'inProgress', label: 'In Progress', color: '#1E40AF' },
-  { key: 'needsReassignment', label: 'Need Reassign', color: '#9A3412' },
-  { key: 'completed', label: 'Completed', color: '#065F46' },
+// Org-wide open-notification counts per department, cycled across a fixed palette
+// purely for visual variety (no per-department meaning) — matches the PWA
+// dashboard's DEPARTMENT_CARD_COLORS.
+const DEPARTMENT_CARD_COLORS = [
+  { color: '#2563EB', bg: '#DBEAFE' },
+  { color: '#D97706', bg: '#FEF3C7' },
+  { color: '#7D1D3F', bg: '#F9EEF2' },
+  { color: '#059669', bg: '#D1FAE5' },
+  { color: '#5B21B6', bg: '#EDE9FE' },
+  { color: '#EA580C', bg: '#FED7AA' },
+  { color: '#475569', bg: '#F1F5F9' },
 ];
 
 // Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 11am window is
@@ -47,6 +53,7 @@ export default function DashboardScreen() {
   const { engineerName } = useAuth();
   const { data, isLoading, error } = useDashboard();
   const { data: alertsData } = useAlerts();
+  const { data: deptData } = useDepartmentCounts();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
@@ -124,12 +131,20 @@ export default function DashboardScreen() {
       })()}
 
       <View style={styles.statsGrid}>
-        {STAT_CARDS.map(card => (
-          <View key={card.key} style={styles.statCard}>
-            <Text style={[styles.statValue, { color: card.color }]}>{data?.stats[card.key] ?? 0}</Text>
-            <Text style={styles.statLabel}>{card.label}</Text>
-          </View>
-        ))}
+        {(deptData?.counts ?? []).map((dept, i) => {
+          const c = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length];
+          return (
+            <Pressable
+              key={dept.departmentId}
+              style={[styles.statCard, { borderTopWidth: 3, borderTopColor: c.color }]}
+              onPress={() => router.push({ pathname: '/(app)/department-jobs/[dept]', params: { dept: dept.departmentId, name: dept.department } })}
+            >
+              <Text style={[styles.statValue, { color: c.color }]}>{dept.count}</Text>
+              <Text style={styles.statLabel}>{dept.department}</Text>
+              <Text style={styles.statSubLabel}>open</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {data?.streak && <StreakStrip streak={data.streak} />}
@@ -179,6 +194,7 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 22, fontWeight: '700' },
   statLabel: { fontSize: 11, color: '#7A6870', marginTop: 2 },
+  statSubLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 1 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: '#1C0D14', marginBottom: 10 },
   empty: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', paddingVertical: 24 },
 });

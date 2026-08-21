@@ -39,6 +39,13 @@ function monthRangeFor(dateStr: string): { from: string; to: string } {
   return { from: toDateStr(from), to: toDateStr(to) };
 }
 
+// Same {from, to, label} shape as weekRange so the rest of the screen doesn't need
+// to branch on view mode — just wraps monthRangeFor with a month-name label.
+function monthRange(anchor: Date): { from: string; to: string; label: string } {
+  const { from, to } = monthRangeFor(toDateStr(anchor));
+  return { from, to, label: anchor.toLocaleDateString('en-IN', { month: 'long' }) };
+}
+
 function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string } {
   switch (status.kind) {
     case 'present': return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present' };
@@ -99,7 +106,8 @@ async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: s
 
 export default function AttendanceScreen() {
   const [anchorDate, setAnchorDate] = useState(new Date());
-  const range = weekRange(anchorDate);
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const range = viewMode === 'week' ? weekRange(anchorDate) : monthRange(anchorDate);
   const todayStr = toDateStr(new Date());
 
   const { data, isLoading, error } = useAttendanceCalendar(range.from, range.to);
@@ -128,8 +136,20 @@ export default function AttendanceScreen() {
   const isLate = todayStatus?.kind === 'leave';
   const isPendingApproval = todayStatus?.kind === 'leave' && todayStatus.pendingApproval;
 
-  function goPrev() { setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; }); }
-  function goNext() { setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; }); }
+  function goPrev() {
+    setAnchorDate(d => {
+      if (viewMode === 'week') { const n = new Date(d); n.setDate(n.getDate() - 7); return n; }
+      // Built from year/month directly (day pinned to 1) rather than mutating the
+      // existing day-of-month — avoids JS's month-rollover quirk.
+      return new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    });
+  }
+  function goNext() {
+    setAnchorDate(d => {
+      if (viewMode === 'week') { const n = new Date(d); n.setDate(n.getDate() + 7); return n; }
+      return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    });
+  }
 
   function startGpsCapture() {
     setGpsRequested(true);
@@ -236,11 +256,18 @@ export default function AttendanceScreen() {
       <Stack.Screen options={{ headerShown: true, title: 'Attendance', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
 
       <View style={styles.weekNav}>
-        <Pressable style={styles.navButton} onPress={goPrev} accessibilityLabel="Previous week">
+        <Pressable style={styles.navButton} onPress={goPrev} accessibilityLabel={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
           <Text style={styles.navButtonText}>‹</Text>
         </Pressable>
-        <Text style={styles.weekLabel}>{range.label}</Text>
-        <Pressable style={styles.navButton} onPress={goNext} accessibilityLabel="Next week">
+        <View style={styles.tabPill}>
+          <Pressable style={[styles.tabButton, viewMode === 'week' && styles.tabButtonActive]} onPress={() => setViewMode('week')}>
+            <Text style={[styles.tabButtonText, viewMode === 'week' && styles.tabButtonTextActive]}>{viewMode === 'week' ? range.label : 'Week'}</Text>
+          </Pressable>
+          <Pressable style={[styles.tabButton, viewMode === 'month' && styles.tabButtonActive]} onPress={() => setViewMode('month')}>
+            <Text style={[styles.tabButtonText, viewMode === 'month' && styles.tabButtonTextActive]}>{viewMode === 'month' ? range.label : 'Month'}</Text>
+          </Pressable>
+        </View>
+        <Pressable style={styles.navButton} onPress={goNext} accessibilityLabel={viewMode === 'week' ? 'Next week' : 'Next month'}>
           <Text style={styles.navButtonText}>›</Text>
         </Pressable>
       </View>
@@ -367,10 +394,16 @@ export default function AttendanceScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F5F6' },
   content: { padding: 16, paddingBottom: 32 },
-  weekNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  weekNav: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   navButton: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   navButtonText: { fontSize: 18, color: '#1C0D14', fontWeight: '600' },
-  weekLabel: { fontSize: 13, fontWeight: '700', color: '#1C0D14' },
+  tabPill: { flex: 1, flexDirection: 'row', gap: 3, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: 3 },
+  tabButton: { flex: 1, paddingVertical: 7, borderRadius: 7, alignItems: 'center' },
+  tabButtonActive: {
+    backgroundColor: '#fff', shadowColor: '#7D1D3F', shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1,
+  },
+  tabButtonText: { fontSize: 12, fontWeight: '700', color: '#7A6870' },
+  tabButtonTextActive: { color: '#1C0D14' },
   exportRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   exportButton: { flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#7D1D3F', backgroundColor: '#fff', alignItems: 'center' },
   exportButtonDisabled: { opacity: 0.6 },
