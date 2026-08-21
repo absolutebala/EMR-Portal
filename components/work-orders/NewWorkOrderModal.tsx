@@ -95,6 +95,10 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       getNextTicketNumberPreview().then(({ ticketNumber: t }) => setTicketNumber(t))
       getAssignableEngineers().then(({ engineers: eng }) => setEngineers(eng))
       setReportedDate(new Date().toLocaleDateString('en-CA'))
+      // Scheduled date only accepts today-or-later (see the input's `min` below) —
+      // default it to today so the user adjusts a pre-filled date rather than
+      // typing one from scratch.
+      setScheduledDate(new Date().toLocaleDateString('en-CA'))
     }
   }, [open, prefillCustomerId])
 

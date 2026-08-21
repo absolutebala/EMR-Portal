@@ -318,7 +318,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       job_type: wo.job_type,
       transformer_ids: wo.transformer_ids || [],
       engineer_id: wo.engineer_id || '',
-      scheduled_date: wo.scheduled_date || '',
+      // Defaults to today (not blank) when there's no existing scheduled date —
+      // the field only accepts today-or-later, so the user adjusts a pre-filled
+      // date rather than typing one from scratch.
+      scheduled_date: wo.scheduled_date || new Date().toLocaleDateString('en-CA'),
       notes: wo.notes || '',
       reported_date: wo.reported_date || '',
       reported_through: wo.reported_through || '',

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { logout } from '@/app/actions/logout'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
+import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
 import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
@@ -104,7 +104,10 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
   const [queue, setQueue] = useState(overdueFollowUps)
   const [askingAtSite, setAskingAtSite] = useState<{ workOrderId: string; action: 'completed' | 'reschedule' } | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [newDate, setNewDate] = useState('')
+  // Defaults to today (not blank) — the field only accepts today-or-later (see
+  // its `min` prop below), so the user adjusts a pre-filled date instead of
+  // typing one from scratch.
+  const [newDate, setNewDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [dateFocused, setDateFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [rescheduleError, setRescheduleError] = useState('')
@@ -163,12 +166,6 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
       setQueue(q => q.some(f => f.workOrderId === followUp.workOrderId) ? q : [...q, followUp])
     }).catch(() => {})
   }, [])
-
-  async function handleLogout() {
-    await logout()
-    router.push('/mobile/login')
-    router.refresh()
-  }
 
   function openStatusModal() {
     setStatusStep('choose')
@@ -375,7 +372,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
                   <button
                     className="mtap"
                     onClick={() => {
-                      if (askingAtSite.action === 'reschedule') { setAskingAtSite(null); setReschedulingId(current.workOrderId) }
+                      if (askingAtSite.action === 'reschedule') { setAskingAtSite(null); setReschedulingId(current.workOrderId); setNewDate(new Date().toLocaleDateString('en-CA')) }
                       else router.push(`/mobile/work-orders/${current.workOrderId}/closure?offsite=1`)
                     }}
                     style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E5E0E3', background: '#fff', color: '#1C0D14', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
@@ -492,17 +489,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
                 </div>
               )}
             </button>
-            <button
-              className="mtap"
-              onClick={handleLogout}
-              style={{
-                background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
-                padding: '7px 12px', fontSize: 11, color: '#fff', cursor: 'pointer',
-                fontFamily: 'Poppins, sans-serif', fontWeight: 500,
-              }}
-            >
-              Sign out
-            </button>
+            <AccountMenu />
           </div>
         }
       />
@@ -628,7 +615,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: '#7A6870', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
-            Recent jobs
+            Your next jobs
           </p>
           <button
             className="mtap"

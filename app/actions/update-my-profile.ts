@@ -2,7 +2,19 @@
 
 import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/db/admin-client'
-import { updateMyProfileCore, changeMyPasswordCore } from '@/lib/mobile/core/profile'
+import { getMyProfileCore, updateMyProfileCore, uploadMyAvatarCore, changeMyPasswordCore, type MyProfile } from '@/lib/mobile/core/profile'
+
+export async function getMyProfile(): Promise<{ profile: MyProfile | null; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { profile: null, error: 'Not authenticated' }
+  return getMyProfileCore(adminClient(), user.id)
+}
+
+export async function uploadMyAvatar(photo: { base64: string; mimeType: string; ext: string }): Promise<{ url: string | null; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { url: null, error: 'Not authenticated' }
+  return uploadMyAvatarCore(adminClient(), user.id, photo)
+}
 
 export async function updateMyProfile(updates: {
   first_name: string

@@ -136,7 +136,7 @@ export default function DashboardScreen() {
 
       {data?.pendingProducts && <PendingProductsCard items={data.pendingProducts} />}
 
-      <Text style={styles.sectionTitle}>Recent jobs</Text>
+      <Text style={styles.sectionTitle}>Your next jobs</Text>
       {data?.recentJobs.length ? (
         data.recentJobs.map(wo => <JobCard key={wo.id} wo={wo} />)
       ) : (

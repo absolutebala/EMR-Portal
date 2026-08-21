@@ -43,7 +43,10 @@ export default function ClosureView({ workOrder }: Props) {
   const [summary, setSummary] = useState('')
   const [pendingReason, setPendingReason] = useState(PENDING_REASONS[0])
   const [materialsRequired, setMaterialsRequired] = useState('')
-  const [revisitDate, setRevisitDate] = useState('')
+  // Defaults to today (not blank) — the field only accepts today-or-later (see
+  // its `min` prop below), so the user adjusts a pre-filled date instead of
+  // typing one from scratch.
+  const [revisitDate, setRevisitDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [needsReassignment, setNeedsReassignment] = useState(false)
   const [engineerSignature, setEngineerSignature] = useState('')
   const [clientName, setClientName] = useState('')

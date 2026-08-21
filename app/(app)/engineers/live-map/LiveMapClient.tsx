@@ -30,9 +30,18 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
 }
 
-// Grouping order for the engineer list — active/en-route engineers first (the
-// ones a dispatcher most needs to see), then available, then wound-down states.
-const STATUS_GROUP_ORDER = ['on_the_way', 'travelling', 'reached', 'available', 'completed', 'on_leave'] as const
+const UNKNOWN_LOCATION = 'Unknown location'
+
+// extractPlaceLabel (lib/geocode.ts) builds placeName as "locality, city, state"
+// when a state is available from the reverse-geocode response — the last segment
+// is the state in the common case. No separate state field is stored anywhere, so
+// this is derived client-side from the same string already shown as "last seen".
+function deriveState(placeName: string | null): string {
+  if (!placeName) return UNKNOWN_LOCATION
+  const parts = placeName.split(',').map(p => p.trim()).filter(Boolean)
+  if (parts.length < 2) return UNKNOWN_LOCATION
+  return parts[parts.length - 1]
+}
 
 function formatRelativeTime(at: string): string {
   const ageMs = Date.now() - new Date(at).getTime()
@@ -43,6 +52,11 @@ function formatRelativeTime(at: string): string {
   if (hours < 24) return `${hours} hr ago`
   const days = Math.round(hours / 24)
   return `${days} day${days !== 1 ? 's' : ''} ago`
+}
+
+function formatScheduledDate(dateStr: string | null): string {
+  if (!dateStr) return 'Not scheduled'
+  return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 interface Props {
@@ -71,6 +85,24 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
     if (!q) return engineers
     return engineers.filter(e => e.name.toLowerCase().includes(q))
   }, [engineers, search])
+
+  // Alphabetical by state name — geography has no natural priority order (unlike
+  // status, which favored active/en-route engineers first) — with engineers whose
+  // location can't be resolved to a state grouped last.
+  const groupedByState = useMemo(() => {
+    const groups = new Map<string, FieldEngineerOverview[]>()
+    for (const e of filteredEngineers) {
+      const state = deriveState(e.lastSeen?.placeName ?? null)
+      const list = groups.get(state)
+      if (list) list.push(e)
+      else groups.set(state, [e])
+    }
+    return [...groups.entries()].sort(([a], [b]) => {
+      if (a === UNKNOWN_LOCATION) return 1
+      if (b === UNKNOWN_LOCATION) return -1
+      return a.localeCompare(b)
+    })
+  }, [filteredEngineers])
 
   return (
     <>
@@ -103,43 +135,45 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
               />
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {STATUS_GROUP_ORDER.map(status => {
-                const group = filteredEngineers.filter(e => e.status === status)
-                if (!group.length) return null
-                const cfg = STATUS_CFG[status]
-                return (
-                  <div key={status}>
-                    <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: cfg.color, background: cfg.bg + '55', textTransform: 'uppercase', letterSpacing: '.4px' }}>
-                      {cfg.label} ({group.length})
-                    </div>
-                    {group.map(e => {
-                      const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
-                      return (
-                        <div
-                          key={e.id}
-                          onClick={() => hasLocation && setSelectedId(e.id)}
-                          style={{
-                            padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
-                            background: selectedId === e.id ? 'var(--mp)' : 'transparent',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                          </div>
-                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
-                          </div>
-                          {hasLocation && (
-                            <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
-                              Last seen {formatRelativeTime(e.lastSeen!.at)}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
+              {groupedByState.map(([state, group]) => (
+                <div key={state}>
+                  <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', background: 'var(--gl)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                    {state} ({group.length})
                   </div>
-                )
-              })}
+                  {group.map(e => {
+                    const cfg = STATUS_CFG[e.status] || STATUS_CFG.available
+                    const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
+                    return (
+                      <div
+                        key={e.id}
+                        onClick={() => hasLocation && setSelectedId(e.id)}
+                        style={{
+                          padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
+                          background: selectedId === e.id ? 'var(--mp)' : 'transparent',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{cfg.label}</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
+                        </div>
+                        {hasLocation && (
+                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
+                            Last seen {formatRelativeTime(e.lastSeen!.at)}
+                          </div>
+                        )}
+                        {e.nextAssigned && (
+                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Next: {e.nextAssigned.customerName || 'Notification'} — {formatScheduledDate(e.nextAssigned.scheduledDate)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
               {filteredEngineers.length === 0 && (
                 <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>No engineers match “{search}”.</div>
               )}
