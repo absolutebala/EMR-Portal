@@ -1,13 +1,108 @@
 import { logActivity as logSystemActivity } from '@/lib/activity-log'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
+import { DEPARTMENTS } from '@/lib/departments'
 import {
   type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
   type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice, type CheckinDriftNotice,
   withTimeout, touchHeartbeat, haversineKm, fetchEngineerWorkOrders, getEngineerName, reverseGeocodeCore,
-  logActivity,
+  logActivity, WORK_ORDER_SELECT,
 } from './shared'
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
 import { getMyAttendanceStatusCore, getISTDateStr, markAttendanceCore, type AttendanceEffectiveStatus } from './attendance'
+
+const UNASSIGNED_DEPARTMENT = 'Unassigned'
+
+export interface DepartmentOpenCount {
+  department: string
+  count: number
+}
+
+export interface DepartmentOpenJob {
+  id: string
+  woNumber: string
+  customerName: string
+  siteName: string | null
+  serialNumbers: string[]
+  status: string
+  scheduledDate: string | null
+  engineerName: string
+}
+
+type WorkOrderWithEngineerDept = {
+  id: string; wo_number: string; status: string; scheduled_date: string | null
+  customers: { name: string } | null
+  work_order_transformers: { transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }[]
+  profiles: { first_name: string; last_name: string; department: string | null } | null
+}
+
+// Org-wide, not per-engineer like every other stat on this dashboard — deliberately
+// scoped that way (see plan): a dispatcher-style view of open notification load per
+// department, tallied client-side over a single flat query rather than relying on a
+// PostgREST inner-join filter, since the row count here (open notifications org-wide)
+// is small enough that a JS tally is simpler and safer than embed-filter syntax.
+export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
+  try {
+    const { data, error } = await admin
+      .from('work_orders')
+      .select('engineer_id, profiles!work_orders_engineer_id_fkey(department)')
+      .neq('status', 'completed')
+    if (error) return { counts: [], error: error.message }
+
+    type Row = { engineer_id: string | null; profiles: { department: string | null } | null }
+    const rows = (data as unknown as Row[]) || []
+    const tally: Record<string, number> = {}
+    for (const d of DEPARTMENTS) tally[d] = 0
+    let unassigned = 0
+    for (const r of rows) {
+      const dept = r.profiles?.department
+      if (dept && (DEPARTMENTS as readonly string[]).includes(dept)) tally[dept]++
+      else unassigned++
+    }
+    const counts: DepartmentOpenCount[] = DEPARTMENTS.map(d => ({ department: d, count: tally[d] }))
+    if (unassigned > 0) counts.push({ department: UNASSIGNED_DEPARTMENT, count: unassigned })
+    return { counts, error: null }
+  } catch (e: unknown) {
+    return { counts: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Read-only, cross-engineer list for the department-jobs tap-through — deliberately
+// doesn't reuse fetchEngineerWorkOrders/MobileWorkOrder (which are shaped around "my
+// own jobs" and carry per-viewer fields like distanceKm) since this list is about
+// who's assigned what, not the viewer's own relationship to the job.
+export async function getDepartmentOpenJobsCore(admin: AdminClient, department: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
+  try {
+    const { data, error } = await admin
+      .from('work_orders')
+      .select(`${WORK_ORDER_SELECT}, profiles!work_orders_engineer_id_fkey(first_name, last_name, department)`)
+      .neq('status', 'completed')
+      .order('scheduled_date', { ascending: true })
+    if (error) return { jobs: [], error: error.message }
+
+    const rows = (data as unknown as WorkOrderWithEngineerDept[]) || []
+    const filtered = rows.filter(r => {
+      const dept = r.profiles?.department
+      return department === UNASSIGNED_DEPARTMENT ? !dept : dept === department
+    })
+
+    const jobs: DepartmentOpenJob[] = filtered.map(r => {
+      const txRows = r.work_order_transformers || []
+      return {
+        id: r.id,
+        woNumber: r.wo_number,
+        customerName: r.customers?.name || '',
+        siteName: txRows[0]?.transformers?.customer_sites?.site_name || null,
+        serialNumbers: txRows.map(t => t.transformers?.serial_number).filter(Boolean) as string[],
+        status: r.status,
+        scheduledDate: r.scheduled_date,
+        engineerName: r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : 'Unassigned',
+      }
+    })
+    return { jobs, error: null }
+  } catch (e: unknown) {
+    return { jobs: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
 export async function getMobileWorkOrdersCore(admin: AdminClient, userId: string): Promise<{ workOrders: MobileWorkOrder[]; engineer: { name: string; avatarUrl: string | null } | null; error: string | null }> {
   try {

@@ -78,6 +78,13 @@ function monthRangeFor(dateStr: string): { from: string; to: string } {
   return { from: toDateStr(from), to: toDateStr(to) }
 }
 
+// Same {from, to, label} shape as weekRange so the rest of the component doesn't
+// need to branch on view mode — just wraps monthRangeFor with a month-name label.
+function monthRange(anchor: Date): { from: string; to: string; label: string } {
+  const { from, to } = monthRangeFor(toDateStr(anchor))
+  return { from, to, label: anchor.toLocaleDateString('en-IN', { month: 'long' }) }
+}
+
 function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
   const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date']
   const aoa = [headers, ...exportDays.map(d => {
@@ -100,6 +107,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   // Anchored to the server-provided IST "today" (not a fresh client Date()) so the
   // initial week matches exactly what page.tsx already fetched.
   const [anchorDate, setAnchorDate] = useState(() => new Date(`${todayStr}T00:00:00`))
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
   const [days, setDays] = useState(initialDays)
   const [error, setError] = useState(initialError)
   const [loading, setLoading] = useState(false)
@@ -123,7 +131,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
 
-  const range = weekRange(anchorDate)
+  const range = viewMode === 'week' ? weekRange(anchorDate) : monthRange(anchorDate)
 
   const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
@@ -145,8 +153,21 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const isLate = todayStatus?.kind === 'leave'
   const isPendingApproval = todayStatus?.kind === 'leave' && todayStatus.pendingApproval
 
-  function goPrev() { setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n }) }
-  function goNext() { setAnchorDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n }) }
+  function goPrev() {
+    setAnchorDate(d => {
+      if (viewMode === 'week') { const n = new Date(d); n.setDate(n.getDate() - 7); return n }
+      // Built from year/month directly (day pinned to 1) rather than mutating the
+      // existing day-of-month — avoids JS's month-rollover quirk (e.g. Mar 31 minus
+      // one month silently becoming Mar 3 instead of Feb).
+      return new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    })
+  }
+  function goNext() {
+    setAnchorDate(d => {
+      if (viewMode === 'week') { const n = new Date(d); n.setDate(n.getDate() + 7); return n }
+      return new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    })
+  }
 
   function startGpsCapture() {
     setGpsRequested(true)
@@ -262,21 +283,50 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>{error}</div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
           <button
             className="mtap"
             onClick={goPrev}
-            aria-label="Previous week"
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E0E3', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'}
+            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E0E3', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <svg width="14" height="14" fill="none" stroke="#1C0D14" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
           </button>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14' }}>{range.label}</span>
+
+          <div style={{ flex: 1, display: 'flex', gap: 3, background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: 3 }}>
+            <button
+              className="mtap"
+              onClick={() => setViewMode('week')}
+              style={{
+                flex: 1, padding: '7px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, fontFamily: 'Poppins, sans-serif',
+                background: viewMode === 'week' ? '#fff' : 'transparent',
+                color: viewMode === 'week' ? '#1C0D14' : '#7A6870',
+                boxShadow: viewMode === 'week' ? '0 1px 3px rgba(125,29,63,0.1)' : 'none',
+              }}
+            >
+              {viewMode === 'week' ? range.label : 'Week'}
+            </button>
+            <button
+              className="mtap"
+              onClick={() => setViewMode('month')}
+              style={{
+                flex: 1, padding: '7px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, fontFamily: 'Poppins, sans-serif',
+                background: viewMode === 'month' ? '#fff' : 'transparent',
+                color: viewMode === 'month' ? '#1C0D14' : '#7A6870',
+                boxShadow: viewMode === 'month' ? '0 1px 3px rgba(125,29,63,0.1)' : 'none',
+              }}
+            >
+              {viewMode === 'month' ? range.label : 'Month'}
+            </button>
+          </div>
+
           <button
             className="mtap"
             onClick={goNext}
-            aria-label="Next week"
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E0E3', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            aria-label={viewMode === 'week' ? 'Next week' : 'Next month'}
+            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E0E3', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <svg width="14" height="14" fill="none" stroke="#1C0D14" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
           </button>

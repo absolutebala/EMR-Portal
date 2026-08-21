@@ -15,6 +15,7 @@ export async function updateUser(
     manager_id: string | null
     is_active: boolean
     grade: string | null
+    department: string | null
   }
 ): Promise<{ error: string | null }> {
   try {

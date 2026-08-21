@@ -8,6 +8,8 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
+import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
+import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
 import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 
@@ -54,23 +56,17 @@ const STATUS_META: Record<EngineerStatusValue, { label: string; bg: string; colo
   completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
 }
 
-const STAT_CARDS: { key: keyof MobileDashboardStats; label: string; color: string; bg: string; icon: React.ReactNode }[] = [
-  {
-    key: 'assigned', label: 'Assigned', color: '#2563EB', bg: '#DBEAFE',
-    icon: <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></>,
-  },
-  {
-    key: 'inProgress', label: 'In Progress', color: '#D97706', bg: '#FEF3C7',
-    icon: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
-  },
-  {
-    key: 'needsReassignment', label: 'Needs Reassignment', color: '#EA580C', bg: '#FED7AA',
-    icon: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
-  },
-  {
-    key: 'completed', label: 'Completed', color: '#059669', bg: '#D1FAE5',
-    icon: <polyline points="20 6 9 17 4 12" />,
-  },
+// Cycled across department cards regardless of which department is which — there's
+// no inherent color meaning per department (unlike the old status cards), just
+// enough visual variety to tell cards apart at a glance.
+const DEPARTMENT_CARD_COLORS = [
+  { color: '#2563EB', bg: '#DBEAFE' },
+  { color: '#D97706', bg: '#FEF3C7' },
+  { color: '#7D1D3F', bg: '#F9EEF2' },
+  { color: '#059669', bg: '#D1FAE5' },
+  { color: '#5B21B6', bg: '#EDE9FE' },
+  { color: '#EA580C', bg: '#FED7AA' },
+  { color: '#475569', bg: '#F1F5F9' },
 ]
 
 function greeting() {
@@ -99,9 +95,14 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
   })
 }
 
-export default function MobileDashboardClient({ stats, recentJobs, engineer, attendanceStatus, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
+export default function MobileDashboardClient({ recentJobs, engineer, attendanceStatus, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
   const router = useRouter()
   const [queue, setQueue] = useState(overdueFollowUps)
+  const [departmentCounts, setDepartmentCounts] = useState<DepartmentOpenCount[]>([])
+
+  useEffect(() => {
+    getDepartmentOpenCounts().then(({ counts }) => setDepartmentCounts(counts))
+  }, [])
   const [askingAtSite, setAskingAtSite] = useState<{ workOrderId: string; action: 'completed' | 'reschedule' } | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   // Defaults to today (not blank) — the field only accepts today-or-later (see
@@ -588,29 +589,25 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
         })()}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 16 }}>
-          {STAT_CARDS.map(card => (
-            <button
-              key={card.key}
-              className="mtap"
-              onClick={() => router.push('/mobile/jobs')}
-              style={{
-                background: '#fff', borderRadius: 12, padding: 12, textAlign: 'left',
-                border: 'none', cursor: 'pointer', boxShadow: '0 1px 4px rgba(125,29,63,0.05)',
-                borderTop: `3px solid ${card.color}`, fontFamily: 'Poppins, sans-serif',
-              }}
-            >
-              <div style={{
-                width: 32, height: 32, borderRadius: 9, background: card.bg,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 7,
-              }}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke={card.color} strokeWidth="2" strokeLinecap="round">
-                  {card.icon}
-                </svg>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#1C0D14', lineHeight: 1 }}>{stats[card.key]}</div>
-              <div style={{ fontSize: 10, color: '#7A6870', marginTop: 3, fontWeight: 500 }}>{card.label}</div>
-            </button>
-          ))}
+          {departmentCounts.map((dept, i) => {
+            const colors = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length]
+            return (
+              <button
+                key={dept.department}
+                className="mtap"
+                onClick={() => router.push(`/mobile/department-jobs?dept=${encodeURIComponent(dept.department)}`)}
+                style={{
+                  background: '#fff', borderRadius: 12, padding: 12, textAlign: 'left',
+                  border: 'none', cursor: 'pointer', boxShadow: '0 1px 4px rgba(125,29,63,0.05)',
+                  borderTop: `3px solid ${colors.color}`, fontFamily: 'Poppins, sans-serif',
+                }}
+              >
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1C0D14', lineHeight: 1 }}>{dept.count}</div>
+                <div style={{ fontSize: 10, color: '#7A6870', marginTop: 5, fontWeight: 500 }}>{dept.department}</div>
+                <div style={{ fontSize: 9, color: colors.color, marginTop: 2, fontWeight: 600 }}>open</div>
+              </button>
+            )
+          })}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

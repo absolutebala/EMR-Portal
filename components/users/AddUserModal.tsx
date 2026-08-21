@@ -7,6 +7,7 @@ import { updateUser } from '@/app/actions/update-user'
 import { getRoles, type RoleWithCount } from '@/app/actions/roles-actions'
 import type { UserRole, Profile } from '@/lib/types'
 import { GRADES } from '@/lib/travelGuidelines'
+import { DEPARTMENTS } from '@/lib/departments'
 
 interface Props {
   open: boolean
@@ -31,6 +32,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
     manager_id: editUser?.manager_id || '',
     is_active: editUser?.is_active ?? true,
     grade: editUser?.grade || '',
+    department: editUser?.department || '',
   })
   const [roles, setRoles] = useState<RoleWithCount[]>([])
   const [loading, setLoading] = useState(false)
@@ -56,6 +58,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
       manager_id: editUser?.manager_id || '',
       is_active: editUser?.is_active ?? true,
       grade: editUser?.grade || '',
+      department: editUser?.department || '',
     })
   }, [editUser])
 
@@ -99,6 +102,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           manager_id: requiresManager ? (form.manager_id || null) : null,
           is_active: form.is_active,
           grade: form.grade || null,
+          department: form.department || null,
         })
         if (error) throw new Error(error)
         onSaved()
@@ -113,6 +117,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           role: form.role,
           manager_id: requiresManager ? (form.manager_id || null) : null,
           grade: form.grade || null,
+          department: form.department || null,
         })
         if (inviteError) throw new Error(inviteError)
         onSaved()
@@ -240,6 +245,14 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
               </select>
             </div>
           )}
+
+          <div>
+            <label style={fl2}>Department</label>
+            <select style={fi2} value={form.department} onChange={e => set('department', e.target.value)}>
+              <option value="">Not set</option>
+              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
 
           {requiresManager && (
             <div style={{ gridColumn: '1 / -1' }}>

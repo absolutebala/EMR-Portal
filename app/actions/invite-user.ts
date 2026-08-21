@@ -38,6 +38,7 @@ export async function inviteUser(payload: {
   role: string
   manager_id: string | null
   grade: string | null
+  department: string | null
 }): Promise<{ error: string | null; tempPassword?: string }> {
   const currentUser = await getAuthedUser()
   const admin = adminClient()
@@ -107,6 +108,7 @@ export async function inviteUser(payload: {
     role: payload.role,
     manager_id: payload.manager_id,
     grade: payload.grade,
+    department: payload.department,
     created_by: createdBy,
     invite_pending: true,
     must_change_password: true,
