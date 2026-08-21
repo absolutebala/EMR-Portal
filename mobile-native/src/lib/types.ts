@@ -118,13 +118,13 @@ export type AttendanceEffectiveStatus =
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null }
+  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null }
   | { kind: 'present'; reason: string | null; amended: boolean };
 
 export interface AttendanceCalendarDay {
   date: string;
   status: AttendanceEffectiveStatus;
-  activity: { action: string; actorName: string; createdAt: string }[];
+  markedAt: string | null;
 }
 
 export interface AttendanceCalendarResponse {
@@ -142,6 +142,7 @@ export interface MarkAttendanceVariables {
   longitude: number | null;
   placeName: string | null;
   reason?: string | null;
+  attendanceDate?: string;
 }
 
 export interface MarkAttendanceResponse {

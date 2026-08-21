@@ -94,7 +94,7 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
       // of metal/concrete environment where network-based location resolution is
       // slow — confirmed via logLocationPingIssue that the passive ping below was
       // timing out on a real device with permission genuinely granted.
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
     )
   })
 }
@@ -150,7 +150,7 @@ export default function MobileDashboardClient({ stats, recentJobs, engineer, att
       // Field sites (substations, transformer yards) are exactly the kind of metal/concrete
       // environment where network-based location takes longer to resolve; this is a passive
       // background ping with no UI to block, so a longer timeout has no real downside.
-      { enableHighAccuracy: false, timeout: 20000, maximumAge: 5 * 60 * 1000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5 * 60 * 1000 }
     )
   }, [])
 

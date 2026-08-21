@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob } from '@/app/actions/get-attendance'
-import { approveRejectAttendanceAmendment, getAttendanceExportRows } from '@/app/actions/attendance'
+import { approveRejectAttendanceAmendment } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
 import { toDateStr, getRange, type ViewMode } from './dateRange'
@@ -150,25 +150,39 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     })
   }
 
-  async function handleExport() {
+  // Built from the already-loaded `rows` (same data the table renders) rather than a
+  // separate export query — that data already carries job/project detail per
+  // engineer/date, which the old export (attendance-table-only) never had.
+  function handleExport() {
     setExporting(true)
     setExportError('')
-    const { rows: exportRows, error: err } = await getAttendanceExportRows(range.from, range.to)
-    setExporting(false)
-    if (err) { setExportError(err); return }
-    if (!exportRows.length) { setExportError('No attendance data in this range to export.'); return }
+    if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const headers = ['Engineer', 'Date', 'Status', 'Marked At', 'Reason']
-    const aoa = [headers, ...exportRows.map(r => [
-      r.engineerName, r.date, r.status,
-      r.markedAt ? new Date(r.markedAt).toLocaleString('en-IN') : '',
-      r.reason || '',
-    ])]
+    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Reason', 'Project Name', 'Job Status']
+    const aoa: string[][] = [headers]
+    for (const row of rows) {
+      const attendanceStatus = attendanceLabel(row.attendance)
+      const markedAt = row.attendance.kind === 'present'
+        ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN') : '')
+        : row.attendance.kind === 'leave'
+          ? (row.attendance.markedAt ? new Date(row.attendance.markedAt).toLocaleString('en-IN') : '11:00 AM')
+          : ''
+      const reason = row.attendance.kind === 'present' || row.attendance.kind === 'leave' ? (row.attendance.reason || '') : ''
+      if (row.jobs.length === 0) {
+        aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, '', ''])
+      } else {
+        for (const job of row.jobs) {
+          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
+        }
+      }
+    }
+
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet(aoa)
     ws['!cols'] = headers.map(() => ({ wch: 22 }))
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
     XLSX.writeFile(wb, `attendance_${range.from}_to_${range.to}.xlsx`)
+    setExporting(false)
   }
 
   const load = useCallback(async (from: string, to: string) => {

@@ -41,7 +41,7 @@ export default function LocationGate({ children }: { children: React.ReactNode }
           // sites with poor signal), so those must not lock the engineer out.
           setStatus(err.code === 1 ? 'blocked' : 'granted')
         },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
       )
     }
 
@@ -69,7 +69,7 @@ export default function LocationGate({ children }: { children: React.ReactNode }
       navigator.geolocation.getCurrentPosition(
         () => setStatus('granted'),
         () => {},
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       )
     }
     window.addEventListener('focus', recheck)
@@ -114,7 +114,7 @@ export default function LocationGate({ children }: { children: React.ReactNode }
             navigator.geolocation.getCurrentPosition(
               () => setStatus('granted'),
               err => setStatus(err.code === 1 ? 'blocked' : 'granted'),
-              { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
+              { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             )
           }}
           style={{ marginTop: 22, padding: '12px 28px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}

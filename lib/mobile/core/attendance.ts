@@ -131,22 +131,37 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
   longitude: number | null
   placeName: string | null
   reason?: string | null
+  // Defaults to today — pass an earlier date (same IST calendar month only) to amend
+  // a past day's Leave to Present. Any non-today date is unconditionally treated as
+  // "late" (reason required, pending approval), since there's no 11am-cutoff concept
+  // for a day that's already over.
+  attendanceDate?: string
 }): Promise<{ error: string | null; needsApproval: boolean }> {
   try {
     const now = new Date()
     const todayStr = getISTDateStr(now)
-    const late = isPastAttendanceCutoff(now)
+    const targetDateStr = params.attendanceDate ?? todayStr
+
+    if (targetDateStr > todayStr) {
+      return { error: 'Cannot mark attendance for a future date', needsApproval: false }
+    }
+    if (targetDateStr.slice(0, 7) !== todayStr.slice(0, 7)) {
+      return { error: 'Attendance can only be amended within the current month', needsApproval: false }
+    }
+
+    const isToday = targetDateStr === todayStr
+    const late = isToday ? isPastAttendanceCutoff(now) : true
 
     if (late && !params.reason?.trim()) {
-      return { error: 'A reason is required when marking attendance after 11:00 AM', needsApproval: false }
+      return { error: isToday ? 'A reason is required when marking attendance after 11:00 AM' : 'A reason is required to amend a past date', needsApproval: false }
     }
 
     const { data: existing } = await admin.from('attendance').select('status, approval_status')
-      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+      .eq('engineer_id', userId).eq('attendance_date', targetDateStr).maybeSingle()
 
     if (existing && existing.status === 'present' && existing.approval_status !== 'rejected') {
       return {
-        error: existing.approval_status === 'pending' ? 'Your amendment request is already pending approval' : 'Attendance already marked for today',
+        error: existing.approval_status === 'pending' ? 'Your amendment request is already pending approval' : 'Attendance already marked for that date',
         needsApproval: false,
       }
     }
@@ -154,7 +169,7 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     const result = await withTimeout(
       admin.from('attendance').upsert({
         engineer_id: userId,
-        attendance_date: todayStr,
+        attendance_date: targetDateStr,
         status: 'present',
         marked_at: now.toISOString(),
         latitude: params.latitude,
@@ -175,7 +190,9 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
       notifyUsers(admin, [{ role: 'Service Manager' }, { role: 'Head of Service' }, { role: 'Super Admin' }], {
         type: 'attendance_amendment_pending',
         title: 'Attendance amendment needs approval',
-        body: 'An engineer requested to mark today present after the 11am cutoff.',
+        body: isToday
+          ? 'An engineer requested to mark today present after the 11am cutoff.'
+          : `An engineer requested to amend their attendance for ${targetDateStr} to Present.`,
         entityType: 'attendance', entityId: result.data.id,
         linkPath: '/attendance',
       }).catch(() => {})
@@ -190,46 +207,31 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
 export interface AttendanceCalendarDay {
   date: string
   status: AttendanceEffectiveStatus
-  activity: { action: string; actorName: string; createdAt: string }[]
+  // Raw marked_at off whatever attendance row exists for this date, regardless of
+  // status kind — status.markedAt only carries a value for the 'leave' kind, so this
+  // is what callers (e.g. an export) use to show a real time for a Present day too.
+  markedAt: string | null
 }
 
 export async function getAttendanceCalendarCore(admin: AdminClient, userId: string, from: string, to: string): Promise<{ days: AttendanceCalendarDay[]; error: string | null }> {
   try {
     const todayStr = getISTDateStr()
 
-    const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr, { data: woIdRows }] = await Promise.all([
+    const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr] = await Promise.all([
       admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
       getProfileCreatedAtDateStr(admin, userId),
-      admin.from('work_orders').select('id').eq('engineer_id', userId),
     ])
-
-    const woIds = (woIdRows || []).map(w => w.id)
-    let activityRows: { action: string; actor_name: string; created_at: string }[] = []
-    if (woIds.length) {
-      const { data } = await admin.from('work_order_activity').select('action, actor_name, created_at')
-        .in('work_order_id', woIds)
-        .gte('created_at', `${from}T00:00:00Z`)
-        .lte('created_at', `${to}T23:59:59Z`)
-        .order('created_at', { ascending: true })
-      activityRows = data || []
-    }
 
     const rowByDate: Record<string, AttendanceRowCore> = {}
     ;(rows || []).forEach(r => { rowByDate[r.attendance_date] = r })
     const holidayByDate: Record<string, string> = {}
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
-    const activityByDate: Record<string, { action: string; actorName: string; createdAt: string }[]> = {}
-    activityRows.forEach(a => {
-      const d = getISTDateStr(new Date(a.created_at))
-      if (!activityByDate[d]) activityByDate[d] = []
-      activityByDate[d].push({ action: a.action, actorName: a.actor_name, createdAt: a.created_at })
-    })
 
     const days: AttendanceCalendarDay[] = eachDateStr(from, to).map(dateStr => ({
       date: dateStr,
       status: computeEffectiveStatus({ dateStr, todayStr, row: rowByDate[dateStr] ?? null, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr }),
-      activity: activityByDate[dateStr] || [],
+      markedAt: rowByDate[dateStr]?.marked_at ?? null,
     }))
 
     return { days, error: null }

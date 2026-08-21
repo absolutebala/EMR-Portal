@@ -110,7 +110,12 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
     if (!workOrder) return { detail: null, error: 'Notification not found' }
 
     const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }] = await Promise.all([
-      admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).order('checked_in_at', { ascending: false }).limit(1),
+      // Scoped to the viewing engineer specifically — not just the work order — so
+      // "have I checked in today" reflects this engineer's own state. Without the
+      // engineer_id filter, a second engineer opening an in-progress-but-unclosed job
+      // would inherit whichever engineer checked in last as if it were their own,
+      // wrongly hiding the Check-In CTA behind "End of day closure" for them.
+      admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).eq('engineer_id', userId).order('checked_in_at', { ascending: false }).limit(1),
       admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
       admin.from('work_order_daily_closures')
         .select('outcome, created_at, revisit_date, needs_reassignment, summary, pending_reason, materials_required, engineer_id')

@@ -24,6 +24,7 @@ export async function markAttendance(params: {
   longitude: number | null
   placeName: string | null
   reason?: string | null
+  attendanceDate?: string
 }): Promise<{ error: string | null; needsApproval: boolean }> {
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated', needsApproval: false }
