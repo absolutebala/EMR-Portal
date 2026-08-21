@@ -66,6 +66,7 @@ const MODULES = [
   'MoM — View / Download',
   'Activities — View',
   'Settings',
+  'User Analytics — View',
 ]
 
 export default function RolesModal({ open, onClose, canEdit = false }: { open: boolean; onClose: () => void; canEdit?: boolean }) {
