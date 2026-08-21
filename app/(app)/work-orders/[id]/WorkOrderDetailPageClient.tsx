@@ -18,6 +18,8 @@ import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
+import { getDepartments } from '@/app/actions/departments'
+import type { Department } from '@/lib/departments'
 
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
@@ -222,6 +224,7 @@ interface EditForm {
   customer_type: string
   customer_category_id: string
   customer_category_name: string
+  department_id: string
 }
 
 const inputStyle: React.CSSProperties = {
@@ -269,11 +272,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [form, setForm] = useState<EditForm>({
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
     reported_date: '', reported_through: '', customer_message: '', solution_through: '', additional_engineer_ids: [],
-    customer_type: '', customer_category_id: '', customer_category_name: '',
+    customer_type: '', customer_category_id: '', customer_category_name: '', department_id: '',
   })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
   const [productRequests, setProductRequests] = useState<ProductRequestView[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
 
   async function refreshDetail() {
     const { workOrder, activity: act, submittedForms: sfs, visits: vs } = await getWorkOrderDetail(workOrderId)
@@ -295,6 +299,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     getCurrentUserSummary().then(summary => {
       if (summary) setCurrentUser(summary)
     })
+    getDepartments().then(({ departments: depts }) => setDepartments(depts))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrderId])
 
@@ -331,6 +336,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_type: wo.customer_type || '',
       customer_category_id: wo.customer_category_id || '',
       customer_category_name: wo.customer_category_name || '',
+      department_id: wo.department_id || '',
     })
     setEditing(true)
     setShowReassign(false)
@@ -372,6 +378,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       additional_engineer_ids: form.solution_through === 'virtual' ? form.additional_engineer_ids : [],
       customer_type: form.customer_type || null,
       customer_category_id: form.customer_category_id || null,
+      department_id: form.department_id || null,
     })
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
@@ -551,6 +558,16 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                           </div>
                         </>
                       )}
+
+                      {fieldLabel('Department')}
+                      <select
+                        style={{ ...inputStyle, marginBottom: 10 }}
+                        value={form.department_id}
+                        onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))}
+                      >
+                        <option value="">Select department</option>
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
 
                       {fieldLabel('End user type')}
                       <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
@@ -1067,6 +1084,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {wo.reported_through && row('Reported through', REPORTED_THROUGH_LABELS[wo.reported_through] || wo.reported_through)}
                 {wo.solution_through && row('Solution through', SOLUTION_THROUGH_LABELS[wo.solution_through] || wo.solution_through)}
                 {wo.additional_engineers && wo.additional_engineers.length > 0 && row('Additional engineers', wo.additional_engineers.map(e => e.name).join(', '))}
+                {row('Department', wo.department_name || '—')}
               </div>
 
               <div style={card}>

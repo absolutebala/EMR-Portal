@@ -164,7 +164,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }, { data: departmentRow }] = await Promise.all([
       admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
@@ -180,6 +180,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         .order('created_at', { ascending: true }),
       admin.from('work_order_additional_engineers').select('engineer_id, profiles(first_name, last_name)').eq('work_order_id', id),
       wo.customer_category_id ? admin.from('customer_categories').select('name').eq('id', wo.customer_category_id).maybeSingle() : Promise.resolve({ data: null }),
+      wo.department_id ? admin.from('departments').select('name').eq('id', wo.department_id).maybeSingle() : Promise.resolve({ data: null }),
     ])
 
     type AdditionalEngineerRow = { engineer_id: string; profiles: { first_name: string; last_name: string } | null }
@@ -375,6 +376,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         warranty_tiers: warrantyTiers,
         additional_engineers: additionalEngineers,
         customer_category_name: categoryRow?.name || null,
+        department_name: departmentRow?.name || null,
         end_customer_type_name: endTypeRow?.name || null,
         serial_number_sites: serialNumberSites,
       },

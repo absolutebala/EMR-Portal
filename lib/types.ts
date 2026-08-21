@@ -127,6 +127,10 @@ export interface WorkOrder {
   solution_through: SolutionThrough | null
   customer_type: NotificationCustomerType | null
   customer_category_id: string | null
+  // Which department this notification belongs to — set from the creator's own
+  // department assignment(s) at creation time, not derived from the assigned
+  // engineer (Field Engineers no longer carry a department for this purpose).
+  department_id: string | null
   // joined
   customer_name?: string
   engineer_name?: string
@@ -137,6 +141,7 @@ export interface WorkOrder {
   warranty_tiers?: WarrantyStatus[]
   additional_engineers?: { id: string; name: string }[]
   customer_category_name?: string | null
+  department_name?: string | null
   // Customer-level End Customer Type (OEM/Solar/etc.) — distinct from customer_type
   // above (Utility/Industry), which is a per-notification classification.
   end_customer_type_name?: string | null

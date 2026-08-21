@@ -31,11 +31,11 @@ export interface DepartmentOpenJob {
   engineerName: string
 }
 
-type WorkOrderWithEngineerDept = {
-  id: string; wo_number: string; status: string; scheduled_date: string | null
+type WorkOrderWithDept = {
+  id: string; wo_number: string; status: string; scheduled_date: string | null; department_id: string | null
   customers: { name: string } | null
   work_order_transformers: { transformers: { serial_number: string; customer_sites: { site_name: string } | null } | null }[]
-  profiles: { first_name: string; last_name: string; department_id: string | null } | null
+  profiles: { first_name: string; last_name: string } | null
 }
 
 // Org-wide, not per-engineer like every other stat on this dashboard — deliberately
@@ -43,22 +43,24 @@ type WorkOrderWithEngineerDept = {
 // department, tallied client-side over a single flat query rather than relying on a
 // PostgREST inner-join filter, since the row count here (open notifications org-wide)
 // is small enough that a JS tally is simpler and safer than embed-filter syntax.
+// Department is read straight off work_orders.department_id (set by whoever created
+// the notification), not derived from the assigned engineer.
 export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
   try {
     const [{ data: departments, error: deptError }, { data, error }] = await Promise.all([
       admin.from('departments').select('id, name').order('name'),
-      admin.from('work_orders').select('engineer_id, profiles!work_orders_engineer_id_fkey(department_id)').neq('status', 'completed'),
+      admin.from('work_orders').select('department_id').neq('status', 'completed'),
     ])
     if (deptError) return { counts: [], error: deptError.message }
     if (error) return { counts: [], error: error.message }
 
-    type Row = { engineer_id: string | null; profiles: { department_id: string | null } | null }
+    type Row = { department_id: string | null }
     const rows = (data as unknown as Row[]) || []
     const tally: Record<string, number> = {}
     for (const d of departments || []) tally[d.id] = 0
     let unassigned = 0
     for (const r of rows) {
-      const deptId = r.profiles?.department_id
+      const deptId = r.department_id
       if (deptId && deptId in tally) tally[deptId]++
       else unassigned++
     }
@@ -76,20 +78,18 @@ export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{
 // who's assigned what, not the viewer's own relationship to the job.
 export async function getDepartmentOpenJobsCore(admin: AdminClient, departmentId: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
   try {
-    const { data, error } = await admin
+    let query = admin
       .from('work_orders')
-      .select(`${WORK_ORDER_SELECT}, profiles!work_orders_engineer_id_fkey(first_name, last_name, department_id)`)
+      .select(`${WORK_ORDER_SELECT}, department_id, profiles!work_orders_engineer_id_fkey(first_name, last_name)`)
       .neq('status', 'completed')
       .order('scheduled_date', { ascending: true })
+    query = departmentId === UNASSIGNED_DEPARTMENT_ID ? query.is('department_id', null) : query.eq('department_id', departmentId)
+    const { data, error } = await query
     if (error) return { jobs: [], error: error.message }
 
-    const rows = (data as unknown as WorkOrderWithEngineerDept[]) || []
-    const filtered = rows.filter(r => {
-      const deptId = r.profiles?.department_id
-      return departmentId === UNASSIGNED_DEPARTMENT_ID ? !deptId : deptId === departmentId
-    })
+    const rows = (data as unknown as WorkOrderWithDept[]) || []
 
-    const jobs: DepartmentOpenJob[] = filtered.map(r => {
+    const jobs: DepartmentOpenJob[] = rows.map(r => {
       const txRows = r.work_order_transformers || []
       return {
         id: r.id,

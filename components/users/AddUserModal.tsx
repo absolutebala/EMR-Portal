@@ -33,7 +33,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
     manager_id: editUser?.manager_id || '',
     is_active: editUser?.is_active ?? true,
     grade: editUser?.grade || '',
-    department_id: editUser?.department_id || '',
     department_ids: [] as string[],
   })
   const [roles, setRoles] = useState<RoleWithCount[]>([])
@@ -62,7 +61,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
       manager_id: editUser?.manager_id || '',
       is_active: editUser?.is_active ?? true,
       grade: editUser?.grade || '',
-      department_id: editUser?.department_id || '',
       department_ids: [],
     })
     if (editUser) {
@@ -118,7 +116,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           manager_id: requiresManager ? (form.manager_id || null) : null,
           is_active: form.is_active,
           grade: form.grade || null,
-          department_id: isFieldEngineerRole ? (form.department_id || null) : null,
+          department_id: null,
           department_ids: isFieldEngineerRole ? [] : form.department_ids,
         })
         if (error) throw new Error(error)
@@ -134,7 +132,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           role: form.role,
           manager_id: requiresManager ? (form.manager_id || null) : null,
           grade: form.grade || null,
-          department_id: isFieldEngineerRole ? (form.department_id || null) : null,
+          department_id: null,
           department_ids: isFieldEngineerRole ? [] : form.department_ids,
         })
         if (inviteError) throw new Error(inviteError)
@@ -264,20 +262,12 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </div>
           )}
 
-          {isFieldEngineer ? (
-            <div>
-              <label style={fl2}>Department</label>
-              <select style={fi2} value={form.department_id} onChange={e => set('department_id', e.target.value)}>
-                <option value="">Not set</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-          ) : (
+          {!isFieldEngineer && (
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={fl2}>
                 Departments handled
                 <span style={{ fontWeight: 400, color: 'var(--txm)', marginLeft: 6 }}>
-                  — requests from Field Engineers in these departments route to this user
+                  — notifications this user creates can be tagged with these departments
                 </span>
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 2 }}>

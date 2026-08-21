@@ -6,6 +6,8 @@ import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
 import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer, getAssignableEngineers } from '@/app/actions/get-work-orders'
+import { getMyAssignableDepartments } from '@/app/actions/departments'
+import type { Department } from '@/lib/departments'
 import CustomerCategoryPicker from './CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 
@@ -65,6 +67,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [customerCategoryName, setCustomerCategoryName] = useState('')
   const [engineerId, setEngineerId] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [departmentId, setDepartmentId] = useState('')
 
   // Customer name search
   const [custQuery, setCustQuery] = useState('')
@@ -88,12 +92,19 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setReportedDate(''); setReportedThrough(''); setCustomerMessage(''); setSolutionThrough(''); setAdditionalEngineerIds([])
       setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
       setEngineerId(''); setScheduledDate('')
+      setDepartmentId('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
     } else {
       getNextTicketNumberPreview().then(({ ticketNumber: t }) => setTicketNumber(t))
       getAssignableEngineers().then(({ engineers: eng }) => setEngineers(eng))
+      getMyAssignableDepartments().then(({ departments: depts }) => {
+        setDepartments(depts)
+        // Auto-select the common case: the creating user is assigned to exactly
+        // one department. Otherwise left blank for them to pick.
+        if (depts.length === 1) setDepartmentId(depts[0].id)
+      })
       setReportedDate(new Date().toLocaleDateString('en-CA'))
       // Scheduled date only accepts today-or-later (see the input's `min` below) —
       // default it to today so the user adjusts a pre-filled date rather than
@@ -199,6 +210,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       additional_engineer_ids: solutionThrough === 'virtual' ? additionalEngineerIds : [],
       customer_type: customerType || null,
       customer_category_id: customerCategoryId || null,
+      department_id: departmentId || null,
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -246,6 +258,13 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           <div>
             <label style={fl2}>Scheduled date</label>
             <input type="date" style={fi2} value={scheduledDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setScheduledDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={fl2}>Department</label>
+            <select style={fi2} value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
+              <option value="">Select department</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
           </div>
 
           {/* Serial number search */}

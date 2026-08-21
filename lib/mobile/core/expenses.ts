@@ -4,7 +4,6 @@ import { type AdminClient, withTimeout } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { notifyUsers } from '@/lib/notifications'
-import { getDepartmentApproverIdsCore } from './departmentApprovers'
 
 const EXPENSE_REMINDER_COOLDOWN_MS = 60 * 60 * 1000
 
@@ -257,10 +256,7 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
     }).select('id').single()
     if (error) return { error: error.message }
 
-    const [{ data: actor }, { data: submitterProfile }] = await Promise.all([
-      admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle(),
-      admin.from('profiles').select('department_id').eq('id', userId).maybeSingle(),
-    ])
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
     logActivity(admin, {
@@ -269,15 +265,12 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
       entityType: 'expense_log', entityId: inserted?.id,
     }).catch(() => {})
 
-    // Route to whoever's assigned to this engineer's department with Expenses —
-    // Approve, instead of leaving approvers to only find it by having page access —
-    // see lib/mobile/core/departmentApprovers.ts.
+    // Any Service Manager can act as level-1 approver, Head of Service/Super Admin
+    // as level 2 — instead of leaving approvers to only find it by having page access.
     if (inserted?.id) {
       ;(async () => {
-        const departmentApproverIds = await getDepartmentApproverIdsCore(admin, submitterProfile?.department_id ?? null, 'Expenses — Approve')
         const targets = [
-          ...departmentApproverIds.map(id => ({ userId: id })),
-          { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+          { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
         ]
         notifyUsers(admin, targets, {
           type: 'expense_pending',
@@ -316,7 +309,7 @@ export async function getMyExpenseLogsCore(admin: AdminClient, userId: string): 
 // stale UI state) can't slip through.
 export async function sendExpenseReminderCore(admin: AdminClient, userId: string): Promise<{ error: string | null; sentAt: string | null }> {
   try {
-    const { data: profile } = await admin.from('profiles').select('first_name, last_name, department_id, expense_reminder_sent_at').eq('id', userId).maybeSingle()
+    const { data: profile } = await admin.from('profiles').select('first_name, last_name, expense_reminder_sent_at').eq('id', userId).maybeSingle()
     if (!profile) return { error: 'Profile not found', sentAt: null }
 
     if (profile.expense_reminder_sent_at) {
@@ -328,17 +321,13 @@ export async function sendExpenseReminderCore(admin: AdminClient, userId: string
       .eq('engineer_id', userId).in('status', ['pending', 'manager_approved'])
     if (!pendingCount) return { error: 'No pending expenses to remind about.', sentAt: profile.expense_reminder_sent_at ?? null }
 
-    // Head of Service stays a full role broadcast (unscoped, oversight layer); the
-    // Service-Manager-tier portion is now department-scoped — see
-    // lib/mobile/core/departmentApprovers.ts.
-    const departmentApproverIds = await getDepartmentApproverIdsCore(admin, profile.department_id, 'Expenses — Approve')
-    const [{ data: headOfService }, { data: departmentApprovers }] = await Promise.all([
+    // Both Head of Service and every Service Manager are full role broadcasts —
+    // any Service Manager can act as level-1 approver, Head of Service as level 2.
+    const [{ data: headOfService }, { data: serviceManagers }] = await Promise.all([
       admin.from('profiles').select('first_name, phone').eq('role', 'Head of Service').not('phone', 'is', null),
-      departmentApproverIds.length
-        ? admin.from('profiles').select('first_name, phone').in('id', departmentApproverIds).not('phone', 'is', null)
-        : Promise.resolve({ data: [] as { first_name: string; phone: string | null }[] }),
+      admin.from('profiles').select('first_name, phone').eq('role', 'Service Manager').not('phone', 'is', null),
     ])
-    const approvers = [...(headOfService || []), ...(departmentApprovers || [])]
+    const approvers = [...(headOfService || []), ...(serviceManagers || [])]
 
     const engineerName = `${profile.first_name} ${profile.last_name}`
     await sendWhatsApp(admin, 'expense_reminder',
