@@ -78,6 +78,8 @@ export interface Transformer {
   manufacturer: string | null
   year_of_manufacture: string | null
   warranty_status: WarrantyStatus
+  dispatch_date: string | null
+  warranty_years: number | null
   created_at: string
 }
 

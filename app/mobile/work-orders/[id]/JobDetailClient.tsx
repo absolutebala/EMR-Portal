@@ -370,10 +370,10 @@ export default function JobDetailClient({ detail }: Props) {
                 <div style={{ fontSize: 12, color: '#1C0D14' }}>{detail.latestClosure.materialsRequired}</div>
               </div>
             )}
-            {detail.hasFormSubmission && (
+            {detail.handoverEngineerHasFormSubmission && (
               <button
                 className="mtap"
-                onClick={() => router.push(`/mobile/work-orders/${wo.id}/form`)}
+                onClick={() => router.push(`/mobile/work-orders/${wo.id}/form?view=${detail.latestClosure!.engineerId}`)}
                 style={{ marginTop: 10, width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #FED7AA', background: '#fff', color: '#9A3412', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
               >
                 View form entries filled by {detail.latestClosure.engineerName}

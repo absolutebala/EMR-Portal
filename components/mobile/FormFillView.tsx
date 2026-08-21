@@ -16,6 +16,8 @@ interface Props {
   workOrder: MobileWorkOrderWithCustomer
   form: MobileForm | null
   existingSubmission: { id: string; form_data: Record<string, unknown> } | null
+  readOnly?: boolean
+  viewedEngineerName?: string | null
 }
 
 // Best-effort label -> job-data mapping for fields the Form Builder marked "prefill from job".
@@ -49,7 +51,7 @@ function t(en: string, hi: string | null | undefined, language: Language): strin
 
 type Language = 'en' | 'hi'
 
-export default function FormFillView({ workOrder, form, existingSubmission }: Props) {
+export default function FormFillView({ workOrder, form, existingSubmission, readOnly, viewedEngineerName }: Props) {
   const router = useRouter()
   const [fieldValues, setFieldValues] = useState<FieldValues>({})
   const [rowValues, setRowValues] = useState<RowValues>({})
@@ -351,6 +353,18 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
         </div>
       )}
 
+      {/* Read-only banner — viewing a handover engineer's own submission */}
+      {readOnly && (
+        <div style={{ background: '#F5F3F5', borderBottom: '1px solid #E5E0E3', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="14" height="14" fill="none" stroke="#7A6870" strokeWidth="2" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          <span style={{ fontSize: 12, color: '#7A6870', fontWeight: 500 }}>
+            Viewing form filled by {viewedEngineerName || 'another engineer'} — read only
+          </span>
+        </div>
+      )}
+
       <div style={{ padding: '16px' }}>
         {/* WO summary card */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 16, border: '1px solid #E5E0E3' }}>
@@ -405,6 +419,7 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
               </div>
             </div>
 
+            <div style={readOnly ? { pointerEvents: 'none', opacity: 0.65 } : undefined}>
             {form.sections.map(section => {
               if (section.fields.length === 0 && section.tables.length === 0) return null
 
@@ -453,12 +468,13 @@ export default function FormFillView({ workOrder, form, existingSubmission }: Pr
               </div>
               )
             })}
+            </div>
           </>
         )}
       </div>
 
-      {/* Sticky submit footer */}
-      {form && (
+      {/* Sticky submit footer — hidden entirely in read-only (view another engineer's submission) mode */}
+      {form && !readOnly && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
           background: '#fff', borderTop: '1px solid #E5E0E3',

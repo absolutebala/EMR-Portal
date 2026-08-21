@@ -102,10 +102,6 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
           <div style={{ background: '#fff', borderRadius: 8, padding: '5px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <img src="/emr-logo.png" alt="EMR" style={{ height: 20, width: 'auto', display: 'block' }} />
           </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '-.3px' }}>EMR Portal</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)' }}>Suite</div>
-          </div>
         </div>
 
         {/* Module switcher — only shown if user has access to more than one module */}

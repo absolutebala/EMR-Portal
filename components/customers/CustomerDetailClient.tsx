@@ -126,6 +126,8 @@ export default function CustomerDetailClient({ customer: init, sites: initSites,
       year_of_manufacture: txForm.year_of_manufacture || null,
       warranty_status: txForm.warranty_status,
       site_id: txForm.site_id || null,
+      dispatch_date: txForm.dispatch_date || null,
+      warranty_years: txForm.warranty_years ? Number(txForm.warranty_years) : null,
     })
     setTxSaving(false)
     if (error) { setTxError(error); return }
@@ -156,6 +158,7 @@ export default function CustomerDetailClient({ customer: init, sites: initSites,
     new_site_name: '', new_site_address: '',
     serial_number: '', rating: '', manufacturer: '',
     year_of_manufacture: '', warranty_status: 'under_warranty',
+    dispatch_date: '', warranty_years: '',
   }), [sites])
 
   const [showAdd, setShowAdd] = useState(false)
@@ -182,6 +185,8 @@ export default function CustomerDetailClient({ customer: init, sites: initSites,
       manufacturer: addForm.manufacturer || null,
       year_of_manufacture: addForm.year_of_manufacture || null,
       warranty_status: addForm.warranty_status,
+      dispatch_date: addForm.dispatch_date || null,
+      warranty_years: addForm.warranty_years ? Number(addForm.warranty_years) : null,
     })
     setAddSaving(false)
     if (error) { setAddError(error); return }

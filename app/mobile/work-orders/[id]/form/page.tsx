@@ -8,15 +8,17 @@ import FormFillView from '@/components/mobile/FormFillView'
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ view?: string }>
 }
 
-export default async function MobileWorkOrderFormPage({ params }: Props) {
+export default async function MobileWorkOrderFormPage({ params, searchParams }: Props) {
   const user = await getAuthedUser()
   if (!user) redirect('/mobile/login')
   await requireMobilePasswordChanged(user.id)
 
   const { id } = await params
-  const { workOrder, form, existingSubmission, error } = await getMobileWorkOrderWithForm(id)
+  const { view } = await searchParams
+  const { workOrder, form, existingSubmission, readOnly, viewedEngineerName, error } = await getMobileWorkOrderWithForm(id, view)
 
   if (error || !workOrder) {
     return (
@@ -31,6 +33,8 @@ export default async function MobileWorkOrderFormPage({ params }: Props) {
       workOrder={workOrder}
       form={form}
       existingSubmission={existingSubmission}
+      readOnly={readOnly}
+      viewedEngineerName={viewedEngineerName}
     />
   )
 }

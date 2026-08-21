@@ -179,7 +179,6 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     if (!jobType) { setError('Please select a job type.'); return }
     if (!selectedCustomerId) { setError('Please select a customer.'); return }
     if (!checkedSNs.length) { setError('Please select at least one serial number.'); return }
-    if (engineerId && !scheduledDate) { setError('Please pick a scheduled date for the assigned engineer.'); return }
     setLoading(true); setError('')
     const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
@@ -187,7 +186,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       customer_id: selectedCustomerId,
       transformer_ids: checkedSNs.map(s => s.transformer_id),
       engineer_id: engineerId || null,
-      scheduled_date: engineerId ? scheduledDate : null,
+      scheduled_date: scheduledDate || null,
       notes: notes || null,
       reported_date: reportedDate || null,
       reported_through: reportedThrough || null,
@@ -240,12 +239,10 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
             </select>
           </div>
-          {engineerId ? (
-            <div>
-              <label style={fl2}>Scheduled date <span style={{ color: 'var(--m)' }}>*</span></label>
-              <input type="date" required style={fi2} value={scheduledDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setScheduledDate(e.target.value)} />
-            </div>
-          ) : <div />}
+          <div>
+            <label style={fl2}>Scheduled date</label>
+            <input type="date" style={fi2} value={scheduledDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setScheduledDate(e.target.value)} />
+          </div>
 
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>

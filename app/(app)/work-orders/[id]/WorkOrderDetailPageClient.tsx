@@ -245,8 +245,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   const [wo, setWo] = useState<WorkOrder | null>(null)
   const [activity, setActivity] = useState<WorkOrderActivity[]>([])
-  const [submittedForm, setSubmittedForm] = useState<WorkOrderSubmittedForm | null>(null)
-  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [submittedForms, setSubmittedForms] = useState<WorkOrderSubmittedForm[]>([])
+  const [viewingForm, setViewingForm] = useState<WorkOrderSubmittedForm | null>(null)
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [visits, setVisits] = useState<WorkOrderVisit[]>([])
   const [loading, setLoading] = useState(true)
@@ -276,10 +276,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [productRequests, setProductRequests] = useState<ProductRequestView[]>([])
 
   async function refreshDetail() {
-    const { workOrder, activity: act, submittedForm: sf, visits: vs } = await getWorkOrderDetail(workOrderId)
+    const { workOrder, activity: act, submittedForms: sfs, visits: vs } = await getWorkOrderDetail(workOrderId)
     setWo(workOrder)
     setActivity(act as WorkOrderActivity[])
-    setSubmittedForm(sf)
+    setSubmittedForms(sfs)
     setVisits(vs)
     const { assignments } = await getAdditionalEngineers(workOrderId)
     setAdditionalEngineers(assignments)
@@ -735,14 +735,17 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                             )}
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                              {submittedForm && (
-                                <button
-                                  onClick={() => setFormModalOpen(true)}
-                                  style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}
-                                >
-                                  View form
-                                </button>
-                              )}
+                              {(() => {
+                                const matchingForm = submittedForms.find(f => f.submittedByName === v.engineerName)
+                                return matchingForm && (
+                                  <button
+                                    onClick={() => setViewingForm(matchingForm)}
+                                    style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}
+                                  >
+                                    View form
+                                  </button>
+                                )
+                              })()}
                               {v.pdfUrl && (
                                 <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
                                   Download visit PDF →
@@ -753,7 +756,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                   Download visit Word doc →
                                 </a>
                               )}
-                              {!submittedForm && !v.pdfUrl && !v.wordUrl && (
+                              {!submittedForms.some(f => f.submittedByName === v.engineerName) && !v.pdfUrl && !v.wordUrl && (
                                 <span style={{ fontSize: 11, color: 'var(--txm)' }}>No form data available</span>
                               )}
                             </div>
@@ -763,17 +766,21 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                     </div>
                   )}
 
-                  {submittedForm && (
-                    <div style={{ marginBottom: 14 }}>
-                      <div style={cardLabel}>
-                        Submitted form — {submittedForm.formName}
-                        {submittedForm.submittedAt && (
-                          <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'var(--txm)' }}>
-                            {' · '}{new Date(submittedForm.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
-                      {renderFormSections(submittedForm)}
+                  {submittedForms.length > 0 && (
+                    <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {submittedForms.map((sf, i) => (
+                        <div key={i}>
+                          <div style={cardLabel}>
+                            Submitted form — {sf.formName} by {sf.submittedByName}
+                            {sf.submittedAt && (
+                              <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'var(--txm)' }}>
+                                {' · '}{new Date(sf.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                          {renderFormSections(sf)}
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -1077,12 +1084,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       </div>
 
       <Modal
-        open={formModalOpen && !!submittedForm}
-        onClose={() => setFormModalOpen(false)}
-        title={submittedForm ? `Submitted form — ${submittedForm.formName}` : 'Submitted form'}
+        open={!!viewingForm}
+        onClose={() => setViewingForm(null)}
+        title={viewingForm ? `Submitted form — ${viewingForm.formName} by ${viewingForm.submittedByName}` : 'Submitted form'}
         size="lg"
       >
-        {submittedForm && renderFormSections(submittedForm)}
+        {viewingForm && renderFormSections(viewingForm)}
       </Modal>
 
       <Modal open={!!enlargedPhoto} onClose={() => setEnlargedPhoto(null)} title="Check-in photo" size="lg">

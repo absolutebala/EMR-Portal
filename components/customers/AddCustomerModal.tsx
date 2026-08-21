@@ -9,6 +9,11 @@ import type { Customer } from '@/lib/types'
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
 const fl2: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }
 
+function todayIsoDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -23,6 +28,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
     end_customer_type_id: '', end_customer_type_name: '',
     whatsapp_number: '', site_name: '', site_address: '',
     serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
+    dispatch_date: todayIsoDate(), warranty_years: '',
   })
   const whatsappTouched = useRef(false)
   const [loading, setLoading] = useState(false)
@@ -53,6 +59,7 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
         name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
         end_customer_type_id: '', end_customer_type_name: '',
         whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
+        dispatch_date: todayIsoDate(), warranty_years: '',
       })
     }
   }, [editCustomer, open])
@@ -111,6 +118,8 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           serial_number: form.serial_number,
           year_of_manufacture: form.year_of_manufacture || null,
           warranty_status: form.warranty_status,
+          dispatch_date: form.dispatch_date || null,
+          warranty_years: form.warranty_years ? Number(form.warranty_years) : null,
           site_name: form.site_name,
           site_address: form.site_address,
         })
@@ -180,13 +189,21 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
                 <label style={fl2}>Year of manufacture</label>
                 <input style={fi2} value={form.year_of_manufacture} onChange={e => set('year_of_manufacture', e.target.value)} placeholder="e.g. 2019" />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div>
                 <label style={fl2}>Warranty status</label>
                 <select style={fi2} value={form.warranty_status} onChange={e => set('warranty_status', e.target.value)}>
                   <option value="under_warranty">Under warranty</option>
                   <option value="expired">Warranty expired</option>
                   <option value="amc">AMC</option>
                 </select>
+              </div>
+              <div>
+                <label style={fl2}>Warranty years</label>
+                <input type="number" min="0" style={fi2} value={form.warranty_years} onChange={e => set('warranty_years', e.target.value)} placeholder="e.g. 2" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={fl2}>Dispatch date</label>
+                <input type="date" style={fi2} value={form.dispatch_date} max={todayIsoDate()} onChange={e => set('dispatch_date', e.target.value)} />
               </div>
             </>
           )}

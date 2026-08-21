@@ -48,6 +48,21 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
   }
 }
 
+// Excel sheet names: max 31 chars, can't contain : \ / ? * [ ], can't be blank,
+// can't repeat within a workbook — dedupe collisions with a numeric suffix.
+function sheetNameFor(name: string, used: Set<string>): string {
+  const base = (name.trim() || 'Engineer').replace(/[:\\/?*[\]]/g, ' ').slice(0, 31) || 'Engineer'
+  let candidate = base
+  let n = 2
+  while (used.has(candidate)) {
+    const suffix = ` (${n})`
+    candidate = base.slice(0, 31 - suffix.length) + suffix
+    n++
+  }
+  used.add(candidate)
+  return candidate
+}
+
 function formatDateCell(dateStr: string): { weekday: string; dayMonth: string } {
   const d = new Date(`${dateStr}T00:00:00`)
   return {
@@ -214,37 +229,51 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   // Built from the already-loaded `rows` (same data the table renders) rather than a
   // separate export query — that data already carries job/project detail per
   // engineer/date, which the old export (attendance-table-only) never had.
+  // One sheet per engineer, rather than everyone on a single tab, so a manager
+  // reviewing one engineer's month doesn't have to filter/scroll past everyone else's.
   function handleExport() {
     setExporting(true)
     setExportError('')
     if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
     const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date', 'Project Name', 'Job Status']
-    const aoa: string[][] = [headers]
+
+    const byEngineer = new Map<string, { name: string; rows: AttendanceOverviewRow[] }>()
     for (const row of rows) {
-      const s = row.attendance
-      const attendanceStatus = attendanceLabel(s)
-      const markedAt = s.kind === 'present'
-        ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN') : '')
-        : s.kind === 'leave'
-          ? (s.markedAt ? new Date(s.markedAt).toLocaleString('en-IN') : '')
-          : ''
-      const reason = s.kind === 'present' || s.kind === 'leave' ? (s.reason || '') : ''
-      const approvedBy = s.kind === 'present' || s.kind === 'leave' ? (s.approvedByName || '') : ''
-      const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN') : '') : ''
-      if (row.jobs.length === 0) {
-        aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, '', ''])
-      } else {
-        for (const job of row.jobs) {
-          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
-        }
-      }
+      const entry = byEngineer.get(row.engineerId)
+      if (entry) entry.rows.push(row)
+      else byEngineer.set(row.engineerId, { name: row.engineerName, rows: [row] })
     }
 
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!cols'] = headers.map(() => ({ wch: 22 }))
-    XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
+    const usedSheetNames = new Set<string>()
+    for (const { name, rows: engRows } of byEngineer.values()) {
+      const aoa: string[][] = [headers]
+      for (const row of engRows) {
+        const s = row.attendance
+        const attendanceStatus = attendanceLabel(s)
+        const markedAt = s.kind === 'present'
+          ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN') : '')
+          : s.kind === 'leave'
+            ? (s.markedAt ? new Date(s.markedAt).toLocaleString('en-IN') : '')
+            : ''
+        const reason = s.kind === 'present' || s.kind === 'leave' ? (s.reason || '') : ''
+        const approvedBy = s.kind === 'present' || s.kind === 'leave' ? (s.approvedByName || '') : ''
+        const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN') : '') : ''
+        if (row.jobs.length === 0) {
+          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, '', ''])
+        } else {
+          for (const job of row.jobs) {
+            aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
+          }
+        }
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+      ws['!cols'] = headers.map(() => ({ wch: 22 }))
+      XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(name, usedSheetNames))
+    }
+
     XLSX.writeFile(wb, `attendance_${range.from}_to_${range.to}.xlsx`)
     setExporting(false)
   }

@@ -30,6 +30,10 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
 }
 
+// Grouping order for the engineer list — active/en-route engineers first (the
+// ones a dispatcher most needs to see), then available, then wound-down states.
+const STATUS_GROUP_ORDER = ['on_the_way', 'travelling', 'reached', 'available', 'completed', 'on_leave'] as const
+
 function formatRelativeTime(at: string): string {
   const ageMs = Date.now() - new Date(at).getTime()
   const mins = Math.round(ageMs / 60_000)
@@ -99,30 +103,40 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
               />
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {filteredEngineers.map(e => {
-                const cfg = STATUS_CFG[e.status] || STATUS_CFG.available
-                const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
+              {STATUS_GROUP_ORDER.map(status => {
+                const group = filteredEngineers.filter(e => e.status === status)
+                if (!group.length) return null
+                const cfg = STATUS_CFG[status]
                 return (
-                  <div
-                    key={e.id}
-                    onClick={() => hasLocation && setSelectedId(e.id)}
-                    style={{
-                      padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
-                      background: selectedId === e.id ? 'var(--mp)' : 'transparent',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                      <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{cfg.label}</span>
+                  <div key={status}>
+                    <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: cfg.color, background: cfg.bg + '55', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      {cfg.label} ({group.length})
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
-                    </div>
-                    {hasLocation && (
-                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
-                        Last seen {formatRelativeTime(e.lastSeen!.at)}
-                      </div>
-                    )}
+                    {group.map(e => {
+                      const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
+                      return (
+                        <div
+                          key={e.id}
+                          onClick={() => hasLocation && setSelectedId(e.id)}
+                          style={{
+                            padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
+                            background: selectedId === e.id ? 'var(--mp)' : 'transparent',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
+                          </div>
+                          {hasLocation && (
+                            <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
+                              Last seen {formatRelativeTime(e.lastSeen!.at)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}

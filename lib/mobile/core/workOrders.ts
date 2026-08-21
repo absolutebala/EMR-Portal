@@ -30,20 +30,29 @@ export async function getMobileWorkOrderBasicCore(admin: AdminClient, userId: st
   }
 }
 
-export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId: string, woId: string): Promise<{
+export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId: string, woId: string, viewSubmittedBy?: string): Promise<{
   workOrder: MobileWorkOrderWithCustomer | null
   form: MobileForm | null
   existingSubmission: { id: string; form_data: Record<string, unknown> } | null
+  readOnly: boolean
+  viewedEngineerName: string | null
   error: string | null
 }> {
   try {
     touchHeartbeat(admin, userId)
 
     const workOrder = await fetchSingleWorkOrder(admin, woId)
-    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, error: 'Notification not found' }
+    if (!workOrder) return { workOrder: null, form: null, existingSubmission: null, readOnly: false, viewedEngineerName: null, error: 'Notification not found' }
 
     const { data: engineerProfile } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
     workOrder.engineer_name = engineerProfile ? `${engineerProfile.first_name} ${engineerProfile.last_name}` : null
+
+    const readOnly = !!viewSubmittedBy
+    let viewedEngineerName: string | null = null
+    if (readOnly) {
+      const { data: viewedProfile } = await admin.from('profiles').select('first_name, last_name').eq('id', viewSubmittedBy).maybeSingle()
+      viewedEngineerName = viewedProfile ? `${viewedProfile.first_name} ${viewedProfile.last_name}` : null
+    }
 
     // Find the active form for this job type
     const { data: formRow } = await admin
@@ -78,6 +87,7 @@ export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId:
           .select('id, form_data')
           .eq('work_order_id', woId)
           .eq('form_id', formRow.id)
+          .eq('submitted_by', viewSubmittedBy || userId)
           .maybeSingle(),
       ])
       if (secsErr) console.error('getMobileWorkOrderWithForm sections:', secsErr.message)
@@ -97,9 +107,9 @@ export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId:
       if (sub) existingSubmission = { id: sub.id, form_data: sub.form_data }
     }
 
-    return { workOrder, form, existingSubmission, error: null }
+    return { workOrder, form, existingSubmission, readOnly, viewedEngineerName, error: null }
   } catch (e: unknown) {
-    return { workOrder: null, form: null, existingSubmission: null, error: e instanceof Error ? e.message : String(e) }
+    return { workOrder: null, form: null, existingSubmission: null, readOnly: false, viewedEngineerName: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -116,7 +126,10 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       // would inherit whichever engineer checked in last as if it were their own,
       // wrongly hiding the Check-In CTA behind "End of day closure" for them.
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).eq('engineer_id', userId).order('checked_in_at', { ascending: false }).limit(1),
-      admin.from('form_submissions').select('id').eq('work_order_id', woId).limit(1),
+      // Scoped to the viewing engineer's own submission — a notification with 2+
+      // engineers can now have one form_submissions row per engineer, so "has a
+      // submission" must mean "has MY submission," not "does anyone have one."
+      admin.from('form_submissions').select('id').eq('work_order_id', woId).eq('submitted_by', userId).limit(1),
       admin.from('work_order_daily_closures')
         .select('outcome, created_at, revisit_date, needs_reassignment, summary, pending_reason, materials_required, engineer_id')
         .eq('work_order_id', woId)
@@ -182,6 +195,16 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
 
     const checkedInToday = !!lastCheckinAt && new Date(lastCheckinAt).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
     const hasCheckedIn = checkedInToday && (!latestClosure || new Date(lastCheckinAt!) > new Date(latestClosure.created_at))
+    const handoverFromOtherEngineer = !!(latestClosure?.engineerId && latestClosure.engineerId !== userId)
+
+    // Gates the "View form entries filled by X" button — whether the PREVIOUS
+    // (handover) engineer has their own submission, independent of whether the
+    // viewing engineer has theirs.
+    let handoverEngineerHasFormSubmission = false
+    if (handoverFromOtherEngineer && latestClosure?.engineerId) {
+      const { data: handoverSubmission } = await admin.from('form_submissions').select('id').eq('work_order_id', woId).eq('submitted_by', latestClosure.engineerId).limit(1)
+      handoverEngineerHasFormSubmission = !!handoverSubmission?.length
+    }
 
     return {
       detail: {
@@ -190,7 +213,8 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         lastCheckinAt,
         hasFormSubmission: !!submission?.length,
         latestClosure,
-        handoverFromOtherEngineer: !!(latestClosure?.engineerId && latestClosure.engineerId !== userId),
+        handoverFromOtherEngineer,
+        handoverEngineerHasFormSubmission,
         previousVisits: previous || [],
         myAssignedSerials,
       },
@@ -281,6 +305,7 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
 async function buildVisitDocs(
   admin: AdminClient,
   workOrderId: string,
+  userId: string,
   engineerName: string,
   clientName: string | null,
   engineerSignature: string | null,
@@ -298,7 +323,10 @@ async function buildVisitDocs(
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
       admin.from('forms').select('id').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).maybeSingle(),
+      // Scoped to the closing engineer's own submission — a notification can now
+      // have one form_submissions row per engineer, so this must be scoped or
+      // .maybeSingle() throws once 2+ rows exist for the same work order/form.
+      admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).eq('submitted_by', userId).maybeSingle(),
     ]),
     8000
   )
@@ -416,7 +444,7 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     let sentToSap = false
     let sentToSapAt: string | null = null
     if (params.outcome === 'completed') {
-      const result = await buildVisitDocs(admin, params.workOrderId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
+      const result = await buildVisitDocs(admin, params.workOrderId, userId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
       pdfUrl = result.pdfUrl
       wordUrl = result.wordUrl
       sentToSap = !!pdfUrl
@@ -580,7 +608,7 @@ export async function submitJobFormCore(admin: AdminClient, userId: string, para
       form_data: params.formData,
       status: 'submitted',
       submitted_at: new Date().toISOString(),
-    }, { onConflict: 'work_order_id,form_id' })
+    }, { onConflict: 'work_order_id,form_id,submitted_by' })
     if (subErr) return { error: subErr.message, completed: false }
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).single()

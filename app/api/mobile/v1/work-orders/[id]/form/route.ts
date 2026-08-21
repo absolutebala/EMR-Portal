@@ -8,5 +8,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { id } = await params
-  return NextResponse.json(await getMobileWorkOrderWithFormCore(adminClient(), user.id, id))
+  const view = req.nextUrl.searchParams.get('view') || undefined
+  return NextResponse.json(await getMobileWorkOrderWithFormCore(adminClient(), user.id, id, view))
 }

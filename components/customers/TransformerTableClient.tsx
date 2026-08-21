@@ -36,6 +36,11 @@ function TrashIcon() {
   )
 }
 
+function todayIsoDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function iconBtn(danger = false): React.CSSProperties {
   return {
     width: 28, height: 28, borderRadius: 6, border: `1px solid ${danger ? '#FCA5A5' : 'var(--gm)'}`,
@@ -72,6 +77,8 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       year_of_manufacture: t.year_of_manufacture || '',
       warranty_status: t.warranty_status,
       site_id: t.site_id || '',
+      dispatch_date: t.dispatch_date || todayIsoDate(),
+      warranty_years: t.warranty_years != null ? String(t.warranty_years) : '',
     })
     setTxError('')
   }
@@ -82,6 +89,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
     if (!txForm.serial_number.trim()) { setTxError('Serial number is required'); return }
     setTxSaving(true)
     setTxError('')
+    const warrantyYears = txForm.warranty_years ? Number(txForm.warranty_years) : null
     const { error } = await updateTransformer(id, {
       serial_number: txForm.serial_number,
       rating: txForm.rating || null,
@@ -89,6 +97,8 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       year_of_manufacture: txForm.year_of_manufacture || null,
       warranty_status: txForm.warranty_status,
       site_id: txForm.site_id || null,
+      dispatch_date: txForm.dispatch_date || null,
+      warranty_years: warrantyYears,
     })
     setTxSaving(false)
     if (error) { setTxError(error); return }
@@ -100,6 +110,8 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       year_of_manufacture: txForm.year_of_manufacture || null,
       warranty_status: txForm.warranty_status as Transformer['warranty_status'],
       site_id: txForm.site_id || null,
+      dispatch_date: txForm.dispatch_date || null,
+      warranty_years: warrantyYears,
     } : t))
     setTxEditing(null)
   }
@@ -119,6 +131,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
     new_site_name: '', new_site_address: '',
     serial_number: '', rating: '', manufacturer: '',
     year_of_manufacture: '', warranty_status: 'under_warranty',
+    dispatch_date: todayIsoDate(), warranty_years: '',
   }), [initSites])
 
   const [showAdd, setShowAdd] = useState(false)
@@ -144,6 +157,8 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       manufacturer: addForm.manufacturer || null,
       year_of_manufacture: addForm.year_of_manufacture || null,
       warranty_status: addForm.warranty_status,
+      dispatch_date: addForm.dispatch_date || null,
+      warranty_years: addForm.warranty_years ? Number(addForm.warranty_years) : null,
     })
     setAddSaving(false)
     if (error) { setAddError(error); return }
@@ -205,6 +220,14 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                 <option value="__new__">+ New project</option>
               </select>
             </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Warranty years</label>
+              <input type="number" min="0" style={fi} value={addForm.warranty_years} onChange={e => aset('warranty_years', e.target.value)} placeholder="e.g. 2" />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Dispatch date</label>
+              <input type="date" style={fi} value={addForm.dispatch_date} max={todayIsoDate()} onChange={e => aset('dispatch_date', e.target.value)} />
+            </div>
             {isNewSite && (
               <>
                 <div>
@@ -237,7 +260,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Project', ...(canEdit ? [''] : [])].map(h => (
+              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Project', ...(canEdit ? [''] : [])].map(h => (
                 <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
               ))}
             </tr>
@@ -278,6 +301,16 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                           <option value="amc">AMC</option>
                         </select>
                       : <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: ws.bg, color: ws.color }}>{ws.label}</span>}
+                  </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
+                    {isEditing
+                      ? <input type="number" min="0" style={{ ...fi, width: 60 }} value={txForm.warranty_years} onChange={e => tfset('warranty_years', e.target.value)} placeholder="2" />
+                      : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{t.warranty_years != null ? t.warranty_years : '—'}</span>}
+                  </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
+                    {isEditing
+                      ? <input type="date" style={{ ...fi, minWidth: 130 }} max={todayIsoDate()} value={txForm.dispatch_date} onChange={e => tfset('dispatch_date', e.target.value)} />
+                      : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{t.dispatch_date ? new Date(t.dispatch_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>}
                   </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing

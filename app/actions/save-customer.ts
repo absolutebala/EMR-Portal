@@ -15,6 +15,8 @@ export async function addCustomer(payload: {
   serial_number: string
   year_of_manufacture: string | null
   warranty_status: string
+  dispatch_date: string | null
+  warranty_years: number | null
   site_name: string
   site_address: string
 }): Promise<{ error: string | null; id?: string }> {
@@ -52,6 +54,8 @@ export async function addCustomer(payload: {
       serial_number: payload.serial_number,
       year_of_manufacture: payload.year_of_manufacture || null,
       warranty_status: payload.warranty_status,
+      dispatch_date: payload.dispatch_date || null,
+      warranty_years: payload.warranty_years,
     })
     if (te) return { error: te.message }
 

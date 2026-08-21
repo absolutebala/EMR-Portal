@@ -27,6 +27,7 @@ export interface WorkOrderClosureInfo {
 export interface WorkOrderSubmittedForm {
   formName: string
   submittedAt: string | null
+  submittedByName: string
   sections: MobileFormSection[]
   fieldValues: Record<string, string>
   rowValues: Record<string, { status: string; remarks: string }>
@@ -148,11 +149,11 @@ export async function getWorkOrderDetail(id: string): Promise<{
   activity: { action: string; actor_name: string | null; created_at: string }[]
   checkin: WorkOrderCheckinInfo | null
   closure: WorkOrderClosureInfo | null
-  submittedForm: WorkOrderSubmittedForm | null
+  submittedForms: WorkOrderSubmittedForm[]
   visits: WorkOrderVisit[]
   error: string | null
 }> {
-  const empty = { workOrder: null, activity: [], checkin: null, closure: null, submittedForm: null, visits: [] }
+  const empty = { workOrder: null, activity: [], checkin: null, closure: null, submittedForms: [], visits: [] }
   try {
     const admin = adminClient()
     const [{ data: wo }, { data: wotRows }, { data: actRows }] = await Promise.all([
@@ -306,7 +307,11 @@ export async function getWorkOrderDetail(id: string): Promise<{
       createdAt: closureRow.created_at,
     } : null
 
-    let submittedForm: WorkOrderSubmittedForm | null = null
+    // Multiple engineers on this notification (primary + any additional
+    // assignments) can each have their own form_submissions row now — one per
+    // engineer, not one shared row — so service managers see all of them, not
+    // just whoever submitted last.
+    const submittedForms: WorkOrderSubmittedForm[] = []
     if (formRow) {
       type SectionEmbed = {
         id: string; title: string; order_index: number
@@ -315,37 +320,46 @@ export async function getWorkOrderDetail(id: string): Promise<{
       }
       const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
 
-      const [{ data: secs }, { data: sub }] = await Promise.all([
+      const [{ data: secs }, { data: subs }] = await Promise.all([
         admin.from('form_sections')
           .select('id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
           .eq('form_id', formRow.id)
           .order('order_index'),
         admin.from('form_submissions')
-          .select('form_data, submitted_at')
+          .select('form_data, submitted_at, submitted_by')
           .eq('work_order_id', id)
           .eq('form_id', formRow.id)
-          .maybeSingle(),
+          .order('submitted_at', { ascending: true }),
       ])
 
-      if (sub) {
-        const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
-          id: sec.id,
-          title: sec.title,
-          order_index: sec.order_index,
-          fields: (sec.form_fields || []).slice().sort(byOrder),
-          tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
-            ...t,
-            rows: (t.form_table_rows || []).slice().sort(byOrder),
-          })),
-        }))
+      const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
+        id: sec.id,
+        title: sec.title,
+        order_index: sec.order_index,
+        fields: (sec.form_fields || []).slice().sort(byOrder),
+        tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
+          ...t,
+          rows: (t.form_table_rows || []).slice().sort(byOrder),
+        })),
+      }))
+
+      const submitterIds = [...new Set((subs || []).map(s => s.submitted_by).filter(Boolean))] as string[]
+      const { data: submitterProfiles } = submitterIds.length
+        ? await admin.from('profiles').select('id, first_name, last_name').in('id', submitterIds)
+        : { data: [] as { id: string; first_name: string; last_name: string }[] }
+      const submitterNameMap: Record<string, string> = {}
+      ;(submitterProfiles || []).forEach(p => { submitterNameMap[p.id] = `${p.first_name} ${p.last_name}` })
+
+      for (const sub of subs || []) {
         const formData = sub.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }
-        submittedForm = {
+        submittedForms.push({
           formName: formRow.name,
           submittedAt: sub.submitted_at,
+          submittedByName: sub.submitted_by ? (submitterNameMap[sub.submitted_by] || 'Engineer') : 'Engineer',
           sections,
           fieldValues: formData?.fields || {},
           rowValues: formData?.table_rows || {},
-        }
+        })
       }
     }
 
@@ -367,7 +381,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
       activity: actRows || [],
       checkin,
       closure,
-      submittedForm,
+      submittedForms,
       visits,
       error: null,
     }

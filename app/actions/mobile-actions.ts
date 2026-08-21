@@ -126,8 +126,8 @@ export async function getMobileWorkOrderDetail(woId: string): Promise<{ detail: 
 // server-action bodies, but now sourcing shared helpers from lib/mobile/core/shared
 // instead of local duplicates. ───────────────────────────────────────────────────────
 
-export async function getMobileWorkOrderWithForm(woId: string) {
+export async function getMobileWorkOrderWithForm(woId: string, viewSubmittedBy?: string) {
   const user = await getAuthedUser()
-  if (!user) return { workOrder: null, form: null, existingSubmission: null, error: 'Not authenticated' }
-  return getMobileWorkOrderWithFormCore(adminClient(), user.id, woId)
+  if (!user) return { workOrder: null, form: null, existingSubmission: null, readOnly: false, viewedEngineerName: null, error: 'Not authenticated' }
+  return getMobileWorkOrderWithFormCore(adminClient(), user.id, woId, viewSubmittedBy)
 }
