@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import { reverseGeocode } from '@/app/actions/mobile-actions'
-import { markAttendance, getAttendanceCalendar } from '@/app/actions/attendance'
+import { markAttendance, markEndDay, getAttendanceCalendar } from '@/app/actions/attendance'
 import type { AttendanceCalendarDay, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 
 interface Props {
@@ -86,7 +86,7 @@ function monthRange(anchor: Date): { from: string; to: string; label: string } {
 }
 
 function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
-  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date']
+  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date', 'End Day At', 'End Day Location']
   const aoa = [headers, ...exportDays.map(d => {
     const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : ''
     const reason = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.reason || '') : ''
@@ -94,7 +94,8 @@ function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string)
     const approvedAt = d.status.kind === 'present' || d.status.kind === 'leave'
       ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN') : '')
       : ''
-    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt]
+    const endDayAt = d.endDayAt ? new Date(d.endDayAt).toLocaleString('en-IN') : ''
+    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt, endDayAt, d.endDayPlaceName || '']
   })]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(aoa)
@@ -130,6 +131,14 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
 
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+
+  const [endDayGpsRequested, setEndDayGpsRequested] = useState(false)
+  const [endDayGpsResolved, setEndDayGpsResolved] = useState(false)
+  const [endDayCoords, setEndDayCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [endDayPlaceName, setEndDayPlaceName] = useState('')
+  const [endDayGpsError, setEndDayGpsError] = useState('')
+  const [endDayError, setEndDayError] = useState('')
+  const [endDaySubmitting, setEndDaySubmitting] = useState(false)
 
   const range = viewMode === 'week' ? weekRange(anchorDate) : monthRange(anchorDate)
 
@@ -216,6 +225,52 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     setSubmitting(false)
     if (result.error) { setMarkError(result.error); return }
     setJustSubmitted(result.needsApproval ? 'approval' : 'pending')
+    load(range.from, range.to)
+  }
+
+  // Same GPS-capture flow as marking Present, dedicated state — End Day is a
+  // separate action from the app's own Sign Out (which stays ungated).
+  function startEndDayGpsCapture() {
+    setEndDayGpsRequested(true)
+    setEndDayGpsError('')
+    if (!('geolocation' in navigator)) {
+      setEndDayGpsResolved(true)
+      setEndDayGpsError('GPS not available on this device')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setEndDayCoords(c)
+        setEndDayGpsResolved(true)
+        reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) setEndDayPlaceName(label) })
+      },
+      () => {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+            setEndDayCoords(c)
+            setEndDayGpsResolved(true)
+            reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) setEndDayPlaceName(label) })
+          },
+          () => { setEndDayGpsResolved(true); setEndDayGpsError('Could not get location — you can still end your day without it') },
+          { enableHighAccuracy: false, timeout: 10000 }
+        )
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    )
+  }
+
+  async function handleEndDay() {
+    setEndDayError('')
+    setEndDaySubmitting(true)
+    const result = await markEndDay({
+      latitude: endDayCoords?.lat ?? null,
+      longitude: endDayCoords?.lng ?? null,
+      placeName: endDayPlaceName || null,
+    })
+    setEndDaySubmitting(false)
+    if (result.error) { setEndDayError(result.error); return }
     load(range.from, range.to)
   }
 
@@ -413,6 +468,51 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
                     style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: submitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
                   >
                     {submitting ? 'Saving…' : isLate ? 'Submit for approval' : 'Mark present'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {todayStatus?.kind === 'present' && (
+          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 16, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            {todayEntry?.endDayAt ? (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 4px' }}>Day ended</p>
+                <p style={{ fontSize: 11, color: '#7A6870', margin: 0 }}>
+                  {formatDateTime(todayEntry.endDayAt)}{todayEntry.endDayPlaceName ? ` — ${todayEntry.endDayPlaceName}` : ''}
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 10px' }}>End Day</p>
+                {!endDayGpsRequested ? (
+                  <button
+                    className="mtap"
+                    onClick={startEndDayGpsCapture}
+                    style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Capture location &amp; continue
+                  </button>
+                ) : (
+                  <div style={{ background: endDayCoords ? 'linear-gradient(135deg,#065F46,#059669)' : endDayGpsResolved ? '#B91C1C' : 'linear-gradient(135deg,#1E3A5F,#2563EB)', borderRadius: 10, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
+                      {endDayCoords ? (endDayPlaceName || 'GPS location captured') : endDayGpsResolved ? (endDayGpsError || 'GPS unavailable') : 'GPS location capturing…'}
+                    </div>
+                  </div>
+                )}
+
+                {endDayError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{endDayError}</div>}
+
+                {endDayGpsRequested && endDayGpsResolved && (
+                  <button
+                    className="mtap"
+                    onClick={handleEndDay}
+                    disabled={endDaySubmitting}
+                    style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
+                  >
+                    {endDaySubmitting ? 'Saving…' : 'End Day'}
                   </button>
                 )}
               </>

@@ -2,22 +2,26 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import { useCheckinDriftNotice } from '@/lib/hooks';
+import { usePendingSyncBannerOffset } from '@/lib/bannerLayout';
 
 // Rendered once at the (app) root alongside PendingSyncBanner. Persistent (not
 // auto-dismissing) by design — keeps reminding for as long as the engineer's status
 // stays "Reached" but they're 2km+ from where they checked in, per the product
-// decision to nag rather than fire a single one-off notice. Offset below
-// PendingSyncBanner's position so the two don't overlap if both are showing.
+// decision to nag rather than fire a single one-off notice. Offset dynamically below
+// PendingSyncBanner's actual position — only reserving space for it when it's really
+// showing, instead of a fixed guess that overlapped screen content whenever the sync
+// banner was absent.
 export default function CheckinDriftBanner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: notice } = useCheckinDriftNotice();
+  const syncBannerOffset = usePendingSyncBannerOffset();
 
   if (!notice) return null;
 
   return (
     <Pressable
-      style={[styles.banner, { top: insets.top + 56 }]}
+      style={[styles.banner, { top: insets.top + 8 + syncBannerOffset }]}
       onPress={() => router.push(`/(app)/work-orders/${notice.workOrderId}` as Href)}
     >
       <Text style={styles.text}>

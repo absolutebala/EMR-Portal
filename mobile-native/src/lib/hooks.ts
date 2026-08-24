@@ -15,6 +15,7 @@ import type {
   ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
+  MarkEndDayVariables, MarkEndDayResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
 } from './types';
@@ -108,13 +109,13 @@ export function useCheckinDriftNotice() {
 // timer. The server records this engineer's own location as a side effect of this same
 // call (see getNearbyEngineersCore), so an engineer only shows up as "nearby" to
 // others if they've opened the app recently enough themselves.
-export function useNearbyEngineers() {
+export function useNearbyEngineers(radiusKm: number) {
   return useQuery({
-    queryKey: ['nearby-engineers'],
+    queryKey: ['nearby-engineers', radiusKm],
     queryFn: async (): Promise<NearbyEngineersResponse> => {
       const loc = await getCurrentPositionWithFallback();
       if (!loc) return { engineers: [], error: null };
-      return apiGet<NearbyEngineersResponse>(`/api/mobile/v1/nearby-engineers?lat=${loc.lat}&lng=${loc.lng}`);
+      return apiGet<NearbyEngineersResponse>(`/api/mobile/v1/nearby-engineers?lat=${loc.lat}&lng=${loc.lng}&radiusKm=${radiusKm}`);
     },
   });
 }
@@ -250,6 +251,18 @@ export function useMarkAttendance() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+    },
+  });
+}
+
+// Separate end-of-day sign-off, distinct from the app's own Sign Out (AccountMenu),
+// which stays ungated.
+export function useMarkEndDay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: MarkEndDayVariables) => apiPost<MarkEndDayResponse>('/api/mobile/v1/attendance/end-day', variables),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
     },
   });

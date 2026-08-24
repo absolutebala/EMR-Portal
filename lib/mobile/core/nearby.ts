@@ -9,16 +9,18 @@ export interface NearbyEngineer {
   lastSeenAt: string
 }
 
-// Server-side cap on how far out this ever returns — the mobile app's own radius
-// control (default 10km, user-adjustable) then filters this client-side, so changing
-// the radius is instant and doesn't re-trigger a location ping each time.
-const MAX_NEARBY_RADIUS_KM = 50
+// Hard ceiling regardless of what the client requests — generous enough to cover the
+// mobile app's own radius control (default 10km, user-adjustable up to a few hundred),
+// while still bounding the query.
+const MAX_NEARBY_RADIUS_KM = 500
+const DEFAULT_RADIUS_KM = 10
 // An engineer only shows up here if THEY have opened the app recently enough for their
 // own ping to still be fresh — deliberately no background tracking, see
 // recordLastSeenCore's callers.
 const STALE_HOURS = 4
 
-export async function getNearbyEngineersCore(admin: AdminClient, userId: string, lat: number, lng: number): Promise<{ engineers: NearbyEngineer[]; error: string | null }> {
+export async function getNearbyEngineersCore(admin: AdminClient, userId: string, lat: number, lng: number, radiusKm: number = DEFAULT_RADIUS_KM): Promise<{ engineers: NearbyEngineer[]; error: string | null }> {
+  const effectiveRadiusKm = Math.min(Math.max(radiusKm, 0), MAX_NEARBY_RADIUS_KM)
   try {
     // Recording this engineer's own ping is a side effect of viewing the strip, not a
     // background timer — fire-and-forget so a slow/failed geocode never blocks the
@@ -43,7 +45,7 @@ export async function getNearbyEngineersCore(admin: AdminClient, userId: string,
         distanceKm: haversineKm(lat, lng, p.last_seen_lat as number, p.last_seen_lng as number),
         lastSeenAt: p.last_seen_at as string,
       }))
-      .filter(e => e.distanceKm <= MAX_NEARBY_RADIUS_KM)
+      .filter(e => e.distanceKm <= effectiveRadiusKm)
       .sort((a, b) => a.distanceKm - b.distanceKm)
 
     return { engineers, error: null }

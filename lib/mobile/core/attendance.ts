@@ -52,6 +52,10 @@ export interface AttendanceRowCore {
   marked_at: string | null
   approved_by_name: string | null
   approved_at: string | null
+  // Only selected by callers that need it (e.g. getAttendanceCalendarCore) — optional
+  // since computeEffectiveStatus itself never reads these.
+  end_day_at?: string | null
+  end_day_place_name?: string | null
 }
 
 export type AttendanceEffectiveStatus =
@@ -235,6 +239,45 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
   }
 }
 
+// A separate end-of-day sign-off, distinct from the app's own session Sign Out —
+// only available today, only after Present has already been marked, once per day.
+// No cutoff/approval concept (unlike a late morning mark) — just a plain capture.
+export async function markEndDayCore(admin: AdminClient, userId: string, params: {
+  latitude: number | null
+  longitude: number | null
+  placeName: string | null
+}): Promise<{ error: string | null }> {
+  try {
+    const todayStr = getISTDateStr()
+    const { data: existing } = await admin.from('attendance').select('id, status, end_day_at')
+      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+
+    if (!existing || existing.status !== 'present') {
+      return { error: 'Mark attendance present before ending your day' }
+    }
+    if (existing.end_day_at) {
+      return { error: "You've already ended your day" }
+    }
+
+    const result = await withTimeout(
+      admin.from('attendance').update({
+        end_day_at: new Date().toISOString(),
+        end_day_latitude: params.latitude,
+        end_day_longitude: params.longitude,
+        end_day_place_name: params.placeName,
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id),
+      8000
+    )
+    if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.' }
+    if (result.error) return { error: result.error.message }
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export interface AttendanceCalendarDay {
   date: string
   status: AttendanceEffectiveStatus
@@ -242,6 +285,10 @@ export interface AttendanceCalendarDay {
   // status kind — status.markedAt only carries a value for the 'leave' kind, so this
   // is what callers (e.g. an export) use to show a real time for a Present day too.
   markedAt: string | null
+  // End-of-day sign-off — separate from the app's Sign Out. Null until the engineer
+  // taps "End Day" (only available once Present is marked, today only).
+  endDayAt: string | null
+  endDayPlaceName: string | null
 }
 
 export async function getAttendanceCalendarCore(admin: AdminClient, userId: string, from: string, to: string): Promise<{ days: AttendanceCalendarDay[]; error: string | null }> {
@@ -249,7 +296,7 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
     const todayStr = getISTDateStr()
 
     const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
       getProfileCreatedAtDateStr(admin, userId),
     ])
@@ -264,6 +311,8 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
       date: dateStr,
       status: computeEffectiveStatus({ dateStr, todayStr, row: rowByDate[dateStr] ?? null, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr }),
       markedAt: rowByDate[dateStr]?.marked_at ?? null,
+      endDayAt: rowByDate[dateStr]?.end_day_at ?? null,
+      endDayPlaceName: rowByDate[dateStr]?.end_day_place_name ?? null,
     }))
 
     return { days, error: null }

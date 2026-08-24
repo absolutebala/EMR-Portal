@@ -137,6 +137,10 @@ export interface AttendanceCalendarDay {
   date: string;
   status: AttendanceEffectiveStatus;
   markedAt: string | null;
+  // End-of-day sign-off — separate from the app's own Sign Out. Null until "End Day"
+  // is tapped (only available once Present is marked, today only).
+  endDayAt: string | null;
+  endDayPlaceName: string | null;
 }
 
 export interface AttendanceCalendarResponse {
@@ -155,6 +159,16 @@ export interface MarkAttendanceVariables {
   placeName: string | null;
   reason?: string | null;
   attendanceDate?: string;
+}
+
+export interface MarkEndDayVariables {
+  latitude: number | null;
+  longitude: number | null;
+  placeName: string | null;
+}
+
+export interface MarkEndDayResponse {
+  error: string | null;
 }
 
 export interface MarkAttendanceResponse {

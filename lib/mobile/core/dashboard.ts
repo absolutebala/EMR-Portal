@@ -38,24 +38,33 @@ type WorkOrderWithDept = {
   profiles: { first_name: string; last_name: string } | null
 }
 
-// Org-wide, not per-engineer like every other stat on this dashboard — deliberately
-// scoped that way (see plan): a dispatcher-style view of open notification load per
-// department, tallied client-side over a single flat query rather than relying on a
-// PostgREST inner-join filter, since the row count here (open notifications org-wide)
-// is small enough that a JS tally is simpler and safer than embed-filter syntax.
+// Per-engineer (primary assignment + additional-engineer assignments, same union
+// fetchEngineerWorkOrders uses for the Jobs list) — this engineer's own open
+// notification load per department, tallied client-side over a small flat query.
 // Department is read straight off work_orders.department_id (set by whoever created
 // the notification), not derived from the assigned engineer.
-export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
+export async function getDepartmentOpenCountsCore(admin: AdminClient, engineerId: string): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
   try {
-    const [{ data: departments, error: deptError }, { data, error }] = await Promise.all([
+    const [{ data: departments, error: deptError }, { data: primaryRows, error: primaryError }, { data: additionalAssignments }] = await Promise.all([
       admin.from('departments').select('id, name').order('name'),
-      admin.from('work_orders').select('department_id').neq('status', 'completed'),
+      admin.from('work_orders').select('id, department_id').eq('engineer_id', engineerId).neq('status', 'completed'),
+      admin.from('work_order_engineer_assignments').select('work_order_id').eq('engineer_id', engineerId),
     ])
     if (deptError) return { counts: [], error: deptError.message }
-    if (error) return { counts: [], error: error.message }
+    if (primaryError) return { counts: [], error: primaryError.message }
 
-    type Row = { department_id: string | null }
-    const rows = (data as unknown as Row[]) || []
+    type Row = { id: string; department_id: string | null }
+    const primary = (primaryRows as unknown as Row[]) || []
+    const additionalWoIds = [...new Set((additionalAssignments || []).map(a => a.work_order_id))]
+      .filter(id => !primary.some(w => w.id === id))
+    let additional: Row[] = []
+    if (additionalWoIds.length) {
+      const { data: extraRows, error: extraError } = await admin.from('work_orders').select('id, department_id').in('id', additionalWoIds).neq('status', 'completed')
+      if (extraError) return { counts: [], error: extraError.message }
+      additional = (extraRows as unknown as Row[]) || []
+    }
+    const rows = [...primary, ...additional]
+
     const tally: Record<string, number> = {}
     for (const d of departments || []) tally[d.id] = 0
     let unassigned = 0
@@ -72,22 +81,35 @@ export async function getDepartmentOpenCountsCore(admin: AdminClient): Promise<{
   }
 }
 
-// Read-only, cross-engineer list for the department-jobs tap-through — deliberately
-// doesn't reuse fetchEngineerWorkOrders/MobileWorkOrder (which are shaped around "my
-// own jobs" and carry per-viewer fields like distanceKm) since this list is about
-// who's assigned what, not the viewer's own relationship to the job.
-export async function getDepartmentOpenJobsCore(admin: AdminClient, departmentId: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
+// Per-engineer tap-through list for a department card — same primary + additional-
+// assignment union as getDepartmentOpenCountsCore above. Deliberately doesn't reuse
+// fetchEngineerWorkOrders/MobileWorkOrder (which carry per-viewer fields like
+// distanceKm this list doesn't need) — engineerName stays useful since an
+// additional-assignment job's primary engineer can be someone else.
+export async function getDepartmentOpenJobsCore(admin: AdminClient, engineerId: string, departmentId: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
   try {
-    let query = admin
-      .from('work_orders')
-      .select(`${WORK_ORDER_SELECT}, department_id, profiles!work_orders_engineer_id_fkey(first_name, last_name)`)
-      .neq('status', 'completed')
-      .order('scheduled_date', { ascending: true })
-    query = departmentId === UNASSIGNED_DEPARTMENT_ID ? query.is('department_id', null) : query.eq('department_id', departmentId)
-    const { data, error } = await query
-    if (error) return { jobs: [], error: error.message }
+    const SELECT = `${WORK_ORDER_SELECT}, department_id, profiles!work_orders_engineer_id_fkey(first_name, last_name)`
 
-    const rows = (data as unknown as WorkOrderWithDept[]) || []
+    let primaryQuery = admin.from('work_orders').select(SELECT).eq('engineer_id', engineerId).neq('status', 'completed')
+    primaryQuery = departmentId === UNASSIGNED_DEPARTMENT_ID ? primaryQuery.is('department_id', null) : primaryQuery.eq('department_id', departmentId)
+    const { data: primaryData, error: primaryError } = await primaryQuery.order('scheduled_date', { ascending: true })
+    if (primaryError) return { jobs: [], error: primaryError.message }
+
+    const primaryRows = (primaryData as unknown as WorkOrderWithDept[]) || []
+    const { data: additionalAssignments } = await admin.from('work_order_engineer_assignments').select('work_order_id').eq('engineer_id', engineerId)
+    const additionalWoIds = [...new Set((additionalAssignments || []).map(a => a.work_order_id))]
+      .filter(id => !primaryRows.some(w => w.id === id))
+
+    let additionalRows: WorkOrderWithDept[] = []
+    if (additionalWoIds.length) {
+      let additionalQuery = admin.from('work_orders').select(SELECT).in('id', additionalWoIds).neq('status', 'completed')
+      additionalQuery = departmentId === UNASSIGNED_DEPARTMENT_ID ? additionalQuery.is('department_id', null) : additionalQuery.eq('department_id', departmentId)
+      const { data: extraData, error: extraError } = await additionalQuery.order('scheduled_date', { ascending: true })
+      if (extraError) return { jobs: [], error: extraError.message }
+      additionalRows = (extraData as unknown as WorkOrderWithDept[]) || []
+    }
+
+    const rows = [...primaryRows, ...additionalRows]
 
     const jobs: DepartmentOpenJob[] = rows.map(r => {
       const txRows = r.work_order_transformers || []

@@ -30,6 +30,10 @@ export interface AttendanceOverviewRow {
   // any) — kept alongside the computed `attendance` status so the UI can show a
   // real time for both Present and explicit Leave without re-deriving it per kind.
   markedAt: string | null
+  // End-of-day sign-off — separate from the app's own Sign Out. Null until the
+  // engineer taps "End Day" (only available once Present is marked, today only).
+  endDayAt: string | null
+  endDayPlaceName: string | null
   // The raw attendance row's own id, null when no row exists for this date — used
   // to target the approve/reject action directly from the grid cell.
   attendanceId: string | null
@@ -109,7 +113,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
-      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
@@ -206,6 +210,8 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
           date: dateStr,
           attendance,
           markedAt: row?.marked_at ?? null,
+          endDayAt: row?.end_day_at ?? null,
+          endDayPlaceName: row?.end_day_place_name ?? null,
           attendanceId: row?.id ?? null,
           jobs: jobsByEngDate[`${eng.id}:${dateStr}`] || [],
         })

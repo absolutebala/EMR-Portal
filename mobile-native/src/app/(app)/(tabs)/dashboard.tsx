@@ -10,6 +10,7 @@ import AccountMenu from '@/components/AccountMenu';
 import StreakStrip from '@/components/StreakStrip';
 import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
+import { useBannerStackHeight } from '@/lib/bannerLayout';
 import type { AttendanceEffectiveStatus } from '@/lib/types';
 
 // Org-wide open-notification counts per department, cycled across a fixed palette
@@ -57,6 +58,7 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
+  const bannerStackHeight = useBannerStackHeight();
   const unreadAlerts = alertsData?.unreadCount ?? 0;
 
   // The dashboard query's own 30s staleTime otherwise only refetches on remount or
@@ -89,7 +91,7 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 + bannerStackHeight }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D1D3F" />}
     >
       <View style={styles.headerRow}>

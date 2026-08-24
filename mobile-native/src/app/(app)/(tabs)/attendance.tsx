@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
-import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMyProfile } from '@/lib/hooks';
+import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMarkEndDay, useMyProfile } from '@/lib/hooks';
 import { apiGet } from '@/lib/api';
 import { apiErrorMessage } from '@/lib/offlineSubmit';
 import type { AttendanceEffectiveStatus, AttendanceCalendarDay, AttendanceCalendarResponse } from '@/lib/types';
@@ -77,7 +77,7 @@ function formatDateTime(iso: string): string {
 }
 
 async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
-  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date'];
+  const headers = ['Date', 'Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date', 'End Day At', 'End Day Location'];
   const aoa = [headers, ...exportDays.map(d => {
     const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : '';
     const reason = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.reason || '') : '';
@@ -85,7 +85,8 @@ async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: s
     const approvedAt = d.status.kind === 'present' || d.status.kind === 'leave'
       ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN') : '')
       : '';
-    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt];
+    const endDayAt = d.endDayAt ? new Date(d.endDayAt).toLocaleString('en-IN') : '';
+    return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt, endDayAt, d.endDayPlaceName || ''];
   })];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -112,6 +113,7 @@ export default function AttendanceScreen() {
 
   const { data, isLoading, error } = useAttendanceCalendar(range.from, range.to);
   const markAttendance = useMarkAttendance();
+  const markEndDay = useMarkEndDay();
   const { data: profileData } = useMyProfile();
   const engineerName = profileData?.profile ? `${profileData.profile.firstName} ${profileData.profile.lastName}` : 'Engineer';
 
@@ -129,6 +131,12 @@ export default function AttendanceScreen() {
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+
+  const [endDayGpsRequested, setEndDayGpsRequested] = useState(false);
+  const [endDayGpsResolved, setEndDayGpsResolved] = useState(false);
+  const [endDayCoords, setEndDayCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [endDayPlaceName, setEndDayPlaceName] = useState('');
+  const [endDayError, setEndDayError] = useState('');
 
   const todayEntry = data?.days.find(d => d.date === todayStr) ?? null;
   const todayStatus = todayEntry?.status ?? null;
@@ -182,6 +190,33 @@ export default function AttendanceScreen() {
       setReason('');
     } catch (e) {
       setMarkError(apiErrorMessage(e));
+    }
+  }
+
+  // Same GPS-capture flow as marking Present, dedicated state — End Day is a separate
+  // action from the app's own Sign Out (AccountMenu), which stays ungated.
+  function startEndDayGpsCapture() {
+    setEndDayGpsRequested(true);
+    getCurrentPositionWithFallback().then(pos => {
+      setEndDayCoords(pos);
+      setEndDayGpsResolved(true);
+      if (pos) {
+        reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) setEndDayPlaceName(label); }).catch(() => {});
+      }
+    });
+  }
+
+  async function handleEndDay() {
+    setEndDayError('');
+    try {
+      const result = await markEndDay.mutateAsync({
+        latitude: endDayCoords?.lat ?? null,
+        longitude: endDayCoords?.lng ?? null,
+        placeName: endDayPlaceName || null,
+      });
+      if (result.error) { setEndDayError(result.error); return; }
+    } catch (e) {
+      setEndDayError(apiErrorMessage(e));
     }
   }
 
@@ -323,6 +358,41 @@ export default function AttendanceScreen() {
               {gpsRequested && gpsResolved && (
                 <Pressable style={[styles.submitButton, markAttendance.isPending && styles.submitButtonDisabled]} onPress={handleMark} disabled={markAttendance.isPending}>
                   {markAttendance.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{isLate ? 'Submit for approval' : 'Mark present'}</Text>}
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
+      )}
+
+      {todayStatus?.kind === 'present' && (
+        <View style={styles.markCard}>
+          {todayEntry?.endDayAt ? (
+            <>
+              <Text style={styles.markTitle}>Day ended</Text>
+              <Text style={styles.markSub}>
+                {new Date(todayEntry.endDayAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {todayEntry.endDayPlaceName ? ` — ${todayEntry.endDayPlaceName}` : ''}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.markTitle}>End Day</Text>
+              {!endDayGpsRequested ? (
+                <Pressable style={styles.gpsButton} onPress={startEndDayGpsCapture}>
+                  <Text style={styles.gpsButtonText}>Capture location &amp; continue</Text>
+                </Pressable>
+              ) : (
+                <View style={[styles.gpsCard, { backgroundColor: endDayCoords ? '#059669' : '#2563EB' }]}>
+                  <Text style={styles.gpsTitle}>{endDayCoords ? (endDayPlaceName || 'GPS location captured') : endDayGpsResolved ? 'GPS unavailable' : 'GPS location capturing…'}</Text>
+                </View>
+              )}
+
+              {!!endDayError && <Text style={styles.markError}>{endDayError}</Text>}
+
+              {endDayGpsRequested && endDayGpsResolved && (
+                <Pressable style={[styles.submitButton, markEndDay.isPending && styles.submitButtonDisabled]} onPress={handleEndDay} disabled={markEndDay.isPending}>
+                  {markEndDay.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>End Day</Text>}
                 </Pressable>
               )}
             </>

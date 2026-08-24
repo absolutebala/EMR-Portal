@@ -11,5 +11,5 @@ export async function GET(req: NextRequest) {
   const dept = searchParams.get('dept')
   if (!dept) return NextResponse.json({ jobs: [], error: 'Missing dept' }, { status: 400 })
 
-  return NextResponse.json(await getDepartmentOpenJobsCore(adminClient(), dept))
+  return NextResponse.json(await getDepartmentOpenJobsCore(adminClient(), user.id, dept))
 }

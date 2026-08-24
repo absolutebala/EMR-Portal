@@ -11,5 +11,8 @@ export async function GET(req: NextRequest) {
   const lng = Number(req.nextUrl.searchParams.get('lng'))
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return NextResponse.json({ engineers: [], error: 'Missing lat/lng' }, { status: 400 })
 
-  return NextResponse.json(await getNearbyEngineersCore(adminClient(), user.id, lat, lng))
+  const radiusParam = req.nextUrl.searchParams.get('radiusKm')
+  const radiusKm = radiusParam != null && Number.isFinite(Number(radiusParam)) ? Number(radiusParam) : undefined
+
+  return NextResponse.json(await getNearbyEngineersCore(adminClient(), user.id, lat, lng, radiusKm))
 }

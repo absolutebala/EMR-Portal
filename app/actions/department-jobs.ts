@@ -7,11 +7,11 @@ import { getDepartmentOpenCountsCore, getDepartmentOpenJobsCore, type Department
 export async function getDepartmentOpenCounts(): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
   const user = await getAuthedUser()
   if (!user) return { counts: [], error: 'Not authenticated' }
-  return getDepartmentOpenCountsCore(adminClient())
+  return getDepartmentOpenCountsCore(adminClient(), user.id)
 }
 
 export async function getDepartmentOpenJobs(department: string): Promise<{ jobs: DepartmentOpenJob[]; error: string | null }> {
   const user = await getAuthedUser()
   if (!user) return { jobs: [], error: 'Not authenticated' }
-  return getDepartmentOpenJobsCore(adminClient(), department)
+  return getDepartmentOpenJobsCore(adminClient(), user.id, department)
 }

@@ -13,19 +13,17 @@ function formatDistance(km: number): string {
   return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 }
 
-// "At the bottom" of the dashboard — sits after the recent-jobs list. Radius is local,
-// client-side state (default 10km, tap the pill to edit) filtering an already-fetched
-// list, so adjusting it is instant and doesn't trigger another location ping.
+// "At the bottom" of the dashboard — sits after the recent-jobs list. Radius is local
+// state (default 10km, tap the pill to edit) sent to the server as an actual query
+// param — changing it re-fetches (a fresh GPS read + server-side filter), rather than
+// just re-filtering an already-fetched, server-capped list.
 export default function NearbyEngineersStrip() {
-  const { data, isLoading } = useNearbyEngineers();
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
+  const { data, isLoading } = useNearbyEngineers(radiusKm);
   const [editing, setEditing] = useState(false);
   const [draftRadius, setDraftRadius] = useState(String(DEFAULT_RADIUS_KM));
 
-  const engineers = useMemo(
-    () => (data?.engineers || []).filter(e => e.distanceKm <= radiusKm),
-    [data, radiusKm]
-  );
+  const engineers = useMemo(() => data?.engineers || [], [data]);
 
   function openEditor() {
     setDraftRadius(String(radiusKm));
