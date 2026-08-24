@@ -1,10 +1,12 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts, useDepartmentCounts } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, reverseGeocode } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
+import { getCurrentPositionWithFallback } from '@/lib/gps';
+import { apiErrorMessage } from '@/lib/offlineSubmit';
 import JobCard from '@/components/JobCard';
 import AccountMenu from '@/components/AccountMenu';
 import StreakStrip from '@/components/StreakStrip';
@@ -12,6 +14,18 @@ import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
 import { useBannerStackHeight } from '@/lib/bannerLayout';
 import type { AttendanceEffectiveStatus } from '@/lib/types';
+
+function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatLoggedHours(markedAt: string, endDayAt: string): string {
+  const ms = new Date(endDayAt).getTime() - new Date(markedAt).getTime();
+  const totalMinutes = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${m}m`;
+}
 
 // Org-wide open-notification counts per department, cycled across a fixed palette
 // purely for visual variety (no per-department meaning) — matches the PWA
@@ -60,6 +74,40 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const bannerStackHeight = useBannerStackHeight();
   const unreadAlerts = alertsData?.unreadCount ?? 0;
+
+  const markEndDay = useMarkEndDay();
+  const [endDayError, setEndDayError] = useState('');
+  // GPS captures silently in the background as soon as End Day becomes available —
+  // same single-step pattern as the Attendance tab — so the button here is a genuine
+  // single tap with no separate "capture location" step.
+  const endDayCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const endDayPlaceNameRef = useRef('');
+  const endDayGpsRequestedRef = useRef(false);
+  const attendanceStatus = data?.attendanceStatus;
+  const canEndDay = attendanceStatus?.kind === 'present' && !attendanceStatus.endDayAt;
+
+  useEffect(() => {
+    if (!canEndDay || endDayGpsRequestedRef.current) return;
+    endDayGpsRequestedRef.current = true;
+    getCurrentPositionWithFallback().then(pos => {
+      endDayCoordsRef.current = pos;
+      if (pos) reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) endDayPlaceNameRef.current = label; }).catch(() => {});
+    });
+  }, [canEndDay]);
+
+  async function handleEndDay() {
+    setEndDayError('');
+    try {
+      const result = await markEndDay.mutateAsync({
+        latitude: endDayCoordsRef.current?.lat ?? null,
+        longitude: endDayCoordsRef.current?.lng ?? null,
+        placeName: endDayPlaceNameRef.current || null,
+      });
+      if (result.error) setEndDayError(result.error);
+    } catch (e) {
+      setEndDayError(apiErrorMessage(e));
+    }
+  }
 
   // The dashboard query's own 30s staleTime otherwise only refetches on remount or
   // app foreground — an admin reassigning a job, or a product request being approved
@@ -115,8 +163,42 @@ export default function DashboardScreen() {
       {(error || data?.error) && <Text style={styles.error}>{data?.error || 'Failed to load dashboard'}</Text>}
 
       {data?.attendanceStatus && (() => {
-        const cfg = attendanceCardStyle(data.attendanceStatus);
-        const clickable = data.attendanceStatus.kind === 'pending' || data.attendanceStatus.kind === 'leave';
+        const status = data.attendanceStatus;
+        const cfg = attendanceCardStyle(status);
+
+        if (status.kind === 'present') {
+          const ended = !!status.endDayAt;
+          return (
+            <View style={[styles.attendanceCard, styles.attendanceCardColumn, { backgroundColor: cfg.bg }]}>
+              <View style={styles.attendanceCardRow}>
+                <View>
+                  <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
+                  {ended && status.markedAt ? (
+                    <>
+                      <Text style={[styles.attendanceLabel, { color: cfg.color }]}>Today: {formatLoggedHours(status.markedAt, status.endDayAt!)}</Text>
+                      <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                        Checked in {formatClockTime(status.markedAt)} · Checked out {formatClockTime(status.endDayAt!)}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                      {status.markedAt && <Text style={[styles.attendanceSub, { color: cfg.color }]}>Checked in {formatClockTime(status.markedAt)}</Text>}
+                    </>
+                  )}
+                </View>
+                {!ended && (
+                  <Pressable style={styles.endDayButton} onPress={handleEndDay} disabled={markEndDay.isPending}>
+                    {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>End Day</Text>}
+                  </Pressable>
+                )}
+              </View>
+              {!!endDayError && <Text style={styles.endDayError}>{endDayError}</Text>}
+            </View>
+          );
+        }
+
+        const clickable = status.kind === 'pending' || status.kind === 'leave';
         return (
           <Pressable
             style={[styles.attendanceCard, { backgroundColor: cfg.bg }]}
@@ -185,10 +267,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderRadius: 12, padding: 14, marginBottom: 12,
   },
+  attendanceCardColumn: { flexDirection: 'column', alignItems: 'stretch' },
+  attendanceCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   attendanceEyebrow: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5, opacity: 0.75, marginBottom: 2 },
   attendanceLabel: { fontSize: 15, fontWeight: '700' },
   attendanceSub: { fontSize: 11, opacity: 0.85, marginTop: 1 },
   attendanceChevron: { fontSize: 22, fontWeight: '700' },
+  endDayButton: { backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
+  endDayButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  endDayError: { color: '#DC2626', fontSize: 10, marginTop: 8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   statCard: {
     flexBasis: '47%', backgroundColor: '#fff', borderRadius: 12, padding: 14,

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -116,6 +117,20 @@ export default function AttendanceScreen() {
   const markEndDay = useMarkEndDay();
   const { data: profileData } = useMyProfile();
   const engineerName = profileData?.profile ? `${profileData.profile.firstName} ${profileData.profile.lastName}` : 'Engineer';
+  const queryClient = useQueryClient();
+
+  // A Service Manager approving/rejecting an amendment happens on a different device
+  // (desktop), so nothing here pushes an update — without this, "pending approval"
+  // text keeps showing until the app is fully restarted. Skip the first focus, since
+  // the query already fetches on mount.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) { hasFocusedOnce.current = true; return; }
+      queryClient.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-status'] });
+    }, [queryClient])
+  );
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [placeName, setPlaceName] = useState('');

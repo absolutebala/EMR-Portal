@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import { STATUS_CONFIG } from '@/components/mobile/constants'
 import type { DepartmentOpenJob } from '@/lib/mobile/core/dashboard'
@@ -15,11 +16,8 @@ function formatDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-// Read-only by design — see the plan's safety note: any authenticated engineer can
-// already check into/close any work order server-side with no ownership check, so
-// this cross-engineer list deliberately doesn't link into the actionable job detail
-// screen (/mobile/work-orders/[id]), only shows who's assigned what.
 export default function DepartmentJobsClient({ department, jobs, error }: Props) {
+  const router = useRouter()
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title={department || 'Department'} backHref="/mobile/dashboard" />
@@ -45,7 +43,12 @@ export default function DepartmentJobsClient({ department, jobs, error }: Props)
         {jobs.map(job => {
           const st = STATUS_CONFIG[job.status] || STATUS_CONFIG.assigned
           return (
-            <div key={job.id} style={{ background: '#fff', borderRadius: 12, padding: 13, marginBottom: 9, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            <button
+              key={job.id}
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${job.id}`)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderRadius: 12, padding: 13, marginBottom: 9, boxShadow: '0 1px 4px rgba(125,29,63,0.05)', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14' }}>{job.woNumber}</span>
                 <span style={{ fontSize: 9, fontWeight: 700, background: st.bg, color: st.color, borderRadius: 20, padding: '3px 9px', flexShrink: 0 }}>{st.label}</span>
@@ -56,7 +59,7 @@ export default function DepartmentJobsClient({ department, jobs, error }: Props)
               )}
               <div style={{ fontSize: 11, color: '#7A6870', marginBottom: 2 }}>Engineer: {job.engineerName}</div>
               <div style={{ fontSize: 11, color: '#7A6870' }}>Scheduled: {formatDate(job.scheduledDate)}</div>
-            </div>
+            </button>
           )
         })}
       </div>

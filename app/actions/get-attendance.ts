@@ -30,6 +30,9 @@ export interface AttendanceOverviewRow {
   // any) — kept alongside the computed `attendance` status so the UI can show a
   // real time for both Present and explicit Leave without re-deriving it per kind.
   markedAt: string | null
+  // Location captured when marking/requesting attendance — separate from
+  // endDayPlaceName below, which is captured on End Day instead.
+  placeName: string | null
   // End-of-day sign-off — separate from the app's own Sign Out. Null until the
   // engineer taps "End Day" (only available once Present is marked, today only).
   endDayAt: string | null
@@ -113,7 +116,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
-      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, place_name, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
@@ -140,7 +143,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
     for (const woId of Object.keys(checkinTimeByWoDay)) checkinDaysByWo[woId] = new Set(Object.keys(checkinTimeByWoDay[woId]))
 
     const nameByApprover = await resolveApprovedByNames(admin, (attendanceRows || []).map(r => r.approved_by))
-    const attendanceByEngDate: Record<string, AttendanceRowCore & { id: string }> = {}
+    const attendanceByEngDate: Record<string, AttendanceRowCore & { id: string; place_name: string | null }> = {}
     ;(attendanceRows || []).forEach(r => {
       attendanceByEngDate[`${r.engineer_id}:${r.attendance_date}`] = { ...r, approved_by_name: r.approved_by ? nameByApprover[r.approved_by] ?? null : null }
     })
@@ -210,6 +213,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
           date: dateStr,
           attendance,
           markedAt: row?.marked_at ?? null,
+          placeName: row?.place_name ?? null,
           endDayAt: row?.end_day_at ?? null,
           endDayPlaceName: row?.end_day_place_name ?? null,
           attendanceId: row?.id ?? null,

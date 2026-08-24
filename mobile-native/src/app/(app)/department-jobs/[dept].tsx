@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useDepartmentJobs } from '@/lib/hooks';
 import { STATUS_CONFIG } from '@/lib/constants';
 
@@ -8,12 +8,13 @@ function formatDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Read-only by design, same as the PWA equivalent: any authenticated engineer can
-// already check into/close any work order server-side with no ownership check, so
-// this cross-engineer list deliberately doesn't link into the actionable job detail
-// screen — only shows who's assigned what.
+// Tappable into the same job detail screen the Jobs tab uses — any authenticated
+// engineer can already check into/close any work order server-side with no ownership
+// check, so there's no additional access-control concern in linking a cross-engineer
+// list into it.
 export default function DepartmentJobsScreen() {
   const { dept, name } = useLocalSearchParams<{ dept: string; name?: string }>();
+  const router = useRouter();
   const { data, isLoading, error } = useDepartmentJobs(dept);
   const jobs = data?.jobs ?? [];
 
@@ -36,7 +37,7 @@ export default function DepartmentJobsScreen() {
             jobs.map(job => {
               const st = STATUS_CONFIG[job.status] || STATUS_CONFIG.assigned;
               return (
-                <View key={job.id} style={styles.card}>
+                <Pressable key={job.id} style={styles.card} onPress={() => router.push(`/(app)/work-orders/${job.id}`)}>
                   <View style={styles.cardHeader}>
                     <Text style={styles.woNumber}>{job.woNumber}</Text>
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>
@@ -49,7 +50,7 @@ export default function DepartmentJobsScreen() {
                   )}
                   <Text style={styles.detailSub}>Engineer: {job.engineerName}</Text>
                   <Text style={styles.detailSub}>Scheduled: {formatDate(job.scheduledDate)}</Text>
-                </View>
+                </Pressable>
               );
             })
           )}

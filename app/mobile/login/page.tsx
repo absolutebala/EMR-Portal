@@ -128,6 +128,9 @@ export default function MobileLoginPage() {
       <div style={{ textAlign: 'center', paddingBottom: 24, fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
         EMR Global · Field Service Management
       </div>
+      <div style={{ textAlign: 'center', paddingBottom: 20, fontSize: 11, color: 'rgba(255,255,255,.45)' }}>
+        Powered by <a href="https://www.ittrident.com" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontWeight: 500 }}>itTrident</a>
+      </div>
     </div>
   )
 }

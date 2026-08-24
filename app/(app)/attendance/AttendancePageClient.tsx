@@ -129,9 +129,15 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
           </>
         )}
       </div>
-      {timeLabel && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>{timeLabel}</div>}
+      {timeLabel && (
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>
+          {timeLabel}{row.placeName ? ` — ${row.placeName}` : ''}
+        </div>
+      )}
       {s.kind === 'leave' && s.pendingApproval && s.markedAt && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>Requested: {formatDateTime(s.markedAt)}</div>
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>
+          Requested: {formatDateTime(s.markedAt)}{row.placeName ? ` — ${row.placeName}` : ''}
+        </div>
       )}
       {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
         <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>Reason: {s.reason}</div>
@@ -241,7 +247,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     setExportError('')
     if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Reason', 'Approved By', 'Approved Date', 'End Day At', 'End Day Location', 'Project Name', 'Job Status']
+    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Marked At Location', 'Reason', 'Approved By', 'Approved Date', 'End Day At', 'End Day Location', 'Project Name', 'Job Status']
 
     const byEngineer = new Map<string, { name: string; rows: AttendanceOverviewRow[] }>()
     for (const row of rows) {
@@ -265,13 +271,14 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         const reason = s.kind === 'present' || s.kind === 'leave' ? (s.reason || '') : ''
         const approvedBy = s.kind === 'present' || s.kind === 'leave' ? (s.approvedByName || '') : ''
         const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN') : '') : ''
+        const markedAtLocation = row.placeName || ''
         const endDayAt = row.endDayAt ? new Date(row.endDayAt).toLocaleString('en-IN') : ''
         const endDayLocation = row.endDayPlaceName || ''
         if (row.jobs.length === 0) {
-          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, endDayAt, endDayLocation, '', ''])
+          aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, markedAtLocation, reason, approvedBy, approvedAt, endDayAt, endDayLocation, '', ''])
         } else {
           for (const job of row.jobs) {
-            aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, reason, approvedBy, approvedAt, endDayAt, endDayLocation, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
+            aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, markedAtLocation, reason, approvedBy, approvedAt, endDayAt, endDayLocation, job.projectName || '', JOB_STATUS_CFG[job.state.kind].label])
           }
         }
       }

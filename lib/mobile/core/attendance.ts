@@ -64,7 +64,7 @@ export type AttendanceEffectiveStatus =
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null }
+  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null; markedAt: string | null; endDayAt: string | null; endDayPlaceName: string | null }
 
 export function computeEffectiveStatus(params: {
   dateStr: string
@@ -82,7 +82,10 @@ export function computeEffectiveStatus(params: {
         reason: row.reason, markedAt: row.marked_at, approvedByName: row.approved_by_name, approvedAt: row.approved_at,
       }
     }
-    return { kind: 'present', reason: row.reason, amended: row.approval_status === 'approved', approvedByName: row.approved_by_name, approvedAt: row.approved_at }
+    return {
+      kind: 'present', reason: row.reason, amended: row.approval_status === 'approved', approvedByName: row.approved_by_name, approvedAt: row.approved_at,
+      markedAt: row.marked_at, endDayAt: row.end_day_at ?? null, endDayPlaceName: row.end_day_place_name ?? null,
+    }
   }
 
   // An explicit self-marked Leave (e.g. via the mobile "On Leave" status prompt,
@@ -137,7 +140,7 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
   try {
     const todayStr = getISTDateStr()
     const [{ data: row }, { data: holiday }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('status, approval_status, reason, marked_at, approved_by, approved_at').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
+      admin.from('attendance').select('status, approval_status, reason, marked_at, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
       admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle(),
       getProfileCreatedAtDateStr(admin, userId),
     ])

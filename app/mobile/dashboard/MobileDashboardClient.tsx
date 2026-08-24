@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
-import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue } from '@/app/actions/mobile-actions'
+import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
+import { markEndDay } from '@/app/actions/attendance'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
 import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
@@ -80,6 +81,18 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+}
+
+function formatLoggedHours(markedAt: string, endDayAt: string): string {
+  const ms = new Date(endDayAt).getTime() - new Date(markedAt).getTime()
+  const totalMinutes = Math.max(0, Math.round(ms / 60000))
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${h}h ${m}m`
+}
+
 function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null> {
   return new Promise(resolve => {
     if (!navigator.geolocation) { resolve(null); return }
@@ -125,6 +138,52 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   const [notStartedDismissed, setNotStartedDismissed] = useState(false)
   const [locationBlocked, setLocationBlocked] = useState(false)
   const [locationBannerDismissed, setLocationBannerDismissed] = useState(false)
+
+  // Local override for the two End Day fields so the card updates immediately without
+  // a full page reload — router.refresh() below reconciles the exact server timestamp
+  // once it lands, at which point this override is just redundant, not wrong.
+  const [endDayOverride, setEndDayOverride] = useState<{ endDayAt: string; endDayPlaceName: string | null } | null>(null)
+  const [endingDay, setEndingDay] = useState(false)
+  const [endDayError, setEndDayError] = useState('')
+  const endDayCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
+  const endDayPlaceNameRef = useRef('')
+  const endDayGpsRequestedRef = useRef(false)
+  const effectiveAttendanceStatus = attendanceStatus.kind === 'present' && endDayOverride && !attendanceStatus.endDayAt
+    ? { ...attendanceStatus, endDayAt: endDayOverride.endDayAt, endDayPlaceName: endDayOverride.endDayPlaceName }
+    : attendanceStatus
+  const canEndDay = attendanceStatus.kind === 'present' && !attendanceStatus.endDayAt && !endDayOverride
+
+  // GPS captures silently in the background as soon as End Day becomes available —
+  // same single-step pattern as the Attendance tab — so the button below is a genuine
+  // single tap with no separate "capture location" step.
+  useEffect(() => {
+    if (!canEndDay || endDayGpsRequestedRef.current) return
+    endDayGpsRequestedRef.current = true
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        endDayCoordsRef.current = c
+        reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) endDayPlaceNameRef.current = label })
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 12000 }
+    )
+  }, [canEndDay])
+
+  async function handleEndDay() {
+    setEndDayError('')
+    setEndingDay(true)
+    const result = await markEndDay({
+      latitude: endDayCoordsRef.current?.lat ?? null,
+      longitude: endDayCoordsRef.current?.lng ?? null,
+      placeName: endDayPlaceNameRef.current || null,
+    })
+    setEndingDay(false)
+    if (result.error) { setEndDayError(result.error); return }
+    setEndDayOverride({ endDayAt: new Date().toISOString(), endDayPlaceName: endDayPlaceNameRef.current || null })
+    router.refresh()
+  }
 
   // Passive "last seen" location — a best-effort ping on app open, silently ignored
   // if permission is denied or unavailable. Not the same as job check-in GPS. Reused
@@ -564,8 +623,47 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
         </button>
 
         {(() => {
-          const cfg = attendanceCardStyle(attendanceStatus)
-          const clickable = attendanceStatus.kind === 'pending' || attendanceStatus.kind === 'leave'
+          const status = effectiveAttendanceStatus
+          const cfg = attendanceCardStyle(status)
+
+          if (status.kind === 'present') {
+            const ended = !!status.endDayAt
+            return (
+              <div style={{ marginBottom: 12, padding: '13px 14px', borderRadius: 12, background: cfg.bg, fontFamily: 'Poppins, sans-serif' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
+                    {ended && status.markedAt ? (
+                      <>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>Today: {formatLoggedHours(status.markedAt, status.endDayAt!)}</div>
+                        <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
+                          Checked in {formatClockTime(status.markedAt)} · Checked out {formatClockTime(status.endDayAt!)}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                        {status.markedAt && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>Checked in {formatClockTime(status.markedAt)}</div>}
+                      </>
+                    )}
+                  </div>
+                  {!ended && (
+                    <button
+                      className="mtap"
+                      onClick={handleEndDay}
+                      disabled={endingDay}
+                      style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 700, cursor: endingDay ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', flexShrink: 0 }}
+                    >
+                      {endingDay ? 'Saving…' : 'End Day'}
+                    </button>
+                  )}
+                </div>
+                {!!endDayError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{endDayError}</div>}
+              </div>
+            )
+          }
+
+          const clickable = status.kind === 'pending' || status.kind === 'leave'
           return (
             <button
               className="mtap"

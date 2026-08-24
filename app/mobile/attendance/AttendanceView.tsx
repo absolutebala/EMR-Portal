@@ -158,6 +158,19 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to])
 
+  // A Service Manager approving/rejecting an amendment happens on a different device
+  // (desktop), so nothing here pushes an update — without this, "pending approval"
+  // text keeps showing stale until the page is manually reloaded. Refetch whenever the
+  // tab/app regains visibility (e.g. switching back after the approval landed).
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') load(range.from, range.to)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to])
+
   const todayEntry = days.find(d => d.date === todayStr) ?? null
   const todayStatus = todayEntry?.status ?? null
   const needsMarking = !justSubmitted && (todayStatus?.kind === 'pending' || todayStatus?.kind === 'leave')

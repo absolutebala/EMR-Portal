@@ -264,6 +264,8 @@ export function useMarkEndDay() {
     mutationFn: (variables: MarkEndDayVariables) => apiPost<MarkEndDayResponse>('/api/mobile/v1/attendance/end-day', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

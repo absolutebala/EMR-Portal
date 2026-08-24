@@ -131,7 +131,7 @@ export type AttendanceEffectiveStatus =
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null };
+  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null; markedAt: string | null; endDayAt: string | null; endDayPlaceName: string | null };
 
 export interface AttendanceCalendarDay {
   date: string;
