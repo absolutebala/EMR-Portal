@@ -143,7 +143,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
     for (const woId of Object.keys(checkinTimeByWoDay)) checkinDaysByWo[woId] = new Set(Object.keys(checkinTimeByWoDay[woId]))
 
     const nameByApprover = await resolveApprovedByNames(admin, (attendanceRows || []).map(r => r.approved_by))
-    const attendanceByEngDate: Record<string, AttendanceRowCore & { id: string; place_name: string | null }> = {}
+    const attendanceByEngDate: Record<string, AttendanceRowCore & { id: string }> = {}
     ;(attendanceRows || []).forEach(r => {
       attendanceByEngDate[`${r.engineer_id}:${r.attendance_date}`] = { ...r, approved_by_name: r.approved_by ? nameByApprover[r.approved_by] ?? null : null }
     })

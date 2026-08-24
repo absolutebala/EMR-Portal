@@ -50,6 +50,7 @@ export interface AttendanceRowCore {
   approval_status: 'pending' | 'approved' | 'rejected' | null
   reason: string | null
   marked_at: string | null
+  place_name: string | null
   approved_by_name: string | null
   approved_at: string | null
   // Only selected by callers that need it (e.g. getAttendanceCalendarCore) — optional
@@ -64,7 +65,7 @@ export type AttendanceEffectiveStatus =
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null; markedAt: string | null; endDayAt: string | null; endDayPlaceName: string | null }
+  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null; markedAt: string | null; placeName: string | null; endDayAt: string | null; endDayPlaceName: string | null }
 
 export function computeEffectiveStatus(params: {
   dateStr: string
@@ -84,7 +85,7 @@ export function computeEffectiveStatus(params: {
     }
     return {
       kind: 'present', reason: row.reason, amended: row.approval_status === 'approved', approvedByName: row.approved_by_name, approvedAt: row.approved_at,
-      markedAt: row.marked_at, endDayAt: row.end_day_at ?? null, endDayPlaceName: row.end_day_place_name ?? null,
+      markedAt: row.marked_at, placeName: row.place_name, endDayAt: row.end_day_at ?? null, endDayPlaceName: row.end_day_place_name ?? null,
     }
   }
 
@@ -140,7 +141,7 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
   try {
     const todayStr = getISTDateStr()
     const [{ data: row }, { data: holiday }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('status, approval_status, reason, marked_at, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
+      admin.from('attendance').select('status, approval_status, reason, marked_at, place_name, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
       admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle(),
       getProfileCreatedAtDateStr(admin, userId),
     ])
@@ -299,7 +300,7 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
     const todayStr = getISTDateStr()
 
     const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr] = await Promise.all([
-      admin.from('attendance').select('attendance_date, status, marked_at, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('attendance_date, status, marked_at, place_name, reason, approval_status, approved_by, approved_at, end_day_at, end_day_place_name').eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
       getProfileCreatedAtDateStr(admin, userId),
     ])

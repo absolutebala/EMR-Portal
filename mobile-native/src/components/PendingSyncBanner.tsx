@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePendingSyncCount } from '@/lib/pendingSync';
+import { useNativeHeaderOffset } from '@/lib/bannerLayout';
 
 // Rendered once at the (app) root, floating above whatever screen is currently
 // showing (absolute position, high zIndex) — so an engineer who submitted something
@@ -9,11 +10,12 @@ import { usePendingSyncCount } from '@/lib/pendingSync';
 export default function PendingSyncBanner() {
   const insets = useSafeAreaInsets();
   const count = usePendingSyncCount();
+  const headerOffset = useNativeHeaderOffset();
 
   if (count === 0) return null;
 
   return (
-    <View style={[styles.banner, { top: insets.top + 8 }]} pointerEvents="none">
+    <View style={[styles.banner, { top: insets.top + 8 + headerOffset }]} pointerEvents="none">
       <Text style={styles.text}>
         {count} item{count !== 1 ? 's' : ''} waiting to sync — will send once you&apos;re back online
       </Text>

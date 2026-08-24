@@ -633,18 +633,23 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
-                    {ended && status.markedAt ? (
-                      <>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>Today: {formatLoggedHours(status.markedAt, status.endDayAt!)}</div>
-                        <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
-                          Checked in {formatClockTime(status.markedAt)} · Checked out {formatClockTime(status.endDayAt!)}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
-                        {status.markedAt && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>Checked in {formatClockTime(status.markedAt)}</div>}
-                      </>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>
+                      {ended && status.markedAt ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}` : cfg.label}
+                    </div>
+                    {status.markedAt && (
+                      <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
+                        Checked in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
+                      </div>
+                    )}
+                    {ended && (
+                      <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
+                        Checked out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
+                      </div>
+                    )}
+                    {status.amended && status.approvedByName && (
+                      <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
+                        Approved by {status.approvedByName}{status.approvedAt ? ` — ${formatClockTime(status.approvedAt)}` : ''}
+                      </div>
                     )}
                   </div>
                   {!ended && (

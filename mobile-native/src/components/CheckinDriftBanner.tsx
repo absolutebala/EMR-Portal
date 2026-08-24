@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import { useCheckinDriftNotice } from '@/lib/hooks';
-import { usePendingSyncBannerOffset } from '@/lib/bannerLayout';
+import { usePendingSyncBannerOffset, useNativeHeaderOffset } from '@/lib/bannerLayout';
 
 // Rendered once at the (app) root alongside PendingSyncBanner. Persistent (not
 // auto-dismissing) by design — keeps reminding for as long as the engineer's status
@@ -16,12 +16,13 @@ export default function CheckinDriftBanner() {
   const router = useRouter();
   const { data: notice } = useCheckinDriftNotice();
   const syncBannerOffset = usePendingSyncBannerOffset();
+  const headerOffset = useNativeHeaderOffset();
 
   if (!notice) return null;
 
   return (
     <Pressable
-      style={[styles.banner, { top: insets.top + 8 + syncBannerOffset }]}
+      style={[styles.banner, { top: insets.top + 8 + syncBannerOffset + headerOffset }]}
       onPress={() => router.push(`/(app)/work-orders/${notice.workOrderId}` as Href)}
     >
       <Text style={styles.text}>

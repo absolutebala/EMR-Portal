@@ -1,5 +1,27 @@
+import { Platform } from 'react-native';
+import { usePathname } from 'expo-router';
 import { usePendingSyncCount } from './pendingSync';
 import { useCheckinDriftNotice } from './hooks';
+
+// The five tab-root screens render their own in-JSX header (no native stack header —
+// see (tabs)/_layout.tsx's headerShown: false) — every other screen under (app) sets
+// headerShown: true on its own Stack.Screen (department-jobs, work-orders/[id],
+// alerts, profile, etc.), which puts a real native header — including the back
+// button — right where the floating banners below used to land.
+const TAB_ROOT_PATHS = new Set(['/dashboard', '/jobs', '/attendance', '/requests', '/expenses']);
+
+// react-navigation's native-stack header content height (the safe-area inset itself
+// is handled separately, by insets.top, wherever this is added) — 44 on iOS, 56
+// (Material default) on Android.
+const NATIVE_HEADER_HEIGHT = Platform.OS === 'ios' ? 44 : 56;
+
+// Extra vertical offset so the floating banners sit below a screen's native header
+// (and its back button) instead of drawing on top of it — 0 on the five tab roots,
+// which have no native header to avoid.
+export function useNativeHeaderOffset(): number {
+  const pathname = usePathname();
+  return TAB_ROOT_PATHS.has(pathname) ? 0 : NATIVE_HEADER_HEIGHT;
+}
 
 // Fixed-height estimates for the two globally-floating banners (PendingSyncBanner,
 // CheckinDriftBanner) — both share the same single-line text + 8px vertical padding

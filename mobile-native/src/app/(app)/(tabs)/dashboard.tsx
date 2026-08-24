@@ -171,20 +171,25 @@ export default function DashboardScreen() {
           return (
             <View style={[styles.attendanceCard, styles.attendanceCardColumn, { backgroundColor: cfg.bg }]}>
               <View style={styles.attendanceCardRow}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
-                  {ended && status.markedAt ? (
-                    <>
-                      <Text style={[styles.attendanceLabel, { color: cfg.color }]}>Today: {formatLoggedHours(status.markedAt, status.endDayAt!)}</Text>
-                      <Text style={[styles.attendanceSub, { color: cfg.color }]}>
-                        Checked in {formatClockTime(status.markedAt)} · Checked out {formatClockTime(status.endDayAt!)}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
-                      {status.markedAt && <Text style={[styles.attendanceSub, { color: cfg.color }]}>Checked in {formatClockTime(status.markedAt)}</Text>}
-                    </>
+                  <Text style={[styles.attendanceLabel, { color: cfg.color }]}>
+                    {ended && status.markedAt ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}` : cfg.label}
+                  </Text>
+                  {status.markedAt && (
+                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                      Checked in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
+                    </Text>
+                  )}
+                  {ended && (
+                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                      Checked out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
+                    </Text>
+                  )}
+                  {status.amended && status.approvedByName && (
+                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                      Approved by {status.approvedByName}{status.approvedAt ? ` — ${formatClockTime(status.approvedAt)}` : ''}
+                    </Text>
                   )}
                 </View>
                 {!ended && (

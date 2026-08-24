@@ -74,7 +74,11 @@ export async function getDepartmentOpenCountsCore(admin: AdminClient, engineerId
       else unassigned++
     }
     const counts: DepartmentOpenCount[] = (departments || []).map(d => ({ departmentId: d.id, department: d.name, count: tally[d.id] }))
-    if (unassigned > 0) counts.push({ departmentId: UNASSIGNED_DEPARTMENT_ID, department: 'Unassigned', count: unassigned })
+    // "No Department", not "Unassigned" — every job counted here is already scoped to
+    // this engineer (primary or additional assignment); a null department_id just
+    // means nobody tagged a department on the notification, not that it lacks an
+    // engineer. "Unassigned" read as if the job itself were unclaimed.
+    if (unassigned > 0) counts.push({ departmentId: UNASSIGNED_DEPARTMENT_ID, department: 'No Department', count: unassigned })
     return { counts, error: null }
   } catch (e: unknown) {
     return { counts: [], error: e instanceof Error ? e.message : String(e) }
