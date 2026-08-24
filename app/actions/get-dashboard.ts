@@ -3,6 +3,13 @@
 import { adminClient } from '@/lib/db/admin-client'
 import { getFieldEngineersOverview, type FieldEngineerOverview } from './get-engineers'
 
+// Sentinel used in place of a real department UUID for open notifications with no
+// department tag — matches the work-orders list page's '?department=' query param
+// (WorkOrdersPageClient.tsx's own copy of this same constant), since a real
+// department is always a UUID. A 'use server' file may only export async functions,
+// so this can't be a shared exported constant — duplicated instead.
+const NO_DEPARTMENT_ID = 'no-department'
+
 export interface DashboardNotification {
   id: string
   woNumber: string
@@ -23,7 +30,22 @@ export interface DashboardExpiredWarranty {
 export interface DashboardWorkOrderBrief {
   id: string
   woNumber: string
+  ticketNumber: string
   customerName: string
+  scheduledDate: string | null
+}
+
+export interface DashboardOverhaulingNotification {
+  id: string
+  woNumber: string
+  customerName: string
+  status: string
+}
+
+export interface DashboardDepartmentCount {
+  departmentId: string
+  department: string
+  count: number
 }
 
 export interface DashboardApproval {
@@ -55,6 +77,11 @@ export interface DashboardKpis {
   // multiple transformers in the same tier still only counts once.
   warrantyBreakdown: { under_warranty: number; expired: number; amc: number }
   jobTypeBreakdown: { jobType: string; count: number }[]
+  // Open notifications per department, org-wide (every engineer) — only meaningful
+  // for Super Admin/Head of Service, who see every department's load at a glance
+  // rather than just their own (that's what the mobile dashboard's per-engineer
+  // cards are for).
+  departmentBreakdown: DashboardDepartmentCount[]
 }
 
 export interface DashboardData {
@@ -66,6 +93,7 @@ export interface DashboardData {
   unassignedList: DashboardWorkOrderBrief[]
   offSiteUpdates: DashboardOffSiteUpdate[]
   expiredWarrantyList: DashboardExpiredWarranty[]
+  overhaulingList: DashboardOverhaulingNotification[]
   kpis: DashboardKpis
 }
 
@@ -74,7 +102,7 @@ type NotifRow = {
   customers: { name: string } | null
   work_order_transformers: { transformers: { serial_number: string; warranty_status: string } | null }[]
 }
-type BriefRow = { id: string; wo_number: string; customers: { name: string } | null }
+type BriefRow = { id: string; wo_number: string; ticket_number: string; scheduled_date: string | null; customers: { name: string } | null }
 
 // Uses the admin (service-role) client throughout, not the session-scoped client —
 // this page shows org-wide data (every engineer, every notification) regardless of
@@ -97,6 +125,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: openWorkOrderRows },
     { data: expiredTransformerRows },
     { data: productRequestStatusRows },
+    { data: departmentRows },
+    { data: overhaulingRows },
   ] = await Promise.all([
     getFieldEngineersOverview(),
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name), work_order_transformers(transformers(serial_number, warranty_status))').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
@@ -112,18 +142,23 @@ export async function getDashboardData(): Promise<DashboardData> {
     // follow-up on an already-'in_progress' job) with nothing done on it yet today —
     // an early warning before it becomes a "missed" one above.
     admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').in('status', ['assigned', 'in_progress']).eq('scheduled_date', todayStr).limit(6),
-    admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
-    admin.from('work_orders').select('id, wo_number, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
+    admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
+    admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
-    // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown, and
-    // warranty-tier breakdown all derived from one pass over every open notification.
-    admin.from('work_orders').select('id, status, job_type, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
+    // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown,
+    // warranty-tier breakdown, and per-department breakdown all derived from one pass
+    // over every open notification.
+    admin.from('work_orders').select('id, status, job_type, department_id, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
     // Straight off transformers.warranty_status (not scoped to open notifications like
     // the KPI breakdown above) — every expired unit on record, regardless of whether it
     // currently has an open job against it.
     admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
     // Powers the Product Requests breakdown card — one pass over every item's status.
     admin.from('product_request_items').select('status'),
+    admin.from('departments').select('id, name').order('name'),
+    // Powers the "Paid Notifications" card — every Overhauling-job-type notification
+    // on record (any status, not just open), matching /work-orders?job=overhauling.
+    admin.from('work_orders').select('id, wo_number, status, customers(name)').eq('job_type', 'overhauling').order('created_at', { ascending: false }).limit(8),
   ])
 
   // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
@@ -168,7 +203,9 @@ export async function getDashboardData(): Promise<DashboardData> {
   const toBrief = (w: BriefRow): DashboardWorkOrderBrief => ({
     id: w.id,
     woNumber: w.wo_number,
+    ticketNumber: w.ticket_number,
     customerName: w.customers?.name || 'Unknown customer',
+    scheduledDate: w.scheduled_date,
   })
 
   const recentNotifications = notifRows.map(w => toNotification(w))
@@ -202,7 +239,15 @@ export async function getDashboardData(): Promise<DashboardData> {
     createdAt: r.created_at,
   }))
 
-  type OpenWoRow = { id: string; status: string; job_type: string; work_order_transformers: { transformers: { warranty_status: string } | null }[] }
+  type OverhaulingRow = { id: string; wo_number: string; status: string; customers: { name: string } | null }
+  const overhaulingList: DashboardOverhaulingNotification[] = ((overhaulingRows as unknown as OverhaulingRow[]) || []).map(w => ({
+    id: w.id,
+    woNumber: w.wo_number,
+    customerName: w.customers?.name || 'Unknown customer',
+    status: w.status,
+  }))
+
+  type OpenWoRow = { id: string; status: string; job_type: string; department_id: string | null; work_order_transformers: { transformers: { warranty_status: string } | null }[] }
   const openWoRows = (openWorkOrderRows as unknown as OpenWoRow[]) || []
   const notificationBreakdown = {
     unassigned: openWoRows.filter(w => w.status === 'unassigned').length,
@@ -235,12 +280,28 @@ export async function getDashboardData(): Promise<DashboardData> {
     })
   })
 
+  // Org-wide (every engineer's) open-notification count per department — unlike the
+  // mobile dashboard's per-engineer department cards, this is meant for Super
+  // Admin/Head of Service to see the whole org's load at a glance.
+  const departments = (departmentRows as unknown as { id: string; name: string }[]) || []
+  const departmentTally: Record<string, number> = {}
+  let noDepartmentCount = 0
+  openWoRows.forEach(w => {
+    if (w.department_id) departmentTally[w.department_id] = (departmentTally[w.department_id] || 0) + 1
+    else noDepartmentCount++
+  })
+  const departmentBreakdown: DashboardDepartmentCount[] = departments.map(d => ({
+    departmentId: d.id, department: d.name, count: departmentTally[d.id] || 0,
+  }))
+  if (noDepartmentCount > 0) departmentBreakdown.push({ departmentId: NO_DEPARTMENT_ID, department: 'No Department', count: noDepartmentCount })
+
   const kpis: DashboardKpis = {
     notificationBreakdown,
     productRequestBreakdown,
     warrantyBreakdown,
     jobTypeBreakdown,
+    departmentBreakdown,
   }
 
-  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, kpis }
+  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, kpis }
 }

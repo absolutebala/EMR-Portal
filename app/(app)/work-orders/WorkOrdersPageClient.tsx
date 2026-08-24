@@ -7,6 +7,11 @@ import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import type { WorkOrder, WarrantyStatus } from '@/lib/types'
+import type { Department } from '@/lib/departments'
+
+// Matches the dashboard's NO_DEPARTMENT_ID sentinel (app/actions/get-dashboard.ts) —
+// a real department is always a UUID, so this is safe as a query-param value.
+const NO_DEPARTMENT_ID = 'no-department'
 
 const WARRANTY_FILTER_LABEL: Record<string, string> = {
   under_warranty: 'under warranty',
@@ -75,9 +80,10 @@ interface Props {
   alerts: WorkOrderAlerts
   userName: string
   userRole: string
+  departments: Department[]
 }
 
-export default function WorkOrdersPageClient({ workOrders, engineers, alerts, userName, userRole }: Props) {
+export default function WorkOrdersPageClient({ workOrders, engineers, alerts, userName, userRole, departments }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
@@ -86,6 +92,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [engFilter, setEngFilter] = useState(searchParams.get('engineer') || '')
   const [dateFilter, setDateFilter] = useState('')
   const [warrantyFilter, setWarrantyFilter] = useState(searchParams.get('warranty') || '')
+  const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('department') || '')
   const [showNew, setShowNew] = useState(false)
 
   const filtered = useMemo(() => workOrders.filter(wo => {
@@ -96,8 +103,9 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     const matchEng = !engFilter || wo.engineer_id === engFilter
     const matchDate = !dateFilter || wo.scheduled_date === dateFilter
     const matchWarranty = !warrantyFilter || (wo.warranty_tiers || []).includes(warrantyFilter as WarrantyStatus)
-    return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty
-  }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter])
+    const matchDepartment = !departmentFilter || (departmentFilter === NO_DEPARTMENT_ID ? !wo.department_id : wo.department_id === departmentFilter)
+    return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty && matchDepartment
+  }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter, departmentFilter])
 
   return (
     <>
@@ -169,6 +177,11 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             <option value="expired">Expired</option>
             <option value="amc">AMC</option>
           </select>
+          <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
+            <option value="">All departments</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <option value={NO_DEPARTMENT_ID}>No Department</option>
+          </select>
           <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />
           <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
@@ -185,6 +198,11 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
         {jobFilter && (
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 10 }}>
             List of {JOB_LABELS[jobFilter] || jobFilter} notifications
+          </div>
+        )}
+        {departmentFilter && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 10 }}>
+            List of {departmentFilter === NO_DEPARTMENT_ID ? 'No Department' : (departments.find(d => d.id === departmentFilter)?.name || 'department')} notifications
           </div>
         )}
 

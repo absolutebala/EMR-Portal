@@ -57,9 +57,15 @@ export async function getNextTicketNumberPreview(): Promise<{ ticketNumber: stri
 }
 
 export async function createWorkOrder(payload: {
+  // Blank is allowed — falls back to the auto-generated ticket number (see
+  // nextTicketNumber below), matching how ticket_number is already generated
+  // rather than user-entered.
   wo_number: string
   job_type: string
-  customer_id: string
+  // Overhauling jobs can be created with all details filled in later — every other
+  // field here was already optional; customer/serial numbers are the last two that
+  // used to be mandatory everywhere.
+  customer_id: string | null
   transformer_ids: string[]
   engineer_id: string | null
   scheduled_date: string | null
@@ -79,9 +85,13 @@ export async function createWorkOrder(payload: {
 
     const admin = adminClient()
 
-    // Check WO number uniqueness
-    const { data: existing } = await admin.from('work_orders').select('id').eq('wo_number', payload.wo_number).maybeSingle()
-    if (existing) return { error: `Notification number "${payload.wo_number}" already exists.` }
+    // Check WO number uniqueness — skipped when blank, since a blank one always
+    // falls back to the ticket number below, which is already guaranteed unique.
+    const woNumberInput = payload.wo_number.trim()
+    if (woNumberInput) {
+      const { data: existing } = await admin.from('work_orders').select('id').eq('wo_number', woNumberInput).maybeSingle()
+      if (existing) return { error: `Notification number "${woNumberInput}" already exists.` }
+    }
 
     const status = payload.engineer_id ? 'assigned' : 'unassigned'
 
@@ -90,15 +100,15 @@ export async function createWorkOrder(payload: {
 
     // Retry on a rare race against another concurrent create landing the same
     // ticket_number first — ticket_number has a unique constraint (030 migration).
-    let wo: { id: string } | null = null
+    let wo: { id: string; wo_number: string } | null = null
     let insertError: { code?: string; message: string } | null = null
     for (let attempt = 0; attempt < 5 && !wo; attempt++) {
       const ticketNumber = await nextTicketNumber(admin)
       const { data, error } = await admin.from('work_orders').insert({
-        wo_number: payload.wo_number,
+        wo_number: woNumberInput || ticketNumber,
         ticket_number: ticketNumber,
         job_type: payload.job_type,
-        customer_id: payload.customer_id,
+        customer_id: payload.customer_id || null,
         engineer_id: payload.engineer_id || null,
         scheduled_date: payload.scheduled_date || null,
         status,
@@ -111,12 +121,13 @@ export async function createWorkOrder(payload: {
         customer_type: payload.customer_type || null,
         customer_category_id: payload.customer_category_id || null,
         department_id: payload.department_id || null,
-      }).select('id').single()
+      }).select('id, wo_number').single()
       if (data) { wo = data; break }
       insertError = error
       if (error?.code !== '23505') break
     }
     if (!wo) return { error: insertError?.message || 'Could not create notification.' }
+    const woNumber = wo.wo_number
 
     // Link transformers
     if (payload.transformer_ids.length) {
@@ -145,29 +156,31 @@ export async function createWorkOrder(payload: {
       activityRows.push({ work_order_id: wo.id, action: `Assigned to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
-    await logActivity(admin, { actorId: user.id, actorName, action: `Created notification ${payload.wo_number}`, entityType: 'work_order', entityId: wo.id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Created notification ${woNumber}`, entityType: 'work_order', entityId: wo.id })
 
     if (payload.engineer_id) {
       notifyUsers(admin, [{ userId: payload.engineer_id }], {
         type: 'work_order_assigned',
-        title: `New notification assigned: ${payload.wo_number}`,
+        title: `New notification assigned: ${woNumber}`,
         body: `${actorName} assigned you a new notification.`,
         entityType: 'work_order', entityId: wo.id, linkPath: `/mobile/work-orders/${wo.id}`,
       }).catch(() => {})
 
       const [{ data: customer }, serials] = await Promise.all([
-        admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', payload.customer_id).maybeSingle(),
+        payload.customer_id
+          ? admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', payload.customer_id).maybeSingle()
+          : Promise.resolve({ data: null }),
         serialNumbersForTransformerIds(admin, payload.transformer_ids),
       ])
       const engName = assignedEngineer ? `${assignedEngineer.first_name} ${assignedEngineer.last_name}` : 'Engineer'
       const scheduledLabel = formatScheduledDate(payload.scheduled_date)
 
       sendWhatsApp(admin, 'assigned_engineer', [{ phone: assignedEngineer?.phone, userName: assignedEngineer?.first_name || 'Engineer' }],
-        [assignedEngineer?.first_name || 'Engineer', payload.wo_number, customer?.name || '', serials, scheduledLabel]).catch(() => {})
+        [assignedEngineer?.first_name || 'Engineer', woNumber, customer?.name || '', serials, scheduledLabel]).catch(() => {})
 
       if (customer) {
         sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-          [customer.contact_person, payload.wo_number, engName, serials, scheduledLabel]).catch(() => {})
+          [customer.contact_person, woNumber, engName, serials, scheduledLabel]).catch(() => {})
       }
     }
 

@@ -187,18 +187,20 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   }
 
   const checkedSNs = selectedSNs.filter(s => s.checked)
+  // Overhauling notifications can be created with just a job type — every other
+  // field, including customer/serial number, gets filled in later.
+  const isOverhauling = jobType === 'overhauling'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!woNumber.trim()) { setError('Notification number is required.'); return }
     if (!jobType) { setError('Please select a job type.'); return }
-    if (!selectedCustomerId) { setError('Please select a customer.'); return }
-    if (!checkedSNs.length) { setError('Please select at least one serial number.'); return }
+    if (!isOverhauling && !selectedCustomerId) { setError('Please select a customer.'); return }
+    if (!isOverhauling && !checkedSNs.length) { setError('Please select at least one serial number.'); return }
     setLoading(true); setError('')
     const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
       job_type: jobType,
-      customer_id: selectedCustomerId,
+      customer_id: selectedCustomerId || null,
       transformer_ids: checkedSNs.map(s => s.transformer_id),
       engineer_id: engineerId || null,
       scheduled_date: scheduledDate || null,
@@ -238,8 +240,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
             <input disabled style={{ ...fi2, background: 'var(--gl)', color: 'var(--txm)' }} value={ticketNumber || 'Generating…'} readOnly />
           </div>
           <div>
-            <label style={fl2}>Notification number <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={woNumber} onChange={e => setWoNumber(e.target.value)} placeholder="e.g. WO-2026-0145" />
+            <label style={fl2}>Notification number</label>
+            <input style={fi2} value={woNumber} onChange={e => setWoNumber(e.target.value)} placeholder="Leave blank to use the ticket number" />
           </div>
           <div>
             <label style={fl2}>Job type <span style={{ color: 'var(--m)' }}>*</span></label>
@@ -269,7 +271,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
 
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={fl2}>Serial numbers <span style={{ color: 'var(--m)' }}>*</span></label>
+            <label style={fl2}>Serial numbers {!isOverhauling && <span style={{ color: 'var(--m)' }}>*</span>}</label>
             {!selectedCustomerId ? (
               <div style={{ position: 'relative' }}>
                 <input
@@ -336,7 +338,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
 
           {!selectedCustomerId && (
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={fl2}>Customer <span style={{ color: 'var(--m)' }}>*</span></label>
+              <label style={fl2}>Customer {!isOverhauling && <span style={{ color: 'var(--m)' }}>*</span>}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   style={fi2} value={custQuery}

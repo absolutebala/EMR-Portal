@@ -80,10 +80,15 @@ export default async function DashboardPage() {
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, kpis } = dashboard
+  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, kpis } = dashboard
   const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
   const notificationTotal = kpis.notificationBreakdown.unassigned + kpis.notificationBreakdown.assigned + kpis.notificationBreakdown.in_progress + kpis.notificationBreakdown.needs_reassignment
   const productRequestTotal = kpis.productRequestBreakdown.pending + kpis.productRequestBreakdown.approved + kpis.productRequestBreakdown.dispatched + kpis.productRequestBreakdown.delivered
+  // Org-wide department load is only meaningful for the two roles who oversee every
+  // department at once — everyone else already sees their own department's work
+  // through the notification list itself.
+  const showDepartmentCards = userRole === 'Super Admin' || userRole === 'Head of Service'
+  const DEPARTMENT_CARD_COLORS = ['#2563EB', '#D97706', '#7D1D3F', '#059669', '#5B21B6', '#EA580C', '#475569']
 
   return (
     <>
@@ -104,6 +109,28 @@ export default async function DashboardPage() {
           />
         </div>
 
+        {showDepartmentCards && kpis.departmentBreakdown.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Open notifications by department</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+              {kpis.departmentBreakdown.map((d, i) => {
+                const color = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length]
+                return (
+                  <Link
+                    key={d.departmentId}
+                    href={`/work-orders?department=${d.departmentId}`}
+                    style={{ textDecoration: 'none', background: '#fff', borderRadius: 12, padding: 14, border: '1px solid var(--gm)', borderTop: `3px solid ${color}` }}
+                  >
+                    <div style={{ fontSize: 22, fontWeight: 700, color }}>{d.count}</div>
+                    <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 4 }}>{d.department}</div>
+                    <div style={{ fontSize: 9, color: 'var(--txm)', marginTop: 1 }}>open</div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {kpis.jobTypeBreakdown.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Open notifications by job type</div>
@@ -122,11 +149,22 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
           <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
             {expiredWarrantyList.map(t => (
               <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
             ))}
+          </ListCard>
+
+          <ListCard title="Paid Notifications" viewAllHref="/work-orders?job=overhauling" empty="No Overhauling notifications.">
+            {overhaulingList.map(wo => {
+              const cfg = WO_STATUS_CFG[wo.status] || WO_STATUS_CFG.unassigned
+              return (
+                <ListRow key={wo.id} title={wo.woNumber} subtitle={wo.customerName} href={`/work-orders/${wo.id}`}>
+                  <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
+                </ListRow>
+              )
+            })}
           </ListCard>
 
           <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
@@ -179,7 +217,7 @@ export default async function DashboardPage() {
 
           <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
 
-          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." />
+          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." showScheduleInfo />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>

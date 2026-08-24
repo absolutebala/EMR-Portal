@@ -11,6 +11,21 @@ interface Props {
   viewAllHref: string
   workOrders: DashboardWorkOrderBrief[]
   empty: string
+  // Ticket number + scheduled date + a color-coded "days left" strip — only turned on
+  // for the Unassigned card, since that's the one where "how urgent is this" matters
+  // most (Needs Reassignment already has an assigned engineer's context elsewhere).
+  showScheduleInfo?: boolean
+}
+
+function daysLeftLabel(scheduledDate: string): { label: string; bg: string; color: string } {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const target = new Date(`${scheduledDate}T00:00:00`)
+  const daysLeft = Math.round((target.getTime() - today.getTime()) / 86400000)
+  // 7+ days out is still comfortable (orange, a heads-up) — under 7 days needs
+  // attention soon, and a negative count (already past due) needs it most (light red).
+  const urgent = daysLeft < 7
+  const label = daysLeft === 0 ? 'Due today' : daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`
+  return urgent ? { label, bg: '#FEE2E2', color: '#991B1B' } : { label, bg: '#FFEDD5', color: '#9A3412' }
 }
 
 const selectStyle: React.CSSProperties = {
@@ -18,7 +33,7 @@ const selectStyle: React.CSSProperties = {
   fontSize: 11, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff',
 }
 
-export default function AssignableList({ title, viewAllHref, workOrders, empty }: Props) {
+export default function AssignableList({ title, viewAllHref, workOrders, empty, showScheduleInfo }: Props) {
   const [items, setItems] = useState(workOrders)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [engineers, setEngineers] = useState<AssignableEngineer[]>([])
@@ -56,10 +71,26 @@ export default function AssignableList({ title, viewAllHref, workOrders, empty }
     <ListCard title={title} viewAllHref={viewAllHref} empty={empty}>
       {items.map(wo => (
         <div key={wo.id}>
-          <ListRow title={wo.woNumber} subtitle={wo.customerName} onClick={() => toggleExpand(wo)}>
-            <span style={{ fontSize: 10, color: 'var(--m)', fontWeight: 600 }}>
-              {expandedId === wo.id ? 'Cancel' : 'Assign →'}
-            </span>
+          <ListRow
+            title={wo.woNumber}
+            subtitle={showScheduleInfo ? (
+              <>
+                <div>{wo.ticketNumber}</div>
+                <div>{wo.customerName}</div>
+                <div>{wo.scheduledDate ? new Date(wo.scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not scheduled'}</div>
+              </>
+            ) : wo.customerName}
+            onClick={() => toggleExpand(wo)}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              {showScheduleInfo && wo.scheduledDate && (() => {
+                const d = daysLeftLabel(wo.scheduledDate)
+                return <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600, background: d.bg, color: d.color, whiteSpace: 'nowrap' }}>{d.label}</span>
+              })()}
+              <span style={{ fontSize: 10, color: 'var(--m)', fontWeight: 600 }}>
+                {expandedId === wo.id ? 'Cancel' : 'Assign →'}
+              </span>
+            </div>
           </ListRow>
           {expandedId === wo.id && (
             <div style={{ padding: '0 14px 12px', borderTop: 'none' }}>
