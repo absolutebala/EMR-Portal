@@ -201,7 +201,7 @@ export default function JobFormScreen() {
         </Text>
         <Pressable
           style={styles.successButton}
-          onPress={() => router.replace(visitCompleted ? `/(app)/work-orders/${id}` : `/(app)/work-orders/${id}/closure`)}
+          onPress={() => router.replace(visitCompleted ? `/(app)/(tabs)/work-orders/${id}` : `/(app)/(tabs)/work-orders/${id}/closure`)}
         >
           <Text style={styles.successButtonText}>{visitCompleted ? 'Back to notification' : 'Continue to closure'}</Text>
         </Pressable>

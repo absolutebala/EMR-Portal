@@ -46,7 +46,7 @@ export default function ExpenseProjectDetailScreen() {
       )}
 
       <View style={styles.footer}>
-        <Pressable style={styles.submitButton} onPress={() => router.push({ pathname: '/(app)/expenses/new', params: { wo: workOrderId } })}>
+        <Pressable style={styles.submitButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/expenses/new', params: { wo: workOrderId } })}>
           <Text style={styles.submitText}>Add another expense</Text>
         </Pressable>
       </View>

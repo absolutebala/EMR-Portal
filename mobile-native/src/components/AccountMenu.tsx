@@ -22,7 +22,7 @@ export default function AccountMenu({ avatarUrl, name }: Props) {
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
-  function go(path: '/(app)/profile' | '/(app)/my-analytics' | '/(app)/account-password') {
+  function go(path: '/(app)/(tabs)/profile' | '/(app)/(tabs)/my-analytics' | '/(app)/(tabs)/account-password') {
     setOpen(false);
     router.push(path);
   }
@@ -41,15 +41,15 @@ export default function AccountMenu({ avatarUrl, name }: Props) {
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <View style={styles.menuAnchor}>
             <View style={styles.menu}>
-              <Pressable style={styles.menuItem} onPress={() => go('/(app)/profile')}>
+              <Pressable style={styles.menuItem} onPress={() => go('/(app)/(tabs)/profile')}>
                 <Text style={styles.menuItemText}>Profile</Text>
               </Pressable>
               <View style={styles.divider} />
-              <Pressable style={styles.menuItem} onPress={() => go('/(app)/my-analytics')}>
+              <Pressable style={styles.menuItem} onPress={() => go('/(app)/(tabs)/my-analytics')}>
                 <Text style={styles.menuItemText}>My Analytics</Text>
               </Pressable>
               <View style={styles.divider} />
-              <Pressable style={styles.menuItem} onPress={() => go('/(app)/account-password')}>
+              <Pressable style={styles.menuItem} onPress={() => go('/(app)/(tabs)/account-password')}>
                 <Text style={styles.menuItemText}>Change Password</Text>
               </Pressable>
               <View style={styles.divider} />

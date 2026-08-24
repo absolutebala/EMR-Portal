@@ -81,10 +81,10 @@ export function useRegisterPushToken() {
 // tree is shaped differently, so a tapped push needs its own translation rather than
 // reusing the raw path directly.
 export function translateLinkPath(linkPath: string | null | undefined): string {
-  if (!linkPath) return '/(app)/alerts';
+  if (!linkPath) return '/(app)/(tabs)/alerts';
 
   const woMatch = linkPath.match(/^\/mobile\/work-orders\/([^/]+)/);
-  if (woMatch) return `/(app)/work-orders/${woMatch[1]}`;
+  if (woMatch) return `/(app)/(tabs)/work-orders/${woMatch[1]}`;
 
   if (linkPath.startsWith('/mobile/expenses')) return '/(app)/(tabs)/expenses';
   if (linkPath.startsWith('/mobile/requests')) return '/(app)/(tabs)/requests';
@@ -93,7 +93,7 @@ export function translateLinkPath(linkPath: string | null | undefined): string {
 
   // Desktop-only paths (e.g. '/expenses', sent to Super Admin/Head of Service) have
   // no RN equivalent — fall back to Alerts rather than navigating somewhere wrong.
-  return '/(app)/alerts';
+  return '/(app)/(tabs)/alerts';
 }
 
 // Handles the "tap a push notification" case — both the cold-start case (app was

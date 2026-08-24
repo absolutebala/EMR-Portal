@@ -38,7 +38,7 @@ export default function RequestsScreen() {
     <View style={styles.container}>
       <View style={[styles.headerArea, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>Product Requests</Text>
-        <Pressable style={styles.newButton} onPress={() => router.push('/(app)/requests/new')}>
+        <Pressable style={styles.newButton} onPress={() => router.push('/(app)/(tabs)/requests/new')}>
           <Text style={styles.newButtonText}>+ New request</Text>
         </Pressable>
       </View>

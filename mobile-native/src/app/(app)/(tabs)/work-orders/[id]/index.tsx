@@ -97,7 +97,7 @@ export default function WorkOrderDetailScreen() {
           <Pressable
             style={styles.primaryButton}
             onPress={() => router.push(
-              detail.hasCheckedIn ? `/(app)/work-orders/${id}/closure` : `/(app)/work-orders/${id}/checkin`
+              detail.hasCheckedIn ? `/(app)/(tabs)/work-orders/${id}/closure` : `/(app)/(tabs)/work-orders/${id}/checkin`
             )}
           >
             <Text style={styles.primaryButtonTitle}>
@@ -109,13 +109,13 @@ export default function WorkOrderDetailScreen() {
           </Pressable>
         )}
 
-        <Pressable style={styles.secondaryButton} onPress={() => router.push(`/(app)/work-orders/${id}/form`)}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form`)}>
           <Text style={styles.secondaryButtonText}>{detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/requests/new', params: { wo: id } })}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/requests/new', params: { wo: id } })}>
           <Text style={styles.secondaryButtonText}>Request products</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/expenses/new', params: { wo: id } })}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/expenses/new', params: { wo: id } })}>
           <Text style={styles.secondaryButtonText}>Log expense</Text>
         </Pressable>
       </View>
@@ -172,7 +172,7 @@ export default function WorkOrderDetailScreen() {
           {detail.handoverEngineerHasFormSubmission && (
             <Pressable
               style={styles.handoverFormButton}
-              onPress={() => router.push({ pathname: '/(app)/work-orders/[id]/form', params: { id, view: detail.latestClosure!.engineerId! } })}
+              onPress={() => router.push({ pathname: '/(app)/(tabs)/work-orders/[id]/form', params: { id, view: detail.latestClosure!.engineerId! } })}
             >
               <Text style={styles.handoverFormButtonText}>View form entries filled by {detail.latestClosure.engineerName}</Text>
             </Pressable>

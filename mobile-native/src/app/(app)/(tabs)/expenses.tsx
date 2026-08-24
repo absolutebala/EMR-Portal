@@ -73,7 +73,7 @@ export default function ExpensesScreen() {
     <View style={styles.container}>
       <View style={[styles.headerArea, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>Expenses</Text>
-        <Pressable style={styles.newButton} onPress={() => router.push('/(app)/expenses/new')}>
+        <Pressable style={styles.newButton} onPress={() => router.push('/(app)/(tabs)/expenses/new')}>
           <Text style={styles.newButtonText}>+ Add expense</Text>
         </Pressable>
       </View>
@@ -148,7 +148,7 @@ function SummaryCard({ label, count, color, bg, active, onPress }: { label: stri
 function ProjectCard({ project }: { project: ProjectGroup }) {
   const router = useRouter();
   return (
-    <Pressable style={styles.card} onPress={() => router.push(`/(app)/expenses/${project.workOrderId}`)}>
+    <Pressable style={styles.card} onPress={() => router.push(`/(app)/(tabs)/expenses/${project.workOrderId}`)}>
       <View style={styles.cardRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.cardTitle}>{project.projectLabel}</Text>

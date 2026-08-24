@@ -20,7 +20,7 @@ export default function PendingProductsCard({ items }: Props) {
     <View style={styles.section}>
       <Text style={styles.title}>Product Requests</Text>
       {items.map(item => (
-        <ProductRow key={item.id} item={item} onOpenJob={() => router.push(`/(app)/work-orders/${item.workOrderId}`)} />
+        <ProductRow key={item.id} item={item} onOpenJob={() => router.push(`/(app)/(tabs)/work-orders/${item.workOrderId}`)} />
       ))}
     </View>
   );

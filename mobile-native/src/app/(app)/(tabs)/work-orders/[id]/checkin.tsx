@@ -63,7 +63,7 @@ export default function CheckInScreen() {
       // doesn't settle until it actually runs, which could be much later.
       submitCheckIn.mutate(variables);
       Alert.alert('Saved — will sync', "You're offline. This check-in will be sent automatically once you're back online.");
-      router.replace(`/(app)/work-orders/${id}`);
+      router.replace(`/(app)/(tabs)/work-orders/${id}`);
       return;
     }
 
@@ -73,7 +73,7 @@ export default function CheckInScreen() {
         setError(result.error);
         return;
       }
-      router.replace(`/(app)/work-orders/${id}`);
+      router.replace(`/(app)/(tabs)/work-orders/${id}`);
     } catch (e) {
       setError(apiErrorMessage(e));
     }

@@ -37,7 +37,7 @@ export default function DepartmentJobsScreen() {
             jobs.map(job => {
               const st = STATUS_CONFIG[job.status] || STATUS_CONFIG.assigned;
               return (
-                <Pressable key={job.id} style={styles.card} onPress={() => router.push(`/(app)/work-orders/${job.id}`)}>
+                <Pressable key={job.id} style={styles.card} onPress={() => router.push(`/(app)/(tabs)/work-orders/${job.id}`)}>
                   <View style={styles.cardHeader}>
                     <Text style={styles.woNumber}>{job.woNumber}</Text>
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>

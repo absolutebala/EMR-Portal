@@ -88,7 +88,7 @@ export default function ClosureScreen() {
     if (!(await isOnline())) {
       submitClosure.mutate(variables);
       Alert.alert('Saved — will sync', "You're offline. This closure will be sent automatically once you're back online.");
-      router.replace(`/(app)/work-orders/${id}`);
+      router.replace(`/(app)/(tabs)/work-orders/${id}`);
       return;
     }
 
@@ -98,7 +98,7 @@ export default function ClosureScreen() {
         setError(result.error);
         return;
       }
-      router.replace(`/(app)/work-orders/${id}`);
+      router.replace(`/(app)/(tabs)/work-orders/${id}`);
     } catch (e) {
       setError(apiErrorMessage(e));
     }
@@ -146,7 +146,7 @@ export default function ClosureScreen() {
             Submitting the job form marks this visit completed — your signature is captured as part of the form
             itself, and the visit summary PDF/Word doc is generated automatically.
           </Text>
-          <Pressable style={styles.primaryButton} onPress={() => router.push(`/(app)/work-orders/${id}/form`)}>
+          <Pressable style={styles.primaryButton} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form`)}>
             <Text style={styles.primaryButtonText}>Complete Form</Text>
           </Pressable>
         </View>
@@ -174,7 +174,7 @@ export default function ClosureScreen() {
             </View>
 
             {isProductRequest ? (
-              <Pressable style={[styles.primaryButton, { marginTop: 14 }]} onPress={() => router.push({ pathname: '/(app)/requests/new', params: { wo: id } })}>
+              <Pressable style={[styles.primaryButton, { marginTop: 14 }]} onPress={() => router.push({ pathname: '/(app)/(tabs)/requests/new', params: { wo: id } })}>
                 <Text style={styles.primaryButtonText}>Go to Request Products</Text>
               </Pressable>
             ) : (

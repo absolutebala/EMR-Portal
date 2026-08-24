@@ -106,7 +106,7 @@ export default function NewExpenseScreen() {
         <Text style={styles.successTitle}>Expense logged</Text>
         <Text style={styles.successSub}>Your supervisor will review it shortly.</Text>
         <View style={styles.successRow}>
-          <Pressable style={styles.secondaryButton} onPress={() => router.replace(`/(app)/expenses/${workOrderId}`)}>
+          <Pressable style={styles.secondaryButton} onPress={() => router.replace(`/(app)/(tabs)/expenses/${workOrderId}`)}>
             <Text style={styles.secondaryButtonText}>View project logs</Text>
           </Pressable>
           <Pressable

@@ -148,7 +148,7 @@ export default function DashboardScreen() {
           <Text style={styles.subGreeting}>Here&apos;s your day at a glance</Text>
         </View>
         <View style={styles.headerActions}>
-          <Pressable style={styles.bellButton} onPress={() => router.push('/(app)/alerts')}>
+          <Pressable style={styles.bellButton} onPress={() => router.push('/(app)/(tabs)/alerts')}>
             <Text style={styles.bellIcon}>🔔</Text>
             {unreadAlerts > 0 && (
               <View style={styles.badge}>
@@ -226,7 +226,7 @@ export default function DashboardScreen() {
             <Pressable
               key={dept.departmentId}
               style={[styles.statCard, { borderTopWidth: 3, borderTopColor: c.color }]}
-              onPress={() => router.push({ pathname: '/(app)/department-jobs/[dept]', params: { dept: dept.departmentId, name: dept.department } })}
+              onPress={() => router.push({ pathname: '/(app)/(tabs)/department-jobs/[dept]', params: { dept: dept.departmentId, name: dept.department } })}
             >
               <Text style={[styles.statValue, { color: c.color }]}>{dept.count}</Text>
               <Text style={styles.statLabel}>{dept.department}</Text>

@@ -13,7 +13,7 @@ export default function JobCard({ wo }: { wo: MobileWorkOrder }) {
   const st = STATUS_CONFIG[wo.status] || STATUS_CONFIG.assigned;
 
   return (
-    <Pressable style={styles.card} onPress={() => router.push(`/(app)/work-orders/${wo.id}`)}>
+    <Pressable style={styles.card} onPress={() => router.push(`/(app)/(tabs)/work-orders/${wo.id}`)}>
       <View style={[styles.bar, { backgroundColor: BAR_COLOR[wo.status] || '#94A3B8' }]} />
       <View style={styles.body}>
         <View style={styles.headerRow}>

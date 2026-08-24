@@ -23,7 +23,7 @@ export default function CheckinDriftBanner() {
   return (
     <Pressable
       style={[styles.banner, { top: insets.top + 8 + syncBannerOffset + headerOffset }]}
-      onPress={() => router.push(`/(app)/work-orders/${notice.workOrderId}` as Href)}
+      onPress={() => router.push(`/(app)/(tabs)/work-orders/${notice.workOrderId}` as Href)}
     >
       <Text style={styles.text}>
         You&apos;re ~{notice.distanceKm < 1 ? '<1' : Math.round(notice.distanceKm)} km from {notice.projectLabel} — update the notification&apos;s status if you&apos;ve left

@@ -34,6 +34,26 @@ export default function TabsLayout() {
         name="expenses"
         options={{ title: 'Expenses', tabBarIcon: ({ color }) => <TabIcon symbol="₹" color={color} /> }}
       />
+
+      {/* Every other screen under (tabs) — job detail, department jobs, alerts,
+          profile, etc. — needs to live in this same directory so the bottom bar
+          stays mounted underneath it when pushed (that's the whole point of moving
+          them here). `href: null` is Expo Router's documented way to keep a route
+          part of the Tabs navigator without it also claiming a tab bar button —
+          without this, each of these would silently render as an extra, unstyled
+          tab icon alongside the five real ones above. */}
+      <Tabs.Screen name="alerts" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="account-password" options={{ href: null }} />
+      <Tabs.Screen name="my-analytics" options={{ href: null }} />
+      <Tabs.Screen name="department-jobs/[dept]" options={{ href: null }} />
+      <Tabs.Screen name="requests/new" options={{ href: null }} />
+      <Tabs.Screen name="expenses/new" options={{ href: null }} />
+      <Tabs.Screen name="expenses/[workOrderId]" options={{ href: null }} />
+      <Tabs.Screen name="work-orders/[id]/index" options={{ href: null }} />
+      <Tabs.Screen name="work-orders/[id]/checkin" options={{ href: null }} />
+      <Tabs.Screen name="work-orders/[id]/closure" options={{ href: null }} />
+      <Tabs.Screen name="work-orders/[id]/form" options={{ href: null }} />
     </Tabs>
   );
 }
