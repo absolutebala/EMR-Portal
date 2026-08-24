@@ -64,3 +64,26 @@ export async function getMyAssignableDepartments(): Promise<{ departments: Depar
     return { departments: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// Department IDs the current user's own view of Dashboard/Work Orders/Expenses/
+// Product Requests should be restricted to — null means "no restriction" (see
+// every notification org-wide). Only Service Manager is scoped this way; every
+// other role keeps seeing the whole org, same as approval routing already does.
+// A Service Manager not yet assigned to any department also sees everything, so a
+// misconfigured account doesn't silently render an empty app.
+export async function getMyDepartmentScope(): Promise<string[] | null> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return null
+
+    const admin = adminClient()
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (profile?.role !== 'Service Manager') return null
+
+    const { data: assigned } = await admin.from('profile_departments').select('department_id').eq('profile_id', user.id)
+    const ids = (assigned || []).map(r => r.department_id)
+    return ids.length ? ids : null
+  } catch {
+    return null
+  }
+}

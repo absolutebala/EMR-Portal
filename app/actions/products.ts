@@ -5,6 +5,7 @@ import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { adminClient } from '@/lib/mobile/core/shared'
+import { getMyDepartmentScope } from './departments'
 import {
   fetchRequestViews, searchProductsCore, submitProductRequestCore, getMyProductRequestsCore,
   type Product, type ProductRequestView,
@@ -131,8 +132,16 @@ export async function getProductRequestsForEngineer(engineerId: string): Promise
 export async function getAllProductRequests(): Promise<{ requests: ProductRequestView[]; error: string | null }> {
   try {
     const admin = adminClient()
-    const { data: reqIds } = await admin.from('product_requests').select('id').order('created_at', { ascending: false })
-    const requests = await fetchRequestViews(admin, (reqIds || []).map(r => r.id))
+    const departmentScope = await getMyDepartmentScope()
+    const { data: reqRows } = await admin.from('product_requests').select('id, work_order_id').order('created_at', { ascending: false })
+    let scopedRows = reqRows || []
+    if (departmentScope && scopedRows.length) {
+      const woIds = [...new Set(scopedRows.map(r => r.work_order_id))]
+      const { data: wos } = await admin.from('work_orders').select('id, department_id').in('id', woIds)
+      const scopedWoIds = new Set((wos || []).filter(w => departmentScope.includes(w.department_id || '')).map(w => w.id))
+      scopedRows = scopedRows.filter(r => scopedWoIds.has(r.work_order_id))
+    }
+    const requests = await fetchRequestViews(admin, scopedRows.map(r => r.id))
     return { requests, error: null }
   } catch (e: unknown) {
     return { requests: [], error: e instanceof Error ? e.message : String(e) }

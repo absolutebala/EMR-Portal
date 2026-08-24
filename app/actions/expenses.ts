@@ -4,6 +4,7 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { adminClient } from '@/lib/mobile/core/shared'
+import { getMyDepartmentScope } from './departments'
 import {
   buildExpenseLogViews,
   getExpenseEligibilityCore, getExpenseTypesCore, getOrCreateExpenseTypeCore,
@@ -68,9 +69,19 @@ export async function getExpenseLogsForEngineer(engineerId: string): Promise<{ l
 export async function getAllExpenseLogs(): Promise<{ logs: ExpenseLogView[]; error: string | null }> {
   try {
     const admin = adminClient()
+    const departmentScope = await getMyDepartmentScope()
     const { data: rows, error } = await admin.from('expense_logs').select('*').order('created_at', { ascending: false })
     if (error) return { logs: [], error: error.message }
-    const logs = await buildExpenseLogViews(admin, rows || [])
+    // expense_logs has no department_id of its own — a Service Manager's scope is
+    // resolved via each row's linked work order.
+    let scopedRows = rows || []
+    if (departmentScope && scopedRows.length) {
+      const woIds = [...new Set(scopedRows.map(r => r.work_order_id))]
+      const { data: wos } = await admin.from('work_orders').select('id, department_id').in('id', woIds)
+      const scopedWoIds = new Set((wos || []).filter(w => departmentScope.includes(w.department_id || '')).map(w => w.id))
+      scopedRows = scopedRows.filter(r => scopedWoIds.has(r.work_order_id))
+    }
+    const logs = await buildExpenseLogViews(admin, scopedRows)
     return { logs, error: null }
   } catch (e: unknown) {
     return { logs: [], error: e instanceof Error ? e.message : String(e) }

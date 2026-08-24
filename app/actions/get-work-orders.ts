@@ -2,6 +2,7 @@
 
 import { adminClient } from '@/lib/db/admin-client'
 import { getAuthedUser } from '@/lib/cognito/server'
+import { getMyDepartmentScope } from './departments'
 import type { WorkOrder } from '@/lib/types'
 import type { MobileFormSection, MobileFormField, MobileFormTable, MobileFormRow } from '@/lib/mobile/core/shared'
 import { extractPlaceLabel } from '@/lib/geocode'
@@ -76,10 +77,14 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
 
     const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
     const role = profile?.role
+    // Service Manager sees only their own department's notifications; every other
+    // role keeps the org-wide view.
+    const departmentScope = await getMyDepartmentScope()
 
     let query = admin.from('work_orders').select('*').order('created_at', { ascending: false })
     if (customerId) query = query.eq('customer_id', customerId)
     if (engineerId) query = query.eq('engineer_id', engineerId)
+    if (departmentScope) query = query.in('department_id', departmentScope)
     const { data: wos, error } = await query
 
     if (error) return { workOrders: [], error: error.message }

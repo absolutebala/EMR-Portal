@@ -2,6 +2,7 @@
 
 import { adminClient } from '@/lib/db/admin-client'
 import { getFieldEngineersOverview, type FieldEngineerOverview } from './get-engineers'
+import { getMyDepartmentScope } from './departments'
 
 // Sentinel used in place of a real department UUID for open notifications with no
 // department tag — matches the work-orders list page's '?department=' query param
@@ -112,6 +113,14 @@ type BriefRow = { id: string; wo_number: string; ticket_number: string; schedule
 export async function getDashboardData(): Promise<DashboardData> {
   const admin = adminClient()
   const todayStr = new Date().toLocaleDateString('en-CA')
+  // Service Manager sees only their own department's notifications (and anything
+  // derived from them — product requests); every other role keeps the org-wide view.
+  const departmentScope = await getMyDepartmentScope()
+  // any: the postgrest-js builder's generic type is too deep for TS to instantiate
+  // through a wrapper function (TS2589) — the `.in()` call itself stays fully
+  // type-checked at each real call site, this just conditionally applies it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scopeWo = (q: any): any => (departmentScope ? q.in('department_id', departmentScope) : q)
 
   const [
     { engineers },
@@ -129,36 +138,39 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: overhaulingRows },
   ] = await Promise.all([
     getFieldEngineersOverview(),
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name), work_order_transformers(transformers(serial_number, warranty_status))').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6),
+    scopeWo(admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, department_id, customers(name), work_order_transformers(transformers(serial_number, warranty_status))').neq('status', 'completed').order('updated_at', { ascending: false }).limit(6)),
     // Anything the admin still needs to keep an eye on, not just what needs a decision
     // right now — stays on the dashboard through approved/dispatched, only dropping off
     // once it's delivered or rejected. Same "till delivered" scope as the mobile
-    // dashboard's equivalent card.
-    admin.from('product_request_items').select('id, quantity, status, products(name), product_requests(work_orders(wo_number))').in('status', ['pending', 'approved', 'dispatched']).order('created_at', { ascending: false }).limit(6),
+    // dashboard's equivalent card. Department filtering happens below (post-fetch) since
+    // it's on the doubly-nested work_orders relation.
+    admin.from('product_request_items').select('id, quantity, status, products(name), product_requests(work_orders(wo_number, department_id))').in('status', ['pending', 'approved', 'dispatched']).order('created_at', { ascending: false }).limit(24),
     // Genuinely missed: still in_progress (was checked into / had a follow-up) but the
     // follow-up date has already passed with no closure since.
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6),
+    scopeWo(admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, department_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6)),
     // At risk: scheduled for today (either a first visit still 'assigned', or a
     // follow-up on an already-'in_progress' job) with nothing done on it yet today —
     // an early warning before it becomes a "missed" one above.
-    admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, customers(name)').in('status', ['assigned', 'in_progress']).eq('scheduled_date', todayStr).limit(6),
-    admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6),
-    admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6),
+    scopeWo(admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, department_id, customers(name)').in('status', ['assigned', 'in_progress']).eq('scheduled_date', todayStr).limit(6)),
+    scopeWo(admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, department_id, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(6)),
+    scopeWo(admin.from('work_orders').select('id, wo_number, ticket_number, scheduled_date, department_id, customers(name)').eq('status', 'unassigned').order('created_at', { ascending: false }).limit(6)),
     admin.from('activity_log').select('id, actor_name, action, created_at').eq('entity_type', 'off_site_status_update').order('created_at', { ascending: false }).limit(6),
     // Powers the KPI cards: in-progress/unassigned counts, job-type breakdown,
     // warranty-tier breakdown, and per-department breakdown all derived from one pass
     // over every open notification.
-    admin.from('work_orders').select('id, status, job_type, department_id, work_order_transformers(transformers(warranty_status))').neq('status', 'completed'),
+    scopeWo(admin.from('work_orders').select('id, status, job_type, department_id, work_order_transformers(transformers(warranty_status))').neq('status', 'completed')),
     // Straight off transformers.warranty_status (not scoped to open notifications like
     // the KPI breakdown above) — every expired unit on record, regardless of whether it
-    // currently has an open job against it.
+    // currently has an open job against it. Transformers aren't department-tagged, so
+    // this stays org-wide even for a department-scoped Service Manager.
     admin.from('transformers').select('id, serial_number, customers(name)').eq('warranty_status', 'expired').order('created_at', { ascending: false }).limit(8),
     // Powers the Product Requests breakdown card — one pass over every item's status.
-    admin.from('product_request_items').select('status'),
+    // Department filtering happens below (post-fetch), same reason as pendingApprovals.
+    admin.from('product_request_items').select('status, product_requests(work_orders(department_id))'),
     admin.from('departments').select('id, name').order('name'),
     // Powers the "Paid Notifications" card — every Overhauling-job-type notification
     // on record (any status, not just open), matching /work-orders?job=overhauling.
-    admin.from('work_orders').select('id, wo_number, status, customers(name)').eq('job_type', 'overhauling').order('created_at', { ascending: false }).limit(8),
+    scopeWo(admin.from('work_orders').select('id, wo_number, status, department_id, customers(name)').eq('job_type', 'overhauling').order('created_at', { ascending: false }).limit(8)),
   ])
 
   // work_orders has two FK paths to profiles (engineer_id, created_by), so embedding
@@ -216,14 +228,17 @@ export async function getDashboardData(): Promise<DashboardData> {
   const needsReassignList = ((needsReassignRows as unknown as BriefRow[]) || []).map(toBrief)
   const unassignedList = ((unassignedRows as unknown as BriefRow[]) || []).map(toBrief)
 
-  type ApprovalRowRaw = { id: string; quantity: number; status: string; products: { name: string } | null; product_requests: { work_orders: { wo_number: string } | null } | null }
-  const pendingApprovals: DashboardApproval[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || []).map(r => ({
-    id: r.id,
-    quantity: r.quantity,
-    productName: r.products?.name || 'Unknown product',
-    woNumber: r.product_requests?.work_orders?.wo_number || '—',
-    status: r.status,
-  }))
+  type ApprovalRowRaw = { id: string; quantity: number; status: string; products: { name: string } | null; product_requests: { work_orders: { wo_number: string; department_id: string | null } | null } | null }
+  const pendingApprovals: DashboardApproval[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || [])
+    .filter(r => !departmentScope || departmentScope.includes(r.product_requests?.work_orders?.department_id || ''))
+    .slice(0, 6)
+    .map(r => ({
+      id: r.id,
+      quantity: r.quantity,
+      productName: r.products?.name || 'Unknown product',
+      woNumber: r.product_requests?.work_orders?.wo_number || '—',
+      status: r.status,
+    }))
 
   type ExpiredTransformerRow = { id: string; serial_number: string; customers: { name: string } | null }
   const expiredWarrantyList: DashboardExpiredWarranty[] = ((expiredTransformerRows as unknown as ExpiredTransformerRow[]) || []).map(t => ({
@@ -257,7 +272,9 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 
   const productRequestBreakdown = { pending: 0, approved: 0, dispatched: 0, delivered: 0 }
-  ;((productRequestStatusRows as unknown as { status: string }[]) || []).forEach(r => {
+  type ProductRequestStatusRow = { status: string; product_requests: { work_orders: { department_id: string | null } | null } | null }
+  ;((productRequestStatusRows as unknown as ProductRequestStatusRow[]) || []).forEach(r => {
+    if (departmentScope && !departmentScope.includes(r.product_requests?.work_orders?.department_id || '')) return
     if (r.status === 'pending' || r.status === 'approved' || r.status === 'dispatched' || r.status === 'delivered') {
       productRequestBreakdown[r.status]++
     }
