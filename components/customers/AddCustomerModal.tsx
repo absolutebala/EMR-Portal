@@ -20,9 +20,13 @@ interface Props {
   onSaved: () => void
   editCustomer?: Customer | null
   onCreateWorkOrder?: (customerId: string, customerName: string) => void
+  // Seeds the organisation name field when opened for a brand-new customer (e.g. from
+  // the New Notification modal's customer search, carrying over whatever the user
+  // already typed there) — ignored in edit mode.
+  prefillName?: string
 }
 
-export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder }: Props) {
+export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder, prefillName }: Props) {
   const [form, setForm] = useState({
     name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
     end_customer_type_id: '', end_customer_type_name: '',
@@ -56,12 +60,13 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
       }))
     } else {
       setForm({
-        name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
+        name: prefillName || '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
         end_customer_type_id: '', end_customer_type_name: '',
         whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
         dispatch_date: todayIsoDate(), warranty_years: '',
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editCustomer, open])
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
@@ -182,8 +187,8 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           {!isEdit && (
             <>
               <div>
-                <label style={fl2}>Serial number <span style={{ color: 'var(--m)' }}>*</span></label>
-                <input required style={fi2} value={form.serial_number} onChange={e => set('serial_number', e.target.value)} placeholder="SN-TR-XXXXX" />
+                <label style={fl2}>Serial number</label>
+                <input style={fi2} value={form.serial_number} onChange={e => set('serial_number', e.target.value)} placeholder="SN-TR-XXXXX (optional)" />
               </div>
               <div>
                 <label style={fl2}>Year of manufacture</label>

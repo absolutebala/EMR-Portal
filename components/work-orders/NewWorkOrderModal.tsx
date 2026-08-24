@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
 import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer, getAssignableEngineers } from '@/app/actions/get-work-orders'
@@ -10,6 +9,7 @@ import { getMyAssignableDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
 import CustomerCategoryPicker from './CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
+import AddCustomerModal from '@/components/customers/AddCustomerModal'
 
 const REPORTED_THROUGH_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -69,6 +69,12 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [scheduledDate, setScheduledDate] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [departmentId, setDepartmentId] = useState('')
+
+  // Adding a brand-new customer used to send the user to /customers and back — now
+  // it opens inline, on top of this modal, so creating a notification for a customer
+  // that doesn't exist yet is a single uninterrupted flow.
+  const [showAddCustomer, setShowAddCustomer] = useState(false)
+  const [addCustomerPrefillName, setAddCustomerPrefillName] = useState('')
 
   // Customer name search
   const [custQuery, setCustQuery] = useState('')
@@ -222,6 +228,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   }
 
   return (
+    <>
     <Modal open={open} onClose={onClose} title="New Notification" size="lg"
       footer={
         <>
@@ -301,7 +308,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
                 {snQuery.length >= 2 && !snSearching && snResults.length === 0 && (
                   <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>No serial number found for &quot;{snQuery}&quot;</span>
-                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
+                    <button type="button" onClick={() => { setAddCustomerPrefillName(''); setShowAddCustomer(true) }} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Add new customer →</button>
                   </div>
                 )}
               </div>
@@ -363,7 +370,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
                 {custQuery.length >= 1 && !custSearching && custResults.length === 0 && (
                   <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>No customer found for &quot;{custQuery}&quot;</span>
-                    <Link href="/customers" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, textDecoration: 'none' }}>Add new customer →</Link>
+                    <button type="button" onClick={() => { setAddCustomerPrefillName(custQuery); setShowAddCustomer(true) }} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Add new customer →</button>
                   </div>
                 )}
               </div>
@@ -454,5 +461,16 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
         </div>
       </form>
     </Modal>
+    <AddCustomerModal
+      open={showAddCustomer}
+      onClose={() => setShowAddCustomer(false)}
+      onSaved={() => {}}
+      prefillName={addCustomerPrefillName}
+      onCreateWorkOrder={(customerId, customerName) => {
+        selectCustomer(customerId, customerName)
+        setShowAddCustomer(false)
+      }}
+    />
+    </>
   )
 }

@@ -13,11 +13,21 @@ interface ModalProps {
 
 const WIDTHS = { sm: 480, md: 620, lg: 780, xl: 960 }
 
+// A count of currently-open Modals rather than a plain on/off flag — needed now that
+// one Modal (e.g. New Notification) can open another on top of it (Add Customer). A
+// naive "restore on close" would clear body scroll-lock the moment the inner modal
+// closes, even though the outer one is still open.
+let openModalCount = 0
+
 export default function Modal({ open, onClose, title, size = 'md', children, footer }: ModalProps) {
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
-    return () => { document.body.style.overflow = '' }
+    if (!open) return
+    openModalCount++
+    document.body.style.overflow = 'hidden'
+    return () => {
+      openModalCount--
+      if (openModalCount === 0) document.body.style.overflow = ''
+    }
   }, [open])
 
   if (!open) return null

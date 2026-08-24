@@ -48,16 +48,22 @@ export async function addCustomer(payload: {
     }).select().single()
     if (se) return { error: se.message }
 
-    const { error: te } = await sb.from('transformers').insert({
-      customer_id: cust.id,
-      site_id: site.id,
-      serial_number: payload.serial_number,
-      year_of_manufacture: payload.year_of_manufacture || null,
-      warranty_status: payload.warranty_status,
-      dispatch_date: payload.dispatch_date || null,
-      warranty_years: payload.warranty_years,
-    })
-    if (te) return { error: te.message }
+    // Serial number is optional — a customer can be added before any transformer's
+    // serial number is known (e.g. an Overhauling notification opened ahead of the
+    // site visit). serial_number is unique + not null on transformers, so skip the
+    // insert entirely rather than writing a blank placeholder.
+    if (payload.serial_number.trim()) {
+      const { error: te } = await sb.from('transformers').insert({
+        customer_id: cust.id,
+        site_id: site.id,
+        serial_number: payload.serial_number.trim(),
+        year_of_manufacture: payload.year_of_manufacture || null,
+        warranty_status: payload.warranty_status,
+        dispatch_date: payload.dispatch_date || null,
+        warranty_years: payload.warranty_years,
+      })
+      if (te) return { error: te.message }
+    }
 
     // Create primary contact record, linked to the site just created — this is the
     // on-site contact for that site, not just a general customer-level contact.
