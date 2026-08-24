@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import * as XLSX from 'xlsx';
@@ -120,7 +120,9 @@ export default function AttendanceScreen() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [placeName, setPlaceName] = useState('');
   const [gpsResolved, setGpsResolved] = useState(false);
-  const [gpsRequested, setGpsRequested] = useState(false);
+  // Ref, not state — only guards against re-triggering the auto-capture effect
+  // below, never read in JSX, so it doesn't need to be reactive.
+  const gpsRequestedRef = useRef(false);
   const [reason, setReason] = useState('');
   const [markError, setMarkError] = useState('');
 
@@ -132,7 +134,7 @@ export default function AttendanceScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  const [endDayGpsRequested, setEndDayGpsRequested] = useState(false);
+  const endDayGpsRequestedRef = useRef(false);
   const [endDayGpsResolved, setEndDayGpsResolved] = useState(false);
   const [endDayCoords, setEndDayCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [endDayPlaceName, setEndDayPlaceName] = useState('');
@@ -160,7 +162,7 @@ export default function AttendanceScreen() {
   }
 
   function startGpsCapture() {
-    setGpsRequested(true);
+    gpsRequestedRef.current = true;
     getCurrentPositionWithFallback().then(pos => {
       setCoords(pos);
       setGpsResolved(true);
@@ -169,6 +171,14 @@ export default function AttendanceScreen() {
       }
     });
   }
+
+  // GPS starts capturing in the background as soon as marking is needed — no
+  // separate "capture location" tap. The submit button is available right away
+  // (see JSX below); if GPS hasn't resolved by the time it's tapped, coords just
+  // go through null, same as an outright GPS failure already does.
+  useEffect(() => {
+    if (needsMarking && !isPendingApproval && !gpsRequestedRef.current) startGpsCapture();
+  }, [needsMarking, isPendingApproval]);
 
   async function handleMark() {
     setMarkError('');
@@ -196,7 +206,7 @@ export default function AttendanceScreen() {
   // Same GPS-capture flow as marking Present, dedicated state — End Day is a separate
   // action from the app's own Sign Out (AccountMenu), which stays ungated.
   function startEndDayGpsCapture() {
-    setEndDayGpsRequested(true);
+    endDayGpsRequestedRef.current = true;
     getCurrentPositionWithFallback().then(pos => {
       setEndDayCoords(pos);
       setEndDayGpsResolved(true);
@@ -205,6 +215,12 @@ export default function AttendanceScreen() {
       }
     });
   }
+
+  // Same background-capture treatment as marking Present — no separate "capture
+  // location" tap before End Day becomes tappable.
+  useEffect(() => {
+    if (todayStatus?.kind === 'present' && !todayEntry?.endDayAt && !endDayGpsRequestedRef.current) startEndDayGpsCapture();
+  }, [todayStatus?.kind, todayEntry?.endDayAt]);
 
   async function handleEndDay() {
     setEndDayError('');
@@ -332,17 +348,7 @@ export default function AttendanceScreen() {
 
           {!isPendingApproval && (
             <>
-              {!gpsRequested ? (
-                <Pressable style={styles.gpsButton} onPress={startGpsCapture}>
-                  <Text style={styles.gpsButtonText}>Capture location &amp; continue</Text>
-                </Pressable>
-              ) : (
-                <View style={[styles.gpsCard, { backgroundColor: coords ? '#059669' : '#2563EB' }]}>
-                  <Text style={styles.gpsTitle}>{coords ? (placeName || 'GPS location captured') : gpsResolved ? 'GPS unavailable' : 'GPS location capturing…'}</Text>
-                </View>
-              )}
-
-              {gpsRequested && isLate && (
+              {isLate && (
                 <TextInput
                   style={styles.reasonInput}
                   placeholder="Reason (required)"
@@ -353,13 +359,15 @@ export default function AttendanceScreen() {
                 />
               )}
 
+              <Text style={[styles.locationStatus, { color: coords ? '#059669' : gpsResolved ? '#B91C1C' : '#7A6870' }]}>
+                📍 {coords ? (placeName || 'Location captured') : gpsResolved ? 'Location unavailable — you can still mark attendance' : 'Getting your location…'}
+              </Text>
+
               {!!markError && <Text style={styles.markError}>{markError}</Text>}
 
-              {gpsRequested && gpsResolved && (
-                <Pressable style={[styles.submitButton, markAttendance.isPending && styles.submitButtonDisabled]} onPress={handleMark} disabled={markAttendance.isPending}>
-                  {markAttendance.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{isLate ? 'Submit for approval' : 'Mark present'}</Text>}
-                </Pressable>
-              )}
+              <Pressable style={[styles.submitButton, markAttendance.isPending && styles.submitButtonDisabled]} onPress={handleMark} disabled={markAttendance.isPending}>
+                {markAttendance.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{isLate ? 'Submit for approval' : 'Mark present'}</Text>}
+              </Pressable>
             </>
           )}
         </View>
@@ -378,23 +386,16 @@ export default function AttendanceScreen() {
           ) : (
             <>
               <Text style={styles.markTitle}>End Day</Text>
-              {!endDayGpsRequested ? (
-                <Pressable style={styles.gpsButton} onPress={startEndDayGpsCapture}>
-                  <Text style={styles.gpsButtonText}>Capture location &amp; continue</Text>
-                </Pressable>
-              ) : (
-                <View style={[styles.gpsCard, { backgroundColor: endDayCoords ? '#059669' : '#2563EB' }]}>
-                  <Text style={styles.gpsTitle}>{endDayCoords ? (endDayPlaceName || 'GPS location captured') : endDayGpsResolved ? 'GPS unavailable' : 'GPS location capturing…'}</Text>
-                </View>
-              )}
+
+              <Text style={[styles.locationStatus, { color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }]}>
+                📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? 'Location unavailable — you can still end your day' : 'Getting your location…'}
+              </Text>
 
               {!!endDayError && <Text style={styles.markError}>{endDayError}</Text>}
 
-              {endDayGpsRequested && endDayGpsResolved && (
-                <Pressable style={[styles.submitButton, markEndDay.isPending && styles.submitButtonDisabled]} onPress={handleEndDay} disabled={markEndDay.isPending}>
-                  {markEndDay.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>End Day</Text>}
-                </Pressable>
-              )}
+              <Pressable style={[styles.submitButton, markEndDay.isPending && styles.submitButtonDisabled]} onPress={handleEndDay} disabled={markEndDay.isPending}>
+                {markEndDay.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>End Day</Text>}
+              </Pressable>
             </>
           )}
         </View>
@@ -481,10 +482,7 @@ const styles = StyleSheet.create({
   markCard: { backgroundColor: '#fff', borderRadius: 13, padding: 14, marginBottom: 16 },
   markTitle: { fontSize: 13, fontWeight: '700', color: '#1C0D14', marginBottom: 4 },
   markSub: { fontSize: 11, color: '#7A6870', lineHeight: 16, marginBottom: 10 },
-  gpsButton: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  gpsButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  gpsCard: { borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 4 },
-  gpsTitle: { fontSize: 12, fontWeight: '600', color: '#fff', textAlign: 'center' },
+  locationStatus: { fontSize: 10, marginTop: 4, marginBottom: 8 },
   reasonInput: {
     borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 10, fontSize: 12,
     color: '#1C0D14', backgroundColor: '#fff', marginTop: 10, minHeight: 60, textAlignVertical: 'top',

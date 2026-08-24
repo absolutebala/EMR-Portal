@@ -117,7 +117,9 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [placeName, setPlaceName] = useState('')
   const [gpsError, setGpsError] = useState('')
-  const [gpsRequested, setGpsRequested] = useState(false)
+  // Ref, not state — only ever used to prevent re-triggering the auto-capture
+  // effect below, never read in JSX, so it doesn't need to be reactive.
+  const gpsRequestedRef = useRef(false)
   const [gpsResolved, setGpsResolved] = useState(false)
   const [reason, setReason] = useState('')
   const [markError, setMarkError] = useState('')
@@ -132,7 +134,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
 
-  const [endDayGpsRequested, setEndDayGpsRequested] = useState(false)
+  const endDayGpsRequestedRef = useRef(false)
   const [endDayGpsResolved, setEndDayGpsResolved] = useState(false)
   const [endDayCoords, setEndDayCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [endDayPlaceName, setEndDayPlaceName] = useState('')
@@ -179,7 +181,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   }
 
   function startGpsCapture() {
-    setGpsRequested(true)
+    gpsRequestedRef.current = true
     setGpsError('')
     if (!('geolocation' in navigator)) {
       setGpsResolved(true)
@@ -209,6 +211,14 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     )
   }
 
+  // GPS starts capturing in the background as soon as marking is needed — no
+  // separate "capture location" tap. The submit button is available right away
+  // (see JSX below); if GPS hasn't resolved by the time it's tapped, coords just
+  // go through null, same as an outright GPS failure already does.
+  useEffect(() => {
+    if (needsMarking && !isPendingApproval && !gpsRequestedRef.current) startGpsCapture()
+  }, [needsMarking, isPendingApproval])
+
   async function handleMark() {
     setMarkError('')
     if (isLate && !reason.trim()) {
@@ -231,7 +241,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   // Same GPS-capture flow as marking Present, dedicated state — End Day is a
   // separate action from the app's own Sign Out (which stays ungated).
   function startEndDayGpsCapture() {
-    setEndDayGpsRequested(true)
+    endDayGpsRequestedRef.current = true
     setEndDayGpsError('')
     if (!('geolocation' in navigator)) {
       setEndDayGpsResolved(true)
@@ -260,6 +270,12 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
       { enableHighAccuracy: true, timeout: 12000 }
     )
   }
+
+  // Same background-capture treatment as marking Present — no separate "capture
+  // location" tap before End Day becomes tappable.
+  useEffect(() => {
+    if (todayStatus?.kind === 'present' && !todayEntry?.endDayAt && !endDayGpsRequestedRef.current) startEndDayGpsCapture()
+  }, [todayStatus?.kind, todayEntry?.endDayAt])
 
   async function handleEndDay() {
     setEndDayError('')
@@ -432,44 +448,30 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
 
             {!isPendingApproval && (
               <>
-                {!gpsRequested ? (
-                  <button
-                    className="mtap"
-                    onClick={startGpsCapture}
-                    style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 4 }}
-                  >
-                    Capture location &amp; continue
-                  </button>
-                ) : (
-                  <div style={{ background: coords ? 'linear-gradient(135deg,#065F46,#059669)' : gpsResolved ? '#B91C1C' : 'linear-gradient(135deg,#1E3A5F,#2563EB)', borderRadius: 10, padding: 12, textAlign: 'center', marginTop: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                      {coords ? (placeName || 'GPS location captured') : gpsResolved ? (gpsError || 'GPS unavailable') : 'GPS location capturing…'}
-                    </div>
-                  </div>
-                )}
-
-                {gpsRequested && isLate && (
+                {isLate && (
                   <textarea
                     value={reason}
                     onChange={e => setReason(e.target.value)}
                     placeholder="Reason (required)"
                     rows={3}
-                    style={{ width: '100%', marginTop: 10, padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box' }}
                   />
                 )}
 
+                <div style={{ fontSize: 10, color: coords ? '#059669' : gpsResolved ? '#B91C1C' : '#7A6870', marginTop: isLate ? 8 : 0 }}>
+                  📍 {coords ? (placeName || 'Location captured') : gpsResolved ? (gpsError || 'Location unavailable — you can still mark attendance') : 'Getting your location…'}
+                </div>
+
                 {markError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{markError}</div>}
 
-                {gpsRequested && gpsResolved && (
-                  <button
-                    className="mtap"
-                    onClick={handleMark}
-                    disabled={submitting}
-                    style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: submitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
-                  >
-                    {submitting ? 'Saving…' : isLate ? 'Submit for approval' : 'Mark present'}
-                  </button>
-                )}
+                <button
+                  className="mtap"
+                  onClick={handleMark}
+                  disabled={submitting}
+                  style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: submitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
+                >
+                  {submitting ? 'Saving…' : isLate ? 'Submit for approval' : 'Mark present'}
+                </button>
               </>
             )}
           </div>
@@ -486,35 +488,22 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
               </>
             ) : (
               <>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 10px' }}>End Day</p>
-                {!endDayGpsRequested ? (
-                  <button
-                    className="mtap"
-                    onClick={startEndDayGpsCapture}
-                    style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    Capture location &amp; continue
-                  </button>
-                ) : (
-                  <div style={{ background: endDayCoords ? 'linear-gradient(135deg,#065F46,#059669)' : endDayGpsResolved ? '#B91C1C' : 'linear-gradient(135deg,#1E3A5F,#2563EB)', borderRadius: 10, padding: 12, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                      {endDayCoords ? (endDayPlaceName || 'GPS location captured') : endDayGpsResolved ? (endDayGpsError || 'GPS unavailable') : 'GPS location capturing…'}
-                    </div>
-                  </div>
-                )}
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>End Day</p>
+
+                <div style={{ fontSize: 10, color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }}>
+                  📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? (endDayGpsError || 'Location unavailable — you can still end your day') : 'Getting your location…'}
+                </div>
 
                 {endDayError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{endDayError}</div>}
 
-                {endDayGpsRequested && endDayGpsResolved && (
-                  <button
-                    className="mtap"
-                    onClick={handleEndDay}
-                    disabled={endDaySubmitting}
-                    style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
-                  >
-                    {endDaySubmitting ? 'Saving…' : 'End Day'}
-                  </button>
-                )}
+                <button
+                  className="mtap"
+                  onClick={handleEndDay}
+                  disabled={endDaySubmitting}
+                  style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
+                >
+                  {endDaySubmitting ? 'Saving…' : 'End Day'}
+                </button>
               </>
             )}
           </div>
