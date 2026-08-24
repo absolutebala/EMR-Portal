@@ -4,7 +4,10 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
-  active: 'dashboard' | 'jobs' | 'attendance' | 'requests' | 'expenses'
+  // Omitted on screens that aren't one of the five tabs themselves (job detail,
+  // department jobs, alerts, profile, etc.) — the bar still renders so navigation
+  // stays reachable, just with nothing highlighted.
+  active?: 'dashboard' | 'jobs' | 'attendance' | 'requests' | 'expenses'
 }
 
 const TABS: { id: 'dashboard' | 'jobs' | 'attendance' | 'requests' | 'expenses'; label: string; href: string; icon: React.ReactNode }[] = [

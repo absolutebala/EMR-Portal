@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { updateMyProfile, uploadMyAvatar } from '@/app/actions/update-my-profile'
 import { compressImage } from '@/lib/mobile/compressImage'
 import type { MyProfile } from '@/lib/mobile/core/profile'
@@ -61,10 +62,10 @@ export default function ProfileClient({ profile: initialProfile, error: loadErro
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#F8F5F6' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title="Profile" backHref="/mobile/dashboard" />
 
-      <div style={{ padding: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         {loadError && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '10px 12px', fontSize: 12, marginBottom: 16 }}>{loadError}</div>
         )}
@@ -124,6 +125,7 @@ export default function ProfileClient({ profile: initialProfile, error: loadErro
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }

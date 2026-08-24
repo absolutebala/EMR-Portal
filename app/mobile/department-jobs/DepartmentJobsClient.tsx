@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { STATUS_CONFIG } from '@/components/mobile/constants'
 import type { DepartmentOpenJob } from '@/lib/mobile/core/dashboard'
 
@@ -63,6 +64,7 @@ export default function DepartmentJobsClient({ department, jobs, error }: Props)
           )
         })}
       </div>
+      <BottomNav />
     </div>
   )
 }

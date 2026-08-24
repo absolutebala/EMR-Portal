@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { getMyAnalyticsSummary, getMyAnalyticsDrilldown } from '@/app/actions/my-analytics'
 import type { EngineerAnalyticsSummary, AnalyticsMetric, AnalyticsDrilldownRow } from '@/lib/mobile/core/analytics'
 
@@ -71,10 +72,10 @@ export default function MyAnalyticsClient({ initialMonth, initialSummary, initia
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#F8F5F6' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title="My Analytics" backHref="/mobile/dashboard" />
 
-      <div style={{ padding: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         <input
           type="month"
           value={month}
@@ -140,6 +141,7 @@ export default function MyAnalyticsClient({ initialMonth, initialSummary, initia
           })
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

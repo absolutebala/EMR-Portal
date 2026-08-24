@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { compressImage } from '@/lib/mobile/compressImage'
 import { searchProducts, submitProductRequest } from '@/app/actions/products'
 import type { Product } from '@/lib/mobile/core/products'
@@ -139,6 +140,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
             View my requests
           </button>
         </div>
+        <BottomNav />
       </div>
     )
   }
@@ -147,7 +149,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title="New Request" backHref="/mobile/requests" />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 100 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 160 }}>
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '12px 14px', fontSize: 13, marginBottom: 16 }}>{error}</div>
         )}
@@ -257,7 +259,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
         )}
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E0E3', padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+      <div style={{ position: 'fixed', bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E0E3', padding: '12px 16px' }}>
         <button
           className="mtap"
           onClick={handleSubmit}
@@ -267,6 +269,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
           {submitting ? 'Submitting…' : 'Submit request'}
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }

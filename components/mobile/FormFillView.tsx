@@ -7,6 +7,7 @@ import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from './constants'
 import SignaturePad from './SignaturePad'
 import PhotoField from './PhotoField'
+import BottomNav from './BottomNav'
 import { safeSetItem } from '@/lib/mobile/offlineStorage'
 
 type FieldValues = Record<string, string>
@@ -287,6 +288,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
         >
           {visitCompleted ? 'Back to notification' : 'Continue to closure'}
         </button>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}><BottomNav /></div>
       </div>
     )
   }
@@ -310,6 +312,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
         >
           Back to dashboard
         </button>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}><BottomNav /></div>
       </div>
     )
   }
@@ -317,7 +320,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
   const st = STATUS_CONFIG[workOrder.status] || STATUS_CONFIG.assigned
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#F8F5F6', paddingBottom: 110 }}>
+    <div style={{ minHeight: '100dvh', background: '#F8F5F6', paddingBottom: 170 }}>
       {/* Top bar */}
       <div style={{
         background: '#7D1D3F', padding: '14px 16px',
@@ -476,7 +479,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
       {/* Sticky submit footer — hidden entirely in read-only (view another engineer's submission) mode */}
       {form && !readOnly && (
         <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
+          position: 'fixed', bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0,
           background: '#fff', borderTop: '1px solid #E5E0E3',
           padding: '14px 16px',
           boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
@@ -501,6 +504,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
           </button>
         </div>
       )}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}><BottomNav /></div>
     </div>
   )
 }

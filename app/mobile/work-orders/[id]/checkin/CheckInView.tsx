@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { reverseGeocode } from '@/app/actions/mobile-actions'
 import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 import { compressImage } from '@/lib/mobile/compressImage'
@@ -190,6 +191,7 @@ export default function CheckInView({ workOrder }: Props) {
           {submitting ? 'Checking in…' : 'Confirm check-in — Reached Project'}
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }

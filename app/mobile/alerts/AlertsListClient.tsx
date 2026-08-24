@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { markNotificationRead, markAllNotificationsRead } from '@/app/actions/notifications'
 import type { NotificationView } from '@/lib/mobile/core/notifications'
 
@@ -88,6 +89,7 @@ export default function AlertsListClient({ notifications: initial, error }: Prop
           </div>
         ))}
       </div>
+      <BottomNav />
     </div>
   )
 }

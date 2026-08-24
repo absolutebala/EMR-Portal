@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
 import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
@@ -419,6 +420,7 @@ export default function JobDetailClient({ detail }: Props) {
           </div>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

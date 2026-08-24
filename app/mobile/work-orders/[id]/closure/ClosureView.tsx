@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import SignaturePad from '@/components/mobile/SignaturePad'
 import { startBackgroundClosure } from '@/lib/mobile/backgroundClosure'
 import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
@@ -312,6 +313,7 @@ export default function ClosureView({ workOrder }: Props) {
           </button>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

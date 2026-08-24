@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import BottomNav from '@/components/mobile/BottomNav'
 import { changeMyPassword } from '@/app/actions/update-my-profile'
 
 const inputStyle: React.CSSProperties = {
@@ -38,9 +39,9 @@ export default function AccountPasswordClient() {
 
   if (success) {
     return (
-      <div style={{ minHeight: '100dvh', background: '#F8F5F6' }}>
+      <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
         <MobileHeader title="Change Password" backHref="/mobile/dashboard" />
-        <div style={{ padding: 32, textAlign: 'center' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#1C0D14', marginBottom: 8 }}>Password updated</div>
           <div style={{ fontSize: 13, color: '#7A6870', marginBottom: 24 }}>Use your new password next time you sign in.</div>
           <button
@@ -51,14 +52,15 @@ export default function AccountPasswordClient() {
             Done
           </button>
         </div>
+        <BottomNav />
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#F8F5F6' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <MobileHeader title="Change Password" backHref="/mobile/dashboard" />
-      <div style={{ padding: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         {error && <div style={{ color: '#DC2626', fontSize: 12.5, textAlign: 'center', marginBottom: 14 }}>{error}</div>}
 
         <div style={{ marginBottom: 16 }}>
@@ -87,6 +89,7 @@ export default function AccountPasswordClient() {
           {saving ? 'Updating…' : 'Update password'}
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }
