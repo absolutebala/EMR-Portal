@@ -18,6 +18,11 @@ import {
 import { deleteForm } from '@/app/actions/assign-form'
 import type { Form, FormSection, FormField, FormTable, FormTableRow, FieldType, JobType } from '@/lib/types'
 
+function todayIsoDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const JOB_TYPES: { value: JobType; label: string }[] = [
   { value: 'site_inspection', label: 'Site Inspection' },
   { value: 'amc', label: 'AMC' },
@@ -564,7 +569,7 @@ export default function FormBuilder({ open, onClose, onSaved, editForm }: Props)
                         ) : f.field_type === 'checkbox' ? (
                           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}><input type="checkbox" style={{ accentColor: 'var(--m)' }}/>{f.label}</label>
                         ) : (
-                          <input type={f.field_type === 'date' ? 'date' : 'text'} placeholder={f.placeholder || ''} readOnly={f.read_only_on_mobile} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--tx)' }}/>
+                          <input type={f.field_type === 'date' ? 'date' : 'text'} placeholder={f.placeholder || ''} readOnly={f.read_only_on_mobile} defaultValue={f.field_type === 'date' ? todayIsoDate() : undefined} style={{ width: '100%', border: '1.5px solid var(--gm)', borderRadius: 7, padding: '8px 10px', fontSize: 12, fontFamily: 'Poppins,sans-serif', outline: 'none', color: 'var(--tx)' }}/>
                         )}
                       </div>
                     ))}

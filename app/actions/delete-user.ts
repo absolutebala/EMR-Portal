@@ -1,6 +1,6 @@
 'use server'
 
-import { AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provider'
+import { AdminDeleteUserCommand, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { cognitoClient } from '@/lib/cognito/client'
 import { COGNITO_USER_POOL_ID } from '@/lib/cognito/config'
 import { getAuthedUser } from '@/lib/cognito/server'
@@ -28,10 +28,16 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     // systems) — delete the Cognito identity first, then the profile row explicitly.
     // If the Cognito delete fails, the profile stays intact and this is safe to retry;
     // the alternative order risks an orphaned Cognito identity with no profile at all.
+    // UserNotFoundException is expected and harmless for a profile carried over from
+    // the Supabase->AWS migration whose owner never logged in since — the lazy
+    // migrate-on-login path never ran, so there's no Cognito identity to delete;
+    // fall through and just remove the profile row.
     try {
       await cognitoClient.send(new AdminDeleteUserCommand({ UserPoolId: COGNITO_USER_POOL_ID, Username: target.email }))
     } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : 'Could not delete the user account.' }
+      if (!(e instanceof UserNotFoundException)) {
+        return { error: e instanceof Error ? e.message : 'Could not delete the user account.' }
+      }
     }
 
     const { error } = await admin.from('profiles').delete().eq('id', targetUserId)

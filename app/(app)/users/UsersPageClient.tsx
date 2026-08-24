@@ -188,22 +188,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                     <td style={{ padding: '10px 14px' }}><StatusBadge active={u.is_active} pending={u.invite_pending || u.must_change_password || !u.last_login_at} /></td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {(u.invite_pending || u.must_change_password || !u.last_login_at) ? (
-                          <button
-                            onClick={() => copyInvitePassword(u)}
-                            disabled={inviteLoading === u.id}
-                            title="Copy login details"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--gm)', background: inviteCopied === u.id ? '#D1FAE5' : '#fff', color: inviteCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
-                          >
-                            {inviteLoading === u.id ? (
-                              '…'
-                            ) : inviteCopied === u.id ? (
-                              <>✓ Copied</>
-                            ) : (
-                              <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg> Copy password</>
-                            )}
-                          </button>
-                        ) : confirmDelete === u.id ? (
+                        {confirmDelete === u.id ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span style={{ fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>Delete?</span>
                             <button
@@ -220,6 +205,31 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                               Cancel
                             </button>
                           </div>
+                        ) : (u.invite_pending || u.must_change_password || !u.last_login_at) ? (
+                          <>
+                            <button
+                              onClick={() => copyInvitePassword(u)}
+                              disabled={inviteLoading === u.id}
+                              title="Copy login details"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--gm)', background: inviteCopied === u.id ? '#D1FAE5' : '#fff', color: inviteCopied === u.id ? '#065F46' : 'var(--txm)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
+                            >
+                              {inviteLoading === u.id ? (
+                                '…'
+                              ) : inviteCopied === u.id ? (
+                                <>✓ Copied</>
+                              ) : (
+                                <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg> Copy password</>
+                              )}
+                            </button>
+                            {/* A profile carried over from the Supabase->AWS migration whose
+                                owner never logged in has no Cognito identity yet — copying a
+                                password will fail ("User does not exist") until they do. Always
+                                offer delete here too, so a stale/never-activated profile isn't
+                                stuck with only a broken action. */}
+                            <button onClick={() => setConfirmDelete(u.id)} title="Delete user" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                              <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                            </button>
+                          </>
                         ) : (
                           <>
                             {can('Users — Create / Edit') && (
