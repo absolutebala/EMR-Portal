@@ -7,6 +7,7 @@ import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomersModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
+import { deleteCustomer } from '@/app/actions/save-customer'
 import type { Customer } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED']
@@ -28,12 +29,26 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
   const [showUpload, setShowUpload] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [woCustomer, setWoCustomer] = useState<{ id: string; name: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const router = useRouter()
+  const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
 
   const filtered = useMemo(() => customers.filter(c => {
     const q = search.toLowerCase()
     return !q || c.name.toLowerCase().includes(q) || c.contact_person.toLowerCase().includes(q) || c.phone.includes(q)
   }), [customers, search])
+
+  async function handleDelete(customerId: string) {
+    setDeleting(customerId)
+    setDeleteError('')
+    const { error } = await deleteCustomer(customerId)
+    setDeleting(null)
+    setConfirmDelete(null)
+    if (error) { setDeleteError(error); return }
+    router.refresh()
+  }
 
   function getInitials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
@@ -59,6 +74,8 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
             </button>
           </div>
         </div>
+
+        {deleteError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{deleteError}</div>}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {filtered.length === 0 ? (
@@ -93,11 +110,38 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{c.sn_count}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>—</td>
                     <td style={{ padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => router.push(`/customers/${c.id}`)} title="View" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                          <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                        </button>
-                      </div>
+                      {confirmDelete === c.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>Delete?</span>
+                          <button
+                            onClick={() => handleDelete(c.id)}
+                            disabled={deleting === c.id}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: deleting === c.id ? .7 : 1 }}
+                          >
+                            {deleting === c.id ? '…' : 'Yes, delete'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'Poppins,sans-serif' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => router.push(`/customers/${c.id}`)} title="View" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                          </button>
+                          <button onClick={() => { setEditCustomer(c); setShowAdd(true) }} title="Edit" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z" /></svg>
+                          </button>
+                          {canDelete && (
+                            <button onClick={() => { setDeleteError(''); setConfirmDelete(c.id) }} title="Delete" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -149,22 +149,11 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
           <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
             {expiredWarrantyList.map(t => (
               <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
             ))}
-          </ListCard>
-
-          <ListCard title="Paid Notifications" viewAllHref="/work-orders?job=overhauling" empty="No Overhauling notifications.">
-            {overhaulingList.map(wo => {
-              const cfg = WO_STATUS_CFG[wo.status] || WO_STATUS_CFG.unassigned
-              return (
-                <ListRow key={wo.id} title={wo.woNumber} subtitle={wo.customerName} href={`/work-orders/${wo.id}`}>
-                  <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
-                </ListRow>
-              )
-            })}
           </ListCard>
 
           <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
@@ -220,7 +209,7 @@ export default async function DashboardPage() {
           <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." showScheduleInfo />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 14 }}>
           <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
             {engineers.slice(0, 6).map(e => {
               const cfg = ENGINEER_STATUS_CFG[e.status]
@@ -242,6 +231,17 @@ export default async function DashboardPage() {
                     {showsStartBy && <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(e.statusStartBy!)}</span>}
                     <span style={{ fontSize: 10, color: 'var(--txm)' }}>{e.openWorkOrders} open job{e.openWorkOrders !== 1 ? 's' : ''}</span>
                   </div>
+                </ListRow>
+              )
+            })}
+          </ListCard>
+
+          <ListCard title="Paid Notifications" viewAllHref="/work-orders?job=overhauling" empty="No Overhauling notifications.">
+            {overhaulingList.map(wo => {
+              const cfg = WO_STATUS_CFG[wo.status] || WO_STATUS_CFG.unassigned
+              return (
+                <ListRow key={wo.id} title={wo.woNumber} subtitle={wo.customerName} href={`/work-orders/${wo.id}`}>
+                  <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
                 </ListRow>
               )
             })}

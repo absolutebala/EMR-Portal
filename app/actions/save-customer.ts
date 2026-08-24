@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
+import { getAuthedUser } from '@/lib/cognito/server'
 
 export async function addCustomer(payload: {
   name: string
@@ -106,6 +107,33 @@ export async function updateCustomer(
 
     const sb = adminClient()
     const { error } = await sb.from('customers').update(payload).eq('id', customerId)
+    return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteCustomer(customerId: string): Promise<{ error: string | null }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated.' }
+
+    const sb = adminClient()
+    const { data: actor } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (actor?.role !== 'Super Admin' && actor?.role !== 'Head of Service') {
+      return { error: 'Only Super Admin or Head of Service can delete customers.' }
+    }
+
+    // work_orders.customer_id is ON DELETE RESTRICT (unlike customer_sites/transformers/
+    // customer_contacts, which cascade) — a customer with notification history can't be
+    // deleted outright. Checked here first for a clear message instead of a raw FK
+    // constraint error surfacing from the delete below.
+    const { count } = await sb.from('work_orders').select('id', { count: 'exact', head: true }).eq('customer_id', customerId)
+    if (count && count > 0) {
+      return { error: `Cannot delete — ${count} notification${count === 1 ? '' : 's'} still reference this customer.` }
+    }
+
+    const { error } = await sb.from('customers').delete().eq('id', customerId)
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
