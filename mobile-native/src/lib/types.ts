@@ -131,7 +131,23 @@ export type AttendanceEffectiveStatus =
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | { kind: 'present'; reason: string | null; amended: boolean; approvedByName: string | null; approvedAt: string | null; markedAt: string | null; placeName: string | null; endDayAt: string | null; endDayPlaceName: string | null };
+  | {
+      kind: 'present';
+      reason: string | null;
+      pendingApproval: boolean;
+      rejected: boolean;
+      amended: boolean;
+      lateIn: boolean;
+      earlyOut: boolean;
+      singlePunch: boolean;
+      approvedByName: string | null;
+      approvedAt: string | null;
+      markedAt: string | null;
+      placeName: string | null;
+      endDayAt: string | null;
+      endDayPlaceName: string | null;
+      endDayEnableAt: string | null;
+    };
 
 export interface AttendanceCalendarDay {
   date: string;
@@ -165,10 +181,12 @@ export interface MarkEndDayVariables {
   latitude: number | null;
   longitude: number | null;
   placeName: string | null;
+  reason?: string | null;
 }
 
 export interface MarkEndDayResponse {
   error: string | null;
+  needsApproval: boolean;
 }
 
 export interface MarkAttendanceResponse {

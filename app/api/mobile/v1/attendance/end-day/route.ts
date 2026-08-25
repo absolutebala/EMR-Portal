@@ -8,13 +8,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const body = await req.json()
-  const { latitude, longitude, placeName } = body as {
+  const { latitude, longitude, placeName, reason } = body as {
     latitude: number | null
     longitude: number | null
     placeName: string | null
+    reason?: string | null
   }
 
-  const result = await markEndDayCore(adminClient(), user.id, { latitude, longitude, placeName })
+  const result = await markEndDayCore(adminClient(), user.id, { latitude, longitude, placeName, reason })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)
 }

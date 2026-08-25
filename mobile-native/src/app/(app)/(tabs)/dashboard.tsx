@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl, Alert } from 'react-native';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -40,20 +40,31 @@ const DEPARTMENT_CARD_COLORS = [
   { color: '#475569', bg: '#F1F5F9' },
 ];
 
-// Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 11am window is
-// still open, red once closed (or a late amendment is pending/rejected), green once
+const REQUIRED_DURATION_MIN = 8 * 60 + 45; // 8:45 hours, mirrors lib/mobile/core/attendance.ts
+
+// Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 10am window is
+// still open, red once closed (or an amendment is pending/rejected), green once
 // present is confirmed. Holiday/Weekly Off get a neutral color.
 function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
   switch (status.kind) {
     case 'pending':
-      return { bg: '#FEF3C7', color: '#92400E', label: 'Mark attendance', sub: 'Before 11:00 AM' };
+      return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' };
     case 'leave':
       return {
         bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
         sub: status.pendingApproval ? 'Amendment pending approval' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
       };
-    case 'present':
-      return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present', sub: null };
+    case 'present': {
+      const flags: string[] = [];
+      if (status.lateIn) flags.push('Late In');
+      if (status.earlyOut) flags.push('Early Out');
+      if (status.singlePunch) flags.push('Single Punch');
+      const label = flags.length ? `Present (${flags.join(', ')})` : 'Present';
+      const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Amendment pending approval' : status.amended ? 'Approved' : null) : null;
+      const bg = flags.length && !status.amended ? (status.rejected ? '#FEE2E2' : '#FEF3C7') : '#D1FAE5';
+      const color = flags.length && !status.amended ? (status.rejected ? '#991B1B' : '#92400E') : '#065F46';
+      return { bg, color, label, sub };
+    }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: 'Holiday', sub: status.name };
     case 'weekly_off':
@@ -84,7 +95,18 @@ export default function DashboardScreen() {
   const endDayPlaceNameRef = useRef('');
   const endDayGpsRequestedRef = useRef(false);
   const attendanceStatus = data?.attendanceStatus;
-  const canEndDay = attendanceStatus?.kind === 'present' && !attendanceStatus.endDayAt;
+  const endDayEnableAt = attendanceStatus?.kind === 'present' && attendanceStatus.endDayEnableAt ? new Date(attendanceStatus.endDayEnableAt) : null;
+
+  // Ticks once a minute so canEndDayNow flips true on its own once the enable time
+  // passes, without needing to background/foreground the app to re-trigger a fetch.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const canEndDayNow = !!endDayEnableAt && now >= endDayEnableAt;
+  const canEndDay = attendanceStatus?.kind === 'present' && !attendanceStatus.endDayAt && canEndDayNow;
 
   useEffect(() => {
     if (!canEndDay || endDayGpsRequestedRef.current) return;
@@ -95,8 +117,22 @@ export default function DashboardScreen() {
     });
   }, [canEndDay]);
 
+  // This card's End Day button has no room for a reason field, so a prospective
+  // Early Out (duration still under 8:45 hours) routes to the full Attendance tab —
+  // which does have one — instead of submitting and hitting a "reason required"
+  // server error with nowhere on this screen to enter it.
   async function handleEndDay() {
     setEndDayError('');
+    if (attendanceStatus?.kind !== 'present' || !attendanceStatus.markedAt) return;
+    const durationMin = (now.getTime() - new Date(attendanceStatus.markedAt).getTime()) / 60000;
+    if (durationMin < REQUIRED_DURATION_MIN) {
+      Alert.alert(
+        'Reason needed',
+        "Your duration is under 8:45 hours (Early Out), which needs a reason for your Service Manager's approval. Finish ending your day from the Attendance tab.",
+        [{ text: 'Go to Attendance', onPress: () => router.push('/(app)/(tabs)/attendance') }, { text: 'Cancel', style: 'cancel' }]
+      );
+      return;
+    }
     try {
       const result = await markEndDay.mutateAsync({
         latitude: endDayCoordsRef.current?.lat ?? null,
@@ -191,9 +227,18 @@ export default function DashboardScreen() {
                       Approved by {status.approvedByName}{status.approvedAt ? ` — ${formatClockTime(status.approvedAt)}` : ''}
                     </Text>
                   )}
+                  {!ended && !canEndDayNow && endDayEnableAt && (
+                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                      End Day available from {formatClockTime(endDayEnableAt.toISOString())}
+                    </Text>
+                  )}
                 </View>
                 {!ended && (
-                  <Pressable style={styles.endDayButton} onPress={handleEndDay} disabled={markEndDay.isPending}>
+                  <Pressable
+                    style={[styles.endDayButton, !canEndDayNow && styles.endDayButtonDisabled]}
+                    onPress={handleEndDay}
+                    disabled={markEndDay.isPending || !canEndDayNow}
+                  >
                     {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>End Day</Text>}
                   </Pressable>
                 )}
@@ -279,6 +324,7 @@ const styles = StyleSheet.create({
   attendanceSub: { fontSize: 11, opacity: 0.85, marginTop: 1 },
   attendanceChevron: { fontSize: 22, fontWeight: '700' },
   endDayButton: { backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
+  endDayButtonDisabled: { backgroundColor: '#C4A4B0' },
   endDayButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   endDayError: { color: '#DC2626', fontSize: 10, marginTop: 8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },

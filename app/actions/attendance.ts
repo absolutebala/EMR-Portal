@@ -35,9 +35,10 @@ export async function markEndDay(params: {
   latitude: number | null
   longitude: number | null
   placeName: string | null
-}): Promise<{ error: string | null }> {
+  reason?: string | null
+}): Promise<{ error: string | null; needsApproval: boolean }> {
   const user = await getAuthedUser()
-  if (!user) return { error: 'Not authenticated' }
+  if (!user) return { error: 'Not authenticated', needsApproval: false }
   return markEndDayCore(adminClient(), user.id, params)
 }
 

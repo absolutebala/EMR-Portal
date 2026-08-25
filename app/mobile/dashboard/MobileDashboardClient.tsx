@@ -25,20 +25,29 @@ interface Props {
   unreadAlerts: number
 }
 
-// Orange while the 11am window is still open and nothing's marked, red once it's
-// closed (or a late amendment is pending/rejected), green once present is confirmed.
+// Orange while the 10am window is still open and nothing's marked, red once it's
+// closed (or an amendment is pending/rejected), green once present is confirmed.
 // Holiday/Weekly Off get a neutral color — they're not an attendance outcome at all.
 function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
   switch (status.kind) {
     case 'pending':
-      return { bg: '#FEF3C7', color: '#92400E', label: 'Mark attendance', sub: 'Before 11:00 AM' }
+      return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' }
     case 'leave':
       return {
         bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
         sub: status.pendingApproval ? 'Amendment pending approval' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
       }
-    case 'present':
-      return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present', sub: null }
+    case 'present': {
+      const flags: string[] = []
+      if (status.lateIn) flags.push('Late In')
+      if (status.earlyOut) flags.push('Early Out')
+      if (status.singlePunch) flags.push('Single Punch')
+      const label = flags.length ? `Present (${flags.join(', ')})` : 'Present'
+      const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Amendment pending approval' : status.amended ? 'Approved' : null) : null
+      const bg = flags.length && !status.amended ? (status.rejected ? '#FEE2E2' : '#FEF3C7') : '#D1FAE5'
+      const color = flags.length && !status.amended ? (status.rejected ? '#991B1B' : '#92400E') : '#065F46'
+      return { bg, color, label, sub }
+    }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: `Holiday`, sub: status.name }
     case 'weekly_off':

@@ -15,9 +15,27 @@ interface Props {
   engineerName: string
 }
 
+// Duplicated from lib/mobile/core/attendance.ts's REQUIRED_DURATION_MIN rather than
+// imported at runtime — see the note on attendanceLabel below for why.
+const REQUIRED_DURATION_MIN = 8 * 60 + 45 // 8:45 hours
+
+function presentFlags(s: Extract<AttendanceEffectiveStatus, { kind: 'present' }>): string[] {
+  const flags: string[] = []
+  if (s.lateIn) flags.push('Late In')
+  if (s.earlyOut) flags.push('Early Out')
+  if (s.singlePunch) flags.push('Single Punch')
+  return flags
+}
+
 function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string } {
   switch (status.kind) {
-    case 'present': return { bg: '#D1FAE5', color: '#065F46', label: status.amended ? 'Present (amended)' : 'Present' }
+    case 'present': {
+      const flags = presentFlags(status)
+      if (!flags.length) return { bg: '#D1FAE5', color: '#065F46', label: 'Present' }
+      const bg = status.rejected ? '#FEE2E2' : status.pendingApproval ? '#FEF3C7' : '#D1FAE5'
+      const color = status.rejected ? '#991B1B' : status.pendingApproval ? '#92400E' : '#065F46'
+      return { bg, color, label: `Present (${flags.join(', ')})` }
+    }
     case 'leave': return { bg: '#FEE2E2', color: '#991B1B', label: status.pendingApproval ? 'Leave — pending approval' : status.rejected ? 'Leave — amendment rejected' : 'Leave' }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' }
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` }
@@ -32,13 +50,22 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
 // type from a 'use client' file (hit this exact break earlier in this project).
 function attendanceLabel(s: AttendanceEffectiveStatus): string {
   switch (s.kind) {
-    case 'present': return s.amended ? 'Present (amended)' : 'Present'
+    case 'present': {
+      const flags = presentFlags(s)
+      if (!flags.length) return 'Present'
+      const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
+      return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
+    }
     case 'leave': return s.rejected ? 'Leave (amendment rejected)' : s.pendingApproval ? 'Leave (pending approval)' : 'Leave'
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
+}
+
+function formatTimeOnly(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
 function formatDayLabel(dateStr: string): string {
@@ -141,6 +168,16 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const [endDayGpsError, setEndDayGpsError] = useState('')
   const [endDayError, setEndDayError] = useState('')
   const [endDaySubmitting, setEndDaySubmitting] = useState(false)
+  const [endDayReason, setEndDayReason] = useState('')
+
+  // Ticks once a minute so the End Day button auto-unlocks (and the prospective
+  // Early Out warning updates) without the engineer needing to reload the page while
+  // waiting for their enable time to pass.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
 
   const range = viewMode === 'week' ? weekRange(anchorDate) : monthRange(anchorDate)
 
@@ -235,7 +272,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   async function handleMark() {
     setMarkError('')
     if (isLate && !reason.trim()) {
-      setMarkError('Please give a reason for marking attendance after 11:00 AM')
+      setMarkError('Please give a reason for punching in after 10:00 AM')
       return
     }
     setSubmitting(true)
@@ -285,18 +322,26 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   }
 
   // Same background-capture treatment as marking Present — no separate "capture
-  // location" tap before End Day becomes tappable.
+  // location" tap before End Day becomes tappable. Only starts once End Day is
+  // actually usable (past the enable-time gate), not the moment Present is marked.
+  const endDayEnableAt = todayStatus?.kind === 'present' && todayStatus.endDayEnableAt ? new Date(todayStatus.endDayEnableAt) : null
+  const canEndDayNow = !!endDayEnableAt && now >= endDayEnableAt
   useEffect(() => {
-    if (todayStatus?.kind === 'present' && !todayEntry?.endDayAt && !endDayGpsRequestedRef.current) startEndDayGpsCapture()
-  }, [todayStatus?.kind, todayEntry?.endDayAt])
+    if (canEndDayNow && !todayEntry?.endDayAt && !endDayGpsRequestedRef.current) startEndDayGpsCapture()
+  }, [canEndDayNow, todayEntry?.endDayAt])
 
-  async function handleEndDay() {
+  async function handleEndDay(wouldBeEarlyOut: boolean) {
     setEndDayError('')
+    if (wouldBeEarlyOut && !endDayReason.trim()) {
+      setEndDayError('Please give a reason — your working duration is under 8:45 hours (Early Out)')
+      return
+    }
     setEndDaySubmitting(true)
     const result = await markEndDay({
       latitude: endDayCoords?.lat ?? null,
       longitude: endDayCoords?.lng ?? null,
       placeName: endDayPlaceName || null,
+      reason: wouldBeEarlyOut ? endDayReason.trim() : null,
     })
     setEndDaySubmitting(false)
     if (result.error) { setEndDayError(result.error); return }
@@ -455,7 +500,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
                   ? "Your amendment request is pending your Service Manager's approval."
                   : todayStatus.kind === 'leave' && todayStatus.rejected
                     ? 'Your previous request was rejected — you can submit again with a new reason.'
-                    : "The 11:00 AM window has passed — this will need your Service Manager's approval."}
+                    : "The 10:00 AM window has passed (Late In) — this will need your Service Manager's approval."}
               </p>
             )}
 
@@ -499,26 +544,57 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
                   {formatDateTime(todayEntry.endDayAt)}{todayEntry.endDayPlaceName ? ` — ${todayEntry.endDayPlaceName}` : ''}
                 </p>
               </>
-            ) : (
-              <>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>End Day</p>
+            ) : (() => {
+              const markedAt = todayEntry?.markedAt ? new Date(todayEntry.markedAt) : null
+              const wouldBeEarlyOut = !!markedAt && (now.getTime() - markedAt.getTime()) / 60000 < REQUIRED_DURATION_MIN
 
-                <div style={{ fontSize: 10, color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }}>
-                  📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? (endDayGpsError || 'Location unavailable — you can still end your day') : 'Getting your location…'}
-                </div>
+              if (!canEndDayNow) {
+                return (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 4px' }}>End Day</p>
+                    <p style={{ fontSize: 11, color: '#7A6870', lineHeight: 1.5, margin: 0 }}>
+                      {endDayEnableAt ? `You can end your day from ${formatTimeOnly(endDayEnableAt.toISOString())} — after 6:45 PM or 8:45 hours from your Punch In, whichever comes first.` : 'Punch in before ending your day.'}
+                    </p>
+                  </>
+                )
+              }
 
-                {endDayError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{endDayError}</div>}
+              return (
+                <>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>End Day</p>
 
-                <button
-                  className="mtap"
-                  onClick={handleEndDay}
-                  disabled={endDaySubmitting}
-                  style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
-                >
-                  {endDaySubmitting ? 'Saving…' : 'End Day'}
-                </button>
-              </>
-            )}
+                  {wouldBeEarlyOut && (
+                    <>
+                      <p style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5, margin: '0 0 8px' }}>
+                        Your duration is under 8:45 hours — this will be recorded as Early Out and needs your Service Manager&apos;s approval.
+                      </p>
+                      <textarea
+                        value={endDayReason}
+                        onChange={e => setEndDayReason(e.target.value)}
+                        placeholder="Reason (required)"
+                        rows={3}
+                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box', marginBottom: 8 }}
+                      />
+                    </>
+                  )}
+
+                  <div style={{ fontSize: 10, color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }}>
+                    📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? (endDayGpsError || 'Location unavailable — you can still end your day') : 'Getting your location…'}
+                  </div>
+
+                  {endDayError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{endDayError}</div>}
+
+                  <button
+                    className="mtap"
+                    onClick={() => handleEndDay(wouldBeEarlyOut)}
+                    disabled={endDaySubmitting}
+                    style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}
+                  >
+                    {endDaySubmitting ? 'Saving…' : 'End Day'}
+                  </button>
+                </>
+              )
+            })()}
           </div>
         )}
 

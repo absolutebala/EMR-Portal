@@ -39,7 +39,15 @@ function formatDateTime(iso: string): string {
 // (not just as a type) from a 'use client' file.
 function attendanceLabel(s: AttendanceEffectiveStatus): string {
   switch (s.kind) {
-    case 'present': return s.amended ? 'Present (amended)' : 'Present'
+    case 'present': {
+      const flags: string[] = []
+      if (s.lateIn) flags.push('Late In')
+      if (s.earlyOut) flags.push('Early Out')
+      if (s.singlePunch) flags.push('Single Punch')
+      if (!flags.length) return 'Present'
+      const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
+      return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
+    }
     case 'leave': return s.rejected ? 'Leave (amendment rejected)' : s.pendingApproval ? 'Leave (pending approval)' : 'Leave'
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
@@ -86,7 +94,13 @@ interface AttendanceCellProps {
 
 function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCellProps) {
   const s = row.attendance
-  const cfg = ATTENDANCE_CFG[s.kind]
+  // A Present day with a Late In/Early Out/Single Punch flag still pending or
+  // rejected gets the same amber/red treatment as a Leave amendment — plain
+  // Present (or an approved amendment) stays green. Every other kind uses the
+  // static palette.
+  const cfg = s.kind === 'present' && (s.pendingApproval || s.rejected)
+    ? (s.rejected ? { bg: '#FEE2E2', color: '#991B1B' } : { bg: '#FEF3C7', color: '#92400E' })
+    : ATTENDANCE_CFG[s.kind]
   const label = attendanceLabel(s)
 
   // Present and a plain (not pending/rejected) explicit Leave show their own real
@@ -98,9 +112,9 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
   else if (s.kind === 'leave' && !s.pendingApproval && !s.rejected) timeLabel = s.markedAt ? formatTime(s.markedAt) : null
 
   const hasReason = (s.kind === 'present' || s.kind === 'leave') && !!s.reason
-  const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected)
-  const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved'
-  const showPendingActions = canApprove && s.kind === 'leave' && s.pendingApproval && !!row.attendanceId
+  const hasDecision = (s.kind === 'present' || s.kind === 'leave') && (s.rejected || (s.kind === 'present' && s.amended))
+  const decisionLabel = (s.kind === 'present' || s.kind === 'leave') && s.rejected ? 'Rejected' : 'Approved'
+  const showPendingActions = canApprove && (s.kind === 'leave' || s.kind === 'present') && s.pendingApproval && !!row.attendanceId
 
   return (
     <div>
