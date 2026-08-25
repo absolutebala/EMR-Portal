@@ -97,10 +97,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.role) { setError('Please select a role'); return }
-    if (requiresManager && !form.manager_id) {
-      setError('Please select a Reporting Manager')
-      return
-    }
     setLoading(true)
     setError('')
 
@@ -113,7 +109,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role as UserRole,
-          manager_id: requiresManager ? (form.manager_id || null) : null,
+          manager_id: form.manager_id || null,
           is_active: form.is_active,
           grade: form.grade || null,
           department_id: null,
@@ -130,7 +126,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
           employee_id: form.employee_id,
           phone: form.phone || null,
           role: form.role,
-          manager_id: requiresManager ? (form.manager_id || null) : null,
+          manager_id: form.manager_id || null,
           grade: form.grade || null,
           department_id: null,
           department_ids: isFieldEngineerRole ? [] : form.department_ids,
@@ -149,11 +145,6 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
 
   const isEdit = !!editUser
   const assignableRoles = roles
-  const selectedRole = roles.find(r => r.name === form.role)
-  const requiresManager = selectedRole?.requires_manager ?? false
-  // Grade is a Field-Engineer-specific travel/pay classification — deliberately not
-  // tied to requiresManager, which also happens to be true for Service Engineer,
-  // Service Manager, and Head of Service (an unrelated, admin-toggleable flag).
   const isFieldEngineer = form.role === 'Field Engineer'
   const MANAGER_ROLES_FOR: Record<string, string[]> = {
     'Field Engineer': ['Service Manager'],
@@ -291,23 +282,20 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </div>
           )}
 
-          {requiresManager && (
+          {expectedManagerRoles.length > 0 && (
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={fl2}>
-                Reporting Manager <span style={{ color: 'var(--m)' }}>*</span>
-              </label>
+              <label style={fl2}>Reporting Manager (optional)</label>
               {applicableManagers.length === 0 ? (
-                <div style={{ padding: '9px 12px', border: '1.5px solid #FCA5A5', borderRadius: 7, fontSize: 12, color: '#DC2626', background: '#FEF2F2' }}>
-                  No {expectedManagerRoles.length ? expectedManagerRoles.join(' or ') : 'eligible manager'} found. Please add one first.
+                <div style={{ padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--txm)', background: 'var(--gl)' }}>
+                  No {expectedManagerRoles.join(' or ')} added yet — you can leave this blank and set it later.
                 </div>
               ) : (
                 <select
                   style={fi2}
                   value={form.manager_id}
                   onChange={e => set('manager_id', e.target.value)}
-                  required
                 >
-                  <option value="">Select reporting manager</option>
+                  <option value="">No reporting manager</option>
                   {applicableManagers.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.first_name} {m.last_name} ({m.employee_id})
