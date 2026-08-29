@@ -35,7 +35,11 @@ export async function updateUser(
     }
 
     const { department_ids, ...profileFields } = fields
-    const { error } = await admin.from('profiles').update(profileFields).eq('id', userId)
+    // Employee ID is optional — a blank one is stored as NULL so ID-less users don't
+    // collide on the UNIQUE constraint (Postgres treats NULLs as distinct).
+    const { error } = await admin.from('profiles')
+      .update({ ...profileFields, employee_id: profileFields.employee_id.trim() || null })
+      .eq('id', userId)
     if (error) return { error: error.message }
 
     await admin.from('profile_departments').delete().eq('profile_id', userId)

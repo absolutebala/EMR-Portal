@@ -6,7 +6,7 @@ export interface Profile {
   id: string
   first_name: string
   last_name: string
-  employee_id: string
+  employee_id: string | null
   email: string
   phone: string | null
   department_id: string | null

@@ -216,12 +216,12 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             <input required style={fi2} value={form.first_name} onChange={e => set('first_name', e.target.value)} placeholder="First name" />
           </div>
           <div>
-            <label style={fl2}>Last name <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name" />
+            <label style={fl2}>Last name</label>
+            <input style={fi2} value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name (optional)" />
           </div>
           <div>
-            <label style={fl2}>Employee ID <span style={{ color: 'var(--m)' }}>*</span></label>
-            <input required style={fi2} value={form.employee_id} onChange={e => set('employee_id', e.target.value)} placeholder="EMP-XXXXX" />
+            <label style={fl2}>Employee ID</label>
+            <input style={fi2} value={form.employee_id} onChange={e => set('employee_id', e.target.value)} placeholder="EMP-XXXXX (optional)" />
           </div>
           <div>
             <label style={fl2}>Email <span style={{ color: 'var(--m)' }}>*</span></label>

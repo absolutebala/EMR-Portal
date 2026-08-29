@@ -61,14 +61,20 @@ export async function inviteUser(payload: {
     return { error: 'Only a Super Admin or Head of Service can assign that role.' }
   }
 
-  // Check for duplicate employee ID
-  const { data: existing } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('employee_id', payload.employee_id)
-    .maybeSingle()
+  // Employee ID is optional — stored as NULL when blank so multiple ID-less users
+  // don't collide on the UNIQUE constraint (Postgres treats NULLs as distinct).
+  const employeeId = payload.employee_id.trim() || null
 
-  if (existing) return { error: `Employee ID "${payload.employee_id}" is already assigned to another user.` }
+  // Only a non-blank ID can duplicate an existing one.
+  if (employeeId) {
+    const { data: existing } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('employee_id', employeeId)
+      .maybeSingle()
+
+    if (existing) return { error: `Employee ID "${employeeId}" is already assigned to another user.` }
+  }
 
   const tempPassword = generateTempPassword()
 
@@ -105,7 +111,7 @@ export async function inviteUser(payload: {
     cognito_sub: cognitoSub,
     first_name: payload.first_name,
     last_name: payload.last_name,
-    employee_id: payload.employee_id,
+    employee_id: employeeId,
     email: payload.email,
     phone: payload.phone,
     role: payload.role,

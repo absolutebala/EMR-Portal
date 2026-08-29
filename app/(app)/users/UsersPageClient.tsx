@@ -56,7 +56,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase()
-    const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.employee_id.toLowerCase().includes(q)
+    const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.employee_id?.toLowerCase().includes(q) ?? false)
     const matchRole = !roleFilter || u.role === roleFilter
     const isPending = u.invite_pending || u.must_change_password || !u.last_login_at
     const matchStatus = !statusFilter ||
@@ -173,7 +173,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.employee_id}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.employee_id || '—'}</td>
                     <td style={{ padding: '10px 14px' }}><RoleBadge role={u.role} /></td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{u.email}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{u.phone || '—'}</td>
