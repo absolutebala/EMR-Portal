@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import { ListCard } from '@/components/dashboard/DashboardCards'
+import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { submitManagerDecision, submitHeadDecision } from '@/app/actions/expenses'
 import type { ExpenseLogView } from '@/lib/mobile/core/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
@@ -77,6 +78,7 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
     rejected: logs.filter(l => l.status === 'rejected').length,
   }
   const filtered = tab === 'all' ? logs : logs.filter(l => l.status === tab)
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
   // Spend charts count all claims regardless of status.
   const typeSpend = Object.entries(
@@ -172,7 +174,7 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(log => (
+                {pageItems.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ fontSize: 12, color: 'var(--tx)' }}>{log.engineerName || '—'}</div>
@@ -252,6 +254,8 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
             </table>
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
       </div>
 
       <Modal open={!!enlargedPhoto} onClose={() => setEnlargedPhoto(null)} title="Receipt photo" size="lg">

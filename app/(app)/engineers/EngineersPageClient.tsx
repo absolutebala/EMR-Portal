@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
+import Pagination, { usePagination } from '@/components/ui/Pagination'
 import type { FieldEngineerOverview, EngineerStatus } from '@/app/actions/get-engineers'
 
 const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: string }> = {
@@ -52,6 +53,7 @@ interface Props {
 
 export default function EngineersPageClient({ engineers, userName, userRole }: Props) {
   const router = useRouter()
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(engineers)
 
   return (
     <>
@@ -79,7 +81,7 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
                   </tr>
                 </thead>
                 <tbody>
-                  {engineers.map(e => (
+                  {pageItems.map(e => (
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
                         <Link href={`/engineers/${e.id}`} style={{ color: 'var(--m)', textDecoration: 'none' }}>{e.name}</Link>
@@ -121,6 +123,8 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
             </div>
           )}
         </div>
+
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
       </div>
     </>
   )

@@ -9,6 +9,7 @@ import BulkUploadModal from '@/components/users/BulkUploadModal'
 import RolesModal from '@/components/users/RolesModal'
 import ManageRolesModal from '@/components/users/ManageRolesModal'
 import { RoleBadge, StatusBadge } from '@/components/ui/Badge'
+import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { resendInvite } from '@/app/actions/resend-invite'
 import { resetUserPassword } from '@/app/actions/reset-user-password'
 import type { Profile } from '@/lib/types'
@@ -65,6 +66,8 @@ export default function UsersPageClient({ users, userName, userRole, permissions
        statusFilter === 'Pending' ? isPending : true)
     return matchSearch && matchRole && matchStatus
   })
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
   async function handleDelete(userId: string) {
     setDeleting(userId)
@@ -161,7 +164,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u, i) => (
+                {pageItems.map((u, i) => (
                   <tr key={u.id} style={{ borderBottom: '1px solid var(--gm)' }}
                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}>
@@ -262,6 +265,8 @@ export default function UsersPageClient({ users, userName, userRole, permissions
             </table>
           )}
         </div>
+
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
 
         <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service' || u.role === 'Super Admin')} currentUserRole={userRole} />
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={() => router.refresh()} />

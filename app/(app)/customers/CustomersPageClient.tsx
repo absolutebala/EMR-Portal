@@ -7,6 +7,7 @@ import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomersModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
+import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { deleteCustomer } from '@/app/actions/save-customer'
 import type { Customer } from '@/lib/types'
 
@@ -39,6 +40,8 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
     const q = search.toLowerCase()
     return !q || c.name.toLowerCase().includes(q) || c.contact_person.toLowerCase().includes(q) || c.phone.includes(q)
   }), [customers, search])
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
   async function handleDelete(customerId: string) {
     setDeleting(customerId)
@@ -90,7 +93,7 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, i) => (
+                {pageItems.map((c, i) => (
                   <tr key={c.id} style={{ borderBottom: '1px solid var(--gm)', cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}>
@@ -149,6 +152,8 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
             </table>
           )}
         </div>
+
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
 
         <AddCustomerModal
           open={showAdd}

@@ -6,6 +6,7 @@ import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
+import Pagination, { usePagination } from '@/components/ui/Pagination'
 import type { WorkOrder, WarrantyStatus } from '@/lib/types'
 import type { Department } from '@/lib/departments'
 
@@ -106,6 +107,8 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     const matchDepartment = !departmentFilter || (departmentFilter === NO_DEPARTMENT_ID ? !wo.department_id : wo.department_id === departmentFilter)
     return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty && matchDepartment
   }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter, departmentFilter])
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
   return (
     <>
@@ -223,7 +226,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(wo => (
+                  {pageItems.map(wo => (
                     <tr key={wo.id} style={{ borderBottom: '1px solid var(--gm)', cursor: 'pointer' }}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}
@@ -259,6 +262,8 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             </div>
           )}
         </div>
+
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
       </div>
 
       <NewWorkOrderModal open={showNew} onClose={() => setShowNew(false)} onSaved={() => router.refresh()} />
