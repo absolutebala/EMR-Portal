@@ -24,6 +24,17 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     const { data: target } = await admin.from('profiles').select('first_name, last_name, email').eq('id', targetUserId).maybeSingle()
     if (!target) return { error: 'User not found.' }
 
+    // Revert this engineer's open jobs to 'unassigned' BEFORE the profile is deleted —
+    // work_orders.engineer_id is ON DELETE SET NULL, so deleting the profile would
+    // otherwise null the engineer while leaving status 'assigned'/'in_progress',
+    // producing a contradictory "Unassigned engineer / Assigned status" row. Done
+    // while engineer_id still points at them so the WHERE matches. Same transition
+    // updateWorkOrder applies when an engineer is removed through the UI.
+    await admin.from('work_orders')
+      .update({ status: 'unassigned', updated_at: new Date().toISOString() })
+      .eq('engineer_id', targetUserId)
+      .in('status', ['assigned', 'in_progress'])
+
     // No more FK cascade like Supabase's auth.users had (Cognito and RDS are separate
     // systems) — delete the Cognito identity first, then the profile row explicitly.
     // If the Cognito delete fails, the profile stays intact and this is safe to retry;
