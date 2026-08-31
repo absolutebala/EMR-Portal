@@ -6,28 +6,8 @@ import { COGNITO_USER_POOL_ID } from '@/lib/cognito/config'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { adminClient } from '@/lib/db/admin-client'
-import { randomBytes, randomUUID } from 'crypto'
-
-function generateTempPassword(): string {
-  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
-  const lower = 'abcdefghjkmnpqrstuvwxyz'
-  const digits = '23456789'
-  const special = '@#$!'
-  const all = upper + lower + digits + special
-  const bytes = randomBytes(8)
-  const chars = Array.from(bytes).map(b => all[b % all.length])
-  // Guarantee one of each required class
-  chars[0] = upper[randomBytes(1)[0] % upper.length]
-  chars[1] = lower[randomBytes(1)[0] % lower.length]
-  chars[2] = digits[randomBytes(1)[0] % digits.length]
-  chars[3] = special[randomBytes(1)[0] % special.length]
-  // Fisher-Yates shuffle
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomBytes(1)[0] % (i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]]
-  }
-  return chars.join('')
-}
+import { DEFAULT_TEMP_PASSWORD } from '@/lib/cognito/tempPassword'
+import { randomUUID } from 'crypto'
 
 export async function inviteUser(payload: {
   email: string
@@ -76,7 +56,7 @@ export async function inviteUser(payload: {
     if (existing) return { error: `Employee ID "${employeeId}" is already assigned to another user.` }
   }
 
-  const tempPassword = generateTempPassword()
+  const tempPassword = DEFAULT_TEMP_PASSWORD
 
   // Create the Cognito identity with a known temporary password — no invite email at
   // all (MessageAction: SUPPRESS); the temp password is shown to the inviting admin

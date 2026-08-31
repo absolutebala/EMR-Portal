@@ -4,7 +4,8 @@ import { AdminCreateUserCommand, AdminDeleteUserCommand } from '@aws-sdk/client-
 import { cognitoClient } from '@/lib/cognito/client'
 import { COGNITO_USER_POOL_ID } from '@/lib/cognito/config'
 import { adminClient } from '@/lib/db/admin-client'
-import { randomBytes, randomUUID } from 'crypto'
+import { DEFAULT_TEMP_PASSWORD } from '@/lib/cognito/tempPassword'
+import { randomUUID } from 'crypto'
 
 export interface BulkUserRow {
   first_name: string
@@ -23,28 +24,6 @@ export interface BulkInviteResult {
   error?: string
 }
 
-// Same temp-password generator as invite-user.ts — no email invite link at all
-// (Cognito has no equivalent to Supabase's generateLink), each row's temp password is
-// surfaced in the results UI for the admin to share out-of-band.
-function generateTempPassword(): string {
-  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
-  const lower = 'abcdefghjkmnpqrstuvwxyz'
-  const digits = '23456789'
-  const special = '@#$!'
-  const all = upper + lower + digits + special
-  const bytes = randomBytes(8)
-  const chars = Array.from(bytes).map(b => all[b % all.length])
-  chars[0] = upper[randomBytes(1)[0] % upper.length]
-  chars[1] = lower[randomBytes(1)[0] % lower.length]
-  chars[2] = digits[randomBytes(1)[0] % digits.length]
-  chars[3] = special[randomBytes(1)[0] % special.length]
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomBytes(1)[0] % (i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]]
-  }
-  return chars.join('')
-}
-
 export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteResult[]> {
   const admin = adminClient()
   const results: BulkInviteResult[] = []
@@ -59,7 +38,7 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
       continue
     }
 
-    const tempPassword = generateTempPassword()
+    const tempPassword = DEFAULT_TEMP_PASSWORD
     let cognitoSub: string
     try {
       const result = await cognitoClient.send(new AdminCreateUserCommand({

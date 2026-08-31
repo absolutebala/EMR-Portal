@@ -1,27 +1,8 @@
-import { randomBytes } from 'crypto'
 import { AdminSetUserPasswordCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { cognitoClient } from './client'
 import { COGNITO_USER_POOL_ID } from './config'
+import { DEFAULT_TEMP_PASSWORD } from './tempPassword'
 import { adminClient } from '@/lib/db/admin-client'
-
-function generateTempPassword(): string {
-  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
-  const lower = 'abcdefghjkmnpqrstuvwxyz'
-  const digits = '23456789'
-  const special = '@#$!'
-  const all = upper + lower + digits + special
-  const bytes = randomBytes(8)
-  const chars = Array.from(bytes).map(b => all[b % all.length])
-  chars[0] = upper[randomBytes(1)[0] % upper.length]
-  chars[1] = lower[randomBytes(1)[0] % lower.length]
-  chars[2] = digits[randomBytes(1)[0] % digits.length]
-  chars[3] = special[randomBytes(1)[0] % special.length]
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomBytes(1)[0] % (i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]]
-  }
-  return chars.join('')
-}
 
 // Shared by app/actions/reset-user-password.ts and resend-invite.ts (near-duplicates
 // before this migration, differing only in whether invite_pending also gets set) —
@@ -33,7 +14,7 @@ export async function adminResetPassword(email: string, extraProfileFields: Reco
   const { data: profile } = await admin.from('profiles').select('id').eq('email', email).maybeSingle()
   if (!profile) return { error: 'User not found.' }
 
-  const tempPassword = generateTempPassword()
+  const tempPassword = DEFAULT_TEMP_PASSWORD
 
   try {
     await cognitoClient.send(new AdminSetUserPasswordCommand({
