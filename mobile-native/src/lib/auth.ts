@@ -1,5 +1,6 @@
 import * as cognito from './cognito';
 import { setSession, clearSession, fromAuthResult } from './sessionStore';
+import { apiPost } from './api';
 
 export type LoginResult =
   | { status: 'ok' }
@@ -30,6 +31,13 @@ export async function completeNewPassword(email: string, session: string, newPas
     const result = await cognito.respondToNewPasswordChallenge(email, session, newPassword);
     if (!result.AuthenticationResult) return { error: 'Could not set your password. Please try again.' };
     await setSession(fromAuthResult(result.AuthenticationResult));
+    // Clear profiles.must_change_password server-side — otherwise (app)/_layout.tsx's
+    // guard, which reads that flag via GET /auth/me, immediately signs the user back
+    // out and bounces them to /login the moment they navigate in (they'd loop forever
+    // with no error). The PWA/desktop challenge actions already do this; the native
+    // app was the only path missing it. Best-effort: a failure here shouldn't strand a
+    // user whose Cognito password did change — the next login still reads the flag.
+    await apiPost('/api/mobile/v1/auth/complete-password-change').catch(() => {});
     return { error: null };
   } catch (e: unknown) {
     return { error: friendlyError(e) };
