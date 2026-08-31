@@ -47,7 +47,12 @@ export default function AppLayout() {
     );
   }
 
-  if (!session || mustChangePassword) return <Redirect href="/login" />;
+  if (!session) return <Redirect href="/login" />;
+  // A must-change-password state on an already-signed-in session means an admin reset
+  // this user's password mid-session (there's no challenge to complete in-app for that
+  // — see the note above). Send a reason so the login screen explains why they were
+  // signed out, instead of bouncing them there with no message.
+  if (mustChangePassword) return <Redirect href="/login?reason=password_reset" />;
 
   return (
     <NativeLocationGate>

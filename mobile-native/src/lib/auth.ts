@@ -31,17 +31,31 @@ export async function completeNewPassword(email: string, session: string, newPas
     const result = await cognito.respondToNewPasswordChallenge(email, session, newPassword);
     if (!result.AuthenticationResult) return { error: 'Could not set your password. Please try again.' };
     await setSession(fromAuthResult(result.AuthenticationResult));
-    // Clear profiles.must_change_password server-side — otherwise (app)/_layout.tsx's
-    // guard, which reads that flag via GET /auth/me, immediately signs the user back
-    // out and bounces them to /login the moment they navigate in (they'd loop forever
-    // with no error). The PWA/desktop challenge actions already do this; the native
-    // app was the only path missing it. Best-effort: a failure here shouldn't strand a
-    // user whose Cognito password did change — the next login still reads the flag.
-    await apiPost('/api/mobile/v1/auth/complete-password-change').catch(() => {});
     return { error: null };
   } catch (e: unknown) {
     return { error: friendlyError(e) };
   }
+}
+
+// Clears profiles.must_change_password server-side, retried a few times. This is a
+// REQUIRED second step after completeNewPassword's Cognito challenge succeeds —
+// (app)/_layout.tsx's guard reads that flag via GET /auth/me and signs the user back
+// out the moment they navigate in while it's still true, so if this silently failed
+// the user would loop back to login with no explanation (exactly the bug this
+// replaced). Kept separate from completeNewPassword so the caller can retry JUST this
+// step: the Cognito temp-password challenge is single-use, so re-running the whole
+// thing after a network blip would fail — but the session is already valid here, so
+// retrying only the flag-clear is safe.
+export async function finishPasswordSetup(): Promise<{ error: string | null }> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await apiPost('/api/mobile/v1/auth/complete-password-change');
+      return { error: null };
+    } catch {
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
+    }
+  }
+  return { error: 'Your password was updated, but we could not finish setting up your account. Check your internet connection and try again.' };
 }
 
 export async function logout(): Promise<void> {

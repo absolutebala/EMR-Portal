@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { completeNewPassword } from '@/lib/auth';
+import { completeNewPassword, finishPasswordSetup } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
 
 // Completes the NEW_PASSWORD_REQUIRED challenge login.tsx started for a temp-password
@@ -19,10 +19,15 @@ export default function ChangePasswordScreen() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The Cognito temp-password challenge is single-use — once it's answered, the temp
+  // session can't be replayed. So if a later step (finishing setup) fails and the user
+  // taps the button again, skip straight to the retryable step instead of re-answering
+  // the challenge (which would fail with a confusing "session expired").
+  const passwordSetRef = useRef(false);
 
   async function handleSubmit() {
     if (!session || !email) {
-      setError('Your session has expired. Please sign in again.');
+      setError('Your session has expired. Please sign in again with your temporary password.');
       return;
     }
     if (password.length < 8) {
@@ -35,12 +40,28 @@ export default function ChangePasswordScreen() {
     }
     setLoading(true);
     setError(null);
-    const { error: changeError } = await completeNewPassword(email, session, password);
-    if (changeError) {
+
+    // Step 1 — set the new password in Cognito (single-use; skipped on a retry).
+    if (!passwordSetRef.current) {
+      const { error: changeError } = await completeNewPassword(email, session, password);
+      if (changeError) {
+        setLoading(false);
+        setError(changeError);
+        return;
+      }
+      passwordSetRef.current = true;
+    }
+
+    // Step 2 — finish account setup (clears must_change_password server-side). Must
+    // succeed before navigating in, otherwise (app)/_layout.tsx signs the user straight
+    // back out. Retryable on its own since the password is already set by now.
+    const { error: finishError } = await finishPasswordSetup();
+    if (finishError) {
       setLoading(false);
-      setError(changeError);
+      setError(finishError);
       return;
     }
+
     // Same Field-Engineer-only check as login.tsx, before navigating in.
     const { accessDenied } = await refreshMe();
     setLoading(false);

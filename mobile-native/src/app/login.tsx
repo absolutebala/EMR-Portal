@@ -1,16 +1,22 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { login } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { refreshMe } = useAuth();
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown when the app signed the user out for a reason worth explaining (e.g. an
+  // admin reset their password) — otherwise they'd land here with no idea why.
+  const notice = reason === 'password_reset'
+    ? 'Your password was reset. Please sign in with your new temporary password to continue.'
+    : null;
 
   async function handleLogin() {
     if (!email || !password) {
@@ -52,6 +58,7 @@ export default function LoginScreen() {
         <Text style={styles.title}>EMR Field App</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
+        {notice && !error && <Text style={styles.notice}>{notice}</Text>}
         {error && <Text style={styles.error}>{error}</Text>}
 
         <TextInput
@@ -93,6 +100,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center' },
   subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 8 },
   error: { color: '#DC2626', fontSize: 13, textAlign: 'center' },
+  notice: { color: '#92400E', backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, fontSize: 12, textAlign: 'center' },
   input: {
     borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 15, color: '#111827',
