@@ -41,12 +41,21 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     }
 
     const { error } = await admin.from('profiles').delete().eq('id', targetUserId)
-    if (!error) {
-      const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
-      const targetName = `${target.first_name} ${target.last_name}`
-      await logActivity(admin, { actorId: user.id, actorName, action: `Deleted user ${targetName}`, entityType: 'user', entityId: targetUserId })
+    if (error) {
+      // A foreign-key violation (Postgres 23503) surfaces as an unreadable
+      // "...violates foreign key constraint ... on table ..." string. Every table
+      // that holds a user's own records is set to cascade/null on delete, so this
+      // should only happen if a new table adds a blocking reference later — give a
+      // readable message instead of the raw constraint text.
+      if (error.code === '23503') {
+        return { error: 'This user still has linked records that must be removed or reassigned before the account can be deleted.' }
+      }
+      return { error: error.message }
     }
-    return { error: error?.message || null }
+    const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
+    const targetName = `${target.first_name} ${target.last_name}`
+    await logActivity(admin, { actorId: user.id, actorName, action: `Deleted user ${targetName}`, entityType: 'user', entityId: targetUserId })
+    return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }
