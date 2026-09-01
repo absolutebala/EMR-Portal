@@ -1,11 +1,28 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
+import { getISTDateStr } from '@/lib/mobile/core/attendance'
 
 // Explicit, engineer-set status (mobile app) — replaces the old heuristic derived
 // from last_active_at + checkin/form-submission presence, which could only ever
 // guess "on site" vs "off duty" and couldn't represent leave or travel at all.
-export type EngineerStatus = 'available' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
+// 'unavailable' is not a stored value — it's derived at read time for engineers who
+// have no evidence of being on duty today (see resolveDisplayStatus).
+export type EngineerStatus = 'available' | 'unavailable' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
+
+// An engineer reads as "Available" only when there's real evidence they're on duty
+// today: they marked attendance Present today, or they explicitly set their status to
+// Available today. Otherwise the passive/never-set "available" default is shown as
+// "Unavailable", so idle or absent engineers don't misleadingly read as free. The
+// explicit work / leave statuses (on the way / travelling / reached / completed /
+// on leave) always display as themselves.
+function resolveDisplayStatus(rawStatus: string | null, statusUpdatedAt: string | null, presentToday: boolean, istTodayStr: string): EngineerStatus {
+  if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'reached' || rawStatus === 'completed' || rawStatus === 'on_leave') {
+    return rawStatus
+  }
+  const setAvailableToday = rawStatus === 'available' && statusUpdatedAt != null && getISTDateStr(new Date(statusUpdatedAt)) === istTodayStr
+  return presentToday || setAvailableToday ? 'available' : 'unavailable'
+}
 
 export interface FieldEngineerOverview {
   id: string
@@ -72,8 +89,9 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     if (!profiles.length) return { engineers: [], error: null }
 
     const engineerIds = profiles.map(p => p.id)
+    const istTodayStr = getISTDateStr()
 
-    const [{ data: wos }, { data: checkins }] = await Promise.all([
+    const [{ data: wos }, { data: checkins }, { data: presentRows }] = await Promise.all([
       admin.from('work_orders')
         .select('id, wo_number, job_type, status, scheduled_date, customer_id, engineer_id, updated_at')
         .in('engineer_id', engineerIds),
@@ -86,7 +104,15 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         .in('engineer_id', engineerIds)
         .order('checked_in_at', { ascending: false })
         .limit(500),
+      // Who marked attendance Present today (IST) — gates whether the default
+      // "available" status reads as Available vs Unavailable.
+      admin.from('attendance')
+        .select('engineer_id')
+        .eq('attendance_date', istTodayStr)
+        .eq('status', 'present')
+        .in('engineer_id', engineerIds),
     ])
+    const presentTodayIds = new Set((presentRows || []).map(r => r.engineer_id))
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id))]
     const { data: customers } = customerIds.length
@@ -183,7 +209,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         name: `${p.first_name} ${p.last_name}`,
         employee_id: p.employee_id,
         phone: p.phone,
-        status: (p.engineer_status as EngineerStatus) || 'available',
+        status: resolveDisplayStatus(p.engineer_status, p.engineer_status_updated_at, presentTodayIds.has(p.id), istTodayStr),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
@@ -270,6 +296,14 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
     // work order scheduled specifically for today, distinct from the general
     // notifications list already shown further down this page.
     const todayStr = new Date().toLocaleDateString('en-CA')
+    const istTodayStr = getISTDateStr()
+    const { data: presentRow } = await admin.from('attendance')
+      .select('engineer_id')
+      .eq('engineer_id', id)
+      .eq('attendance_date', istTodayStr)
+      .eq('status', 'present')
+      .maybeSingle()
+    const presentToday = !!presentRow
     const { data: scheduledTodayRows } = await admin.from('work_orders')
       .select('customer_id')
       .eq('engineer_id', id)
@@ -293,7 +327,7 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
         grade: p.grade,
         role: p.role,
         managerName,
-        status: (p.engineer_status as EngineerStatus) || 'available',
+        status: resolveDisplayStatus(p.engineer_status, p.engineer_status_updated_at, presentToday, istTodayStr),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,

@@ -8,6 +8,7 @@ import type { FieldEngineerOverview, EngineerStatus } from '@/app/actions/get-en
 
 const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: string }> = {
   available: { label: 'Available', bg: '#D1FAE5', color: '#065F46' },
+  unavailable: { label: 'Unavailable', bg: '#F3F4F6', color: '#6B7280' },
   on_leave: { label: 'On Leave', bg: '#F1F5F9', color: '#475569' },
   on_the_way: { label: 'On the way', bg: '#DBEAFE', color: '#1D4ED8' },
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },

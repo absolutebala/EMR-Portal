@@ -23,6 +23,7 @@ const REFRESH_MS = 60_000
 // EngineersPageClient.tsx) — kept local rather than shared, matching that convention.
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
+  unavailable: { bg: '#F3F4F6', color: '#6B7280', label: 'Unavailable' },
   on_leave: { bg: '#F1F5F9', color: '#475569', label: 'On Leave' },
   on_the_way: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On the way' },
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
