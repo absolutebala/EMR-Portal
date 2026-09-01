@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
-import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob } from '@/app/actions/get-attendance'
+import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats } from '@/app/actions/get-attendance'
 import { approveRejectAttendanceAmendment } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
@@ -208,12 +208,54 @@ interface Props {
   initialRows: AttendanceOverviewRow[]
   initialError: string | null
   initialAmendments: PendingAmendment[]
+  stats: AttendanceStats | null
   canApprove: boolean
   userName: string
   userRole: string
 }
 
-export default function AttendancePageClient({ initialRows, initialError, initialAmendments, canApprove, userName, userRole }: Props) {
+// Compact org-wide summary of Present / Absent / Late In / Single Punch for the three
+// fixed periods, sitting to the right of the toolbar (independent of the grid filter).
+function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
+  if (!stats) return null
+  const rows: { label: string; s: AttendanceStats[keyof AttendanceStats] }[] = [
+    { label: 'Today', s: stats.today },
+    { label: 'This Week', s: stats.thisWeek },
+    { label: 'This Month', s: stats.thisMonth },
+  ]
+  const cols: { key: 'present' | 'absent' | 'lateIn' | 'singlePunch'; label: string; color: string }[] = [
+    { key: 'present', label: 'Present', color: '#065F46' },
+    { key: 'absent', label: 'Absent', color: '#991B1B' },
+    { key: 'lateIn', label: 'Late In', color: '#92400E' },
+    { key: 'singlePunch', label: 'Single', color: '#5B21B6' },
+  ]
+  return (
+    <div style={{ border: '1px solid var(--gm)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+      <table style={{ borderCollapse: 'collapse', fontFamily: 'Poppins,sans-serif' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '5px 10px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.4px', textAlign: 'left', background: '#FAFAFA', borderBottom: '1px solid var(--gm)' }} />
+            {cols.map(c => (
+              <th key={c.key} style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.4px', textAlign: 'center', background: '#FAFAFA', borderBottom: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.label}>
+              <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap', borderTop: '1px solid var(--gl)' }}>{r.label}</td>
+              {cols.map(c => (
+                <td key={c.key} style={{ padding: '5px 12px', fontSize: 13, fontWeight: 700, color: c.color, textAlign: 'center', borderTop: '1px solid var(--gl)' }}>{r.s[c.key]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export default function AttendancePageClient({ initialRows, initialError, initialAmendments, stats, canApprove, userName, userRole }: Props) {
   const [rows, setRows] = useState(initialRows)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
@@ -405,24 +447,29 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{exportError}</div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 12, flexWrap: 'wrap' }}>
-          {canApprove && amendments.length > 0 ? (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 16, flexWrap: 'wrap' }}>
+          {/* Pending amendments + Export together on the left, freeing the right for the
+              summary stats panel. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {canApprove && amendments.length > 0 && (
+              <button
+                onClick={() => setShowAmendmentsModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+              >
+                Pending attendance amendments ({amendments.length})
+              </button>
+            )}
             <button
-              onClick={() => setShowAmendmentsModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+              onClick={handleExport}
+              disabled={exporting}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
             >
-              Pending attendance amendments ({amendments.length})
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              {exporting ? 'Exporting…' : `Export ${range.label} to Excel`}
             </button>
-          ) : <span />}
+          </div>
 
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
-          >
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-            {exporting ? 'Exporting…' : `Export ${range.label} to Excel`}
-          </button>
+          <StatsPanel stats={stats} />
         </div>
 
         {showAmendmentsModal && (

@@ -111,12 +111,11 @@ function FlyToSelected({ target }: { target: [number, number] | null }) {
     const key = `${target[0]},${target[1]}`
     if (key === lastKey.current) return
     lastKey.current = key
-    // Zoom in close and center exactly on the pin, then nudge the view up ~80px so the
-    // pin sits a little below centre — leaving room for its popup (which opens above
-    // the marker) instead of the pin landing at the very top with the popup clipped.
-    const zoom = Math.max(map.getZoom(), 15)
-    const centered = map.project(target, zoom).subtract([0, 80])
-    map.flyTo(map.unproject(centered, zoom), zoom)
+    // Center exactly on the pin at street zoom. The marker's popup opens on selection
+    // (see the openPopup effect below) and Leaflet auto-pans it into view, so there's
+    // no need to manually offset the centre (an earlier attempt at that landed the map
+    // off the pin entirely).
+    map.flyTo(target, Math.max(map.getZoom(), 15), { duration: 0.6 })
   }, [map, target])
   return null
 }
@@ -138,7 +137,11 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
 
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   useEffect(() => {
-    if (selectedId) markerRefs.current[selectedId]?.openPopup()
+    if (!selectedId) return
+    // Open the popup just after the flyTo animation settles, so its auto-pan lands on
+    // the already-centred pin instead of fighting the in-flight camera move.
+    const t = setTimeout(() => markerRefs.current[selectedId]?.openPopup(), 700)
+    return () => clearTimeout(t)
   }, [selectedId])
 
   return (

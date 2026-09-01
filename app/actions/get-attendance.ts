@@ -227,3 +227,91 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
     return { rows: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+export interface AttendancePeriodStats {
+  present: number
+  absent: number
+  lateIn: number
+  singlePunch: number
+}
+export interface AttendanceStats {
+  today: AttendancePeriodStats
+  thisWeek: AttendancePeriodStats
+  thisMonth: AttendancePeriodStats
+}
+
+// Org-wide attendance counts for three fixed IST periods (today / this week Mon-today /
+// this calendar month to date), independent of the grid's own date filter. Computed by
+// running computeEffectiveStatus over every field engineer × every day in the covering
+// range, so "absent" includes days an engineer simply never marked (not just explicit
+// Leave rows), while holidays / Sundays / pre-hire dates / today-before-cutoff are not
+// counted either way. Late In and Single Punch are counted off the flags regardless of
+// whether the amendment was later approved.
+export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | null; error: string | null }> {
+  try {
+    const admin = adminClient()
+    const todayStr = getISTDateStr()
+    const monthStart = `${todayStr.slice(0, 8)}01`
+
+    // Monday of the current IST week. Date-only strings parse as UTC midnight, so
+    // getUTCDay reads the weekday of the IST calendar date without further shifting.
+    const d = new Date(`${todayStr}T00:00:00Z`)
+    const dow = d.getUTCDay() // 0 = Sunday
+    const mondayOffset = dow === 0 ? -6 : 1 - dow
+    const monday = new Date(d)
+    monday.setUTCDate(d.getUTCDate() + mondayOffset)
+    const weekStart = monday.toISOString().slice(0, 10)
+
+    const fetchFrom = weekStart < monthStart ? weekStart : monthStart
+
+    const [{ data: profiles, error: profErr }, { data: attRows }, { data: holidays }] = await Promise.all([
+      admin.from('profiles').select('id, created_at').eq('role', 'Field Engineer'),
+      admin.from('attendance')
+        .select('engineer_id, attendance_date, status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, end_day_at, end_day_place_name')
+        .gte('attendance_date', fetchFrom).lte('attendance_date', todayStr),
+      admin.from('holidays').select('holiday_date, name').gte('holiday_date', fetchFrom).lte('holiday_date', todayStr),
+    ])
+    if (profErr) return { stats: null, error: profErr.message }
+
+    const engineers = (profiles || []).map(p => ({
+      id: p.id as string,
+      createdAtDate: p.created_at ? getISTDateStr(new Date(p.created_at as string)) : null,
+    }))
+    const rowByKey: Record<string, AttendanceRowCore> = {}
+    ;(attRows || []).forEach(r => { rowByKey[`${r.engineer_id}:${r.attendance_date}`] = { ...r, approved_by_name: null } as AttendanceRowCore })
+    const holidayByDate: Record<string, string> = {}
+    ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
+
+    function tally(from: string, to: string): AttendancePeriodStats {
+      const acc: AttendancePeriodStats = { present: 0, absent: 0, lateIn: 0, singlePunch: 0 }
+      for (let dt = new Date(`${from}T00:00:00Z`); dt <= new Date(`${to}T00:00:00Z`); dt.setUTCDate(dt.getUTCDate() + 1)) {
+        const dateStr = dt.toISOString().slice(0, 10)
+        for (const eng of engineers) {
+          const s = computeEffectiveStatus({
+            dateStr, todayStr, row: rowByKey[`${eng.id}:${dateStr}`] ?? null,
+            holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr: eng.createdAtDate,
+          })
+          if (s.kind === 'present') {
+            acc.present++
+            if (s.lateIn) acc.lateIn++
+            if (s.singlePunch) acc.singlePunch++
+          } else if (s.kind === 'leave') {
+            acc.absent++
+          }
+        }
+      }
+      return acc
+    }
+
+    return {
+      stats: {
+        today: tally(todayStr, todayStr),
+        thisWeek: tally(weekStart, todayStr),
+        thisMonth: tally(monthStart, todayStr),
+      },
+      error: null,
+    }
+  } catch (e: unknown) {
+    return { stats: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}

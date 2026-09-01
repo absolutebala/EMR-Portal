@@ -1,5 +1,5 @@
 import { getAuthedUser } from '@/lib/cognito/server'
-import { getAttendanceOverview } from '@/app/actions/get-attendance'
+import { getAttendanceOverview, getAttendanceStats } from '@/app/actions/get-attendance'
 import { getPendingAttendanceAmendments } from '@/app/actions/attendance'
 import { getMyPermissions } from '@/app/actions/roles-actions'
 import { getRange } from './dateRange'
@@ -11,11 +11,12 @@ export default async function AttendancePage() {
 
   const defaultRange = getRange('week', new Date(), '', '')
 
-  const [{ data: profile }, { rows, error }, { amendments }, { permissions, role }] = await Promise.all([
+  const [{ data: profile }, { rows, error }, { amendments }, { permissions, role }, { stats }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getAttendanceOverview(defaultRange.from, defaultRange.to),
     getPendingAttendanceAmendments(),
     getMyPermissions(),
+    getAttendanceStats(),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
@@ -29,6 +30,7 @@ export default async function AttendancePage() {
       initialRows={rows}
       initialError={error}
       initialAmendments={amendments}
+      stats={stats}
       canApprove={canApprove}
       userName={userName}
       userRole={userRole}
