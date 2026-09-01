@@ -51,6 +51,10 @@ const TECHNICIAN_ICON = L.divIcon({
 })
 
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
+// Mainland India bounding box (SW → NE), used to frame the whole country on first
+// load so the admin sees how engineers are spread out nationally rather than being
+// zoomed straight into wherever the pins happen to cluster.
+const INDIA_BOUNDS: LatLngBoundsExpression = [[6.5, 68.0], [35.7, 97.5]]
 
 // Two engineers can ping from coordinates that only differ a few meters apart (e.g.
 // both checked in from the same office) — round to ~111m grid cells to detect those
@@ -82,20 +86,21 @@ function jitterOverlapping<T extends { lat: number; lng: number }>(items: T[]): 
   return result
 }
 
-// Leaflet has no declarative "fit to markers" prop — this reaches into the map
-// instance imperatively via useMap(), the documented way to do it with react-leaflet.
-// Only runs once (the first time real bounds are available), not on every data
-// refresh — otherwise the periodic 60s auto-refresh would silently reset the admin's
-// own pan/zoom every minute.
-function FitBounds({ bounds }: { bounds: LatLngBoundsExpression | null }) {
+// Frame the whole of India once on first load (the documented react-leaflet way is to
+// reach into the map instance imperatively via useMap()). Fitting a fixed India box —
+// rather than the marker bounds — means the admin always opens on the national view and
+// can see how engineers are spread across the country, instead of being zoomed into
+// wherever the pins happen to cluster. Runs only once, so the 60s auto-refresh never
+// resets the admin's own pan/zoom.
+function FitIndia() {
   const map = useMap()
   const hasFit = useRef(false)
   useEffect(() => {
-    if (bounds && !hasFit.current) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+    if (!hasFit.current) {
+      map.fitBounds(INDIA_BOUNDS, { padding: [20, 20] })
       hasFit.current = true
     }
-  }, [map, bounds])
+  }, [map])
   return null
 }
 
@@ -132,7 +137,6 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
     return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
   })
   const points = jitterOverlapping(rawPoints)
-  const bounds: LatLngBoundsExpression | null = points.length ? points.map(p => [p.lat, p.lng] as [number, number]) : null
   const selected = points.find(p => p.engineer.id === selectedId)
 
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
@@ -150,7 +154,7 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds bounds={bounds} />
+      <FitIndia />
       <FlyToSelected target={selected ? [selected.lat, selected.lng] : null} />
       {points.map(p => {
         const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available

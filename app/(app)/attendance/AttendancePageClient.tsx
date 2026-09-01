@@ -397,10 +397,6 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     <>
       <Topbar title="Attendance" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
-          Daily attendance and job detail by field engineer. Past dates show what actually happened that day; today and upcoming dates show current status.
-        </div>
-
         {/* Single controls bar: period tabs + range navigation on the left, actions
             (amendments / export) pushed to the right so the row's width is used up
             instead of leaving a dead zone. */}

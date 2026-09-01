@@ -107,7 +107,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   return (
     <>
       <Topbar title="Live Map" userName={userName} userRole={userRole} />
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '22px 24px' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '22px 24px', overflow: 'hidden' }}>
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{error}</div>
         )}
@@ -125,7 +125,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
             <LeafletMap engineers={engineers} selectedId={selectedId} />
           </div>
 
-          <div style={{ width: 280, flexShrink: 0, borderLeft: '1px solid var(--gm)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+          <div style={{ width: 280, flexShrink: 0, minHeight: 0, borderLeft: '1px solid var(--gm)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
             <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gm)', flexShrink: 0, background: '#FAFAFA' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
                 All field engineers ({filteredEngineers.length}{search ? ` of ${engineers.length}` : ''})
@@ -138,7 +138,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                 style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', fontSize: 12, border: '1px solid var(--gm)', borderRadius: 6, outline: 'none' }}
               />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
               {groupedByState.map(([state, group]) => (
                 <div key={state}>
                   <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', background: 'var(--gl)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
