@@ -105,7 +105,11 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   }, [filteredEngineers])
 
   return (
-    <>
+    // A definite 100dvh shell so heights propagate down through the flex chain — the
+    // (app) layout column is only minHeight:100vh (a minimum, not a cap), which left
+    // flex:1 children free to grow to their content and broke the engineer list's
+    // internal scroll. Pinning the shell to the viewport height fixes that.
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Topbar title="Live Map" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '22px 24px', overflow: 'hidden' }}>
         {error && (
@@ -116,16 +120,20 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
           Last-known position per engineer — updates automatically. Not a continuous live feed; positions refresh whenever an engineer opens the app or checks in. Every field engineer is listed below regardless of status; only those with a recorded location can be pinned on the map.
         </div>
 
-        {/* position/zIndex establish a stacking context so Leaflet's internal high
-            z-index panes & controls (up to ~1000) stay contained below this box — the
-            sticky Topbar (z-index 50) and its notification dropdown then render on top
-            of the map instead of being covered by it. */}
-        <div style={{ position: 'relative', zIndex: 0, flex: 1, minHeight: 0, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Map and engineer list are two separate boxes side by side (with a gap), each
+            bounded to the row height so the list scrolls internally without stretching
+            the map box to match. */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16 }}>
+          {/* Map box. position/zIndex establish a stacking context so Leaflet's internal
+              high z-index panes & controls (up to ~1000) stay contained below this box —
+              the sticky Topbar (z-index 50) and its notification dropdown then render on
+              top of the map instead of being covered by it. */}
+          <div style={{ position: 'relative', zIndex: 0, flex: 1, minWidth: 0, minHeight: 0, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
             <LeafletMap engineers={engineers} selectedId={selectedId} />
           </div>
 
-          <div style={{ width: 280, flexShrink: 0, minHeight: 0, borderLeft: '1px solid var(--gm)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+          {/* Field engineers box — separate card, internal scroll. */}
+          <div style={{ width: 300, flexShrink: 0, minHeight: 0, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff' }}>
             <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gm)', flexShrink: 0, background: '#FAFAFA' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
                 All field engineers ({filteredEngineers.length}{search ? ` of ${engineers.length}` : ''})
@@ -185,6 +193,6 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
