@@ -214,43 +214,37 @@ interface Props {
   userRole: string
 }
 
-// Compact org-wide summary of Present / Absent / Late In / Single Punch for the three
-// fixed periods, sitting to the right of the toolbar (independent of the grid filter).
+// Org-wide summary of Present / Absent / Late In / Single Punch for the three fixed
+// periods (independent of the grid filter), rendered as a full-width strip of four
+// colour-coded metric cards so it fills the row instead of crowding one corner.
 function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   if (!stats) return null
-  const rows: { label: string; s: AttendanceStats[keyof AttendanceStats] }[] = [
+  const periods: { label: string; s: AttendanceStats[keyof AttendanceStats] }[] = [
     { label: 'Today', s: stats.today },
     { label: 'This Week', s: stats.thisWeek },
     { label: 'This Month', s: stats.thisMonth },
   ]
-  const cols: { key: 'present' | 'absent' | 'lateIn' | 'singlePunch'; label: string; color: string }[] = [
-    { key: 'present', label: 'Present', color: '#065F46' },
-    { key: 'absent', label: 'Absent', color: '#991B1B' },
-    { key: 'lateIn', label: 'Late In', color: '#92400E' },
-    { key: 'singlePunch', label: 'Single', color: '#5B21B6' },
+  const cols: { key: 'present' | 'absent' | 'lateIn' | 'singlePunch'; label: string; color: string; bg: string; border: string }[] = [
+    { key: 'present', label: 'Present', color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
+    { key: 'absent', label: 'Absent', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
+    { key: 'lateIn', label: 'Late In', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+    { key: 'singlePunch', label: 'Single Punch', color: '#5B21B6', bg: '#F5F3FF', border: '#DDD6FE' },
   ]
   return (
-    <div style={{ border: '1px solid var(--gm)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-      <table style={{ borderCollapse: 'collapse', fontFamily: 'Poppins,sans-serif' }}>
-        <thead>
-          <tr>
-            <th style={{ padding: '5px 10px', fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.4px', textAlign: 'left', background: '#FAFAFA', borderBottom: '1px solid var(--gm)' }} />
-            {cols.map(c => (
-              <th key={c.key} style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.4px', textAlign: 'center', background: '#FAFAFA', borderBottom: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{c.label}</th>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+      {cols.map(c => (
+        <div key={c.key} style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>{c.label}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {periods.map(p => (
+              <div key={p.label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--txm)' }}>{p.label}</span>
+                <span style={{ fontSize: 17, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{p.s[c.key]}</span>
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.label}>
-              <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap', borderTop: '1px solid var(--gl)' }}>{r.label}</td>
-              {cols.map(c => (
-                <td key={c.key} style={{ padding: '5px 12px', fontSize: 13, fontWeight: 700, color: c.color, textAlign: 'center', borderTop: '1px solid var(--gl)' }}>{r.s[c.key]}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -407,36 +401,60 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           Daily attendance and job detail by field engineer. Past dates show what actually happened that day; today and upcoming dates show current status.
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 14, flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
-            <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
-            <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
+        {/* Single controls bar: period tabs + range navigation on the left, actions
+            (amendments / export) pushed to the right so the row's width is used up
+            instead of leaving a dead zone. */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14, marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
+              <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
+              <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
+            </div>
+
+            {viewMode !== 'custom' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button onClick={goPrev} aria-label="Previous"
+                  style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', minWidth: 160, textAlign: 'center' }}>{range.label}</span>
+                <button onClick={goNext} aria-label="Next"
+                  style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>From</label>
+                <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                  style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
+                <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>To</label>
+                <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                  style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
+                {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
+              </div>
+            )}
           </div>
 
-          {viewMode !== 'custom' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button onClick={goPrev} aria-label="Previous"
-                style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {canApprove && amendments.length > 0 && (
+              <button
+                onClick={() => setShowAmendmentsModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+              >
+                Pending amendments ({amendments.length})
               </button>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', minWidth: 160, textAlign: 'center' }}>{range.label}</span>
-              <button onClick={goNext} aria-label="Next"
-                style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>From</label>
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
-              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>To</label>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                style={{ padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }} />
-              {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
+            >
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              {exporting ? 'Exporting…' : `Export to Excel`}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -447,30 +465,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14, flexShrink: 0 }}>{exportError}</div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 16, flexWrap: 'wrap' }}>
-          {/* Pending amendments + Export together on the left, freeing the right for the
-              summary stats panel. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {canApprove && amendments.length > 0 && (
-              <button
-                onClick={() => setShowAmendmentsModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
-              >
-                Pending attendance amendments ({amendments.length})
-              </button>
-            )}
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
-            >
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              {exporting ? 'Exporting…' : `Export ${range.label} to Excel`}
-            </button>
-          </div>
-
-          <StatsPanel stats={stats} />
-        </div>
+        <StatsPanel stats={stats} />
 
         {showAmendmentsModal && (
           <PendingAmendmentsModal amendments={amendments} actingOn={actingOn} onDecision={handleDecision} onClose={() => setShowAmendmentsModal(false)} />
