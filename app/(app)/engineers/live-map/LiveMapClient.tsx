@@ -120,7 +120,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
             z-index panes & controls (up to ~1000) stay contained below this box — the
             sticky Topbar (z-index 50) and its notification dropdown then render on top
             of the map instead of being covered by it. */}
-        <div style={{ position: 'relative', zIndex: 0, flex: 1, minHeight: 680, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
+        <div style={{ position: 'relative', zIndex: 0, flex: 1, minHeight: 400, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <LeafletMap engineers={engineers} selectedId={selectedId} />
           </div>
