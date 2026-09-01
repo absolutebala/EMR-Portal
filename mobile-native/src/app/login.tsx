@@ -10,6 +10,7 @@ export default function LoginScreen() {
   const { reason } = useLocalSearchParams<{ reason?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Shown when the app signed the user out for a reason worth explaining (e.g. an
@@ -71,15 +72,25 @@ export default function LoginScreen() {
           value={email}
           onChangeText={setEmail}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry
-          autoComplete="password"
-          value={password}
-          onChangeText={setPassword}
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry={!showPassword}
+            autoComplete="password"
+            value={password}
+            onChangeText={setPassword}
+          />
+          <Pressable
+            onPress={() => setShowPassword(v => !v)}
+            hitSlop={8}
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            style={styles.passwordToggle}
+          >
+            <Text style={styles.passwordToggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+          </Pressable>
+        </View>
 
         <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
@@ -105,6 +116,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 15, color: '#111827',
   },
+  passwordRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+  },
+  passwordInput: {
+    flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#111827',
+  },
+  passwordToggle: { paddingHorizontal: 14, paddingVertical: 12 },
+  passwordToggleText: { color: '#7D1D3F', fontSize: 13, fontWeight: '600' },
   button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
