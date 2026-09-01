@@ -2,13 +2,15 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
+import Modal from '@/components/ui/Modal'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomersModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
-import { deleteCustomer } from '@/app/actions/save-customer'
+import { deleteCustomer, type BlockingNotification } from '@/app/actions/save-customer'
 import type { Customer } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED']
@@ -43,13 +45,24 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
 
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
-  async function handleDelete(customerId: string) {
-    setDeleting(customerId)
+  // When a customer still has notifications, deleteCustomer returns them instead of
+  // deleting — this holds them so the modal can list them (as links) and offer to
+  // remove the customer + those notifications together.
+  const [blockingFor, setBlockingFor] = useState<{ id: string; name: string; notifications: BlockingNotification[] } | null>(null)
+
+  async function handleDelete(customer: Customer, cascade = false) {
+    setDeleting(customer.id)
     setDeleteError('')
-    const { error } = await deleteCustomer(customerId)
+    const res = await deleteCustomer(customer.id, cascade ? { cascade: true } : undefined)
     setDeleting(null)
+    if (res.error) { setConfirmDelete(null); setBlockingFor(null); setDeleteError(res.error); return }
+    if (res.blockingNotifications && res.blockingNotifications.length > 0) {
+      setConfirmDelete(null)
+      setBlockingFor({ id: customer.id, name: customer.name, notifications: res.blockingNotifications })
+      return
+    }
     setConfirmDelete(null)
-    if (error) { setDeleteError(error); return }
+    setBlockingFor(null)
     router.refresh()
   }
 
@@ -117,7 +130,7 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>Delete?</span>
                           <button
-                            onClick={() => handleDelete(c.id)}
+                            onClick={() => handleDelete(c)}
                             disabled={deleting === c.id}
                             style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: deleting === c.id ? .7 : 1 }}
                           >
@@ -174,6 +187,44 @@ export default function CustomersPageClient({ customers, userName, userRole }: P
           prefillCustomerId={woCustomer?.id}
           prefillCustomerName={woCustomer?.name}
         />
+
+        <Modal
+          open={!!blockingFor}
+          onClose={() => setBlockingFor(null)}
+          title="Customer has notifications"
+          footer={
+            <>
+              <button onClick={() => setBlockingFor(null)} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+              <button
+                onClick={() => { const c = customers.find(x => x.id === blockingFor?.id); if (c) handleDelete(c, true) }}
+                disabled={!!blockingFor && deleting === blockingFor.id}
+                style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: blockingFor && deleting === blockingFor.id ? .7 : 1 }}
+              >
+                {blockingFor && deleting === blockingFor.id ? 'Deleting…' : `Delete customer & ${blockingFor?.notifications.length ?? 0} notification${(blockingFor?.notifications.length ?? 0) === 1 ? '' : 's'}`}
+              </button>
+            </>
+          }
+        >
+          {blockingFor && (
+            <div style={{ fontSize: 13, color: 'var(--tx)' }}>
+              <p style={{ margin: '0 0 12px', lineHeight: 1.5 }}>
+                <strong>{blockingFor.name}</strong> still has {blockingFor.notifications.length} notification{blockingFor.notifications.length === 1 ? '' : 's'} linked to it. Deleting the customer will also permanently delete {blockingFor.notifications.length === 1 ? 'this notification' : 'these notifications'} and everything under {blockingFor.notifications.length === 1 ? 'it' : 'them'} (check-ins, closures, forms).
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                {blockingFor.notifications.map(n => (
+                  <Link
+                    key={n.id}
+                    href={`/work-orders/${n.id}`}
+                    style={{ fontSize: 12, fontWeight: 500, color: '#7D1D3F', textDecoration: 'none', border: '1px solid var(--gm)', borderRadius: 20, padding: '4px 12px', background: 'var(--gl)' }}
+                  >
+                    {n.woNumber} →
+                  </Link>
+                ))}
+              </div>
+              <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--txm)' }}>Open any notification above to review it first. This action can’t be undone.</p>
+            </div>
+          )}
+        </Modal>
       </div>
     </>
   )

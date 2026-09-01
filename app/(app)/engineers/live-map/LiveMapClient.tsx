@@ -116,7 +116,11 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
           Last-known position per engineer — updates automatically. Not a continuous live feed; positions refresh whenever an engineer opens the app or checks in. Every field engineer is listed below regardless of status; only those with a recorded location can be pinned on the map.
         </div>
 
-        <div style={{ flex: 1, minHeight: 400, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
+        {/* position/zIndex establish a stacking context so Leaflet's internal high
+            z-index panes & controls (up to ~1000) stay contained below this box — the
+            sticky Topbar (z-index 50) and its notification dropdown then render on top
+            of the map instead of being covered by it. */}
+        <div style={{ position: 'relative', zIndex: 0, flex: 1, minHeight: 400, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <LeafletMap engineers={engineers} selectedId={selectedId} />
           </div>

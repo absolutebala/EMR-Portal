@@ -113,7 +113,19 @@ export async function updateCustomer(
   }
 }
 
-export async function deleteCustomer(customerId: string): Promise<{ error: string | null }> {
+export interface BlockingNotification {
+  id: string
+  woNumber: string
+}
+
+// cascade=false (default): if any notifications reference this customer, don't delete —
+// return them (id + number) so the UI can list them as links and ask the admin whether
+// to remove them too. cascade=true: delete those notifications first (their own child
+// rows cascade), then the customer.
+export async function deleteCustomer(
+  customerId: string,
+  options?: { cascade?: boolean }
+): Promise<{ error: string | null; blockingNotifications?: BlockingNotification[] }> {
   try {
     const user = await getAuthedUser()
     if (!user) return { error: 'Not authenticated.' }
@@ -125,12 +137,20 @@ export async function deleteCustomer(customerId: string): Promise<{ error: strin
     }
 
     // work_orders.customer_id is ON DELETE RESTRICT (unlike customer_sites/transformers/
-    // customer_contacts, which cascade) — a customer with notification history can't be
-    // deleted outright. Checked here first for a clear message instead of a raw FK
-    // constraint error surfacing from the delete below.
-    const { count } = await sb.from('work_orders').select('id', { count: 'exact', head: true }).eq('customer_id', customerId)
-    if (count && count > 0) {
-      return { error: `Cannot delete — ${count} notification${count === 1 ? '' : 's'} still reference this customer.` }
+    // customer_contacts, which cascade), so a customer with notifications can't be
+    // deleted outright. Fetch the referencing ones up front — either to hand back to the
+    // UI (cascade off) or to delete first (cascade on).
+    const { data: refRows } = await sb.from('work_orders').select('id, wo_number').eq('customer_id', customerId)
+    const blocking = (refRows || []).map(r => ({ id: r.id as string, woNumber: (r.wo_number as string) || '—' }))
+
+    if (blocking.length > 0) {
+      if (!options?.cascade) {
+        return { error: null, blockingNotifications: blocking }
+      }
+      // Cascade: delete the referencing notifications first (each cascades its own
+      // check-ins/closures/forms/etc.), which lifts the RESTRICT on the customer.
+      const { error: woErr } = await sb.from('work_orders').delete().in('id', blocking.map(b => b.id))
+      if (woErr) return { error: woErr.message }
     }
 
     const { error } = await sb.from('customers').delete().eq('id', customerId)

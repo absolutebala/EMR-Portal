@@ -101,8 +101,22 @@ function FitBounds({ bounds }: { bounds: LatLngBoundsExpression | null }) {
 
 function FlyToSelected({ target }: { target: [number, number] | null }) {
   const map = useMap()
+  // Only fly when the target coordinates actually change (a new selection, or the
+  // selected engineer moved) — not on every render. Without this the 60s auto-refresh
+  // re-runs the effect with a fresh array of the same coords and yanks the admin's
+  // view back to the selected pin every minute.
+  const lastKey = useRef<string | null>(null)
   useEffect(() => {
-    if (target) map.flyTo(target, Math.max(map.getZoom(), 13))
+    if (!target) { lastKey.current = null; return }
+    const key = `${target[0]},${target[1]}`
+    if (key === lastKey.current) return
+    lastKey.current = key
+    // Zoom in close and center exactly on the pin, then nudge the view up ~80px so the
+    // pin sits a little below centre — leaving room for its popup (which opens above
+    // the marker) instead of the pin landing at the very top with the popup clipped.
+    const zoom = Math.max(map.getZoom(), 15)
+    const centered = map.project(target, zoom).subtract([0, 80])
+    map.flyTo(map.unproject(centered, zoom), zoom)
   }, [map, target])
   return null
 }
