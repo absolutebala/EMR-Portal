@@ -41,6 +41,10 @@ export default function UsersPageClient({ users, userName, userRole, permissions
   const [showRoles, setShowRoles] = useState(false)
   const [showManageRoles, setShowManageRoles] = useState(false)
   const [editUser, setEditUser] = useState<Profile | null>(null)
+  // Bumped each time the Add-user modal is opened so its React key changes and the
+  // form remounts fresh — otherwise reopening "Add user" after creating one keeps the
+  // previous entry's values (editUser stays null, so the modal never re-initialises).
+  const [addNonce, setAddNonce] = useState(0)
   const [inviteCopied, setInviteCopied] = useState<string | null>(null)
   const [inviteLoading, setInviteLoading] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -142,7 +146,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
               </button>
             )}
             {can('Users — Create / Edit') && (
-              <button onClick={() => { setEditUser(null); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <button onClick={() => { setEditUser(null); setAddNonce(n => n + 1); setShowAdd(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Add User
               </button>
@@ -268,7 +272,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
 
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
 
-        <AddUserModal key={editUser?.id ?? 'new'} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service' || u.role === 'Super Admin')} currentUserRole={userRole} />
+        <AddUserModal key={editUser?.id ?? `new-${addNonce}`} open={showAdd} onClose={() => { setShowAdd(false); setEditUser(null) }} onSaved={() => router.refresh()} editUser={editUser} managers={users.filter(u => u.role === 'Service Manager' || u.role === 'Head of Service' || u.role === 'Super Admin')} currentUserRole={userRole} />
         <BulkUploadModal open={showBulk} onClose={() => setShowBulk(false)} onSaved={() => router.refresh()} />
         <ManageRolesModal open={showManageRoles} onClose={() => setShowManageRoles(false)} canEdit={can('Users — Roles Edit & Add')} />
         <RolesModal open={showRoles} onClose={() => setShowRoles(false)} canEdit={can('Users — Roles & Permissions Edit')} />
