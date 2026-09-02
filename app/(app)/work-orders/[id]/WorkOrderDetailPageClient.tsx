@@ -361,7 +361,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   const canDelete = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
   const canEdit = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
-    || Object.keys(permissions).length === 0 || permissions['Work Orders — Create / Edit'] === true
+    || Object.keys(permissions).length === 0 || permissions['Notifications — Create / Edit'] === true
 
   async function handleDelete() {
     setDeleting(true)

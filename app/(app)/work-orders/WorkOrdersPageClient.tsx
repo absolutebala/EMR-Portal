@@ -110,7 +110,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     if (Object.keys(permissions).length === 0) return true
     return permissions[key] === true
   }
-  const canEdit = can('Work Orders — Create / Edit')
+  const canEdit = can('Notifications — Create / Edit')
 
   async function handleDelete() {
     if (!confirmDelete) return
