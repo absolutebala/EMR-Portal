@@ -14,6 +14,7 @@ import {
   addAdditionalEngineer, removeAdditionalEngineer, getAdditionalEngineers, type AdditionalEngineerAssignment,
 } from '@/app/actions/create-work-order'
 import { getProductRequestsForWorkOrder } from '@/app/actions/products'
+import { deleteWorkOrder } from '@/app/actions/delete-work-order'
 import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
@@ -268,6 +269,9 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [addEngineerSearch, setAddEngineerSearch] = useState('')
   const [addEngineerSerials, setAddEngineerSerials] = useState<string[]>([]) // selected transformer_ids
 
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditForm>({
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
@@ -350,6 +354,16 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   function cancelEdit() {
     setEditing(false)
     setError('')
+  }
+
+  const canDelete = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError('')
+    const { error: delErr } = await deleteWorkOrder(workOrderId)
+    if (delErr) { setError(delErr); setDeleting(false); setConfirmDelete(false); return }
+    router.push('/work-orders')
   }
 
   function toggleTransformer(id: string) {
@@ -868,6 +882,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
                       Edit notification
                     </button>
+                    {canDelete && (
+                      <button onClick={() => setConfirmDelete(true)}
+                        style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                        Delete notification
+                      </button>
+                    )}
                     {!isComplete && (
                       <button onClick={() => setShowReassign(!showReassign)}
                         style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--amber)', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
@@ -1119,6 +1139,25 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
           <img src={enlargedPhoto} alt="Check-in proof" style={{ display: 'block', margin: '0 auto', maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 8 }} />
         )}
       </Modal>
+
+      {confirmDelete && wo && (
+        <Modal open onClose={() => { if (!deleting) setConfirmDelete(false) }} title="Delete notification">
+          <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
+            Delete notification <strong>{wo.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, product requests and expenses. This cannot be undone.
+          </div>
+          {error && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+            <button onClick={() => setConfirmDelete(false)} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: deleting ? 0.7 : 1 }}>
+              {deleting ? 'Deleting…' : 'Delete notification'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

@@ -239,7 +239,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                           </>
                         ) : (
                           <>
-                            {can('Users — Create / Edit') && (
+                            {(can('Users — Create / Edit') || userRole === 'Service Manager') && (
                               <button
                                 onClick={() => copyResetPassword(u)}
                                 disabled={resetLoading === u.id}

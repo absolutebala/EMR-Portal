@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
+import Modal from '@/components/ui/Modal'
+import { deleteWorkOrder } from '@/app/actions/delete-work-order'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
@@ -95,6 +97,22 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [warrantyFilter, setWarrantyFilter] = useState(searchParams.get('warranty') || '')
   const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('department') || '')
   const [showNew, setShowNew] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<WorkOrder | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
+
+  async function handleDelete() {
+    if (!confirmDelete) return
+    setDeleting(true)
+    setDeleteError('')
+    const { error } = await deleteWorkOrder(confirmDelete.id)
+    setDeleting(false)
+    if (error) { setDeleteError(error); return }
+    setConfirmDelete(null)
+    router.refresh()
+  }
 
   const filtered = useMemo(() => workOrders.filter(wo => {
     const q = search.toLowerCase()
@@ -250,10 +268,18 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                       </td>
                       <td style={{ padding: '10px 14px' }}><StatusBadge status={wo.status} scheduledDate={wo.scheduled_date} /></td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={e => { e.stopPropagation(); router.push(`/work-orders/${wo.id}`) }}
-                          style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                          <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={e => { e.stopPropagation(); router.push(`/work-orders/${wo.id}`) }} title="View"
+                            style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                          </button>
+                          {canDelete && (
+                            <button onClick={e => { e.stopPropagation(); setDeleteError(''); setConfirmDelete(wo) }} title="Delete notification"
+                              style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -267,6 +293,25 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
       </div>
 
       <NewWorkOrderModal open={showNew} onClose={() => setShowNew(false)} onSaved={() => router.refresh()} />
+
+      {confirmDelete && (
+        <Modal open onClose={() => { if (!deleting) setConfirmDelete(null) }} title="Delete notification">
+          <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
+            Delete notification <strong>{confirmDelete.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, product requests and expenses. This cannot be undone.
+          </div>
+          {deleteError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 10 }}>{deleteError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+            <button onClick={() => setConfirmDelete(null)} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: deleting ? 0.7 : 1 }}>
+              {deleting ? 'Deleting…' : 'Delete notification'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
