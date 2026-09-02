@@ -30,8 +30,12 @@ export async function updateUser(
     const { data: currentProfile } = await admin.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
 
     if (currentProfile?.role === 'Service Manager') {
-      const { data: target } = await admin.from('profiles').select('created_by').eq('id', userId).single()
-      if (target?.created_by !== user.id) return { error: 'Permission denied. You can only edit users you created.' }
+      const { data: target } = await admin.from('profiles').select('created_by, role').eq('id', userId).single()
+      // Service Managers may edit any Field Engineer; for other roles they're limited to
+      // accounts they created themselves.
+      if (target?.role !== 'Field Engineer' && target?.created_by !== user.id) {
+        return { error: 'Permission denied. You can only edit field engineers or users you created.' }
+      }
     }
 
     const { department_ids, ...profileFields } = fields
@@ -48,7 +52,8 @@ export async function updateUser(
     }
 
     const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
-    await logActivity(admin, { actorId: user.id, actorName, action: `Updated user ${fields.first_name} ${fields.last_name}`, entityType: 'user', entityId: userId })
+    const targetKind = fields.role === 'Field Engineer' ? 'field engineer' : 'user'
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated ${targetKind} ${fields.first_name} ${fields.last_name}`, entityType: 'user', entityId: userId })
 
     return { error: null }
   } catch (e: unknown) {

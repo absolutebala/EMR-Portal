@@ -17,11 +17,15 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     const { data: currentProfile } = await admin.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
 
     if (currentProfile?.role === 'Service Manager') {
-      const { data: target } = await admin.from('profiles').select('created_by').eq('id', targetUserId).single()
-      if (target?.created_by !== user.id) return { error: 'Permission denied. You can only delete users you created.' }
+      const { data: guardTarget } = await admin.from('profiles').select('created_by, role').eq('id', targetUserId).single()
+      // Service Managers may delete any Field Engineer; for other roles they're limited
+      // to accounts they created themselves.
+      if (guardTarget?.role !== 'Field Engineer' && guardTarget?.created_by !== user.id) {
+        return { error: 'Permission denied. You can only delete field engineers or users you created.' }
+      }
     }
 
-    const { data: target } = await admin.from('profiles').select('first_name, last_name, email').eq('id', targetUserId).maybeSingle()
+    const { data: target } = await admin.from('profiles').select('first_name, last_name, email, role').eq('id', targetUserId).maybeSingle()
     if (!target) return { error: 'User not found.' }
 
     // Revert this engineer's open jobs to 'unassigned' BEFORE the profile is deleted —
@@ -65,7 +69,8 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
     }
     const actorName = currentProfile ? `${currentProfile.first_name} ${currentProfile.last_name}` : 'Admin'
     const targetName = `${target.first_name} ${target.last_name}`
-    await logActivity(admin, { actorId: user.id, actorName, action: `Deleted user ${targetName}`, entityType: 'user', entityId: targetUserId })
+    const targetKind = target.role === 'Field Engineer' ? 'field engineer' : 'user'
+    await logActivity(admin, { actorId: user.id, actorName, action: `Deleted ${targetKind} ${targetName}`, entityType: 'user', entityId: targetUserId })
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
