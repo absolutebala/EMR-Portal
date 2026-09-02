@@ -76,10 +76,32 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [navigating, setNavigating] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     setNavigating(null)
   }, [pathname])
+
+  // Restore the saved collapsed state on mount (kept out of the initial useState to
+  // avoid an SSR/hydration mismatch — localStorage isn't available on the server).
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+  }, [])
+
+  // Keep the main content's left offset in sync with the rail width via a CSS var the
+  // (app) layout reads (marginLeft: var(--sidebar-w)).
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', collapsed ? '64px' : '230px')
+  }, [collapsed])
+
+  function toggleCollapsed() {
+    setCollapsed(c => {
+      const next = !c
+      try { localStorage.setItem('sidebar-collapsed', next ? '1' : '0') } catch { /* ignore */ }
+      if (next) { setModOpen(false); setProfileOpen(false) }
+      return next
+    })
+  }
 
   async function logout() {
     await logoutAction()
@@ -94,18 +116,29 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   }
 
   return (
-    <div style={{ width: 230, background: 'var(--mdk)', position: 'fixed', top: 0, left: 0, height: '100vh', display: 'flex', flexDirection: 'column', zIndex: 100 }}>
+    <div style={{ width: collapsed ? 64 : 230, background: 'var(--mdk)', position: 'fixed', top: 0, left: 0, height: '100vh', display: 'flex', flexDirection: 'column', zIndex: 100, transition: 'width .18s ease' }}>
       <style>{`@keyframes navSpin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Collapse / expand toggle — straddles the sidebar's right edge so it's reachable
+          in both states. */}
+      <button
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={collapsed ? 'Expand' : 'Collapse'}
+        style={{ position: 'absolute', top: 74, right: -12, width: 24, height: 24, borderRadius: '50%', background: 'var(--m)', border: '2px solid var(--mdk)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 120, boxShadow: '0 2px 6px rgba(0,0,0,.3)' }}
+      >
+        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: collapsed ? 'none' : 'rotate(180deg)' }}><polyline points="9 18 15 12 9 6" /></svg>
+      </button>
       {/* Brand */}
-      <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: '5px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ padding: collapsed ? '18px 8px 14px' : '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: collapsed ? 5 : '5px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <img src="/emr-logo.png" alt="EMR" style={{ height: 20, width: 'auto', display: 'block' }} />
           </div>
         </div>
 
-        {/* Module switcher — only shown if user has access to more than one module */}
-        {modules.length > 1 && (
+        {/* Module switcher — only shown if user has access to more than one module (hidden on the collapsed rail) */}
+        {modules.length > 1 && !collapsed && (
           <div style={{ position: 'relative', marginTop: 12 }}>
             <div
               onClick={() => setModOpen(!modOpen)}
@@ -156,7 +189,9 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
           if (visible.length === 0) return null
           return (
             <div key={section}>
-              <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>
+              {collapsed
+                ? <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '8px 12px 6px' }} />
+                : <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)', letterSpacing: 1, padding: '10px 10px 4px', textTransform: 'uppercase' }}>{section}</div>}
               {visible.map(item => {
                 const active = item.path === bestMatchPath
                 const isLoading = navigating === item.path
@@ -164,8 +199,9 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
                   <div
                     key={item.path}
                     onClick={() => navigate(item.path)}
+                    title={collapsed ? item.label : undefined}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
+                      display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10, padding: collapsed ? '9px 0' : '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
                       background: active || isLoading ? 'var(--m)' : 'transparent',
                       color: active || isLoading ? '#fff' : 'rgba(255,255,255,.52)',
                       fontWeight: active || isLoading ? 500 : 400, fontSize: 12,
@@ -187,7 +223,7 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
                     ) : (
                       <span style={{ opacity: active ? 1 : .8, flexShrink: 0 }}>{ICONS[item.icon]}</span>
                     )}
-                    {item.label}
+                    {!collapsed && item.label}
                   </div>
                 )
               })}
@@ -202,21 +238,24 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
       <div style={{ padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
         <div
           onClick={() => setProfileOpen(!profileOpen)}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 10, borderRadius: 8, cursor: 'pointer', position: 'relative' }}
+          title={collapsed ? `${userName} · ${userRole}` : undefined}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 9, padding: 10, borderRadius: 8, cursor: 'pointer', position: 'relative' }}
           onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'}
           onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
         >
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--ml)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
             {getInitials(userName)}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.38)' }}>{userRole}</div>
-          </div>
-          <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+          {!collapsed && (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.38)' }}>{userRole}</div>
+            </div>
+          )}
+          {!collapsed && <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>}
 
           {profileOpen && (
-            <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.2)', border: '1px solid var(--gm)', overflow: 'hidden', zIndex: 200 }}>
+            <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: collapsed ? 'auto' : 0, width: collapsed ? 190 : 'auto', background: '#fff', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.2)', border: '1px solid var(--gm)', overflow: 'hidden', zIndex: 200 }}>
               <div onClick={() => { setProfileOpen(false); setEditProfileOpen(true) }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', fontSize:12, color:'var(--tx)', cursor:'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--gl)'}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}

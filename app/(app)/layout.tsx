@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           growing to fit oversized content (e.g. a wide table) — without it, that
           content pushes the whole page wider than the viewport and the page itself
           scrolls horizontally instead of the offending content scrolling internally. */}
-      <div style={{ marginLeft: 230, flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ marginLeft: 'var(--sidebar-w, 230px)', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left .18s ease' }}>
         {children}
       </div>
     </div>
