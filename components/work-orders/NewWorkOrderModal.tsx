@@ -201,7 +201,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
     e.preventDefault()
     if (!jobType) { setError('Please select a job type.'); return }
     if (!isOverhauling && !selectedCustomerId) { setError('Please select a customer.'); return }
-    if (!isOverhauling && !checkedSNs.length) { setError('Please select at least one serial number.'); return }
+    // Serial number is optional at creation for every job type — it can be added or
+    // corrected later by editing the notification (the serial(s) are editable there).
     setLoading(true); setError('')
     const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
@@ -278,7 +279,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
 
           {/* Serial number search */}
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={fl2}>Serial numbers {!isOverhauling && <span style={{ color: 'var(--m)' }}>*</span>}</label>
+            <label style={fl2}>Serial numbers <span style={{ color: 'var(--txm)', fontWeight: 400 }}>(optional)</span></label>
             {!selectedCustomerId ? (
               <div style={{ position: 'relative' }}>
                 <input
