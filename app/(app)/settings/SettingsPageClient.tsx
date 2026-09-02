@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
+import Modal from '@/components/ui/Modal'
 import { saveSettings } from '@/app/actions/save-settings'
 import { addHoliday, deleteHoliday, type Holiday } from '@/app/actions/holidays'
-import { addDepartment } from '@/app/actions/departments'
+import { addDepartment, updateDepartment, deleteDepartment, reorderDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
 
 const fi2: React.CSSProperties = { padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif', width: '100%', transition: 'border .15s' }
@@ -104,6 +105,10 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
   const [newDepartmentName, setNewDepartmentName] = useState('')
   const [addingDepartment, setAddingDepartment] = useState(false)
   const [departmentError, setDepartmentError] = useState('')
+  const [editDeptId, setEditDeptId] = useState<string | null>(null)
+  const [editDeptName, setEditDeptName] = useState('')
+  const [deptBusy, setDeptBusy] = useState(false)
+  const [confirmDeleteDept, setConfirmDeleteDept] = useState<Department | null>(null)
 
   async function handleAddHoliday() {
     setHolidayError('')
@@ -132,6 +137,40 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
     setAddingDepartment(false)
     if (error) { setDepartmentError(error); return }
     setNewDepartmentName('')
+    router.refresh()
+  }
+
+  async function handleRenameDepartment() {
+    if (!editDeptId) return
+    setDepartmentError('')
+    if (!editDeptName.trim()) { setDepartmentError('Department name is required'); return }
+    setDeptBusy(true)
+    const { error } = await updateDepartment(editDeptId, editDeptName)
+    setDeptBusy(false)
+    if (error) { setDepartmentError(error); return }
+    setEditDeptId(null); setEditDeptName('')
+    router.refresh()
+  }
+
+  async function handleDeleteDepartment() {
+    if (!confirmDeleteDept) return
+    setDepartmentError('')
+    setDeptBusy(true)
+    const { error } = await deleteDepartment(confirmDeleteDept.id)
+    setDeptBusy(false)
+    if (error) { setDepartmentError(error); setConfirmDeleteDept(null); return }
+    setConfirmDeleteDept(null)
+    router.refresh()
+  }
+
+  async function moveDepartment(index: number, dir: -1 | 1) {
+    const target = index + dir
+    if (target < 0 || target >= initialDepartments.length) return
+    const ids = initialDepartments.map(d => d.id)
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    setDeptBusy(true)
+    await reorderDepartments(ids)
+    setDeptBusy(false)
     router.refresh()
   }
 
@@ -276,15 +315,63 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
           {initialDepartments.length === 0 ? (
             <p style={{ fontSize: 12, color: 'var(--txm)' }}>No departments added yet.</p>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {initialDepartments.map(d => (
-                <span key={d.id} style={{ padding: '6px 12px', background: 'var(--gl)', borderRadius: 20, fontSize: 12, color: 'var(--tx)' }}>
-                  {d.name}
-                </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {initialDepartments.map((d, i) => (
+                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', border: '1px solid var(--gm)', borderRadius: 8, background: '#fff' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <button onClick={() => moveDepartment(i, -1)} disabled={i === 0 || deptBusy} title="Move up"
+                      style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', padding: 0, lineHeight: 0, opacity: i === 0 ? .3 : 1 }}>
+                      <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15" /></svg>
+                    </button>
+                    <button onClick={() => moveDepartment(i, 1)} disabled={i === initialDepartments.length - 1 || deptBusy} title="Move down"
+                      style={{ background: 'none', border: 'none', cursor: i === initialDepartments.length - 1 ? 'default' : 'pointer', padding: 0, lineHeight: 0, opacity: i === initialDepartments.length - 1 ? .3 : 1 }}>
+                      <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                    </button>
+                  </div>
+                  {editDeptId === d.id ? (
+                    <>
+                      <input autoFocus value={editDeptName} onChange={e => setEditDeptName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRenameDepartment() }}
+                        style={{ ...fi2, flex: 1 }} />
+                      <button onClick={handleRenameDepartment} disabled={deptBusy}
+                        style={{ padding: '7px 12px', borderRadius: 6, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}>Save</button>
+                      <button onClick={() => { setEditDeptId(null); setEditDeptName('') }} disabled={deptBusy}
+                        style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, fontSize: 12, color: 'var(--tx)' }}>{d.name}</span>
+                      <button onClick={() => { setDepartmentError(''); setEditDeptId(d.id); setEditDeptName(d.name) }} title="Rename"
+                        style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <svg width="11" height="11" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z" /></svg>
+                      </button>
+                      <button onClick={() => { setDepartmentError(''); setConfirmDeleteDept(d) }} title="Delete"
+                        style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <svg width="11" height="11" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                      </button>
+                    </>
+                  )}
+                </div>
               ))}
             </div>
           )}
         </div>
+
+        {confirmDeleteDept && (
+          <Modal open onClose={() => { if (!deptBusy) setConfirmDeleteDept(null) }} title="Delete department">
+            <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
+              Delete <strong>{confirmDeleteDept.name}</strong>? Any notifications tagged with it become “No Department”, and any Service Manager assigned to it loses that assignment. This cannot be undone.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <button onClick={() => setConfirmDeleteDept(null)} disabled={deptBusy}
+                style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+              <button onClick={handleDeleteDepartment} disabled={deptBusy}
+                style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: deptBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: deptBusy ? 0.7 : 1 }}>
+                {deptBusy ? 'Deleting…' : 'Delete department'}
+              </button>
+            </div>
+          </Modal>
+        )}
 
       </div>
     </>

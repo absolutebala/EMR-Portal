@@ -46,7 +46,7 @@ type WorkOrderWithDept = {
 export async function getDepartmentOpenCountsCore(admin: AdminClient, engineerId: string): Promise<{ counts: DepartmentOpenCount[]; error: string | null }> {
   try {
     const [{ data: departments, error: deptError }, { data: primaryRows, error: primaryError }, { data: additionalAssignments }] = await Promise.all([
-      admin.from('departments').select('id, name').order('name'),
+      admin.from('departments').select('id, name').order('sort_order').order('name'),
       admin.from('work_orders').select('id, department_id').eq('engineer_id', engineerId).neq('status', 'completed'),
       admin.from('work_order_engineer_assignments').select('work_order_id').eq('engineer_id', engineerId),
     ])

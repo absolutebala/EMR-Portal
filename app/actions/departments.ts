@@ -6,7 +6,8 @@ import type { Department } from '@/lib/departments'
 
 export async function getDepartments(): Promise<{ departments: Department[]; error: string | null }> {
   try {
-    const { data, error } = await adminClient().from('departments').select('id, name').order('name')
+    // Explicit display order (sort_order), name as a stable tiebreaker.
+    const { data, error } = await adminClient().from('departments').select('id, name').order('sort_order').order('name')
     if (error) return { departments: [], error: error.message }
     return { departments: data || [], error: null }
   } catch (e: unknown) {
@@ -18,8 +19,51 @@ export async function addDepartment(name: string): Promise<{ error: string | nul
   try {
     const trimmed = name.trim()
     if (!trimmed) return { error: 'Department name is required' }
-    const { error } = await adminClient().from('departments').insert({ name: trimmed })
+    const admin = adminClient()
+    // New departments append to the end of the list.
+    const { data: last } = await admin.from('departments').select('sort_order').order('sort_order', { ascending: false }).limit(1).maybeSingle()
+    const nextOrder = (last?.sort_order ?? 0) + 1
+    const { error } = await admin.from('departments').insert({ name: trimmed, sort_order: nextOrder })
+    if (error) return { error: error.code === '23505' ? 'A department with that name already exists.' : error.message }
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function updateDepartment(id: string, name: string): Promise<{ error: string | null }> {
+  try {
+    const trimmed = name.trim()
+    if (!trimmed) return { error: 'Department name is required' }
+    const { error } = await adminClient().from('departments').update({ name: trimmed }).eq('id', id)
+    if (error) return { error: error.code === '23505' ? 'A department with that name already exists.' : error.message }
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Deleting a department blanks the department on any notifications tagged with it
+// (work_orders.department_id is ON DELETE SET NULL) and removes it from any Service
+// Manager's assignments (profile_departments cascades) — the FKs handle the cleanup.
+export async function deleteDepartment(id: string): Promise<{ error: string | null }> {
+  try {
+    const { error } = await adminClient().from('departments').delete().eq('id', id)
     return { error: error?.message || null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Persist a new display order: sort_order follows the given id sequence.
+export async function reorderDepartments(orderedIds: string[]): Promise<{ error: string | null }> {
+  try {
+    const admin = adminClient()
+    for (let i = 0; i < orderedIds.length; i++) {
+      const { error } = await admin.from('departments').update({ sort_order: i + 1 }).eq('id', orderedIds[i])
+      if (error) return { error: error.message }
+    }
+    return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }
@@ -48,18 +92,20 @@ export async function getMyAssignableDepartments(): Promise<{ departments: Depar
     if (!user) return { departments: [], error: 'Not authenticated' }
 
     const admin = adminClient()
+    // Filter the ordered full list by the user's assigned ids, so the assignable list
+    // follows the same sort_order as everywhere else.
+    const { departments: all, error: allError } = await getDepartments()
+    if (allError) return { departments: [], error: allError }
+
     const { data: assigned, error: assignedError } = await admin
       .from('profile_departments')
-      .select('departments(id, name)')
+      .select('department_id')
       .eq('profile_id', user.id)
     if (assignedError) return { departments: [], error: assignedError.message }
 
-    type Row = { departments: { id: string; name: string } | Array<{ id: string; name: string }> | null }
-    const one = (v: Row['departments']): { id: string; name: string } | null => (Array.isArray(v) ? v[0] ?? null : v)
-    const myDepartments = ((assigned as unknown as Row[]) || []).map(r => one(r.departments)).filter((d): d is Department => !!d)
-    if (myDepartments.length) return { departments: myDepartments, error: null }
-
-    return getDepartments()
+    const assignedIds = new Set((assigned || []).map(r => r.department_id))
+    const mine = all.filter(d => assignedIds.has(d.id))
+    return { departments: mine.length ? mine : all, error: null }
   } catch (e: unknown) {
     return { departments: [], error: e instanceof Error ? e.message : String(e) }
   }

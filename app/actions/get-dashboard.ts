@@ -167,7 +167,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     // Powers the Product Requests breakdown card — one pass over every item's status.
     // Department filtering happens below (post-fetch), same reason as pendingApprovals.
     admin.from('product_request_items').select('status, product_requests(work_orders(department_id))'),
-    admin.from('departments').select('id, name').order('name'),
+    admin.from('departments').select('id, name').order('sort_order').order('name'),
     // Powers the "Paid Notifications" card — every Overhauling-job-type notification
     // on record (any status, not just open), matching /work-orders?job=overhauling.
     scopeWo(admin.from('work_orders').select('id, wo_number, status, department_id, customers(name)').eq('job_type', 'overhauling').order('created_at', { ascending: false }).limit(8)),
