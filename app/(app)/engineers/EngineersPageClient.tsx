@@ -1,10 +1,15 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
+import Modal from '@/components/ui/Modal'
+import AddUserModal from '@/components/users/AddUserModal'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
+import { deleteUser } from '@/app/actions/delete-user'
 import type { FieldEngineerOverview, EngineerStatus } from '@/app/actions/get-engineers'
+import type { Profile } from '@/lib/types'
 
 const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: string }> = {
   available: { label: 'Available', bg: '#D1FAE5', color: '#065F46' },
@@ -50,11 +55,45 @@ interface Props {
   engineers: FieldEngineerOverview[]
   userName: string
   userRole: string
+  permissions?: Record<string, boolean>
+  editableProfiles?: Profile[]
+  managers?: Profile[]
 }
 
-export default function EngineersPageClient({ engineers, userName, userRole }: Props) {
+export default function EngineersPageClient({ engineers, userName, userRole, permissions = {}, editableProfiles = [], managers = [] }: Props) {
   const router = useRouter()
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(engineers)
+
+  // Field engineers ARE users, so managing them here reuses the Users add/edit modal
+  // and the delete-user action (which removes them from the Users list too). Gated on
+  // the 'Field Engineers — Manage' permission — Super Admin / Head of Service always
+  // pass, and a role with no permissions configured falls open.
+  const canManage = userRole === 'Super Admin' || userRole === 'Head of Service'
+    || Object.keys(permissions).length === 0 || permissions['Field Engineers — Manage'] === true
+
+  const [editUser, setEditUser] = useState<Profile | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<FieldEngineerOverview | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  function openEdit(engId: string) {
+    const profile = editableProfiles.find(p => p.id === engId)
+    if (!profile) { alert('This engineer’s full profile could not be loaded for editing.'); return }
+    setEditUser(profile)
+    setShowEdit(true)
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) return
+    setDeleting(true)
+    setDeleteError('')
+    const { error } = await deleteUser(confirmDelete.id)
+    setDeleting(false)
+    if (error) { setDeleteError(error); return }
+    setConfirmDelete(null)
+    router.refresh()
+  }
 
   return (
     <>
@@ -110,12 +149,26 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)', textAlign: 'center' }}>{e.openWorkOrders}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)', textAlign: 'center' }}>{e.completedToday}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button
-                          onClick={() => router.push(`/work-orders?engineer=${e.id}`)}
-                          style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
-                        >
-                          View jobs
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            onClick={() => router.push(`/work-orders?engineer=${e.id}`)}
+                            style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 500, color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
+                          >
+                            View jobs
+                          </button>
+                          {canManage && (
+                            <button onClick={() => openEdit(e.id)} title="Edit engineer"
+                              style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z" /></svg>
+                            </button>
+                          )}
+                          {canManage && (
+                            <button onClick={() => { setDeleteError(''); setConfirmDelete(e) }} title="Delete engineer"
+                              style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="12" height="12" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -127,6 +180,35 @@ export default function EngineersPageClient({ engineers, userName, userRole }: P
 
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
       </div>
+
+      <AddUserModal
+        key={editUser?.id ?? 'none'}
+        open={showEdit}
+        onClose={() => { setShowEdit(false); setEditUser(null) }}
+        onSaved={() => router.refresh()}
+        editUser={editUser}
+        managers={managers}
+        currentUserRole={userRole}
+      />
+
+      {confirmDelete && (
+        <Modal open onClose={() => { if (!deleting) setConfirmDelete(null) }} title="Delete field engineer">
+          <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
+            Delete <strong>{confirmDelete.name}</strong>? This removes their account entirely — they’ll disappear from the Users list too and can no longer sign in. This cannot be undone.
+          </div>
+          {deleteError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 10 }}>{deleteError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+            <button onClick={() => setConfirmDelete(null)} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: deleting ? 0.7 : 1 }}>
+              {deleting ? 'Deleting…' : 'Delete engineer'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
