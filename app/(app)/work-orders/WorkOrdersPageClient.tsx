@@ -84,9 +84,10 @@ interface Props {
   userName: string
   userRole: string
   departments: Department[]
+  permissions?: Record<string, boolean>
 }
 
-export default function WorkOrdersPageClient({ workOrders, engineers, alerts, userName, userRole, departments }: Props) {
+export default function WorkOrdersPageClient({ workOrders, engineers, alerts, userName, userRole, departments, permissions = {} }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
@@ -102,6 +103,14 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [deleteError, setDeleteError] = useState('')
 
   const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
+
+  // Same permission-gate semantics as the Users page.
+  function can(key: string) {
+    if (userRole === 'Super Admin' || userRole === 'Head of Service') return true
+    if (Object.keys(permissions).length === 0) return true
+    return permissions[key] === true
+  }
+  const canEdit = can('Work Orders — Create / Edit')
 
   async function handleDelete() {
     if (!confirmDelete) return
@@ -205,10 +214,12 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
           </select>
           <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />
-          <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            New Notification
-          </button>
+          {canEdit && (
+            <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              New Notification
+            </button>
+          )}
         </div>
 
         {warrantyFilter && (

@@ -9,6 +9,7 @@ import {
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
 } from '@/app/actions/get-work-orders'
 import { getCurrentUserSummary } from '@/app/actions/get-current-user'
+import { getMyPermissions } from '@/app/actions/roles-actions'
 import {
   updateWorkOrderStatus, reassignWorkOrderEngineer, updateWorkOrder,
   addAdditionalEngineer, removeAdditionalEngineer, getAdditionalEngineers, type AdditionalEngineerAssignment,
@@ -245,6 +246,7 @@ const cardLabel: React.CSSProperties = {
 export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId: string }) {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState({ name: '', role: '' })
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [engineers, setEngineers] = useState<Engineer[]>([])
 
   const [wo, setWo] = useState<WorkOrder | null>(null)
@@ -303,6 +305,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     getCurrentUserSummary().then(summary => {
       if (summary) setCurrentUser(summary)
     })
+    getMyPermissions().then(({ permissions }) => setPermissions(permissions))
     getDepartments().then(({ departments: depts }) => setDepartments(depts))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrderId])
@@ -357,6 +360,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   }
 
   const canDelete = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
+  const canEdit = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
+    || Object.keys(permissions).length === 0 || permissions['Work Orders — Create / Edit'] === true
 
   async function handleDelete() {
     setDeleting(true)
@@ -878,10 +883,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 <div style={card}>
                   <div style={cardLabel}>Actions</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <button onClick={enterEditMode}
-                      style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
-                      Edit notification
-                    </button>
+                    {canEdit && (
+                      <button onClick={enterEditMode}
+                        style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                        Edit notification
+                      </button>
+                    )}
                     {canDelete && (
                       <button onClick={() => setConfirmDelete(true)}
                         style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>

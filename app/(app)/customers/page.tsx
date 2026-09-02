@@ -1,4 +1,5 @@
 import { getAuthedUser } from '@/lib/cognito/server'
+import { getMyPermissions } from '@/app/actions/roles-actions'
 import CustomersPageClient from './CustomersPageClient'
 import type { Customer } from '@/lib/types'
 import { adminClient } from '@/lib/db/admin-client'
@@ -6,10 +7,11 @@ import { adminClient } from '@/lib/db/admin-client'
 export default async function CustomersPage() {
   const user = await getAuthedUser()
 
-  const [{ data: profile }, { data: custs }, { data: endTypes }] = await Promise.all([
+  const [{ data: profile }, { data: custs }, { data: endTypes }, { permissions }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     adminClient().from('customers').select('*').order('created_at', { ascending: false }),
     adminClient().from('customer_categories').select('id, name').eq('customer_type', 'end_customer_type'),
+    getMyPermissions(),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
@@ -45,5 +47,5 @@ export default async function CustomersPage() {
     }))
   }
 
-  return <CustomersPageClient customers={customers} userName={userName} userRole={userRole} />
+  return <CustomersPageClient customers={customers} userName={userName} userRole={userRole} permissions={permissions} />
 }
