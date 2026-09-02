@@ -214,16 +214,12 @@ interface Props {
   userRole: string
 }
 
-// Org-wide summary of Present / Absent / Late In / Single Punch for the three fixed
-// periods (independent of the grid filter), rendered as a full-width strip of four
-// colour-coded metric cards so it fills the row instead of crowding one corner.
+// Org-wide summary of today's Present / Absent / Late In / Single Punch (independent of
+// the grid filter), rendered as a full-width strip of four colour-coded metric cards.
+// Only today's counts are shown — week/month totals conflated different days and read
+// as confusing next to the single-day grid below.
 function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   if (!stats) return null
-  const periods: { label: string; s: AttendanceStats[keyof AttendanceStats] }[] = [
-    { label: 'Today', s: stats.today },
-    { label: 'This Week', s: stats.thisWeek },
-    { label: 'This Month', s: stats.thisMonth },
-  ]
   const cols: { key: 'present' | 'absent' | 'lateIn' | 'singlePunch'; label: string; color: string; bg: string; border: string }[] = [
     { key: 'present', label: 'Present', color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
     { key: 'absent', label: 'Absent', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
@@ -233,16 +229,12 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
       {cols.map(c => (
-        <div key={c.key} style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>{c.label}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {periods.map(p => (
-              <div key={p.label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--txm)' }}>{p.label}</span>
-                <span style={{ fontSize: 17, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{p.s[c.key]}</span>
-              </div>
-            ))}
+        <div key={c.key} style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>{c.label}</div>
+            <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>Today</div>
           </div>
+          <span style={{ fontSize: 26, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{stats.today[c.key]}</span>
         </div>
       ))}
     </div>
