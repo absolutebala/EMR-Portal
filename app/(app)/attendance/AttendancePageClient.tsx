@@ -382,6 +382,8 @@ export default function AttendancePageClient({ initialRows, initialError, initia
       if (!seenDate.has(row.date)) { seenDate.add(row.date); dateList.push(row.date) }
       cells[`${row.engineerId}:${row.date}`] = row
     }
+    // Field engineers listed A→Z by name by default (case-insensitive, natural order).
+    engList.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }))
     return { engineers: engList, dates: dateList, cellByEngDate: cells }
   }, [rows])
 
@@ -465,7 +467,17 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           ) : engineers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No field engineers found.</div>
           ) : (
-            <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+            <div className="attn-scroll" style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+              {/* Bigger, always-visible scrollbars so the horizontal scroll (extra date
+                  columns) and vertical scroll (long engineer list) are easy to grab. */}
+              <style>{`
+                .attn-scroll { scrollbar-width: auto; scrollbar-color: #b8adb2 #f1ecee; }
+                .attn-scroll::-webkit-scrollbar { width: 16px; height: 16px; }
+                .attn-scroll::-webkit-scrollbar-track { background: #f1ecee; }
+                .attn-scroll::-webkit-scrollbar-thumb { background: #b8adb2; border-radius: 10px; border: 4px solid #f1ecee; }
+                .attn-scroll::-webkit-scrollbar-thumb:hover { background: #9a8d93; }
+                .attn-scroll::-webkit-scrollbar-corner { background: #f1ecee; }
+              `}</style>
               <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
                   <tr>
