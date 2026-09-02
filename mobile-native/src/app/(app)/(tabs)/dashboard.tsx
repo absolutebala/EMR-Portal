@@ -52,7 +52,7 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     case 'leave':
       return {
         bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
-        sub: status.pendingApproval ? 'Amendment pending approval' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
+        sub: status.pendingApproval ? 'Approval is Pending' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
       };
     case 'present': {
       const flags: string[] = [];
@@ -60,7 +60,7 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
       if (status.earlyOut) flags.push('Early Out');
       if (status.singlePunch) flags.push('Single Punch');
       const label = flags.length ? `Present (${flags.join(', ')})` : 'Present';
-      const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Amendment pending approval' : status.amended ? 'Approved' : null) : null;
+      const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Approval is Pending' : status.amended ? 'Approved' : null) : null;
       const bg = flags.length && !status.amended ? (status.rejected ? '#FEE2E2' : '#FEF3C7') : '#D1FAE5';
       const color = flags.length && !status.amended ? (status.rejected ? '#991B1B' : '#92400E') : '#065F46';
       return { bg, color, label, sub };

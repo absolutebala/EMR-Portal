@@ -399,7 +399,7 @@ export default function AttendanceScreen() {
           {isLate && (
             <Text style={styles.markSub}>
               {isPendingApproval
-                ? "Your amendment request is pending your Service Manager's approval."
+                ? 'Approval is Pending.'
                 : todayStatus.kind === 'leave' && todayStatus.rejected
                   ? 'Your previous request was rejected — you can submit again with a new reason.'
                   : "The 10:00 AM window has passed (Late In) — this will need your Service Manager's approval."}

@@ -9,6 +9,7 @@ import { getDepartments, getProfileDepartmentIds } from '@/app/actions/departmen
 import type { UserRole, Profile } from '@/lib/types'
 import type { Department } from '@/lib/departments'
 import { GRADES } from '@/lib/travelGuidelines'
+import { buildCredentialsText, FIELD_APP_URL } from '@/lib/credentialsText'
 
 interface Props {
   open: boolean
@@ -88,7 +89,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
 
   async function copyPassword() {
     if (!tempPassword) return
-    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${form.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    const text = buildCredentialsText(form.email, tempPassword, form.role)
     await navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
@@ -187,7 +188,11 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </button>
           </div>
           <div style={{ marginTop: 10, fontSize: 11, color: '#1E40AF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '8px 10px', textAlign: 'left', lineHeight: 1.5 }}>
-            Share via WhatsApp or email. The user logs in at <strong>{process.env.NEXT_PUBLIC_SITE_URL}</strong> with their email + this password. They will be prompted to change it immediately.
+            {form.role === 'Field Engineer' ? (
+              <>Share via WhatsApp or email. The engineer installs the EMR Field app (<strong>{FIELD_APP_URL}</strong>) and signs in with their email + this password. They will be prompted to change it immediately.</>
+            ) : (
+              <>Share via WhatsApp or email. The user logs in at <strong>{process.env.NEXT_PUBLIC_SITE_URL}</strong> with their email + this password. They will be prompted to change it immediately.</>
+            )}
           </div>
         </div>
       </Modal>

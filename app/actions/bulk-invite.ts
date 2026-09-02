@@ -19,6 +19,7 @@ export interface BulkUserRow {
 export interface BulkInviteResult {
   email: string
   name: string
+  role?: string
   status: 'success' | 'error'
   tempPassword?: string
   error?: string
@@ -84,7 +85,7 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
 
     await admin.from('user_module_access').insert({ user_id: profileId, module: 'field_management' })
 
-    results.push({ email: user.email, name, status: 'success', tempPassword })
+    results.push({ email: user.email, name, role: user.role, status: 'success', tempPassword })
   }
 
   return results

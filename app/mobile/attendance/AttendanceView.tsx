@@ -497,7 +497,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
             {isLate && (
               <p style={{ fontSize: 11, color: '#7A6870', lineHeight: 1.5, margin: '0 0 10px' }}>
                 {isPendingApproval
-                  ? "Your amendment request is pending your Service Manager's approval."
+                  ? 'Approval is Pending.'
                   : todayStatus.kind === 'leave' && todayStatus.rejected
                     ? 'Your previous request was rejected — you can submit again with a new reason.'
                     : "The 10:00 AM window has passed (Late In) — this will need your Service Manager's approval."}

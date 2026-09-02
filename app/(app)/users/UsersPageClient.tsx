@@ -12,6 +12,7 @@ import { RoleBadge, StatusBadge } from '@/components/ui/Badge'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { resendInvite } from '@/app/actions/resend-invite'
 import { resetUserPassword } from '@/app/actions/reset-user-password'
+import { buildCredentialsText } from '@/lib/credentialsText'
 import type { Profile } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED', '#DC2626', '#1E3A5F']
@@ -87,7 +88,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
     const { tempPassword, error } = await resendInvite(user.email)
     setInviteLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to generate password'); return }
-    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    const text = buildCredentialsText(user.email, tempPassword, user.role)
     await navigator.clipboard.writeText(text)
     setInviteCopied(user.id)
     setTimeout(() => setInviteCopied(null), 2500)
@@ -98,7 +99,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
     const { tempPassword, error } = await resetUserPassword(user.email)
     setResetLoading(null)
     if (error || !tempPassword) { alert(error || 'Failed to reset password'); return }
-    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${user.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+    const text = buildCredentialsText(user.email, tempPassword, user.role)
     await navigator.clipboard.writeText(text)
     setResetCopied(user.id)
     setTimeout(() => setResetCopied(null), 2500)

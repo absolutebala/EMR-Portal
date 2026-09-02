@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Modal from '@/components/ui/Modal'
 import { bulkInviteUsers, type BulkUserRow, type BulkInviteResult } from '@/app/actions/bulk-invite'
+import { buildCredentialsText } from '@/lib/credentialsText'
 
 const VALID_ROLES = ['Super Admin', 'Head of Service', 'Service Manager', 'Field Engineer', 'Sales Executive Engineer', 'Inventory Team', 'Dispatch Team', 'Reporting Team']
 
@@ -120,8 +121,8 @@ export default function BulkUploadModal({ open, onClose, onSaved }: Props) {
     onSaved()
   }
 
-  async function copyPassword(email: string, tempPassword: string, idx: number) {
-    const text = `EMR Portal Login Details\n\nURL: ${process.env.NEXT_PUBLIC_SITE_URL}\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in and set your own password when prompted.`
+  async function copyPassword(email: string, tempPassword: string, idx: number, role?: string | null) {
+    const text = buildCredentialsText(email, tempPassword, role)
     await navigator.clipboard.writeText(text)
     setCopiedIdx(idx)
     setTimeout(() => setCopiedIdx(null), 2500)
@@ -268,7 +269,7 @@ export default function BulkUploadModal({ open, onClose, onSaved }: Props) {
                 </div>
                 {r.status === 'success' && r.tempPassword && (
                   <button
-                    onClick={() => copyPassword(r.email, r.tempPassword!, i)}
+                    onClick={() => copyPassword(r.email, r.tempPassword!, i, r.role)}
                     style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--gm)', background: copiedIdx === i ? '#D1FAE5' : '#fff', color: copiedIdx === i ? '#065F46' : 'var(--tx)', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}
                   >
                     {copiedIdx === i
