@@ -102,8 +102,6 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
-
   // Same permission-gate semantics as the Users page.
   function can(key: string) {
     if (userRole === 'Super Admin' || userRole === 'Head of Service') return true
@@ -111,6 +109,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     return permissions[key] === true
   }
   const canEdit = can('Notifications — Create / Edit')
+  const canDelete = can('Notifications — Delete')
 
   async function handleDelete() {
     if (!confirmDelete) return

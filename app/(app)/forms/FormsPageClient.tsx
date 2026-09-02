@@ -19,11 +19,17 @@ interface Props {
   forms: Form[]
   userName: string
   userRole: string
+  permissions?: Record<string, boolean>
 }
 
-export default function FormsPageClient({ forms, userName, userRole }: Props) {
+export default function FormsPageClient({ forms, userName, userRole, permissions = {} }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  // Same permission-gate semantics as the Users page. There's no read-only form
+  // viewer — the "Preview" button opens the editable builder — so every form action
+  // (open builder, duplicate, publish, delete, assign) is gated on Create / Edit.
+  const canEdit = userRole === 'Super Admin' || userRole === 'Head of Service'
+    || Object.keys(permissions).length === 0 || permissions['Forms — Create / Edit'] === true
   const [jobFilter, setJobFilter] = useState('')
   const [showBuilder, setShowBuilder] = useState(false)
   const [editForm, setEditForm] = useState<Form | null>(null)
@@ -129,6 +135,7 @@ export default function FormsPageClient({ forms, userName, userRole }: Props) {
                   <span style={{ fontSize: 11, color: 'var(--txm)' }}>Updated {formatDate(f.updated_at)}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {canEdit && (<>
                   <button onClick={() => { setAssignForm(f) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--mb)', borderRadius: 6, background: 'var(--mp)', color: 'var(--m)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Assign</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Edit</button>
                   <button onClick={() => { setEditForm(f); setShowBuilder(true) }} style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Preview</button>
@@ -150,6 +157,7 @@ export default function FormsPageClient({ forms, userName, userRole }: Props) {
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
                     Delete
                   </button>
+                  </>)}
                 </div>
               </div>
             ))}

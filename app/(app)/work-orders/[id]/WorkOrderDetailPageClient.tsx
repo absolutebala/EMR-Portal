@@ -359,9 +359,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     setError('')
   }
 
-  const canDelete = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
-  const canEdit = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service'
-    || Object.keys(permissions).length === 0 || permissions['Notifications — Create / Edit'] === true
+  const isFullAccess = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service' || Object.keys(permissions).length === 0
+  const canEdit = isFullAccess || permissions['Notifications — Create / Edit'] === true
+  const canDelete = isFullAccess || permissions['Notifications — Delete'] === true
+  const canViewMom = isFullAccess || permissions['MoM — View / Download'] === true
 
   async function handleDelete() {
     setDeleting(true)
@@ -659,7 +660,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 </div>
               ) : (
                 <>
-                  {isComplete && (
+                  {isComplete && canViewMom && (
                     <div style={{ ...card, background: '#F0FDF4', border: '1px solid #A7F3D0' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46', marginBottom: 8 }}>MoM — Minutes of Meeting</div>
                       {[
