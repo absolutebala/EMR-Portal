@@ -34,7 +34,7 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
       return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' }
     case 'leave':
       return {
-        bg: '#FEE2E2', color: '#991B1B', label: 'Leave',
+        bg: '#FEE2E2', color: '#991B1B', label: 'Absent',
         sub: status.pendingApproval ? 'Approval is Pending' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
       }
     case 'present': {

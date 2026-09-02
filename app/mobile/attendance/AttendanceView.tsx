@@ -36,7 +36,7 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
       const color = status.rejected ? '#991B1B' : status.pendingApproval ? '#92400E' : '#065F46'
       return { bg, color, label: `Present (${flags.join(', ')})` }
     }
-    case 'leave': return { bg: '#FEE2E2', color: '#991B1B', label: status.pendingApproval ? 'Leave — pending approval' : status.rejected ? 'Leave — amendment rejected' : 'Leave' }
+    case 'leave': return { bg: '#FEE2E2', color: '#991B1B', label: status.pendingApproval ? 'Absent — pending approval' : status.rejected ? 'Absent — amendment rejected' : 'Absent' }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' }
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` }
     case 'weekly_off': return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off' }
@@ -56,7 +56,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
-    case 'leave': return s.rejected ? 'Leave (amendment rejected)' : s.pendingApproval ? 'Leave (pending approval)' : 'Leave'
+    case 'leave': return s.rejected ? 'Absent (amendment rejected)' : s.pendingApproval ? 'Absent (pending approval)' : 'Absent'
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'

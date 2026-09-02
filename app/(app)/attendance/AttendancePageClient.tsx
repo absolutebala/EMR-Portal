@@ -48,7 +48,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
-    case 'leave': return s.rejected ? 'Leave (amendment rejected)' : s.pendingApproval ? 'Leave (pending approval)' : 'Leave'
+    case 'leave': return s.rejected ? 'Absent (amendment rejected)' : s.pendingApproval ? 'Absent (pending approval)' : 'Absent'
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
