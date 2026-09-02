@@ -77,6 +77,9 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [navigating, setNavigating] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  // Hover tooltip for the collapsed rail — position:fixed so it isn't clipped by the
+  // nav's scroll overflow. { label, top } where top is the icon row's vertical centre.
+  const [tip, setTip] = useState<{ label: string; top: number } | null>(null)
 
   useEffect(() => {
     setNavigating(null)
@@ -129,6 +132,13 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
       >
         <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: collapsed ? 'none' : 'rotate(180deg)' }}><polyline points="9 18 15 12 9 6" /></svg>
       </button>
+
+      {/* Hover label for the collapsed rail — fixed so it escapes the nav's scroll clip. */}
+      {collapsed && tip && (
+        <div style={{ position: 'fixed', left: 72, top: tip.top, transform: 'translateY(-50%)', background: '#1C0D14', color: '#fff', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 400, boxShadow: '0 4px 14px rgba(0,0,0,.4)' }}>
+          {tip.label}
+        </div>
+      )}
       {/* Brand */}
       <div style={{ padding: collapsed ? '18px 8px 14px' : '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' }}>
@@ -199,7 +209,7 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
                   <div
                     key={item.path}
                     onClick={() => navigate(item.path)}
-                    title={collapsed ? item.label : undefined}
+                    aria-label={item.label}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10, padding: collapsed ? '9px 0' : '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2,
                       background: active || isLoading ? 'var(--m)' : 'transparent',
@@ -207,8 +217,8 @@ export default function Sidebar({ userName, userRole, permissions, modules, user
                       fontWeight: active || isLoading ? 500 : 400, fontSize: 12,
                       transition: 'all .15s',
                     }}
-                    onMouseEnter={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } }}
-                    onMouseLeave={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } }}
+                    onMouseEnter={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.85)' } if (collapsed) { const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect(); setTip({ label: item.label, top: r.top + r.height / 2 }) } }}
+                    onMouseLeave={e => { if (!active && !isLoading) { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; (e.currentTarget as HTMLDivElement).style.color = 'rgba(255,255,255,.52)' } if (collapsed) setTip(null) }}
                   >
                     {isLoading ? (
                       <span style={{ flexShrink: 0, width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
