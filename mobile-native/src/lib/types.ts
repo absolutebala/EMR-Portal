@@ -125,29 +125,34 @@ export interface PendingProductItem {
 }
 
 // Mirrors lib/mobile/core/attendance.ts's AttendanceEffectiveStatus on the backend.
+// Both 'present' and 'leave' (= Absent) share the same day shape — a caused day is
+// Absent (late in / short hours / single punch) unless an amendment is approved, at
+// which point it becomes Present with the cause noted. earlyOut carries the Short Hours
+// cause (< 6h gross); endDayEnableAt is always null now (Punch Out has no time gate).
+export interface AttendanceDay {
+  reason: string | null;
+  pendingApproval: boolean;
+  rejected: boolean;
+  amended: boolean;
+  lateIn: boolean;
+  earlyOut: boolean;
+  singlePunch: boolean;
+  noShow: boolean;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  markedAt: string | null;
+  placeName: string | null;
+  endDayAt: string | null;
+  endDayPlaceName: string | null;
+  endDayEnableAt: string | null;
+}
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | {
-      kind: 'present';
-      reason: string | null;
-      pendingApproval: boolean;
-      rejected: boolean;
-      amended: boolean;
-      lateIn: boolean;
-      earlyOut: boolean;
-      singlePunch: boolean;
-      approvedByName: string | null;
-      approvedAt: string | null;
-      markedAt: string | null;
-      placeName: string | null;
-      endDayAt: string | null;
-      endDayPlaceName: string | null;
-      endDayEnableAt: string | null;
-    };
+  | ({ kind: 'leave' } & AttendanceDay)
+  | ({ kind: 'present' } & AttendanceDay);
 
 export interface AttendanceCalendarDay {
   date: string;
@@ -192,6 +197,15 @@ export interface MarkEndDayResponse {
 export interface MarkAttendanceResponse {
   error: string | null;
   needsApproval: boolean;
+}
+
+export interface RequestAmendmentVariables {
+  attendanceDate: string;
+  reason: string;
+}
+
+export interface RequestAmendmentResponse {
+  error: string | null;
 }
 
 export interface DashboardResponse {

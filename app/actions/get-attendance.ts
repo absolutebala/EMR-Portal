@@ -116,7 +116,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
-      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, place_name, reason, approval_status, approved_by, approved_at, late_in, early_out, single_punch, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('id, engineer_id, attendance_date, status, marked_at, place_name, reason, approval_status, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
@@ -232,6 +232,7 @@ export interface AttendancePeriodStats {
   present: number
   absent: number
   lateIn: number
+  shortHours: number
   singlePunch: number
 }
 export interface AttendanceStats {
@@ -267,7 +268,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const [{ data: profiles, error: profErr }, { data: attRows }, { data: holidays }] = await Promise.all([
       admin.from('profiles').select('id, created_at').eq('role', 'Field Engineer'),
       admin.from('attendance')
-        .select('engineer_id, attendance_date, status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, end_day_at, end_day_place_name')
+        .select('engineer_id, attendance_date, status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name')
         .gte('attendance_date', fetchFrom).lte('attendance_date', todayStr),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', fetchFrom).lte('holiday_date', todayStr),
     ])
@@ -283,7 +284,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
     function tally(from: string, to: string): AttendancePeriodStats {
-      const acc: AttendancePeriodStats = { present: 0, absent: 0, lateIn: 0, singlePunch: 0 }
+      const acc: AttendancePeriodStats = { present: 0, absent: 0, lateIn: 0, shortHours: 0, singlePunch: 0 }
       for (let dt = new Date(`${from}T00:00:00Z`); dt <= new Date(`${to}T00:00:00Z`); dt.setUTCDate(dt.getUTCDate() + 1)) {
         const dateStr = dt.toISOString().slice(0, 10)
         for (const eng of engineers) {
@@ -291,12 +292,15 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
             dateStr, todayStr, row: rowByKey[`${eng.id}:${dateStr}`] ?? null,
             holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr: eng.createdAtDate,
           })
-          if (s.kind === 'present') {
-            acc.present++
+          if (s.kind === 'present') acc.present++
+          else if (s.kind === 'leave') acc.absent++
+          // Causes are counted whether the day ended up Present (approved amendment) or
+          // Absent — the card reflects how many days carried each cause. earlyOut now
+          // holds the Short Hours (< 6h gross) cause.
+          if (s.kind === 'present' || s.kind === 'leave') {
             if (s.lateIn) acc.lateIn++
+            if (s.earlyOut) acc.shortHours++
             if (s.singlePunch) acc.singlePunch++
-          } else if (s.kind === 'leave') {
-            acc.absent++
           }
         }
       }

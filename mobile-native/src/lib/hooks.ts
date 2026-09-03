@@ -15,7 +15,7 @@ import type {
   ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
-  MarkEndDayVariables, MarkEndDayResponse,
+  MarkEndDayVariables, MarkEndDayResponse, RequestAmendmentVariables, RequestAmendmentResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
 } from './types';
@@ -262,6 +262,21 @@ export function useMarkEndDay() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (variables: MarkEndDayVariables) => apiPost<MarkEndDayResponse>('/api/mobile/v1/attendance/end-day', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// The one and only path that notifies the Service Manager — an Absent day (or past
+// no-show) the engineer explicitly asks to have reviewed. Punch In / Punch Out never
+// auto-request; this is the deliberate opt-in.
+export function useRequestAmendment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: RequestAmendmentVariables) => apiPost<RequestAmendmentResponse>('/api/mobile/v1/attendance/request-amendment', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });

@@ -32,15 +32,21 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
   switch (status.kind) {
     case 'pending':
       return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' }
-    case 'leave':
+    case 'leave': {
+      const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       return {
-        bg: '#FEE2E2', color: '#991B1B', label: 'Absent',
-        sub: status.pendingApproval ? 'Approval is Pending' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
+        bg: '#FEE2E2', color: '#991B1B', label: causes ? `Absent (${causes})` : 'Absent',
+        sub: status.pendingApproval ? 'Approval is Pending'
+          : status.rejected ? 'Amendment rejected — request again'
+          : status.markedAt && !status.endDayAt ? 'Punch out to finish your day'
+          : status.noShow ? 'Attendance not marked today'
+          : 'Request an amendment',
       }
+    }
     case 'present': {
       const flags: string[] = []
       if (status.lateIn) flags.push('Late In')
-      if (status.earlyOut) flags.push('Early Out')
+      if (status.earlyOut) flags.push('Short Hours')
       if (status.singlePunch) flags.push('Single Punch')
       const label = flags.length ? `Present (${flags.join(', ')})` : 'Present'
       const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Approval is Pending' : status.amended ? 'Approved' : null) : null
@@ -157,10 +163,14 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   const endDayCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
   const endDayPlaceNameRef = useRef('')
   const endDayGpsRequestedRef = useRef(false)
-  const effectiveAttendanceStatus = attendanceStatus.kind === 'present' && endDayOverride && !attendanceStatus.endDayAt
+  // A punched-in day that hasn't been punched out yet — Present (on-time) or Absent
+  // (late punch-in) both still need a Punch Out, so the dashboard offers it for both.
+  const punchedInNotOut = (attendanceStatus.kind === 'present' || attendanceStatus.kind === 'leave')
+    && !!attendanceStatus.markedAt && !attendanceStatus.endDayAt
+  const effectiveAttendanceStatus = punchedInNotOut && endDayOverride
     ? { ...attendanceStatus, endDayAt: endDayOverride.endDayAt, endDayPlaceName: endDayOverride.endDayPlaceName }
     : attendanceStatus
-  const canEndDay = attendanceStatus.kind === 'present' && !attendanceStatus.endDayAt && !endDayOverride
+  const canEndDay = punchedInNotOut && !endDayOverride
 
   // GPS captures silently in the background as soon as End Day becomes available —
   // same single-step pattern as the Attendance tab — so the button below is a genuine
@@ -633,27 +643,32 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
 
         {(() => {
           const status = effectiveAttendanceStatus
+
           const cfg = attendanceCardStyle(status)
 
-          if (status.kind === 'present') {
+          // Detailed card for any punched-in day (Present on-time, or Absent late-in) —
+          // shows check-in/out times and, until punched out, a Punch Out button.
+          if ((status.kind === 'present' || status.kind === 'leave') && status.markedAt) {
             const ended = !!status.endDayAt
+            const bigLabel = ended && status.kind === 'present'
+              ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}`
+              : cfg.label
             return (
               <div style={{ marginBottom: 12, padding: '13px 14px', borderRadius: 12, background: cfg.bg, fontFamily: 'Poppins, sans-serif' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>
-                      {ended && status.markedAt ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}` : cfg.label}
+                    <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{bigLabel}</div>
+                    <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
+                      Punched in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
                     </div>
-                    {status.markedAt && (
-                      <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
-                        Checked in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
-                      </div>
-                    )}
                     {ended && (
                       <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
-                        Checked out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
+                        Punched out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
                       </div>
+                    )}
+                    {ended && cfg.sub && (
+                      <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>
                     )}
                     {status.amended && status.approvedByName && (
                       <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>
@@ -668,10 +683,19 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                       disabled={endingDay}
                       style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 700, cursor: endingDay ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', flexShrink: 0 }}
                     >
-                      {endingDay ? 'Saving…' : 'End Day'}
+                      {endingDay ? 'Saving…' : 'Punch Out'}
                     </button>
                   )}
                 </div>
+                {ended && status.kind === 'leave' && !status.pendingApproval && (
+                  <button
+                    className="mtap"
+                    onClick={() => router.push('/mobile/attendance')}
+                    style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #991B1B', background: 'transparent', color: '#991B1B', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Request Amendment
+                  </button>
+                )}
                 {!!endDayError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{endDayError}</div>}
               </div>
             )

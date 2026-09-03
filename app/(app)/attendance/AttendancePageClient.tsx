@@ -42,13 +42,17 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     case 'present': {
       const flags: string[] = []
       if (s.lateIn) flags.push('Late In')
-      if (s.earlyOut) flags.push('Early Out')
+      if (s.earlyOut) flags.push('Short Hours')
       if (s.singlePunch) flags.push('Single Punch')
       if (!flags.length) return 'Present'
       const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
-    case 'leave': return s.rejected ? 'Absent (amendment rejected)' : s.pendingApproval ? 'Absent (pending approval)' : 'Absent'
+    case 'leave': {
+      const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
+      const suffix = s.rejected ? ' — amendment rejected' : s.pendingApproval ? ' — pending approval' : ''
+      return `Absent${causes ? ` (${causes})` : ''}${suffix}`
+    }
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
@@ -164,7 +168,7 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
       )}
       {row.endDayAt && (
         <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
-          End day: {formatTime(row.endDayAt)}{row.endDayPlaceName ? ` — ${row.endDayPlaceName}` : ''}
+          Punched out: {formatTime(row.endDayAt)}{row.endDayPlaceName ? ` — ${row.endDayPlaceName}` : ''}
         </div>
       )}
     </div>
@@ -214,20 +218,21 @@ interface Props {
   userRole: string
 }
 
-// Org-wide summary of today's Present / Absent / Late In / Single Punch (independent of
-// the grid filter), rendered as a full-width strip of four colour-coded metric cards.
-// Only today's counts are shown — week/month totals conflated different days and read
-// as confusing next to the single-day grid below.
+// Org-wide summary of today's Present / Absent / Late In / Short Hours / Single Punch
+// (independent of the grid filter), rendered as a full-width strip of colour-coded metric
+// cards. Only today's counts are shown — week/month totals conflated different days and
+// read as confusing next to the single-day grid below.
 function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   if (!stats) return null
-  const cols: { key: 'present' | 'absent' | 'lateIn' | 'singlePunch'; label: string; color: string; bg: string; border: string }[] = [
+  const cols: { key: 'present' | 'absent' | 'lateIn' | 'shortHours' | 'singlePunch'; label: string; color: string; bg: string; border: string }[] = [
     { key: 'present', label: 'Present', color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
     { key: 'absent', label: 'Absent', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
     { key: 'lateIn', label: 'Late In', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+    { key: 'shortHours', label: 'Short Hours', color: '#9A3412', bg: '#FFF7ED', border: '#FED7AA' },
     { key: 'singlePunch', label: 'Single Punch', color: '#5B21B6', bg: '#F5F3FF', border: '#DDD6FE' },
   ]
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
       {cols.map(c => (
         <div key={c.key} style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div>
@@ -289,7 +294,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     setExportError('')
     if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const headers = ['Engineer', 'Date', 'Attendance Status', 'Marked At', 'Marked At Location', 'Reason', 'Approved By', 'Approved Date', 'End Day At', 'End Day Location', 'Project Name', 'Job Status']
+    const headers = ['Engineer', 'Date', 'Attendance Status', 'Punched In At', 'Punch In Location', 'Reason', 'Approved By', 'Approved Date', 'Punched Out At', 'Punch Out Location', 'Project Name', 'Job Status']
 
     const byEngineer = new Map<string, { name: string; rows: AttendanceOverviewRow[] }>()
     for (const row of rows) {

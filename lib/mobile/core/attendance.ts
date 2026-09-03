@@ -3,24 +3,25 @@
 // (app/api/mobile/v1/attendance/*), plus the desktop manager-approval/export surface
 // (app/(app)/attendance/AttendancePageClient.tsx).
 //
-// Policy: Punch In and Punch Out are both required every working day, for a combined
-// minimum duration of 8:45 hours (this already includes a 45-minute lunch break, so
-// the raw Punch In -> Punch Out span is what's checked, not "working time" net of
-// lunch). Three violations can each independently put a day up for manager approval:
-//   - Late In: Punch In after 10:00am IST.
-//   - Early Out: Punch In -> Punch Out span under 8:45 hours.
+// Policy: Punch In and Punch Out are both required every working day. A day is Present
+// only when the engineer punched in by 10:00am IST, punched out, and the gross span
+// (Punch Out − Punch In) is at least 6 hours. Any of these causes makes the day ABSENT:
+//   - Late In: Punch In at/after 10:00am IST.
+//   - Short Hours: Punch In -> Punch Out span under 6 hours (stored in short_hours; the
+//     legacy early_out column is no longer written and its value is surfaced as
+//     `earlyOut` for backward compatibility only).
 //   - Single Punch: Punch In with no Punch Out by the time the day rolls over.
-// A day with any of these still displays as Present (not Leave) — the violation is a
-// flag on top of Present, resolved by manager approval, not a reclassification to
-// absent. This matches the "provisional Present, finalized at Punch Out" design: an
-// engineer's day shows Present the moment they punch in, and late_in/early_out/
-// single_punch settle in as Punch Out happens (or the day ends without one).
+//   - No Show: never punched in (computed on read, no row).
+// Punch In / Punch Out only RECORD — they never auto-open an approval or notify anyone.
+// A caused (or no-show) day is Absent, and the engineer separately taps "Request
+// Amendment" (requestAttendanceAmendmentCore, the one and only notifier) to send it to
+// the Service Manager. If approved the day becomes Present (with the cause noted, e.g.
+// "late punch in"); if rejected it stays Absent and can be requested again.
 //
-// An unmarked day is never written as an explicit "Leave" row — it's computed on read
-// ("no present row for this engineer+date, and it's past the 10am IST Late In cutoff
-// or a past date" -> Leave). Single Punch is the one exception that DOES need a
-// write-back once discovered (see resolveOverdueSinglePunches below), since it has to
-// surface as a real pending-approval row for managers, not just a read-time label.
+// An unmarked day is never written as an explicit row — it's computed on read ("no row
+// for this engineer+date, and it's past the 10am IST cutoff or a past date" -> Absent /
+// No Show). Single Punch is the one exception that DOES need a write-back once discovered
+// (see resolveOverdueSinglePunches below), so it surfaces as a real row managers can see.
 //
 // All date/time comparisons here explicitly pin Asia/Kolkata — unlike the ambient
 // `toLocaleDateString('en-CA')` shortcut used elsewhere in this codebase, which
@@ -29,10 +30,8 @@ import { type AdminClient, withTimeout } from './shared'
 import { notifyUsers } from '@/lib/notifications'
 
 const IST_TZ = 'Asia/Kolkata'
-const LATE_IN_HOUR = 10 // 10:00 AM IST — Punch In after this is "Late In"
-const REQUIRED_DURATION_MIN = 8 * 60 + 45 // 8:45 hours, includes the 45-min lunch break
-const END_DAY_FIXED_HOUR = 18
-const END_DAY_FIXED_MINUTE = 45 // 6:45 PM IST
+const LATE_IN_HOUR = 10 // 10:00 AM IST — Punch In at/after this hour is "Late In"
+const MIN_DURATION_MIN = 6 * 60 // 6 hours gross (Punch Out − Punch In); under this is "Short Hours"
 
 export function getISTDateStr(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: IST_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
@@ -43,25 +42,9 @@ function getISTHour(date: Date): number {
   return parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10)
 }
 
+// Punch In at 10:00 AM IST or later is "Late In".
 export function isPastAttendanceCutoff(date: Date = new Date()): boolean {
   return getISTHour(date) >= LATE_IN_HOUR
-}
-
-// Earliest moment End Day/Punch Out becomes available for a given Punch In time:
-// whichever comes first between the fixed 6:45pm IST floor and 8:45 hours after
-// Punch In. A normal on-time Punch In hits its 8:45-hour mark before 6:45pm, so the
-// button opens right when the required duration is complete; a late Punch In hits
-// 6:45pm first, so the button still opens at a fixed end-of-day time rather than
-// forcing an unreasonably late Punch Out — any resulting shortfall is simply flagged
-// Early Out for approval.
-export function getEndDayEnableAt(markedAt: Date): Date {
-  const dateStr = getISTDateStr(markedAt)
-  // IST midnight of that calendar date, expressed as the UTC instant it actually is
-  // (IST is UTC+5:30, so it falls 5.5 hours before the UTC-labeled midnight).
-  const istMidnightUtcMs = new Date(`${dateStr}T00:00:00.000Z`).getTime() - 5.5 * 60 * 60000
-  const fixedFloor = new Date(istMidnightUtcMs + (END_DAY_FIXED_HOUR * 60 + END_DAY_FIXED_MINUTE) * 60000)
-  const durationFloor = new Date(markedAt.getTime() + REQUIRED_DURATION_MIN * 60000)
-  return durationFloor.getTime() <= fixedFloor.getTime() ? durationFloor : fixedFloor
 }
 
 // Date-only strings parse as UTC midnight, so .getUTCDay() reads the weekday of the
@@ -89,10 +72,40 @@ export interface AttendanceRowCore {
   late_in: boolean
   early_out: boolean
   single_punch: boolean
+  short_hours: boolean
   // Only selected by callers that need it (e.g. getAttendanceCalendarCore) — optional
   // since computeEffectiveStatus itself never reads these.
   end_day_at?: string | null
   end_day_place_name?: string | null
+}
+
+// Shared shape for a working day the engineer has (or should have) attendance for.
+// 'present' = the day counts as Present (on time + >=6h, OR an approved amendment).
+// 'leave' = Absent — any unapproved cause (late in / short hours / single punch) or a
+// no-show. Both carry the full punch-in/out detail so an Absent day still shows when
+// they punched in/out and why it didn't count.
+interface AttendanceDay {
+  reason: string | null
+  pendingApproval: boolean
+  rejected: boolean
+  amended: boolean
+  lateIn: boolean
+  // 'earlyOut' now carries the Short Hours cause (< 6h gross) — kept under this name so
+  // existing consumers keep compiling; surfaced as "Short Hours" in the UI.
+  earlyOut: boolean
+  singlePunch: boolean
+  // No punch-in at all (never marked). Distinguishes a plain Absent from a punched-in
+  // day that fell short.
+  noShow: boolean
+  approvedByName: string | null
+  approvedAt: string | null
+  markedAt: string | null
+  placeName: string | null
+  endDayAt: string | null
+  endDayPlaceName: string | null
+  // Retained for shape compatibility; there is no longer a Punch Out enable gate, so
+  // this is always null (Punch Out is available any time after Punch In).
+  endDayEnableAt: string | null
 }
 
 export type AttendanceEffectiveStatus =
@@ -100,26 +113,8 @@ export type AttendanceEffectiveStatus =
   | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
-  | { kind: 'leave'; pendingApproval: boolean; rejected: boolean; reason: string | null; markedAt: string | null; approvedByName: string | null; approvedAt: string | null }
-  | {
-      kind: 'present'
-      reason: string | null
-      pendingApproval: boolean
-      rejected: boolean
-      amended: boolean
-      lateIn: boolean
-      earlyOut: boolean
-      singlePunch: boolean
-      approvedByName: string | null
-      approvedAt: string | null
-      markedAt: string | null
-      placeName: string | null
-      endDayAt: string | null
-      endDayPlaceName: string | null
-      // ISO timestamp of when End Day becomes available; null once already ended or
-      // if there's no marked_at to compute from.
-      endDayEnableAt: string | null
-    }
+  | ({ kind: 'leave' } & AttendanceDay)
+  | ({ kind: 'present' } & AttendanceDay)
 
 export function computeEffectiveStatus(params: {
   dateStr: string
@@ -130,44 +125,62 @@ export function computeEffectiveStatus(params: {
 }): AttendanceEffectiveStatus {
   const { dateStr, todayStr, row, holidayName, profileCreatedAtDateStr } = params
 
-  if (row && row.status === 'present') {
-    const endDayAt = row.end_day_at ?? null
-    return {
-      kind: 'present',
+  // A row exists = the engineer punched in (marked_at). Derive Present vs Absent from
+  // the causes + amendment decision.
+  if (row && (row.status === 'present' || row.status === 'leave')) {
+    const lateIn = row.late_in
+    const shortHours = row.short_hours
+    const singlePunch = row.single_punch
+    const approved = row.approval_status === 'approved'
+    const rejected = row.approval_status === 'rejected'
+    const pending = row.approval_status === 'pending'
+    const hasCause = lateIn || shortHours || singlePunch
+
+    const common: AttendanceDay = {
       reason: row.reason,
-      pendingApproval: row.approval_status === 'pending',
-      rejected: row.approval_status === 'rejected',
-      amended: row.approval_status === 'approved',
-      lateIn: row.late_in,
-      earlyOut: row.early_out,
-      singlePunch: row.single_punch,
+      pendingApproval: pending,
+      rejected,
+      amended: approved,
+      lateIn,
+      earlyOut: shortHours,
+      singlePunch,
+      noShow: false,
       approvedByName: row.approved_by_name,
       approvedAt: row.approved_at,
       markedAt: row.marked_at,
       placeName: row.place_name,
-      endDayAt,
+      endDayAt: row.end_day_at ?? null,
       endDayPlaceName: row.end_day_place_name ?? null,
-      endDayEnableAt: !endDayAt && row.marked_at ? getEndDayEnableAt(new Date(row.marked_at)).toISOString() : null,
+      endDayEnableAt: null,
     }
-  }
 
-  // An explicit self-marked Leave (e.g. via the mobile "On Leave" status prompt,
-  // see setEngineerStatusCore) — distinct from the auto-computed "no row at all"
-  // case below, since this one carries a real timestamp of when it was set.
-  if (row && row.status === 'leave') {
-    return { kind: 'leave', pendingApproval: false, rejected: false, reason: row.reason, markedAt: row.marked_at, approvedByName: null, approvedAt: null }
+    // Approved amendment, or a clean punched-in day (on time + >=6h + punched out) with
+    // no pending request = Present. A pending or rejected amendment is Absent regardless
+    // of cause; and a day with an unresolved cause the engineer hasn't yet requested an
+    // amendment for is Absent (with the amendment available to them).
+    if (approved) return { kind: 'present', ...common }
+    if (pending || rejected) return { kind: 'leave', ...common }
+    if (hasCause) return { kind: 'leave', ...common }
+    return { kind: 'present', ...common }
   }
 
   if (holidayName) return { kind: 'holiday', name: holidayName }
   if (isSunday(dateStr)) return { kind: 'weekly_off' }
   if (profileCreatedAtDateStr && dateStr < profileCreatedAtDateStr) return { kind: 'not_applicable' }
 
+  const absentNoShow = (): AttendanceEffectiveStatus => ({
+    kind: 'leave', reason: null, pendingApproval: false, rejected: false, amended: false,
+    lateIn: false, earlyOut: false, singlePunch: false, noShow: true,
+    approvedByName: null, approvedAt: null, markedAt: null, placeName: null,
+    endDayAt: null, endDayPlaceName: null, endDayEnableAt: null,
+  })
+
   if (dateStr === todayStr) {
-    return isPastAttendanceCutoff()
-      ? { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null, approvedByName: null, approvedAt: null }
-      : { kind: 'pending' }
+    // Before 10 AM with no punch-in: still on time to punch in. After 10 AM: the day is
+    // provisionally Absent, but punch-in stays open (a late punch-in then applies).
+    return isPastAttendanceCutoff() ? absentNoShow() : { kind: 'pending' }
   }
-  if (dateStr < todayStr) return { kind: 'leave', pendingApproval: false, rejected: false, reason: null, markedAt: null, approvedByName: null, approvedAt: null }
+  if (dateStr < todayStr) return absentNoShow() // a past day with no punch-in is Absent
   return { kind: 'not_applicable' } // future date
 }
 
@@ -186,15 +199,24 @@ export async function resolveApprovedByNames(admin: AdminClient, approvedByIds: 
 export function getAttendanceStatusLabel(s: AttendanceEffectiveStatus): string {
   switch (s.kind) {
     case 'present': {
+      // Present with no cause = on-time full day. With a cause it's an approved
+      // amendment — surface why it was amended.
+      const flags: string[] = []
+      if (s.lateIn) flags.push('late punch in')
+      if (s.earlyOut) flags.push('short hours — approved')
+      if (s.singlePunch) flags.push('single punch — approved')
+      if (!flags.length) return 'Present'
+      return `Present (${flags.join(', ')})`
+    }
+    case 'leave': {
+      if (s.noShow) return s.pendingApproval ? 'Absent (pending approval)' : s.rejected ? 'Absent (amendment rejected)' : 'Absent'
       const flags: string[] = []
       if (s.lateIn) flags.push('Late In')
-      if (s.earlyOut) flags.push('Early Out')
+      if (s.earlyOut) flags.push('Short Hours')
       if (s.singlePunch) flags.push('Single Punch')
-      if (!flags.length) return 'Present'
-      const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : s.amended ? 'approved' : null
-      return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
+      const decision = s.rejected ? 'rejected' : s.pendingApproval ? 'pending approval' : null
+      return `Absent (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
-    case 'leave': return s.rejected ? 'Absent (amendment rejected)' : s.pendingApproval ? 'Absent (pending approval)' : 'Absent'
     case 'holiday': return `Holiday: ${s.name}`
     case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
@@ -207,7 +229,7 @@ async function getProfileCreatedAtDateStr(admin: AdminClient, userId: string): P
   return data?.created_at ? getISTDateStr(new Date(data.created_at)) : null
 }
 
-const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, end_day_at, end_day_place_name'
+const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name'
 
 // Sweeps for a Punch In with no Punch Out once its calendar day (IST) has already
 // ended — no cron job in this codebase (see file header), so this runs lazily
@@ -218,26 +240,17 @@ const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, reason, marked_at, plac
 async function resolveOverdueSinglePunches(admin: AdminClient, engineerId?: string): Promise<void> {
   const todayStr = getISTDateStr()
   let query = admin.from('attendance').select('id, attendance_date')
-    .eq('status', 'present').is('end_day_at', null).eq('single_punch', false).lt('attendance_date', todayStr)
+    .eq('status', 'present').not('marked_at', 'is', null).is('end_day_at', null).eq('single_punch', false).lt('attendance_date', todayStr)
   if (engineerId) query = query.eq('engineer_id', engineerId)
   const { data: rows } = await query
   if (!rows || !rows.length) return
 
+  // Just flag the missing Punch Out — the day now reads Absent (Single Punch). No
+  // amendment is auto-opened and no manager is notified; the engineer requests an
+  // amendment themselves if they want it reviewed.
   await admin.from('attendance')
-    .update({ single_punch: true, approval_status: 'pending', updated_at: new Date().toISOString() })
+    .update({ single_punch: true, updated_at: new Date().toISOString() })
     .in('id', rows.map(r => r.id))
-
-  for (const row of rows) {
-    notifyUsers(admin, [
-      { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
-    ], {
-      type: 'attendance_amendment_pending',
-      title: 'Attendance amendment needs approval',
-      body: `An engineer has a Single Punch (missing Punch Out) for ${row.attendance_date}.`,
-      entityType: 'attendance', entityId: row.id,
-      linkPath: '/attendance',
-    }).catch(() => {})
-  }
 }
 
 export async function getMyAttendanceStatusCore(admin: AdminClient, userId: string): Promise<{ status: AttendanceEffectiveStatus; error: string | null }> {
@@ -263,15 +276,16 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
   }
 }
 
+// Punch In — a real-time action for today only. Simply records the punch-in; a punch-in
+// at/after 10:00 AM sets the Late In flag (the day then reads Absent until the engineer
+// requests an amendment). No approval is opened here and no manager is notified — the
+// Service Manager only ever sees a request when the engineer explicitly requests an
+// amendment (see requestAttendanceAmendmentCore).
 export async function markAttendanceCore(admin: AdminClient, userId: string, params: {
   latitude: number | null
   longitude: number | null
   placeName: string | null
   reason?: string | null
-  // Defaults to today — pass an earlier date (same IST calendar month only) to amend
-  // a past day's Leave to Present. Any non-today date is unconditionally treated as
-  // "late" (reason required, pending approval), since there's no Late In cutoff
-  // concept for a day that's already over.
   attendanceDate?: string
 }): Promise<{ error: string | null; needsApproval: boolean }> {
   try {
@@ -279,46 +293,35 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     const todayStr = getISTDateStr(now)
     const targetDateStr = params.attendanceDate ?? todayStr
 
-    if (targetDateStr > todayStr) {
-      return { error: 'Cannot mark attendance for a future date', needsApproval: false }
-    }
-    if (targetDateStr.slice(0, 7) !== todayStr.slice(0, 7)) {
-      return { error: 'Attendance can only be amended within the current month', needsApproval: false }
+    if (targetDateStr !== todayStr) {
+      return { error: 'Punch In is only available for today. Use Request Amendment for a past day.', needsApproval: false }
     }
 
-    const isToday = targetDateStr === todayStr
-    const lateIn = isToday ? isPastAttendanceCutoff(now) : true
+    const lateIn = isPastAttendanceCutoff(now)
 
-    if (lateIn && !params.reason?.trim()) {
-      return { error: isToday ? 'A reason is required when punching in after 10:00 AM' : 'A reason is required to amend a past date', needsApproval: false }
-    }
-
-    const { data: existing } = await admin.from('attendance').select('status, approval_status')
-      .eq('engineer_id', userId).eq('attendance_date', targetDateStr).maybeSingle()
-
-    if (existing && existing.status === 'present' && existing.approval_status !== 'rejected') {
-      return {
-        error: existing.approval_status === 'pending' ? 'Your amendment request is already pending approval' : 'Attendance already marked for that date',
-        needsApproval: false,
-      }
+    const { data: existing } = await admin.from('attendance').select('marked_at')
+      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+    if (existing?.marked_at) {
+      return { error: 'You have already punched in today.', needsApproval: false }
     }
 
     const result = await withTimeout(
       admin.from('attendance').upsert({
         engineer_id: userId,
-        attendance_date: targetDateStr,
+        attendance_date: todayStr,
         status: 'present',
         marked_at: now.toISOString(),
         latitude: params.latitude,
         longitude: params.longitude,
         place_name: params.placeName,
-        reason: lateIn ? params.reason!.trim() : null,
-        approval_status: lateIn ? 'pending' : null,
+        reason: null,
+        approval_status: null,
         approved_by: null,
         approved_at: null,
         late_in: lateIn,
         early_out: false,
         single_punch: false,
+        short_hours: false,
         end_day_at: null,
         end_day_latitude: null,
         end_day_longitude: null,
@@ -330,37 +333,16 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.', needsApproval: false }
     if (result.error) return { error: result.error.message, needsApproval: false }
 
-    if (lateIn && result.data) {
-      // Any Service Manager can act as level-1 approver (Field Engineers no longer
-      // report to one fixed Service Manager), Head of Service/Super Admin as level 2.
-      ;(async () => {
-        const targets = [
-          { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
-        ]
-        notifyUsers(admin, targets, {
-          type: 'attendance_amendment_pending',
-          title: 'Attendance amendment needs approval',
-          body: isToday
-            ? 'An engineer punched in after the 10:00 AM cutoff (Late In).'
-            : `An engineer requested to amend their attendance for ${targetDateStr} to Present.`,
-          entityType: 'attendance', entityId: result.data!.id,
-          linkPath: '/attendance',
-        }).catch(() => {})
-      })().catch(() => {})
-    }
-
-    return { error: null, needsApproval: lateIn }
+    return { error: null, needsApproval: false }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
   }
 }
 
-// End-of-day Punch Out — distinct from the app's own session Sign Out. Only
-// available today, only after Punch In (Present) has already happened, once per
-// day, and not before the policy's enable time (whichever comes first of 6:45pm IST
-// or 8:45 hours after Punch In — see getEndDayEnableAt). If the completed Punch In ->
-// Punch Out span falls short of 8:45 hours, this flags Early Out and requires a
-// reason the same way a Late In Punch In does.
+// Punch Out — distinct from the app's own session Sign Out. Available any time after
+// Punch In, today only, once per day. A gross span (Punch Out − Punch In) under 6 hours
+// flags Short Hours (the day then reads Absent until the engineer requests an amendment).
+// No approval is opened and no manager is notified here.
 export async function markEndDayCore(admin: AdminClient, userId: string, params: {
   latitude: number | null
   longitude: number | null
@@ -370,40 +352,19 @@ export async function markEndDayCore(admin: AdminClient, userId: string, params:
   try {
     const todayStr = getISTDateStr()
     const { data: existing } = await admin.from('attendance')
-      .select('id, status, marked_at, end_day_at, late_in, approval_status')
+      .select('id, marked_at, end_day_at')
       .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
 
-    if (!existing || existing.status !== 'present') {
-      return { error: 'Punch in before ending your day', needsApproval: false }
+    if (!existing || !existing.marked_at) {
+      return { error: 'Punch in before punching out.', needsApproval: false }
     }
     if (existing.end_day_at) {
-      return { error: "You've already ended your day", needsApproval: false }
-    }
-    if (!existing.marked_at) {
-      return { error: 'Missing Punch In time — contact your manager', needsApproval: false }
+      return { error: "You've already punched out today.", needsApproval: false }
     }
 
     const now = new Date()
-    const markedAt = new Date(existing.marked_at)
-    const enableAt = getEndDayEnableAt(markedAt)
-    if (now < enableAt) {
-      const enableAtIst = new Intl.DateTimeFormat('en-IN', { timeZone: IST_TZ, hour: 'numeric', minute: '2-digit', hour12: true }).format(enableAt)
-      return { error: `You can end your day from ${enableAtIst} — after 6:45 PM or 8:45 hours from your Punch In, whichever comes first.`, needsApproval: false }
-    }
-
-    const durationMin = (now.getTime() - markedAt.getTime()) / 60000
-    const earlyOut = durationMin < REQUIRED_DURATION_MIN
-    // Only a NEW violation re-opens approval — if Late In was already reviewed
-    // (approved/rejected) this morning and Early Out doesn't newly apply, the
-    // existing decision must stand, not silently flip back to pending.
-    const wasAlreadyPending = existing.approval_status === 'pending'
-    const newlyNeedsApproval = earlyOut && !wasAlreadyPending
-
-    if (newlyNeedsApproval && !params.reason?.trim()) {
-      return { error: 'A reason is required — your working duration is under 8:45 hours (Early Out).', needsApproval: false }
-    }
-
-    const finalApprovalStatus = newlyNeedsApproval ? 'pending' : existing.approval_status
+    const durationMin = (now.getTime() - new Date(existing.marked_at).getTime()) / 60000
+    const shortHours = durationMin < MIN_DURATION_MIN
 
     const result = await withTimeout(
       admin.from('attendance').update({
@@ -411,9 +372,8 @@ export async function markEndDayCore(admin: AdminClient, userId: string, params:
         end_day_latitude: params.latitude,
         end_day_longitude: params.longitude,
         end_day_place_name: params.placeName,
-        early_out: earlyOut,
-        approval_status: finalApprovalStatus,
-        reason: newlyNeedsApproval ? params.reason!.trim() : undefined,
+        short_hours: shortHours,
+        single_punch: false,
         updated_at: now.toISOString(),
       }).eq('id', existing.id),
       8000
@@ -421,21 +381,69 @@ export async function markEndDayCore(admin: AdminClient, userId: string, params:
     if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.', needsApproval: false }
     if (result.error) return { error: result.error.message, needsApproval: false }
 
-    if (newlyNeedsApproval) {
+    return { error: null, needsApproval: false }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
+  }
+}
+
+// Explicit amendment request by the engineer — the ONLY place the Service Manager is
+// notified. Covers today's Absent day (late in / short hours / single punch) and a past
+// Absent day (no-show) within the current IST month. Sets the row to pending with the
+// engineer's reason; a rejected day can be re-requested.
+export async function requestAttendanceAmendmentCore(admin: AdminClient, userId: string, params: {
+  attendanceDate: string
+  reason: string
+}): Promise<{ error: string | null }> {
+  try {
+    const now = new Date()
+    const todayStr = getISTDateStr(now)
+    const dateStr = params.attendanceDate
+    if (dateStr > todayStr) return { error: 'Cannot request an amendment for a future date.' }
+    if (dateStr.slice(0, 7) !== todayStr.slice(0, 7)) return { error: 'Amendments can only be requested within the current month.' }
+    if (!params.reason?.trim()) return { error: 'A reason is required.' }
+
+    const { data: existing } = await admin.from('attendance')
+      .select('id, approval_status')
+      .eq('engineer_id', userId).eq('attendance_date', dateStr).maybeSingle()
+
+    if (existing?.approval_status === 'pending') return { error: 'Your amendment is already pending approval.' }
+    if (existing?.approval_status === 'approved') return { error: 'This day is already approved.' }
+
+    let attendanceId: string | undefined
+    if (existing) {
+      const { error } = await admin.from('attendance')
+        .update({ approval_status: 'pending', reason: params.reason.trim(), approved_by: null, approved_at: null, updated_at: now.toISOString() })
+        .eq('id', existing.id)
+      if (error) return { error: error.message }
+      attendanceId = existing.id
+    } else {
+      // Past no-show with no row yet — create the pending request (no punch times).
+      const { data, error } = await admin.from('attendance').upsert({
+        engineer_id: userId, attendance_date: dateStr, status: 'present', marked_at: null,
+        reason: params.reason.trim(), approval_status: 'pending', approved_by: null, approved_at: null,
+        late_in: false, early_out: false, single_punch: false, short_hours: false,
+        end_day_at: null, updated_at: now.toISOString(),
+      }, { onConflict: 'engineer_id,attendance_date' }).select('id').single()
+      if (error) return { error: error.message }
+      attendanceId = data?.id
+    }
+
+    if (attendanceId) {
       notifyUsers(admin, [
         { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
       ], {
         type: 'attendance_amendment_pending',
         title: 'Attendance amendment needs approval',
-        body: 'An engineer ended their day under 8:45 hours (Early Out).',
-        entityType: 'attendance', entityId: existing.id,
+        body: `An engineer requested an attendance amendment for ${dateStr}.`,
+        entityType: 'attendance', entityId: attendanceId,
         linkPath: '/attendance',
       }).catch(() => {})
     }
 
-    return { error: null, needsApproval: wasAlreadyPending || newlyNeedsApproval }
+    return { error: null }
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
+    return { error: e instanceof Error ? e.message : String(e) }
   }
 }
 

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -40,24 +40,28 @@ const DEPARTMENT_CARD_COLORS = [
   { color: '#475569', bg: '#F1F5F9' },
 ];
 
-const REQUIRED_DURATION_MIN = 8 * 60 + 45; // 8:45 hours, mirrors lib/mobile/core/attendance.ts
-
 // Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 10am window is
-// still open, red once closed (or an amendment is pending/rejected), green once
-// present is confirmed. Holiday/Weekly Off get a neutral color.
+// still open, red once Absent (or an amendment is pending/rejected), green once Present
+// is confirmed. Holiday/Weekly Off get a neutral color.
 function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
   switch (status.kind) {
     case 'pending':
       return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' };
-    case 'leave':
+    case 'leave': {
+      const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ');
       return {
-        bg: '#FEE2E2', color: '#991B1B', label: 'Absent',
-        sub: status.pendingApproval ? 'Approval is Pending' : status.rejected ? 'Amendment rejected' : 'Attendance not marked today',
+        bg: '#FEE2E2', color: '#991B1B', label: causes ? `Absent (${causes})` : 'Absent',
+        sub: status.pendingApproval ? 'Approval is Pending'
+          : status.rejected ? 'Amendment rejected — request again'
+          : status.markedAt && !status.endDayAt ? 'Punch out to finish your day'
+          : status.noShow ? 'Attendance not marked today'
+          : 'Request an amendment',
       };
+    }
     case 'present': {
       const flags: string[] = [];
       if (status.lateIn) flags.push('Late In');
-      if (status.earlyOut) flags.push('Early Out');
+      if (status.earlyOut) flags.push('Short Hours');
       if (status.singlePunch) flags.push('Single Punch');
       const label = flags.length ? `Present (${flags.join(', ')})` : 'Present';
       const sub = flags.length ? (status.rejected ? 'Amendment rejected' : status.pendingApproval ? 'Approval is Pending' : status.amended ? 'Approved' : null) : null;
@@ -95,44 +99,25 @@ export default function DashboardScreen() {
   const endDayPlaceNameRef = useRef('');
   const endDayGpsRequestedRef = useRef(false);
   const attendanceStatus = data?.attendanceStatus;
-  const endDayEnableAt = attendanceStatus?.kind === 'present' && attendanceStatus.endDayEnableAt ? new Date(attendanceStatus.endDayEnableAt) : null;
-
-  // Ticks once a minute so canEndDayNow flips true on its own once the enable time
-  // passes, without needing to background/foreground the app to re-trigger a fetch.
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  const canEndDayNow = !!endDayEnableAt && now >= endDayEnableAt;
-  const canEndDay = attendanceStatus?.kind === 'present' && !attendanceStatus.endDayAt && canEndDayNow;
+  // A punched-in day that hasn't been punched out — Present (on-time) or Absent (late
+  // punch-in) both still need a Punch Out, so the dashboard offers it for both.
+  const canPunchOut = !!attendanceStatus
+    && (attendanceStatus.kind === 'present' || attendanceStatus.kind === 'leave')
+    && !!attendanceStatus.markedAt && !attendanceStatus.endDayAt;
 
   useEffect(() => {
-    if (!canEndDay || endDayGpsRequestedRef.current) return;
+    if (!canPunchOut || endDayGpsRequestedRef.current) return;
     endDayGpsRequestedRef.current = true;
     getCurrentPositionWithFallback().then(pos => {
       endDayCoordsRef.current = pos;
       if (pos) reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) endDayPlaceNameRef.current = label; }).catch(() => {});
     });
-  }, [canEndDay]);
+  }, [canPunchOut]);
 
-  // This card's End Day button has no room for a reason field, so a prospective
-  // Early Out (duration still under 8:45 hours) routes to the full Attendance tab —
-  // which does have one — instead of submitting and hitting a "reason required"
-  // server error with nowhere on this screen to enter it.
+  // Punch Out only records — no reason, no gate. Under 6h settles as Short Hours (Absent)
+  // server-side; the engineer requests an amendment separately if they want it reviewed.
   async function handleEndDay() {
     setEndDayError('');
-    if (attendanceStatus?.kind !== 'present' || !attendanceStatus.markedAt) return;
-    const durationMin = (now.getTime() - new Date(attendanceStatus.markedAt).getTime()) / 60000;
-    if (durationMin < REQUIRED_DURATION_MIN) {
-      Alert.alert(
-        'Reason needed',
-        "Your duration is under 8:45 hours (Early Out), which needs a reason for your Service Manager's approval. Finish ending your day from the Attendance tab.",
-        [{ text: 'Go to Attendance', onPress: () => router.push('/(app)/(tabs)/attendance') }, { text: 'Cancel', style: 'cancel' }]
-      );
-      return;
-    }
     try {
       const result = await markEndDay.mutateAsync({
         latitude: endDayCoordsRef.current?.lat ?? null,
@@ -202,47 +187,49 @@ export default function DashboardScreen() {
         const status = data.attendanceStatus;
         const cfg = attendanceCardStyle(status);
 
-        if (status.kind === 'present') {
+        // Detailed card for any punched-in day (Present on-time, or Absent late-in) —
+        // check-in/out times, and until punched out, a Punch Out button.
+        if ((status.kind === 'present' || status.kind === 'leave') && status.markedAt) {
           const ended = !!status.endDayAt;
+          const bigLabel = ended && status.kind === 'present'
+            ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}`
+            : cfg.label;
           return (
             <View style={[styles.attendanceCard, styles.attendanceCardColumn, { backgroundColor: cfg.bg }]}>
               <View style={styles.attendanceCardRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
-                  <Text style={[styles.attendanceLabel, { color: cfg.color }]}>
-                    {ended && status.markedAt ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}` : cfg.label}
+                  <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{bigLabel}</Text>
+                  <Text style={[styles.attendanceSub, { color: cfg.color }]}>
+                    Punched in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
                   </Text>
-                  {status.markedAt && (
-                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
-                      Checked in {formatClockTime(status.markedAt)}{status.placeName ? ` — ${status.placeName}` : ''}
-                    </Text>
-                  )}
                   {ended && (
                     <Text style={[styles.attendanceSub, { color: cfg.color }]}>
-                      Checked out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
+                      Punched out {formatClockTime(status.endDayAt!)}{status.endDayPlaceName ? ` — ${status.endDayPlaceName}` : ''}
                     </Text>
                   )}
+                  {ended && cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
                   {status.amended && status.approvedByName && (
                     <Text style={[styles.attendanceSub, { color: cfg.color }]}>
                       Approved by {status.approvedByName}{status.approvedAt ? ` — ${formatClockTime(status.approvedAt)}` : ''}
                     </Text>
                   )}
-                  {!ended && !canEndDayNow && endDayEnableAt && (
-                    <Text style={[styles.attendanceSub, { color: cfg.color }]}>
-                      End Day available from {formatClockTime(endDayEnableAt.toISOString())}
-                    </Text>
-                  )}
                 </View>
                 {!ended && (
                   <Pressable
-                    style={[styles.endDayButton, !canEndDayNow && styles.endDayButtonDisabled]}
+                    style={styles.endDayButton}
                     onPress={handleEndDay}
-                    disabled={markEndDay.isPending || !canEndDayNow}
+                    disabled={markEndDay.isPending}
                   >
-                    {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>End Day</Text>}
+                    {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>Punch Out</Text>}
                   </Pressable>
                 )}
               </View>
+              {ended && status.kind === 'leave' && !status.pendingApproval && (
+                <Pressable style={styles.amendButton} onPress={() => router.push('/(app)/(tabs)/attendance')}>
+                  <Text style={styles.amendButtonText}>Request Amendment</Text>
+                </Pressable>
+              )}
               {!!endDayError && <Text style={styles.endDayError}>{endDayError}</Text>}
             </View>
           );
@@ -324,8 +311,9 @@ const styles = StyleSheet.create({
   attendanceSub: { fontSize: 11, opacity: 0.85, marginTop: 1 },
   attendanceChevron: { fontSize: 22, fontWeight: '700' },
   endDayButton: { backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
-  endDayButtonDisabled: { backgroundColor: '#C4A4B0' },
   endDayButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  amendButton: { marginTop: 10, borderWidth: 1, borderColor: '#991B1B', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  amendButtonText: { color: '#991B1B', fontSize: 12, fontWeight: '700' },
   endDayError: { color: '#DC2626', fontSize: 10, marginTop: 8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   statCard: {
