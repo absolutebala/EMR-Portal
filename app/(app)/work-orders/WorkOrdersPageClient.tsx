@@ -35,17 +35,6 @@ const JOB_LABELS: Record<string, string> = {
   business_opportunity: 'Business Opportunity',
 }
 
-const JOB_COLORS: Record<string, string> = {
-  site_inspection: '#7D1D3F',
-  amc: '#0891B2',
-  commissioning_activities: '#7C3AED',
-  supervision: '#D97706',
-  overhauling: '#DC2626',
-  complaint: '#B91C1C',
-  installation: '#059669',
-  testing: '#2563EB',
-  business_opportunity: '#CA8A04',
-}
 
 // "Pending" is legacy-only now — a visit that couldn't be finished in a day keeps the
 // notification In Progress, with scheduledDate carrying the follow-up date (shown
@@ -73,9 +62,17 @@ function StatusBadge({ status, scheduledDate }: { status: string; scheduledDate:
   )
 }
 
-function JobBadge({ type }: { type: string }) {
-  const color = JOB_COLORS[type] || '#6B7280'
-  return <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 500, background: color + '18', color, whiteSpace: 'nowrap', border: `1px solid ${color}30` }}>{JOB_LABELS[type] || type}</span>
+// Days from today until the notification's scheduled date. Colour bands (per request):
+// < 10 days → red (negatives shown with a minus), 10–15 → orange, > 15 → yellow.
+function daysLeftInfo(scheduledDate: string | null): { label: string; color: string; bg: string } {
+  if (!scheduledDate) return { label: '—', color: 'var(--txm)', bg: 'var(--gl)' }
+  const [y, m, d] = scheduledDate.slice(0, 10).split('-').map(Number)
+  const sched = new Date(y, m - 1, d)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const days = Math.round((sched.getTime() - today.getTime()) / 86400000)
+  if (days > 15) return { label: `${days}d`, color: '#854D0E', bg: '#FEF9C3' }      // yellow
+  if (days >= 10) return { label: `${days}d`, color: '#9A3412', bg: '#FFEDD5' }      // orange
+  return { label: `${days}d`, color: '#991B1B', bg: '#FEE2E2' }                      // red (incl. negatives)
 }
 
 interface Props {
@@ -256,10 +253,10 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
                 <thead>
                   <tr>
-                    {['ID', 'Serial No(s)', 'Job type', 'Sold customer', 'Shipped to', 'Engineer', 'Warranty', 'Status', 'Actions'].map(h => (
+                    {['Days Left', 'Paid', 'Status', 'Location', 'Customer', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -270,29 +267,27 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}
                       onClick={() => router.push(`/work-orders/${wo.id}`)}>
-                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--m)', whiteSpace: 'nowrap' }}>
-                        {wo.wo_number}
-                        {wo.expense_approval === 'pending' && <div style={{ marginTop: 3, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#FEF3C7', color: '#92400E' }}>Awaiting approval</div>}
-                        {wo.expense_approval === 'rejected' && <div style={{ marginTop: 3, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#FEE2E2', color: '#991B1B' }}>Rejected</div>}
-                        {wo.expense_approval === 'approved' && <div style={{ marginTop: 3, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Expenses approved</div>}
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', maxWidth: 160 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                          {(wo.serial_numbers || []).map(sn => (
-                            <span key={sn} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--gl)', border: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{sn}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}><JobBadge type={wo.job_type} /></td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{wo.customer_name || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{wo.site_name || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || '—'}</td>
+                      {(() => { const dl = daysLeftInfo(wo.scheduled_date); return (
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: dl.bg, color: dl.color, fontVariantNumeric: 'tabular-nums' }}>{dl.label}</span>
+                        </td>
+                      ) })()}
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        {wo.has_warranty
-                          ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
-                          : <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
+                        {wo.job_type === 'overhauling'
+                          ? <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
+                          : <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
                       </td>
-                      <td style={{ padding: '10px 14px' }}><StatusBadge status={wo.status} scheduledDate={wo.scheduled_date} /></td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <StatusBadge status={wo.status} scheduledDate={wo.scheduled_date} />
+                        {wo.expense_approval === 'pending' && <div style={{ marginTop: 4, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#FEF3C7', color: '#92400E' }}>Awaiting approval</div>}
+                        {wo.expense_approval === 'rejected' && <div style={{ marginTop: 4, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#FEE2E2', color: '#991B1B' }}>Rejected</div>}
+                        {wo.expense_approval === 'approved' && <div style={{ marginTop: 4, display: 'inline-block', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Expenses approved</div>}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)', maxWidth: 220 }}>{wo.customer_address || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{wo.customer_name || '—'}</div>
+                        {wo.customer_phone && <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 1 }}>{wo.customer_phone}</div>}
+                      </td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={e => { e.stopPropagation(); router.push(`/work-orders/${wo.id}`) }} title="View"

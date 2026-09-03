@@ -137,6 +137,8 @@ export interface WorkOrder {
   expense_approval: 'pending' | 'approved' | 'rejected' | null
   // joined
   customer_name?: string
+  customer_address?: string | null
+  customer_phone?: string | null
   engineer_name?: string
   serial_numbers?: string[]
   transformer_ids?: string[]
