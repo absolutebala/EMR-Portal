@@ -253,10 +253,10 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1180 }}>
                 <thead>
                   <tr>
-                    {['Days Left', 'Paid', 'Status', 'Location', 'Customer', 'Actions'].map(h => (
+                    {['Days Left', 'Paid', 'Status', 'Location', 'Customer', 'ID', 'Serial No(s)', 'Job type', 'Shipped to', 'Engineer', 'Warranty', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -287,6 +287,22 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{wo.customer_name || '—'}</div>
                         {wo.customer_phone && <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 1 }}>{wo.customer_phone}</div>}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--m)', whiteSpace: 'nowrap' }}>{wo.wo_number}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', maxWidth: 160 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {(wo.serial_numbers || []).map(sn => (
+                            <span key={sn} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--gl)', border: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{sn}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{JOB_LABELS[wo.job_type] || wo.job_type}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{wo.site_name || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || '—'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        {wo.has_warranty
+                          ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
+                          : <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', gap: 6 }}>
