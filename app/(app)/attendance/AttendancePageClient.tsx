@@ -251,6 +251,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const isFirstRun = useRef(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [amendments, setAmendments] = useState(initialAmendments)
   const [actingOn, setActingOn] = useState<string | null>(null)
@@ -392,6 +393,23 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     return { engineers: engList, dates: dateList, cellByEngDate: cells }
   }, [rows])
 
+  // The week runs Sun→Sat, so today (mid/late week) lands at the far right and gets
+  // clipped by the horizontal scroll. Auto-scroll so today is fully visible with the
+  // next day showing — only when today falls inside the current range.
+  useEffect(() => {
+    const c = scrollRef.current
+    if (!c || loading || !dates.includes(todayStr)) return
+    const todayEl = c.querySelector('th[data-today="1"]') as HTMLElement | null
+    if (!todayEl) return
+    // Reveal today + the next day (or today alone if it's the last column in range).
+    const targetEl = (todayEl.nextElementSibling as HTMLElement | null) ?? todayEl
+    const cRect = c.getBoundingClientRect()
+    const tRect = targetEl.getBoundingClientRect()
+    const targetRightInContent = tRect.right - cRect.left + c.scrollLeft
+    c.scrollLeft = Math.max(0, targetRightInContent - c.clientWidth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, dates, todayStr])
+
   return (
     <>
       <Topbar title="Attendance" userName={userName} userRole={userRole} />
@@ -472,7 +490,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           ) : engineers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No field engineers found.</div>
           ) : (
-            <div className="attn-scroll" style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+            <div ref={scrollRef} className="attn-scroll" style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
               {/* Bigger, always-visible scrollbars so the horizontal scroll (extra date
                   columns) and vertical scroll (long engineer list) are easy to grab. */}
               <style>{`
@@ -499,7 +517,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                       const isPast = dateStr < todayStr
                       const isWeekend = weekday === 'Sun' || weekday === 'Sat'
                       return (
-                        <th key={dateStr} style={{
+                        <th key={dateStr} data-today={isToday ? '1' : undefined} style={{
                           position: 'sticky', top: 0, zIndex: 2, minWidth: 230, padding: '9px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600,
                           color: isToday ? 'var(--m)' : isPast ? '#B0A8AC' : 'var(--txm)', borderBottom: '1px solid var(--gm)',
                           background: isToday ? 'var(--mp)' : isPast ? '#F5F3F5' : isWeekend ? '#FAFAFA' : '#fff', whiteSpace: 'nowrap',
