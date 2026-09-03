@@ -8,7 +8,7 @@ import Modal from '@/components/ui/Modal'
 import { deleteWorkOrder } from '@/app/actions/delete-work-order'
 import { approveNotificationExpenses, rejectNotificationExpenses } from '@/app/actions/notification-approval'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
-import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
+import { ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
 import type { WorkOrder, WarrantyStatus } from '@/lib/types'
 import type { Department } from '@/lib/departments'
@@ -114,6 +114,40 @@ function sortValue(wo: WorkOrder, key: SortKey): number | string | null {
   }
 }
 
+// KPI alert card that shows 3 items at a time with prev/next paging in its header.
+function PagedAlertCard<T>({ title, empty, items, render }: { title: string; empty: string; items: T[]; render: (item: T) => React.ReactNode }) {
+  const PER = 3
+  const [page, setPage] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(items.length / PER))
+  const clamped = Math.min(page, totalPages - 1)
+  const start = clamped * PER
+  const shown = items.slice(start, start + PER)
+  const navBtn = (disabled: boolean): React.CSSProperties => ({
+    width: 22, height: 22, borderRadius: 6, border: '1px solid var(--gm)', background: '#fff',
+    color: disabled ? 'var(--gm)' : 'var(--tx)', cursor: disabled ? 'default' : 'pointer',
+    fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+  })
+  return (
+    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{title}</span>
+        {items.length > PER && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--txm)', fontVariantNumeric: 'tabular-nums' }}>{start + 1}–{Math.min(start + PER, items.length)} of {items.length}</span>
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={clamped === 0} style={navBtn(clamped === 0)} title="Previous">‹</button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={clamped >= totalPages - 1} style={navBtn(clamped >= totalPages - 1)} title="Next">›</button>
+          </div>
+        )}
+      </div>
+      <div>
+        {items.length === 0
+          ? <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>{empty}</div>
+          : shown.map(render)}
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   workOrders: WorkOrder[]
   engineers: { id: string; first_name: string; last_name: string }[]
@@ -213,8 +247,11 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
 
         {/* Alerts */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
-          <ListCard title="Overdue" empty="Nothing overdue.">
-            {alerts.overdue.map(a => (
+          <PagedAlertCard
+            title="Overdue"
+            empty="Nothing overdue."
+            items={alerts.overdue}
+            render={a => (
               <ListRow
                 key={a.id}
                 title={a.woNumber}
@@ -228,24 +265,30 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
               >
                 <span style={{ fontSize: 10, color: 'var(--txm)' }}>{a.customerName}</span>
               </ListRow>
-            ))}
-          </ListCard>
+            )}
+          />
 
-          <ListCard title="Needs reassignment" empty="Nothing needs reassignment.">
-            {alerts.needsReassignment.map(a => (
+          <PagedAlertCard
+            title="Needs reassignment"
+            empty="Nothing needs reassignment."
+            items={alerts.needsReassignment}
+            render={a => (
               <ListRow key={a.id} title={a.woNumber} subtitle={a.engineerName} href={`/work-orders/${a.id}`}>
                 <span style={{ fontSize: 10, color: 'var(--txm)' }}>{a.customerName}</span>
               </ListRow>
-            ))}
-          </ListCard>
+            )}
+          />
 
-          <ListCard title="Engineer on leave (scheduled today)" empty="No conflicts today.">
-            {alerts.engineerOnLeave.map(a => (
+          <PagedAlertCard
+            title="Engineer on leave (scheduled today)"
+            empty="No conflicts today."
+            items={alerts.engineerOnLeave}
+            render={a => (
               <ListRow key={a.id} title={a.woNumber} subtitle={a.engineerName} href={`/work-orders/${a.id}`}>
                 <Badge bg="#F1F5F9" color="#475569" label="On Leave" />
               </ListRow>
-            ))}
-          </ListCard>
+            )}
+          />
         </div>
 
         {/* Toolbar */}

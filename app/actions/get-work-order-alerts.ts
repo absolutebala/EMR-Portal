@@ -30,8 +30,8 @@ export async function getWorkOrderAlerts(): Promise<{ alerts: WorkOrderAlerts; e
       // Overdue = scheduled date already passed and the notification isn't done — any
       // open status (assigned / in_progress / pending), not just in_progress. Reassignment
       // has its own card, so it's excluded here to avoid double-listing.
-      admin.from('work_orders').select('id, wo_number, scheduled_date, engineer_id, customers(name)').lt('scheduled_date', todayStr).neq('status', 'completed').neq('status', 'needs_reassignment').order('scheduled_date', { ascending: true }).limit(8),
-      admin.from('work_orders').select('id, wo_number, scheduled_date, engineer_id, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(8),
+      admin.from('work_orders').select('id, wo_number, scheduled_date, engineer_id, customers(name)').lt('scheduled_date', todayStr).neq('status', 'completed').neq('status', 'needs_reassignment').order('scheduled_date', { ascending: true }).limit(30),
+      admin.from('work_orders').select('id, wo_number, scheduled_date, engineer_id, customers(name)').eq('status', 'needs_reassignment').order('updated_at', { ascending: false }).limit(30),
       admin.from('work_orders').select('id, wo_number, scheduled_date, engineer_id, customers(name)').eq('scheduled_date', todayStr).neq('status', 'completed').not('engineer_id', 'is', null),
     ])
 
