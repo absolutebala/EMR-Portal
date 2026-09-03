@@ -16,6 +16,7 @@ import type {
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
   MarkEndDayVariables, MarkEndDayResponse, RequestAmendmentVariables, RequestAmendmentResponse,
+  CustomersResponse, TransformersResponse, CreateCustomerVariables, CreateNotificationVariables, CreateEntityResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
 } from './types';
@@ -280,6 +281,42 @@ export function useRequestAmendment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// ── Create notification (Field Engineer, mobile-only) ────────────────────────────
+
+export function useCustomers() {
+  return useQuery({
+    queryKey: ['customers'],
+    queryFn: () => apiGet<CustomersResponse>('/api/mobile/v1/customers'),
+  });
+}
+
+export function useTransformersForCustomer(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ['transformers', customerId],
+    queryFn: () => apiGet<TransformersResponse>(`/api/mobile/v1/transformers?customerId=${customerId}`),
+    enabled: !!customerId,
+  });
+}
+
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: CreateCustomerVariables) => apiPost<CreateEntityResponse>('/api/mobile/v1/customers', variables),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['customers'] }); },
+  });
+}
+
+export function useCreateNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: CreateNotificationVariables) => apiPost<CreateEntityResponse>('/api/mobile/v1/work-orders', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

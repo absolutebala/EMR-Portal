@@ -131,6 +131,10 @@ export interface WorkOrder {
   // department assignment(s) at creation time, not derived from the assigned
   // engineer (Field Engineers no longer carry a department for this purpose).
   department_id: string | null
+  // Expense-approval gate for Field-Engineer-created notifications: null = admin-created
+  // (expenses allowed as normal); 'pending' | 'approved' | 'rejected' otherwise. Expenses
+  // are blocked until 'approved'.
+  expense_approval: 'pending' | 'approved' | 'rejected' | null
   // joined
   customer_name?: string
   engineer_name?: string

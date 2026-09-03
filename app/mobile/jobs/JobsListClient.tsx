@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import JobCard from '@/components/mobile/JobCard'
@@ -62,6 +63,15 @@ export default function JobsListClient({ workOrders, error }: Props) {
             {error}
           </div>
         )}
+
+        <Link href="/mobile/notifications/new" className="mtap" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          background: '#7D1D3F', color: '#fff', borderRadius: 11, padding: '12px', marginBottom: 12,
+          fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'Poppins, sans-serif',
+        }}>
+          <svg width="16" height="16" fill="none" stroke="#fff" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          New Notification
+        </Link>
 
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, background: '#fff',

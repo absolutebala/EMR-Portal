@@ -35,8 +35,11 @@ export default function NewExpenseScreen() {
 
   const isLodging = /lodging|boarding/i.test(expenseTypeName);
   const [claimType, setClaimType] = useState<ClaimType>('flat');
-  const { data: eligibilityData } = useExpenseEligibility(workOrderId, isLodging);
+  // Enabled whenever a project is selected (not only for lodging) so the expense-lock on
+  // a Field-Engineer-created notification awaiting approval is picked up too.
+  const { data: eligibilityData } = useExpenseEligibility(workOrderId, !!workOrderId);
   const eligibility = eligibilityData?.eligibility ?? null;
+  const lockReason = eligibilityData?.locked ? (eligibilityData.lockReason || 'Expenses are blocked for this notification.') : null;
 
   useEffect(() => {
     if (eligibility?.grade) {
@@ -60,6 +63,7 @@ export default function NewExpenseScreen() {
   async function handleSubmit() {
     setSubmitError('');
     if (!workOrderId) { setSubmitError('Select the project'); return; }
+    if (lockReason) { setSubmitError(lockReason); return; }
     if (!expenseTypeId) { setSubmitError('Select or add an expense type'); return; }
     if (!expenseDate) { setSubmitError('Select a date'); return; }
     const amountNum = parseFloat(amount);
@@ -127,6 +131,7 @@ export default function NewExpenseScreen() {
         <View style={styles.card}>
           <Text style={styles.label}>Project <Text style={styles.required}>*</Text></Text>
           <RNWorkOrderPicker workOrders={jobsData?.workOrders || []} value={workOrderId} onChange={setWorkOrderId} placeholder="Select a project…" />
+          {lockReason && <Text style={styles.lockNote}>{lockReason}</Text>}
         </View>
 
         <View style={styles.card}>
@@ -204,7 +209,7 @@ export default function NewExpenseScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable style={[styles.submitButton, submitting && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={submitting}>
+        <Pressable style={[styles.submitButton, (submitting || !!lockReason) && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={submitting || !!lockReason}>
           {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Save expense</Text>}
         </Pressable>
       </View>
@@ -232,6 +237,7 @@ const styles = StyleSheet.create({
   claimButtonText: { fontSize: 12, fontWeight: '600', color: '#7A6870' },
   claimButtonTextActive: { color: '#7D1D3F' },
   eligibilityNote: { fontSize: 10, color: '#7A6870', lineHeight: 15 },
+  lockNote: { marginTop: 8, backgroundColor: '#FEF3C7', color: '#92400E', fontSize: 11, lineHeight: 15, padding: 8, borderRadius: 8 },
   errorBox: { backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12 },
   errorText: { color: '#DC2626', fontSize: 12 },
   footer: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E0E3', padding: 16 },

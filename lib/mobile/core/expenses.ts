@@ -48,13 +48,23 @@ export async function resolveBLEligibility(admin: AdminClient, userId: string, w
   }
 }
 
-export async function getExpenseEligibilityCore(admin: AdminClient, userId: string, workOrderId: string): Promise<{ eligibility: BLEligibility | null; error: string | null }> {
+export async function getExpenseEligibilityCore(admin: AdminClient, userId: string, workOrderId: string): Promise<{ eligibility: BLEligibility | null; locked: boolean; lockReason: string | null; error: string | null }> {
   try {
-    if (!workOrderId) return { eligibility: null, error: null }
-    const eligibility = await resolveBLEligibility(admin, userId, workOrderId)
-    return { eligibility, error: null }
+    if (!workOrderId) return { eligibility: null, locked: false, lockReason: null, error: null }
+    const [eligibility, { data: woApproval }] = await Promise.all([
+      resolveBLEligibility(admin, userId, workOrderId),
+      admin.from('work_orders').select('expense_approval').eq('id', workOrderId).maybeSingle(),
+    ])
+    // Mirrors the submitExpenseLogCore gate so the form can disable submit and explain why.
+    const locked = woApproval?.expense_approval === 'pending' || woApproval?.expense_approval === 'rejected'
+    const lockReason = woApproval?.expense_approval === 'pending'
+      ? 'Awaiting manager approval before expenses can be added.'
+      : woApproval?.expense_approval === 'rejected'
+        ? 'This notification was rejected by a manager — expenses can\'t be added.'
+        : null
+    return { eligibility, locked, lockReason, error: null }
   } catch (e: unknown) {
-    return { eligibility: null, error: e instanceof Error ? e.message : String(e) }
+    return { eligibility: null, locked: false, lockReason: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -212,6 +222,12 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
     if (!params.expenseDate) return { error: 'Select a date' }
     if (!params.amount || params.amount <= 0) return { error: 'Enter a valid amount' }
     if (params.claimType === 'actual' && !params.photo) return { error: 'A bill/receipt photo is required for an actuals claim' }
+
+    // A Field-Engineer-created notification is expense-locked until a Service Manager /
+    // Head of Service approves it (expense_approval null = admin-created, always allowed).
+    const { data: woApproval } = await admin.from('work_orders').select('expense_approval').eq('id', params.workOrderId).maybeSingle()
+    if (woApproval?.expense_approval === 'pending') return { error: 'This notification is awaiting manager approval before expenses can be added.' }
+    if (woApproval?.expense_approval === 'rejected') return { error: "This notification was rejected by a manager — expenses can't be added." }
 
     // Only persisted for Boarding & Lodging-type claims from an engineer with a grade
     // set — re-derived server-side rather than trusted from the client.

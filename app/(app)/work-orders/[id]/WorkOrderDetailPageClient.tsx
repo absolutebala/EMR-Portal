@@ -16,6 +16,7 @@ import {
 } from '@/app/actions/create-work-order'
 import { getProductRequestsForWorkOrder } from '@/app/actions/products'
 import { deleteWorkOrder } from '@/app/actions/delete-work-order'
+import { approveNotificationExpenses, rejectNotificationExpenses } from '@/app/actions/notification-approval'
 import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
@@ -363,6 +364,16 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const canEdit = isFullAccess || permissions['Notifications — Create / Edit'] === true
   const canDelete = isFullAccess || permissions['Notifications — Delete'] === true
   const canViewMom = isFullAccess || permissions['MoM — View / Download'] === true
+  const canApprove = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service' || currentUser.role === 'Service Manager'
+
+  async function handleApproval(decision: 'approved' | 'rejected') {
+    if (!wo) return
+    setActing(true); setError('')
+    const { error: err } = decision === 'approved' ? await approveNotificationExpenses(wo.id) : await rejectNotificationExpenses(wo.id)
+    if (err) { setError(err); setActing(false); return }
+    await refreshDetail()
+    setActing(false)
+  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -495,6 +506,37 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                   {wo.has_warranty ? 'Under warranty' : 'No warranty'}
                 </span>
               </div>
+
+              {wo.expense_approval && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                  borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+                  background: wo.expense_approval === 'approved' ? '#ECFDF5' : wo.expense_approval === 'rejected' ? '#FEF2F2' : '#FFFBEB',
+                  border: `1px solid ${wo.expense_approval === 'approved' ? '#A7F3D0' : wo.expense_approval === 'rejected' ? '#FECACA' : '#FDE68A'}`,
+                }}>
+                  <div style={{ fontSize: 12, color: wo.expense_approval === 'approved' ? '#065F46' : wo.expense_approval === 'rejected' ? '#991B1B' : '#92400E', fontWeight: 500 }}>
+                    {wo.expense_approval === 'approved'
+                      ? 'Expenses approved — the engineer can log expenses for this notification.'
+                      : wo.expense_approval === 'rejected'
+                        ? 'Expenses rejected — expenses are blocked. You can still approve it.'
+                        : 'Created by a Field Engineer — expenses are blocked until you approve it.'}
+                  </div>
+                  {canApprove && wo.expense_approval !== 'approved' && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => handleApproval('approved')} disabled={acting}
+                        style={{ background: '#065F46', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: acting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+                        Approve
+                      </button>
+                      {wo.expense_approval === 'pending' && (
+                        <button onClick={() => handleApproval('rejected')} disabled={acting}
+                          style={{ background: '#fff', color: '#991B1B', border: '1px solid #991B1B', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: acting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+                          Reject
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
 

@@ -208,6 +208,28 @@ export interface RequestAmendmentResponse {
   error: string | null;
 }
 
+// Create-notification (Field Engineer, mobile-only) + quick-add customer.
+export interface MobileCustomerOption { id: string; name: string }
+export interface MobileTransformerOption { id: string; serialNumber: string }
+export interface CustomersResponse { customers: MobileCustomerOption[]; error: string | null }
+export interface TransformersResponse { transformers: MobileTransformerOption[]; error: string | null }
+export interface CreateCustomerVariables {
+  name: string;
+  contactPerson: string;
+  phone: string;
+  type: 'sold' | 'shipped' | 'both';
+  pincode: string;
+  siteName?: string | null;
+  serialNumber?: string | null;
+}
+export interface CreateNotificationVariables {
+  jobType: string;
+  customerId: string | null;
+  transformerIds: string[];
+  notes: string | null;
+}
+export interface CreateEntityResponse { error: string | null; id?: string }
+
 export interface DashboardResponse {
   stats: MobileDashboardStats;
   recentJobs: MobileWorkOrder[];
@@ -553,6 +575,8 @@ export interface ExpenseLogView {
 
 export interface ExpenseEligibilityResponse {
   eligibility: BLEligibility | null;
+  locked: boolean;
+  lockReason: string | null;
   error: string | null;
 }
 

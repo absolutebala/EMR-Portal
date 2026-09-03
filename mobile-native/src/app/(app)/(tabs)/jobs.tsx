@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useJobs } from '@/lib/hooks';
 import JobCard from '@/components/JobCard';
 import type { MobileWorkOrder } from '@/lib/types';
@@ -15,6 +16,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export default function JobsScreen() {
+  const router = useRouter();
   const { data, isLoading, error } = useJobs('all');
   const [tab, setTab] = useState<TabId>('all');
   const [query, setQuery] = useState('');
@@ -38,7 +40,12 @@ export default function JobsScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.headerArea, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.title}>Jobs</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Jobs</Text>
+          <Pressable style={styles.newButton} onPress={() => router.push('/(app)/(tabs)/notifications/new')}>
+            <Text style={styles.newButtonText}>＋ New Notification</Text>
+          </Pressable>
+        </View>
         <TextInput
           style={styles.search}
           placeholder="Search by ID, customer, serial…"
@@ -75,7 +82,10 @@ export default function JobsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   headerArea: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#F9FAFB' },
-  title: { fontSize: 18, fontWeight: '700', color: '#1C0D14', marginBottom: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  title: { fontSize: 18, fontWeight: '700', color: '#1C0D14' },
+  newButton: { backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12 },
+  newButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   search: {
     borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
     fontSize: 13, color: '#111827', backgroundColor: '#fff', marginBottom: 10,

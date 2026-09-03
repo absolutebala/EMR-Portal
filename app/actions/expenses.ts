@@ -19,9 +19,9 @@ import {
 // These are now thin wrappers over lib/mobile/core/expenses.ts — business logic
 // lives there, shared with the RN REST routes.
 
-export async function getExpenseEligibility(workOrderId: string): Promise<{ eligibility: BLEligibility | null; error: string | null }> {
+export async function getExpenseEligibility(workOrderId: string): Promise<{ eligibility: BLEligibility | null; locked: boolean; lockReason: string | null; error: string | null }> {
   const user = await getAuthedUser()
-  if (!user) return { eligibility: null, error: 'Not authenticated' }
+  if (!user) return { eligibility: null, locked: false, lockReason: null, error: 'Not authenticated' }
   return getExpenseEligibilityCore(adminClient(), user.id, workOrderId)
 }
 

@@ -47,6 +47,15 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
   const [claimType, setClaimType] = useState<ClaimType>('flat')
   const [eligibility, setEligibility] = useState<BLEligibility | null>(null)
 
+  // A Field-Engineer-created notification is expense-locked until a manager approves it.
+  const [lockReason, setLockReason] = useState<string | null>(null)
+  useEffect(() => {
+    if (!workOrderId) { setLockReason(null); return }
+    getExpenseEligibility(workOrderId).then(({ locked, lockReason: reason }) => {
+      setLockReason(locked ? (reason || 'Expenses are blocked for this notification.') : null)
+    }).catch(() => {})
+  }, [workOrderId])
+
   useEffect(() => {
     if (!workOrderId || !isLodging) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -72,6 +81,7 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
   async function handleSubmit() {
     setSubmitError('')
     if (!workOrderId) { setSubmitError('Select the project'); return }
+    if (lockReason) { setSubmitError(lockReason); return }
     if (!expenseTypeId) { setSubmitError('Select or add an expense type'); return }
     if (!expenseDate) { setSubmitError('Select a date'); return }
     const amountNum = parseFloat(amount)
@@ -145,6 +155,11 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
               <option key={wo.id} value={wo.id}>{wo.wo_number} — {wo.site_name || wo.customer_name}</option>
             ))}
           </select>
+          {lockReason && (
+            <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 11, lineHeight: 1.4 }}>
+              {lockReason}
+            </div>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
@@ -225,8 +240,8 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
         <button
           className="mtap"
           onClick={handleSubmit}
-          disabled={submitting}
-          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: submitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}
+          disabled={submitting || !!lockReason}
+          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: (submitting || lockReason) ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: (submitting || lockReason) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: lockReason ? 0.6 : 1 }}
         >
           {submitting ? 'Saving…' : 'Save expense'}
         </button>
