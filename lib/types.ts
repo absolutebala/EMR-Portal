@@ -140,6 +140,9 @@ export interface WorkOrder {
   customer_address?: string | null
   customer_phone?: string | null
   engineer_name?: string
+  // Geographic state of the assigned engineer's last-seen location (last segment of
+  // last_seen_place_label) — shown under their name on the Notifications list.
+  engineer_last_seen_state?: string | null
   serial_numbers?: string[]
   transformer_ids?: string[]
   site_name?: string | null

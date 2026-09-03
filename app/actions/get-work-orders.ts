@@ -103,7 +103,7 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
     const [{ data: wotRows }, { data: customers }, { data: engineers }, { data: categories }] = await Promise.all([
       admin.from('work_order_transformers').select('work_order_id, transformer_id, transformers(serial_number, warranty_status, site_id, customer_sites(site_name))').in('work_order_id', woIds),
       admin.from('customers').select('id, name, address, phone').in('id', customerIds),
-      engineerIds.length ? admin.from('profiles').select('id, first_name, last_name').in('id', engineerIds) : Promise.resolve({ data: [] }),
+      engineerIds.length ? admin.from('profiles').select('id, first_name, last_name, last_seen_place_label').in('id', engineerIds) : Promise.resolve({ data: [] }),
       categoryIds.length ? admin.from('customer_categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [] }),
     ])
 
@@ -117,7 +117,14 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
     })
 
     const engMap: Record<string, string> = {}
-    engineers?.forEach((e: { id: string; first_name: string; last_name: string }) => { engMap[e.id] = `${e.first_name} ${e.last_name}` })
+    const engStateMap: Record<string, string | null> = {}
+    engineers?.forEach((e: { id: string; first_name: string; last_name: string; last_seen_place_label: string | null }) => {
+      engMap[e.id] = `${e.first_name} ${e.last_name}`
+      // last_seen_place_label is "locality, city, state" (see lib/geocode.ts) — the state
+      // is the last comma segment; used to show where the engineer was last seen.
+      const parts = (e.last_seen_place_label || '').split(',').map(s => s.trim()).filter(Boolean)
+      engStateMap[e.id] = parts.length ? parts[parts.length - 1] : null
+    })
 
     const categoryMap: Record<string, string> = {}
     categories?.forEach((c: { id: string; name: string }) => { categoryMap[c.id] = c.name })
@@ -142,6 +149,7 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
         customer_address: w.customer_id ? (custAddrMap[w.customer_id] ?? null) : null,
         customer_phone: w.customer_id ? (custPhoneMap[w.customer_id] ?? null) : null,
         engineer_name: w.engineer_id ? (engMap[w.engineer_id] || '') : null,
+        engineer_last_seen_state: w.engineer_id ? (engStateMap[w.engineer_id] ?? null) : null,
         serial_numbers: serialNumbers,
         transformer_ids: transformerIds,
         site_name: siteName,

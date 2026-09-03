@@ -62,17 +62,56 @@ function StatusBadge({ status, scheduledDate }: { status: string; scheduledDate:
   )
 }
 
-// Days from today until the notification's scheduled date. Colour bands (per request):
-// < 10 days → red (negatives shown with a minus), 10–15 → orange, > 15 → yellow.
-function daysLeftInfo(scheduledDate: string | null): { label: string; color: string; bg: string } {
-  if (!scheduledDate) return { label: '—', color: 'var(--txm)', bg: 'var(--gl)' }
+// Signed number of days from today until the scheduled date (negative = overdue).
+function daysLeftNumber(scheduledDate: string | null): number | null {
+  if (!scheduledDate) return null
   const [y, m, d] = scheduledDate.slice(0, 10).split('-').map(Number)
   const sched = new Date(y, m - 1, d)
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  const days = Math.round((sched.getTime() - today.getTime()) / 86400000)
+  return Math.round((sched.getTime() - today.getTime()) / 86400000)
+}
+
+// Colour bands (per request): < 10 days → red (negatives shown with a minus),
+// 10–15 → orange, > 15 → yellow.
+function daysLeftInfo(scheduledDate: string | null): { label: string; color: string; bg: string } {
+  const days = daysLeftNumber(scheduledDate)
+  if (days === null) return { label: '—', color: 'var(--txm)', bg: 'var(--gl)' }
   if (days > 15) return { label: `${days}d`, color: '#854D0E', bg: '#FEF9C3' }      // yellow
   if (days >= 10) return { label: `${days}d`, color: '#9A3412', bg: '#FFEDD5' }      // orange
   return { label: `${days}d`, color: '#991B1B', bg: '#FEE2E2' }                      // red (incl. negatives)
+}
+
+type SortKey = 'daysLeft' | 'paid' | 'status' | 'location' | 'customer' | 'id' | 'serial' | 'job' | 'shipped' | 'engineer' | 'warranty'
+
+// Sortable columns in render order; Actions is not sortable so it's rendered separately.
+const COLUMNS: { key: SortKey; label: string; kind: 'number' | 'string' }[] = [
+  { key: 'daysLeft', label: 'Days Left', kind: 'number' },
+  { key: 'paid', label: 'Paid', kind: 'number' },
+  { key: 'status', label: 'Status', kind: 'string' },
+  { key: 'location', label: 'Location', kind: 'string' },
+  { key: 'customer', label: 'Customer', kind: 'string' },
+  { key: 'id', label: 'ID', kind: 'string' },
+  { key: 'serial', label: 'Serial No(s)', kind: 'string' },
+  { key: 'job', label: 'Job type', kind: 'string' },
+  { key: 'shipped', label: 'Shipped to', kind: 'string' },
+  { key: 'engineer', label: 'Engineer', kind: 'string' },
+  { key: 'warranty', label: 'Warranty', kind: 'number' },
+]
+
+function sortValue(wo: WorkOrder, key: SortKey): number | string | null {
+  switch (key) {
+    case 'daysLeft': return daysLeftNumber(wo.scheduled_date)
+    case 'paid': return wo.job_type === 'overhauling' ? 1 : 0
+    case 'status': return wo.status || ''
+    case 'location': return wo.customer_address || ''
+    case 'customer': return wo.customer_name || ''
+    case 'id': return wo.wo_number || ''
+    case 'serial': return (wo.serial_numbers || []).join(', ')
+    case 'job': return JOB_LABELS[wo.job_type] || wo.job_type || ''
+    case 'shipped': return wo.site_name || ''
+    case 'engineer': return wo.engineer_name || ''
+    case 'warranty': return wo.has_warranty ? 1 : 0
+  }
 }
 
 interface Props {
@@ -142,7 +181,30 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty && matchDepartment
   }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter, departmentFilter])
 
-  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
+  // Default sort: soonest/most-overdue first (Days Left ascending → -8, -7, 0, 1, 2…).
+  const [sortKey, setSortKey] = useState<SortKey>('daysLeft')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) { setSortDir(d => (d === 'asc' ? 'desc' : 'asc')) }
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...filtered].sort((a, b) => {
+      const va = sortValue(a, sortKey)
+      const vb = sortValue(b, sortKey)
+      // Nulls (e.g. no scheduled date, no address) always sort to the bottom.
+      if (va === null && vb === null) return 0
+      if (va === null) return 1
+      if (vb === null) return -1
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+      return String(va).localeCompare(String(vb), undefined, { numeric: true }) * dir
+    })
+  }, [filtered, sortKey, sortDir])
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(sorted)
 
   return (
     <>
@@ -256,9 +318,17 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1180 }}>
                 <thead>
                   <tr>
-                    {['Days Left', 'Paid', 'Status', 'Location', 'Customer', 'ID', 'Serial No(s)', 'Job type', 'Shipped to', 'Engineer', 'Warranty', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
+                    {COLUMNS.map(col => {
+                      const active = sortKey === col.key
+                      return (
+                        <th key={col.key} onClick={() => toggleSort(col.key)} title="Sort"
+                          style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: active ? 'var(--m)' : 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                          {col.label}
+                          <span style={{ marginLeft: 4, opacity: active ? 1 : 0.35 }}>{active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                        </th>
+                      )
+                    })}
+                    <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -298,7 +368,15 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{JOB_LABELS[wo.job_type] || wo.job_type}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{wo.site_name || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontSize: 12, color: wo.engineer_name ? 'var(--tx)' : 'var(--txm)' }}>{wo.engineer_name || '—'}</div>
+                        {wo.engineer_name && wo.engineer_last_seen_state && (
+                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            {wo.engineer_last_seen_state}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                         {wo.has_warranty
                           ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
