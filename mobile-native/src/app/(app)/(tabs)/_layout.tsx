@@ -20,7 +20,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="jobs"
-        options={{ title: 'Jobs', tabBarIcon: ({ color }) => <TabIcon symbol="☰" color={color} /> }}
+        options={{ title: 'Notifications', tabBarIcon: ({ color }) => <TabIcon symbol="☰" color={color} /> }}
       />
       <Tabs.Screen
         name="attendance"
@@ -48,6 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="my-analytics" options={{ href: null }} />
       <Tabs.Screen name="department-jobs/[dept]" options={{ href: null }} />
       <Tabs.Screen name="requests/new" options={{ href: null }} />
+      <Tabs.Screen name="notifications/new" options={{ href: null }} />
       <Tabs.Screen name="expenses/new" options={{ href: null }} />
       <Tabs.Screen name="expenses/[workOrderId]" options={{ href: null }} />
       <Tabs.Screen name="work-orders/[id]/index" options={{ href: null }} />

@@ -41,7 +41,7 @@ export default function JobsScreen() {
     <View style={styles.container}>
       <View style={[styles.headerArea, { paddingTop: insets.top + 12 }]}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Jobs</Text>
+          <Text style={styles.title}>Notifications</Text>
           <Pressable style={styles.newButton} onPress={() => router.push('/(app)/(tabs)/notifications/new')}>
             <Text style={styles.newButtonText}>＋ New Notification</Text>
           </Pressable>

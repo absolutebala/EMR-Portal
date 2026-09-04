@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { AuthProvider } from '@/lib/AuthContext';
@@ -35,6 +36,9 @@ export default function RootLayout() {
       }}
     >
       <AuthProvider>
+        {/* Most screens have a light background, so default to dark status-bar text;
+            screens with a dark header (e.g. the dashboard) override with style="light". */}
+        <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />

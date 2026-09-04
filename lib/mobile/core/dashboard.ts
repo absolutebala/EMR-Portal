@@ -642,6 +642,11 @@ export async function checkCheckinDriftCore(admin: AdminClient, userId: string, 
     const workOrderId = profile.engineer_status_work_order_id
     if (!workOrderId) return { notice: null, error: null }
 
+    // Don't nudge about a job that's already done — a completed notification has nothing
+    // left to "update the status" of, even if the engineer_status hasn't reset yet.
+    const { data: wo } = await admin.from('work_orders').select('customer_id, status').eq('id', workOrderId).maybeSingle()
+    if (!wo || wo.status === 'completed') return { notice: null, error: null }
+
     const { data: checkin } = await admin.from('work_order_checkins')
       .select('latitude, longitude')
       .eq('work_order_id', workOrderId).eq('engineer_id', userId)
@@ -652,8 +657,7 @@ export async function checkCheckinDriftCore(admin: AdminClient, userId: string, 
     if (distanceKm < CHECKIN_DRIFT_THRESHOLD_KM) return { notice: null, error: null }
 
     let projectLabel = 'the project'
-    const { data: wo } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
-    if (wo) {
+    {
       const { data: wotRows } = await admin.from('work_order_transformers').select('transformers(customer_sites(site_name))').eq('work_order_id', workOrderId).limit(1)
       type Row = { transformers: { customer_sites: { site_name: string } | null } | null }
       const siteName = ((wotRows as unknown as Row[]) || [])[0]?.transformers?.customer_sites?.site_name
