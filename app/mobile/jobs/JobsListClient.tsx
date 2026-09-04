@@ -55,7 +55,7 @@ export default function JobsListClient({ workOrders, error }: Props) {
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
-      <MobileHeader title="My Jobs" backHref="/mobile/dashboard" />
+      <MobileHeader title="Notifications" backHref="/mobile/dashboard" />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {error && (
