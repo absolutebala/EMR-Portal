@@ -206,7 +206,13 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const filtered = useMemo(() => workOrders.filter(wo => {
     const q = search.toLowerCase()
     const matchSearch = !q || wo.wo_number.toLowerCase().includes(q) || (wo.serial_numbers?.join(' ').toLowerCase().includes(q)) || wo.customer_name?.toLowerCase().includes(q) || ''
-    const matchStatus = !statusFilter || wo.status === statusFilter
+    // Default view hides completed notifications, except field-engineer-created ones
+    // whose expense approval is still pending/rejected (an admin still needs to act on
+    // those). Explicitly picking a status from the dropdown overrides the hide.
+    const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
+    const matchStatus = statusFilter
+      ? wo.status === statusFilter
+      : (wo.status !== 'completed' || feUnapproved)
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
     const matchDate = !dateFilter || wo.scheduled_date === dateFilter

@@ -47,12 +47,6 @@ export function isPastAttendanceCutoff(date: Date = new Date()): boolean {
   return getISTHour(date) >= LATE_IN_HOUR
 }
 
-// Date-only strings parse as UTC midnight, so .getUTCDay() reads the weekday of the
-// IST calendar date itself without any further timezone shifting.
-function isSunday(istDateStr: string): boolean {
-  return new Date(`${istDateStr}T00:00:00Z`).getUTCDay() === 0
-}
-
 function eachDateStr(fromStr: string, toStr: string): string[] {
   const dates: string[] = []
   for (let d = new Date(`${fromStr}T00:00:00Z`); d <= new Date(`${toStr}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
@@ -110,7 +104,6 @@ interface AttendanceDay {
 
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
-  | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)
@@ -165,7 +158,6 @@ export function computeEffectiveStatus(params: {
   }
 
   if (holidayName) return { kind: 'holiday', name: holidayName }
-  if (isSunday(dateStr)) return { kind: 'weekly_off' }
   if (profileCreatedAtDateStr && dateStr < profileCreatedAtDateStr) return { kind: 'not_applicable' }
 
   const absentNoShow = (): AttendanceEffectiveStatus => ({
@@ -218,7 +210,6 @@ export function getAttendanceStatusLabel(s: AttendanceEffectiveStatus): string {
       return `Absent (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
     case 'holiday': return `Holiday: ${s.name}`
-    case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }

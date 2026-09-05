@@ -39,7 +39,6 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
     }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' }
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` }
-    case 'weekly_off': return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off' }
     case 'not_applicable': return { bg: '#F1F5F9', color: '#475569', label: '—' }
   }
 }
@@ -62,7 +61,6 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`
     }
     case 'holiday': return `Holiday: ${s.name}`
-    case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
@@ -93,12 +91,12 @@ function mondayOf(d: Date): Date {
 
 function weekRange(anchor: Date): { from: string; to: string; label: string } {
   const monday = mondayOf(anchor)
-  const saturday = new Date(monday)
-  saturday.setDate(monday.getDate() + 5)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
   return {
     from: toDateStr(monday),
-    to: toDateStr(saturday),
-    label: `${monday.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – ${saturday.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`,
+    to: toDateStr(sunday),
+    label: `${monday.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – ${sunday.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`,
   }
 }
 

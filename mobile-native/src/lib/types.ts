@@ -14,6 +14,7 @@ export interface MobileWorkOrder {
   customer_name: string;
   serial_numbers: string[];
   site_name: string | null;
+  expense_approval: string | null;
   distanceKm: number | null;
 }
 
@@ -148,7 +149,6 @@ export interface AttendanceDay {
 }
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
-  | { kind: 'weekly_off' }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)

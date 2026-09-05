@@ -20,7 +20,6 @@ const ATTENDANCE_CFG: Record<AttendanceEffectiveStatus['kind'], { bg: string; co
   present: { bg: '#D1FAE5', color: '#065F46' },
   leave: { bg: '#FEE2E2', color: '#DC2626' },
   holiday: { bg: '#F1F5F9', color: '#475569' },
-  weekly_off: { bg: '#F3F4F6', color: '#6B7280' },
   pending: { bg: '#FEF3C7', color: '#D97706' },
   not_applicable: { bg: '#F3F4F6', color: '#B0A8AC' },
 }
@@ -54,7 +53,6 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`
     }
     case 'holiday': return `Holiday: ${s.name}`
-    case 'weekly_off': return 'Weekly Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }

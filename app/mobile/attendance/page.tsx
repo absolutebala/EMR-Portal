@@ -18,20 +18,19 @@ export default async function MobileAttendancePage() {
 
   // Computed from the IST calendar date, not the server's own (UTC) local date
   // components — the 11am cutoff this whole feature is built around only makes sense
-  // in IST. Default range is the current work week, Monday through Saturday (Sunday
-  // is always Weekly Off, so it's never fetched at all rather than shown as a dead
-  // column) — date-only arithmetic in UTC on the date string avoids any local-TZ/DST
-  // surprises, matching the pattern already used by eachDateStr/isSunday elsewhere in
-  // this feature.
+  // in IST. Default range is the current work week, Monday through Sunday (engineers
+  // may work any day, so no day is treated as an off day) — date-only arithmetic in
+  // UTC on the date string avoids any local-TZ/DST surprises, matching the pattern
+  // already used by eachDateStr elsewhere in this feature.
   const toStrToday = getISTDateStr()
   const todayUtc = new Date(`${toStrToday}T00:00:00Z`)
   const dow = todayUtc.getUTCDay() // 0 = Sunday
   const mondayUtc = new Date(todayUtc)
   mondayUtc.setUTCDate(todayUtc.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
-  const saturdayUtc = new Date(mondayUtc)
-  saturdayUtc.setUTCDate(mondayUtc.getUTCDate() + 5)
+  const sundayUtc = new Date(mondayUtc)
+  sundayUtc.setUTCDate(mondayUtc.getUTCDate() + 6)
   const fromStr = mondayUtc.toISOString().slice(0, 10)
-  const toStr = saturdayUtc.toISOString().slice(0, 10)
+  const toStr = sundayUtc.toISOString().slice(0, 10)
 
   const { days, error } = await getAttendanceCalendar(fromStr, toStr)
 

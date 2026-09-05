@@ -72,6 +72,10 @@ export interface MobileWorkOrder {
   customer_name: string
   serial_numbers: string[]
   site_name: string | null
+  // 'pending'/'rejected'/'approved' for field-engineer-created notifications, null for
+  // admin/manager-created ones. Used to keep an FE-created notification visible in lists
+  // even after it's completed, until its expenses are approved.
+  expense_approval: string | null
   // Approximate straight-line distance from the engineer's current known location
   // (last-seen ping, falling back to last check-in) to this job's site. Null when
   // either location isn't known/geocoded yet.
@@ -98,12 +102,13 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
 type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
   scheduled_date: string | null; notes: string | null; customer_id: string; customer_type: string | null
+  expense_approval: string | null
   customers: { name: string; contact_person: string; phone: string } | null
   work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; dispatch_date: string | null; warranty_years: number | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 export const WORK_ORDER_SELECT = `
-  id, wo_number, job_type, status, scheduled_date, notes, customer_id, customer_type,
+  id, wo_number, job_type, status, scheduled_date, notes, customer_id, customer_type, expense_approval,
   customers ( name, contact_person, phone ),
   work_order_transformers ( transformers ( serial_number, rating, manufacturer, dispatch_date, warranty_years, customer_sites ( id, site_name, site_address ) ) )
 `
@@ -131,6 +136,7 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: n
     customer_name: w.customers?.name || '',
     serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
     site_name: site?.site_name || null,
+    expense_approval: w.expense_approval,
     distanceKm,
   }
 }

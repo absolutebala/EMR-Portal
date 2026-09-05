@@ -35,6 +35,7 @@ export default function NewNotificationClient() {
   const [jobType, setJobType] = useState('')
   const [customers, setCustomers] = useState<MobileCustomerOption[]>([])
   const [customerId, setCustomerId] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
   const [addingCustomer, setAddingCustomer] = useState(false)
   const [transformers, setTransformers] = useState<MobileTransformerOption[]>([])
   const [selectedTransformerIds, setSelectedTransformerIds] = useState<string[]>([])
@@ -124,12 +125,39 @@ export default function NewNotificationClient() {
             </button>
           </div>
 
-          {!addingCustomer ? (
-            <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={inputStyle}>
-              <option value="">Select a customer…</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          ) : (
+          {!addingCustomer ? (() => {
+            const selected = customers.find(c => c.id === customerId)
+            const q = customerSearch.trim().toLowerCase()
+            const matches = q ? customers.filter(c => c.name.toLowerCase().includes(q)) : customers
+            return (
+              <div>
+                <input
+                  value={selected ? selected.name : customerSearch}
+                  onChange={e => { setCustomerSearch(e.target.value); if (customerId) setCustomerId('') }}
+                  placeholder="Search customer by name…"
+                  style={inputStyle}
+                />
+                {!customerId && customerSearch.trim() && (
+                  <div style={{ marginTop: 6, border: '1.5px solid #E5E0E3', borderRadius: 10, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                    {matches.length === 0 ? (
+                      <div style={{ padding: '10px 12px', fontSize: 12, color: '#7A6870' }}>No customer found. Tap “＋ New customer” above to add one.</div>
+                    ) : matches.slice(0, 25).map(c => (
+                      <button key={c.id} className="mtap" onClick={() => { setCustomerId(c.id); setCustomerSearch('') }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #F5F3F5', background: '#fff', fontSize: 12, color: '#1C0D14', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selected && (
+                  <button className="mtap" onClick={() => { setCustomerId(''); setCustomerSearch('') }}
+                    style={{ marginTop: 6, padding: 0, background: 'none', border: 'none', color: '#7D1D3F', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+                    Change customer
+                  </button>
+                )}
+              </div>
+            )
+          })() : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               <input value={cName} onChange={e => setCName(e.target.value)} placeholder="Customer name *" style={inputStyle} />
               <input value={cContact} onChange={e => setCContact(e.target.value)} placeholder="Contact person *" style={inputStyle} />

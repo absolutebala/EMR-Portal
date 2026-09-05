@@ -29,6 +29,7 @@ export default function NewNotificationScreen() {
 
   const [jobType, setJobType] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [addingCustomer, setAddingCustomer] = useState(false);
   const [selectedTransformerIds, setSelectedTransformerIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -120,19 +121,44 @@ export default function NewNotificationScreen() {
             </Pressable>
           </View>
 
-          {!addingCustomer ? (
-            <View style={styles.chipWrap}>
-              {customers.length === 0 && <Text style={styles.eligibilityNote}>No customers yet — add one.</Text>}
-              {customers.map(c => {
-                const on = customerId === c.id;
-                return (
-                  <Pressable key={c.id} onPress={() => setCustomerId(on ? '' : c.id)} style={[styles.chip, on && styles.chipOn]}>
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.name}</Text>
+          {!addingCustomer ? (() => {
+            const selected = customers.find(c => c.id === customerId);
+            const q = customerSearch.trim().toLowerCase();
+            const matches = q ? customers.filter(c => c.name.toLowerCase().includes(q)) : customers;
+            if (selected) {
+              return (
+                <View style={styles.selectedRow}>
+                  <Text style={styles.selectedName}>{selected.name}</Text>
+                  <Pressable onPress={() => { setCustomerId(''); setCustomerSearch(''); }}>
+                    <Text style={styles.linkText}>Change</Text>
                   </Pressable>
-                );
-              })}
-            </View>
-          ) : (
+                </View>
+              );
+            }
+            return (
+              <View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Search customer by name…"
+                  placeholderTextColor="#9CA3AF"
+                  value={customerSearch}
+                  onChangeText={setCustomerSearch}
+                />
+                {customers.length === 0 && <Text style={styles.eligibilityNote}>No customers yet — add one.</Text>}
+                {!!customerSearch.trim() && (
+                  <View style={styles.searchList}>
+                    {matches.length === 0 ? (
+                      <Text style={styles.eligibilityNote}>No customer found. Tap “＋ New customer” above to add one.</Text>
+                    ) : matches.slice(0, 25).map(c => (
+                      <Pressable key={c.id} onPress={() => { setCustomerId(c.id); setCustomerSearch(''); }} style={styles.searchRow}>
+                        <Text style={styles.searchRowText}>{c.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })() : (
             <View style={{ gap: 8 }}>
               <TextInput style={styles.input} placeholder="Customer name *" placeholderTextColor="#9CA3AF" value={cName} onChangeText={setCName} />
               <TextInput style={styles.input} placeholder="Contact person *" placeholderTextColor="#9CA3AF" value={cContact} onChangeText={setCContact} />
@@ -212,6 +238,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, color: '#1C0D14' },
   chipTextOn: { color: '#7D1D3F', fontWeight: '600' },
   eligibilityNote: { fontSize: 10, color: '#7A6870', lineHeight: 15 },
+  selectedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#7D1D3F', backgroundColor: '#F9EEF2', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  selectedName: { fontSize: 13, fontWeight: '600', color: '#7D1D3F', flex: 1, marginRight: 8 },
+  searchList: { marginTop: 6, borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, overflow: 'hidden' },
+  searchRow: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F5F3F5' },
+  searchRowText: { fontSize: 12, color: '#1C0D14' },
   infoCard: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 12, padding: 12, marginBottom: 12 },
   infoText: { fontSize: 11, color: '#92400E', lineHeight: 16 },
   outlineButton: { borderWidth: 1, borderColor: '#7D1D3F', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },

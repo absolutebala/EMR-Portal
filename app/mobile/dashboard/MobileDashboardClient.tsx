@@ -27,7 +27,7 @@ interface Props {
 
 // Orange while the 10am window is still open and nothing's marked, red once it's
 // closed (or an amendment is pending/rejected), green once present is confirmed.
-// Holiday/Weekly Off get a neutral color — they're not an attendance outcome at all.
+// Holiday gets a neutral color — it's not an attendance outcome at all.
 function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
   switch (status.kind) {
     case 'pending':
@@ -56,8 +56,6 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: `Holiday`, sub: status.name }
-    case 'weekly_off':
-      return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off', sub: null }
     case 'not_applicable':
       return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null }
   }

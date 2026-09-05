@@ -245,7 +245,7 @@ export interface AttendanceStats {
 // this calendar month to date), independent of the grid's own date filter. Computed by
 // running computeEffectiveStatus over every field engineer × every day in the covering
 // range, so "absent" includes days an engineer simply never marked (not just explicit
-// Leave rows), while holidays / Sundays / pre-hire dates / today-before-cutoff are not
+// Leave rows), while holidays / pre-hire dates / today-before-cutoff are not
 // counted either way. Late In and Single Punch are counted off the flags regardless of
 // whether the amendment was later approved.
 export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | null; error: string | null }> {

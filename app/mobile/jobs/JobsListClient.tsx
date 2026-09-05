@@ -25,12 +25,18 @@ const TABS: { id: TabId; label: string; statuses: string[] }[] = [
   { id: 'completed', label: 'Completed', statuses: ['completed'] },
 ]
 
+// The "All" tab hides completed notifications, except FE-created ones still awaiting
+// expense approval (pending/rejected). The dedicated "Completed" tab still shows all.
+function visibleInAll(w: MobileWorkOrder): boolean {
+  return w.status !== 'completed' || w.expense_approval === 'pending' || w.expense_approval === 'rejected'
+}
+
 export default function JobsListClient({ workOrders, error }: Props) {
   const [tab, setTab] = useState<TabId>('all')
   const [search, setSearch] = useState('')
 
   const tabCounts = useMemo(() => {
-    const counts: Record<TabId, number> = { all: workOrders.length, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0 }
+    const counts: Record<TabId, number> = { all: workOrders.filter(visibleInAll).length, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0 }
     for (const t of TABS) {
       if (t.id === 'all') continue
       counts[t.id] = workOrders.filter(w => t.statuses.includes(w.status)).length
@@ -40,7 +46,7 @@ export default function JobsListClient({ workOrders, error }: Props) {
 
   const filtered = useMemo(() => {
     const activeTab = TABS.find(t => t.id === tab)!
-    let list = activeTab.statuses.length ? workOrders.filter(w => activeTab.statuses.includes(w.status)) : workOrders
+    let list = activeTab.statuses.length ? workOrders.filter(w => activeTab.statuses.includes(w.status)) : workOrders.filter(visibleInAll)
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(w =>

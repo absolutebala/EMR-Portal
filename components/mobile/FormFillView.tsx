@@ -182,31 +182,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
     if (!form) return
     setSubmitError('')
 
-    // Every field and every table row must be filled before submit — not just ones
-    // marked required in the form builder. The one carve-out: a field that's both
-    // prefill_from_job and read_only_on_mobile can't be edited by the engineer at all,
-    // so if the auto-fill lookup found no match, blocking submission on it would be a
-    // dead end rather than a real validation.
-    const missing = new Set<string>()
-    for (const sec of form.sections) {
-      for (const f of sec.fields) {
-        if (f.prefill_from_job && f.read_only_on_mobile) continue
-        if (!fieldValues[f.id]?.trim()) missing.add(f.id)
-      }
-      for (const t of sec.tables) {
-        for (const row of t.rows) {
-          const filled = t.status_type === 'measurement'
-            ? !!rowValues[row.id]?.remarks?.trim()
-            : !!rowValues[row.id]?.status
-          if (!filled) missing.add(row.id)
-        }
-      }
-    }
-    if (missing.size > 0) {
-      setIncompleteIds(missing)
-      setSubmitError(`You have ${missing.size} incomplete field${missing.size > 1 ? 's' : ''} — highlighted below.`)
-      return
-    }
+    // No fields are mandatory — engineers can submit a form with any subset filled in.
     setIncompleteIds(new Set())
 
     setSubmitting(true)
@@ -662,7 +638,6 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
     <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
         {t(field.label, field.label_hi, language)}
-        {!(field.prefill_from_job && field.read_only_on_mobile) && <span style={{ color: '#DC2626', marginLeft: -2 }}>*</span>}
         {field.prefill_from_job && (
           <span style={{ fontSize: 9, background: '#F9EEF2', color: '#7D1D3F', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>Auto-filled</span>
         )}
@@ -681,15 +656,21 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
         />
       ) : field.field_type === 'checkbox' ? (
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0' }}>
-          <input
-            type="checkbox"
-            checked={value === 'true'}
-            onChange={e => onChange(field.id, String(e.target.checked))}
-            style={{ width: 20, height: 20, accentColor: '#7D1D3F' }}
-          />
-          <span style={{ fontSize: 14, color: '#1C0D14' }}>Yes</span>
-        </label>
+        <div style={{ display: 'flex', gap: 10, padding: '4px 0' }}>
+          {([{ v: 'true', label: 'Yes' }, { v: 'false', label: 'No' }] as const).map(opt => {
+            const on = value === opt.v
+            return (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => onChange(field.id, on ? '' : opt.v)}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${on ? '#7D1D3F' : '#E5E0E3'}`, background: on ? '#7D1D3F' : '#fff', color: on ? '#fff' : '#1C0D14', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
       ) : field.field_type === 'signature' ? (
         <SignaturePad
           value={value}

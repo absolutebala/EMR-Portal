@@ -64,7 +64,9 @@ export function generateVisitPdf(params: VisitPdfParams): Promise<Buffer> {
       doc.moveDown(0.3)
       doc.fontSize(10)
       for (const f of textFields) {
-        doc.text(`${f.label}: ${params.fieldValues[f.id]}`)
+        const raw = params.fieldValues[f.id]
+        const display = f.field_type === 'checkbox' ? (raw === 'true' ? 'Yes' : raw === 'false' ? 'No' : raw) : raw
+        doc.text(`${f.label}: ${display}`)
       }
       for (const r of answeredRows) {
         const rv = params.rowValues[r.id]

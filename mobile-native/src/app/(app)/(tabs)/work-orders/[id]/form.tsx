@@ -127,30 +127,7 @@ export default function JobFormScreen() {
     if (!form || !workOrder) return;
     setSubmitError('');
 
-    // Every field and every table row must be filled — not just ones marked required
-    // in the form builder. Carve-out: a field that's both prefill_from_job and
-    // read_only_on_mobile can't be edited at all, so if auto-fill found no match,
-    // blocking submission on it would be a dead end rather than real validation.
-    const missing = new Set<string>();
-    for (const sec of form.sections) {
-      for (const f of sec.fields) {
-        if (f.prefill_from_job && f.read_only_on_mobile) continue;
-        if (!fieldValues[f.id]?.trim()) missing.add(f.id);
-      }
-      for (const t of sec.tables) {
-        for (const row of t.rows) {
-          const filled = t.status_type === 'measurement'
-            ? !!rowValues[row.id]?.remarks?.trim()
-            : !!rowValues[row.id]?.status;
-          if (!filled) missing.add(row.id);
-        }
-      }
-    }
-    if (missing.size > 0) {
-      setIncompleteIds(missing);
-      setSubmitError(`You have ${missing.size} incomplete field${missing.size > 1 ? 's' : ''} — highlighted below.`);
-      return;
-    }
+    // No fields are mandatory — engineers can submit a form with any subset filled in.
     setIncompleteIds(new Set());
 
     const variables = { workOrderId: id, formId: form.id, formData: { fields: fieldValues, table_rows: rowValues } };

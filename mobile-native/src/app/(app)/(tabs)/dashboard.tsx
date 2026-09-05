@@ -44,7 +44,7 @@ const DEPARTMENT_CARD_COLORS = [
 
 // Mirrors the PWA dashboard's attendanceCardStyle() — orange while the 10am window is
 // still open, red once Absent (or an amendment is pending/rejected), green once Present
-// is confirmed. Holiday/Weekly Off get a neutral color.
+// is confirmed. Holiday gets a neutral color.
 function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; color: string; label: string; sub: string | null } {
   switch (status.kind) {
     case 'pending':
@@ -73,8 +73,6 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: 'Holiday', sub: status.name };
-    case 'weekly_off':
-      return { bg: '#F1F5F9', color: '#475569', label: 'Weekly Off', sub: null };
     case 'not_applicable':
       return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null };
   }

@@ -25,7 +25,13 @@ export default function JobsScreen() {
 
   const filtered = useMemo(() => {
     let list = data?.workOrders || [];
-    if (tab !== 'all') list = list.filter((w: MobileWorkOrder) => w.status === tab);
+    // The "All" tab hides completed notifications, except FE-created ones still awaiting
+    // expense approval (pending/rejected). The dedicated "Completed" tab still shows all.
+    if (tab === 'all') {
+      list = list.filter((w: MobileWorkOrder) => w.status !== 'completed' || w.expense_approval === 'pending' || w.expense_approval === 'rejected');
+    } else {
+      list = list.filter((w: MobileWorkOrder) => w.status === tab);
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(

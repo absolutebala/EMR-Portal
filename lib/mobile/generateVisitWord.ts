@@ -70,7 +70,9 @@ export async function generateVisitWord(params: VisitWordParams): Promise<Buffer
 
     children.push(new Paragraph({ text: sec.title, heading: HeadingLevel.HEADING_2 }))
     for (const f of textFields) {
-      children.push(new Paragraph({ children: [new TextRun({ text: `${f.label}: `, bold: true }), new TextRun(params.fieldValues[f.id])] }))
+      const raw = params.fieldValues[f.id]
+      const display = f.field_type === 'checkbox' ? (raw === 'true' ? 'Yes' : raw === 'false' ? 'No' : raw) : raw
+      children.push(new Paragraph({ children: [new TextRun({ text: `${f.label}: `, bold: true }), new TextRun(display)] }))
     }
     for (const r of answeredRows) {
       const rv = params.rowValues[r.id]
