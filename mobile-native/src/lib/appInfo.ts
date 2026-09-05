@@ -9,9 +9,10 @@ function formatReleaseDate(): string {
   return isNaN(d.getTime()) ? RELEASE_DATE : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// e.g. "App version 1.0.1 (24) · 05 Sep 2026"
+// e.g. "Build 25 · v1.0.1 · 05 Sep 2026" — build number (Android versionCode) first,
+// since that's the value that increments every release.
 export function appVersionLabel(): string {
   const v = Application.nativeApplicationVersion ?? '—';
-  const b = Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : '';
-  return `App version ${v}${b} · ${formatReleaseDate()}`;
+  const build = Application.nativeBuildVersion ? `Build ${Application.nativeBuildVersion} · ` : '';
+  return `${build}v${v} · ${formatReleaseDate()}`;
 }
