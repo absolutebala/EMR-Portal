@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import { saveSettings } from '@/app/actions/save-settings'
+import { sendAppUpdatePrompt } from '@/app/actions/send-app-update'
 import { addHoliday, deleteHoliday, type Holiday } from '@/app/actions/holidays'
 import { addDepartment, updateDepartment, deleteDepartment, reorderDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
@@ -31,6 +32,7 @@ interface SettingsShape {
   sms_api_key: string
   sms_sender_id: string
   logo_url: string
+  play_store_url: string
 }
 
 // Each Combirds WhatsApp campaign must already exist and be "Live" in the org's own
@@ -95,6 +97,18 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
   const [settings, setSettings] = useState<SettingsShape>(initialSettings)
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+
+  const [updateMessage, setUpdateMessage] = useState('A new version of the app is available. Please update from the Play Store for the latest features and fixes.')
+  const [sendingUpdate, setSendingUpdate] = useState(false)
+  const [updateResult, setUpdateResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+  async function handleSendUpdatePrompt() {
+    setSendingUpdate(true)
+    setUpdateResult(null)
+    const { error, sent } = await sendAppUpdatePrompt(updateMessage)
+    setSendingUpdate(false)
+    setUpdateResult(error ? { ok: false, text: error } : { ok: true, text: `Update prompt sent to ${sent ?? 0} engineer${sent === 1 ? '' : 's'}.` })
+  }
 
   const [newHolidayDate, setNewHolidayDate] = useState('')
   const [newHolidayName, setNewHolidayName] = useState('')
@@ -241,6 +255,39 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
               {saving === 'notifications' ? 'Saving…' : 'Save notification settings'}
             </button>
             {saved === 'notifications' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
+          </div>
+        </div>
+
+        {/* App update prompt (mobile) */}
+        <div style={ss}>
+          <h3 style={h3s}>Mobile app update</h3>
+          <p style={ps}>Set the Google Play link the app&apos;s &quot;Update now&quot; button opens, then push an update prompt to every field engineer&apos;s phone — they get a notification plus an in-app popup with your message.</p>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={fl2}>Google Play Store link</label>
+            <input style={fi2} value={settings.play_store_url} onChange={e => set('play_store_url', e.target.value)} placeholder="https://play.google.com/store/apps/details?id=..." />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              <button onClick={() => save('play_store', { play_store_url: settings.play_store_url || null })} disabled={saving === 'play_store'}
+                style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'play_store' ? .7 : 1 }}>
+                {saving === 'play_store' ? 'Saving…' : 'Save link'}
+              </button>
+              {saved === 'play_store' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
+            </div>
+          </div>
+
+          <div>
+            <label style={fl2}>Update prompt message</label>
+            <textarea value={updateMessage} onChange={e => setUpdateMessage(e.target.value)} rows={3}
+              style={{ ...fi2, resize: 'vertical', fontFamily: 'Poppins,sans-serif' }} placeholder="Message shown in the popup and notification" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              <button onClick={handleSendUpdatePrompt} disabled={sendingUpdate || !updateMessage.trim()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: sendingUpdate ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: (sendingUpdate || !updateMessage.trim()) ? .7 : 1 }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                {sendingUpdate ? 'Sending…' : 'Send update prompt'}
+              </button>
+              {updateResult && <span style={{ fontSize: 11, color: updateResult.ok ? 'var(--green)' : '#DC2626' }}>{updateResult.ok ? '✓ ' : ''}{updateResult.text}</span>}
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '8px 0 0' }}>Save the Play Store link first so the popup&apos;s &quot;Update now&quot; button points to the right place.</p>
           </div>
         </div>
 

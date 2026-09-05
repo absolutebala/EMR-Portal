@@ -13,6 +13,7 @@ import AccountMenu from '@/components/AccountMenu';
 import StreakStrip from '@/components/StreakStrip';
 import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
+import AppUpdatePopup from '@/components/AppUpdatePopup';
 import { useBannerStackHeight } from '@/lib/bannerLayout';
 import type { AttendanceEffectiveStatus } from '@/lib/types';
 
@@ -164,6 +165,7 @@ export default function DashboardScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 + bannerStackHeight }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D1D3F" />}
     >
+      <AppUpdatePopup prompt={data?.updatePrompt ?? null} />
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.greeting}>Hi, {engineerName || data?.engineer?.name || 'Engineer'}</Text>

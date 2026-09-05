@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
@@ -105,6 +105,12 @@ export function useNotificationResponseListener() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const url = response.notification.request.content.data?.url as string | undefined;
+      // External links (e.g. a Play Store update prompt) open in the browser/store,
+      // not the in-app router which only understands our own deep-link paths.
+      if (url && /^https?:\/\//i.test(url)) {
+        Linking.openURL(url).catch(() => {});
+        return;
+      }
       router.push(translateLinkPath(url) as Href);
     });
     return () => sub.remove();

@@ -207,6 +207,8 @@ export async function getEngineerStreakCore(admin: AdminClient, userId: string):
   }
 }
 
+export interface AppUpdatePrompt { message: string; playStoreUrl: string | null; promptAt: string }
+
 export async function getMobileDashboardDataCore(admin: AdminClient, userId: string): Promise<{
   stats: MobileDashboardStats
   recentJobs: MobileWorkOrder[]
@@ -214,17 +216,23 @@ export async function getMobileDashboardDataCore(admin: AdminClient, userId: str
   streak: EngineerStreak
   pendingProducts: PendingProductItem[]
   attendanceStatus: AttendanceEffectiveStatus
+  updatePrompt: AppUpdatePrompt | null
   error: string | null
 }> {
   try {
     touchHeartbeat(admin, userId)
-    const [engineer, workOrders, { streak }, { items: pendingProducts }, { status: attendanceStatus }] = await Promise.all([
+    const [engineer, workOrders, { streak }, { items: pendingProducts }, { status: attendanceStatus }, { data: settings }] = await Promise.all([
       getEngineerName(admin, userId),
       fetchEngineerWorkOrders(admin, userId),
       getEngineerStreakCore(admin, userId),
       getPendingProductItemsCore(admin, userId),
       getMyAttendanceStatusCore(admin, userId),
+      admin.from('settings').select('play_store_url, update_prompt_message, update_prompt_at').limit(1).maybeSingle(),
     ])
+
+    const updatePrompt: AppUpdatePrompt | null = settings?.update_prompt_at && settings?.update_prompt_message
+      ? { message: settings.update_prompt_message, playStoreUrl: settings.play_store_url ?? null, promptAt: settings.update_prompt_at }
+      : null
 
     // "Pending" is no longer a distinct status — a visit that couldn't be finished in
     // a day stays In Progress with a follow-up date, so it's already counted there.
@@ -237,12 +245,12 @@ export async function getMobileDashboardDataCore(admin: AdminClient, userId: str
 
     const recentJobs = workOrders.filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment').slice(0, 3)
 
-    return { stats, recentJobs, engineer, streak, pendingProducts, attendanceStatus, error: null }
+    return { stats, recentJobs, engineer, streak, pendingProducts, attendanceStatus, updatePrompt, error: null }
   } catch (e: unknown) {
     return {
       stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null,
       streak: { count: 0, days: Array(STREAK_WINDOW_DAYS).fill(false) }, pendingProducts: [],
-      attendanceStatus: { kind: 'pending' }, error: e instanceof Error ? e.message : String(e),
+      attendanceStatus: { kind: 'pending' }, updatePrompt: null, error: e instanceof Error ? e.message : String(e),
     }
   }
 }

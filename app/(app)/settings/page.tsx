@@ -36,6 +36,7 @@ export default async function SettingsPage() {
     sms_api_key: data?.sms_api_key || '',
     sms_sender_id: data?.sms_sender_id || '',
     logo_url: data?.logo_url || '',
+    play_store_url: data?.play_store_url || '',
   }
 
   return (

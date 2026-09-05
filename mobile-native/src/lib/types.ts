@@ -230,6 +230,12 @@ export interface CreateNotificationVariables {
 }
 export interface CreateEntityResponse { error: string | null; id?: string }
 
+export interface AppUpdatePrompt {
+  message: string;
+  playStoreUrl: string | null;
+  promptAt: string;
+}
+
 export interface DashboardResponse {
   stats: MobileDashboardStats;
   recentJobs: MobileWorkOrder[];
@@ -237,6 +243,7 @@ export interface DashboardResponse {
   streak: EngineerStreak;
   pendingProducts: PendingProductItem[];
   attendanceStatus: AttendanceEffectiveStatus;
+  updatePrompt: AppUpdatePrompt | null;
   error: string | null;
 }
 
