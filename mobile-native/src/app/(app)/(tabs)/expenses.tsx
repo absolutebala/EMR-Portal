@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from '
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMyExpenseLogs, useSendExpenseReminder } from '@/lib/hooks';
+import AppVersionFooter from '@/components/AppVersionFooter';
 import type { ExpenseLogView } from '@/lib/types';
 
 interface ProjectGroup {
@@ -130,6 +131,7 @@ export default function ExpensesScreen() {
               {error || data?.error ? 'Failed to load expenses' : statusFilter ? 'No expenses in this status' : 'No expenses logged yet'}
             </Text>
           }
+          ListFooterComponent={<AppVersionFooter />}
         />
       )}
     </View>

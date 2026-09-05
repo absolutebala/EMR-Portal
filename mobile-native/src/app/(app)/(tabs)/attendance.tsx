@@ -7,6 +7,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMarkEndDay, useRequestAmendment, useMyProfile } from '@/lib/hooks';
+import AppVersionFooter from '@/components/AppVersionFooter';
 import { apiGet } from '@/lib/api';
 import { apiErrorMessage } from '@/lib/offlineSubmit';
 import type { AttendanceEffectiveStatus, AttendanceCalendarDay, AttendanceCalendarResponse } from '@/lib/types';
@@ -517,6 +518,8 @@ export default function AttendanceScreen() {
           );
         })
       )}
+
+      <AppVersionFooter />
     </ScrollView>
   );
 }

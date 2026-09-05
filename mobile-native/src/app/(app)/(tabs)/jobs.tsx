@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useJobs } from '@/lib/hooks';
 import JobCard from '@/components/JobCard';
+import AppVersionFooter from '@/components/AppVersionFooter';
 import type { MobileWorkOrder } from '@/lib/types';
 
 type TabId = 'all' | 'assigned' | 'in_progress' | 'needs_reassignment' | 'completed';
@@ -73,6 +74,7 @@ export default function JobsScreen() {
           renderItem={({ item }) => <JobCard wo={item} />}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<Text style={styles.empty}>{error ? 'Failed to load jobs' : 'No jobs found'}</Text>}
+          ListFooterComponent={<AppVersionFooter />}
         />
       )}
     </View>

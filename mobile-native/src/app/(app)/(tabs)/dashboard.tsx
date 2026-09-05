@@ -3,8 +3,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Application from 'expo-application';
 import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, reverseGeocode } from '@/lib/hooks';
+import AppVersionFooter from '@/components/AppVersionFooter';
 import { useAuth } from '@/lib/AuthContext';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { apiErrorMessage } from '@/lib/offlineSubmit';
@@ -282,17 +282,13 @@ export default function DashboardScreen() {
 
       <NearbyEngineersStrip />
 
-      <Text style={styles.versionText}>
-        App version {Application.nativeApplicationVersion ?? '—'}
-        {Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ''}
-      </Text>
+      <AppVersionFooter />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  versionText: { fontSize: 10, color: '#B0A8AC', textAlign: 'center', marginTop: 18, marginBottom: 4 },
   content: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },

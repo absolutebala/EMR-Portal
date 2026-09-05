@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { appVersionLabel } from '@/lib/appVersion'
 
 interface Props {
   // Omitted on screens that aren't one of the five tabs themselves (job detail,
@@ -63,13 +64,16 @@ export default function BottomNav({ active }: Props) {
   }, [router])
 
   return (
-    <div style={{
-      background: '#fff', display: 'flex', alignItems: 'center',
-      borderTop: '1px solid #E5E0E3',
-      padding: '0 4px', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      height: 'calc(60px + env(safe-area-inset-bottom, 0px))',
-      position: 'sticky', bottom: 0, zIndex: 10,
-    }}>
+    <div style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
+      <div style={{ background: '#fff', textAlign: 'center', fontSize: 9, color: '#B0A8AC', padding: '2px 0', borderTop: '1px solid #F1ECEE' }}>
+        {appVersionLabel()}
+      </div>
+      <div style={{
+        background: '#fff', display: 'flex', alignItems: 'center',
+        borderTop: '1px solid #E5E0E3',
+        padding: '0 4px', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        height: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+      }}>
       {TABS.map(tab => {
         const isActive = tab.id === active
         return (
@@ -88,6 +92,7 @@ export default function BottomNav({ active }: Props) {
           </button>
         )
       })}
+      </div>
     </div>
   )
 }

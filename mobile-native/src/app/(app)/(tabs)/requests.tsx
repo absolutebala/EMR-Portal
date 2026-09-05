@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMyProductRequests } from '@/lib/hooks';
 import { PRODUCT_REQUEST_STATUS_CFG } from '@/lib/constants';
+import AppVersionFooter from '@/components/AppVersionFooter';
 import type { ProductRequestView } from '@/lib/types';
 
 type TabId = 'all' | 'pending' | 'approved' | 'dispatched' | 'delivered' | 'rejected';
@@ -62,6 +63,7 @@ export default function RequestsScreen() {
           renderItem={({ item }) => <RequestCard request={item} />}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<Text style={styles.empty}>{error || data?.error ? 'Failed to load requests' : 'No requests yet'}</Text>}
+          ListFooterComponent={<AppVersionFooter />}
         />
       )}
     </View>

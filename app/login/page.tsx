@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { login } from '@/app/actions/login'
+import { appVersionLabel } from '@/lib/appVersion'
 import { requestPasswordReset, confirmPasswordReset } from '@/app/actions/forgot-password'
 
 export default function LoginPage() {
@@ -198,6 +199,9 @@ export default function LoginPage() {
 
         <div style={{ textAlign:'center', marginTop:'auto', paddingTop:24, fontSize:11, color:'rgba(255,255,255,.45)' }}>
           Powered by <a href="https://www.ittrident.com" target="_blank" rel="noopener noreferrer" style={{ color:'rgba(255,255,255,.75)', textDecoration:'none', fontWeight:500 }}>itTrident</a>
+        </div>
+        <div style={{ textAlign:'center', paddingTop:6, fontSize:10, color:'rgba(255,255,255,.4)' }}>
+          {appVersionLabel()}
         </div>
       </div>
     </div>

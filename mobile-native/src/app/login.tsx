@@ -3,10 +3,11 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Keyboa
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { login } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
+import AppVersionFooter from '@/components/AppVersionFooter';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { refreshMe } = useAuth();
+  const { refreshMe, accessDenied } = useAuth();
   const { reason } = useLocalSearchParams<{ reason?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,8 +60,8 @@ export default function LoginScreen() {
         <Text style={styles.title}>EMR Field App</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
-        {notice && !error && <Text style={styles.notice}>{notice}</Text>}
-        {error && <Text style={styles.error}>{error}</Text>}
+        {notice && !error && !accessDenied && <Text style={styles.notice}>{notice}</Text>}
+        {(error || accessDenied) && <Text style={styles.error}>{error || accessDenied}</Text>}
 
         <TextInput
           style={styles.input}
@@ -88,7 +89,7 @@ export default function LoginScreen() {
             accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             style={styles.passwordToggle}
           >
-            <Text style={styles.passwordToggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+            <Text style={styles.passwordToggleText}>{showPassword ? '🙈' : '👁'}</Text>
           </Pressable>
         </View>
 
@@ -101,6 +102,7 @@ export default function LoginScreen() {
         Powered by{' '}
         <Text style={styles.footerLink} onPress={() => Linking.openURL('https://www.ittrident.com')}>itTrident</Text>
       </Text>
+      <AppVersionFooter light />
     </KeyboardAvoidingView>
   );
 }
@@ -123,8 +125,8 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#111827',
   },
-  passwordToggle: { paddingHorizontal: 14, paddingVertical: 12 },
-  passwordToggleText: { color: '#7D1D3F', fontSize: 13, fontWeight: '600' },
+  passwordToggle: { paddingHorizontal: 14, paddingVertical: 10 },
+  passwordToggleText: { fontSize: 18 },
   button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
