@@ -211,6 +211,19 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
 
   const todayEntry = days.find(d => d.date === todayStr) ?? null
   const todayStatus = todayEntry?.status ?? null
+
+  // Auto-open today's row (once) when it needs an amendment, so the reason form is
+  // visible inline without a separate top card. The engineer can still tap another day
+  // (which closes today) or collapse it.
+  const didAutoExpandRef = useRef(false)
+  useEffect(() => {
+    if (didAutoExpandRef.current) return
+    if (todayStatus?.kind === 'leave' && !todayStatus.pendingApproval) {
+      didAutoExpandRef.current = true
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setExpandedDate(todayStr)
+    }
+  }, [todayStatus, todayStr])
   const hasPunchedIn = !!todayEntry?.markedAt
   const hasPunchedOut = !!todayEntry?.endDayAt
   const todayPending = (todayStatus?.kind === 'leave' || todayStatus?.kind === 'present') && todayStatus.pendingApproval
