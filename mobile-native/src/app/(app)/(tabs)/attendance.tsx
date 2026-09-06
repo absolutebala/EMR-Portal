@@ -76,6 +76,7 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
     }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' };
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` };
+    case 'day_off': return { bg: '#EDE9FE', color: '#5B21B6', label: status.name ? `Day Off: ${status.name}` : status.pendingApproval ? 'Day Off (pending)' : status.rejected ? 'Day Off (rejected)' : 'Day Off' };
     case 'not_applicable': return { bg: '#F1F5F9', color: '#475569', label: '—' };
   }
 }
@@ -94,6 +95,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`;
     }
     case 'holiday': return `Holiday: ${s.name}`;
+    case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending)' : s.rejected ? 'Day Off (rejected)' : 'Day Off';
     case 'pending': return 'Pending';
     case 'not_applicable': return '—';
   }
@@ -101,6 +103,14 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
 
 function formatTimeOnly(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+// Total worked span between punch-in and punch-out, e.g. "6h 20m".
+function formatWorkedDuration(markedAt: string, endDayAt: string): string {
+  const mins = Math.max(0, Math.round((new Date(endDayAt).getTime() - new Date(markedAt).getTime()) / 60000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function formatDayLabel(dateStr: string): string {
@@ -481,6 +491,12 @@ export default function AttendanceScreen() {
                   <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
                 </View>
               </Pressable>
+              {(s.kind === 'present' || s.kind === 'leave') && s.markedAt && (
+                <Text style={styles.punchNote}>
+                  Punch in {formatTimeOnly(s.markedAt)}
+                  {s.endDayAt ? ` · Punch out ${formatTimeOnly(s.endDayAt)} · ${formatWorkedDuration(s.markedAt, s.endDayAt)}` : ' · not punched out'}
+                </Text>
+              )}
               {hasRequested && s.markedAt && (
                 <Text style={styles.reasonNote}>Requested: {formatDateTime(s.markedAt)}</Text>
               )}
@@ -560,6 +576,7 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   reasonNote: { fontSize: 10, color: '#7A6870', marginTop: 6 },
+  punchNote: { fontSize: 11, color: '#374151', fontWeight: '500', marginTop: 6 },
   amendHint: { fontSize: 10, color: '#7D1D3F', marginTop: 6, fontWeight: '600' },
   amendForm: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#F5F3F5', paddingTop: 10 },
 });

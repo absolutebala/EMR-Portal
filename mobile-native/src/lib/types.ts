@@ -149,6 +149,7 @@ export interface AttendanceDay {
 }
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
+  | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)
@@ -195,6 +196,15 @@ export interface MarkEndDayResponse {
 }
 
 export interface MarkAttendanceResponse {
+  error: string | null;
+  needsApproval: boolean;
+}
+
+export interface MarkDayOffVariables {
+  attendanceDate?: string;
+}
+
+export interface MarkDayOffResponse {
   error: string | null;
   needsApproval: boolean;
 }

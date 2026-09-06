@@ -3,7 +3,7 @@
 import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/mobile/core/shared'
 import {
-  getMyAttendanceStatusCore, markAttendanceCore, markEndDayCore, getAttendanceCalendarCore,
+  getMyAttendanceStatusCore, markAttendanceCore, markEndDayCore, markDayOffCore, getAttendanceCalendarCore,
   getPendingAmendmentsCore, approveRejectAmendmentCore, requestAttendanceAmendmentCore,
   type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment,
 } from '@/lib/mobile/core/attendance'
@@ -40,6 +40,12 @@ export async function markEndDay(params: {
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated', needsApproval: false }
   return markEndDayCore(adminClient(), user.id, params)
+}
+
+export async function markDayOff(params: { attendanceDate?: string }): Promise<{ error: string | null; needsApproval: boolean }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated', needsApproval: false }
+  return markDayOffCore(adminClient(), user.id, params ?? {})
 }
 
 export async function requestAttendanceAmendment(params: { attendanceDate: string; reason: string }): Promise<{ error: string | null }> {

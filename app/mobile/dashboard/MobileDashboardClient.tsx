@@ -8,7 +8,7 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
-import { markEndDay } from '@/app/actions/attendance'
+import { markEndDay, markAttendance, markDayOff } from '@/app/actions/attendance'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
 import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
@@ -56,6 +56,8 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: `Holiday`, sub: status.name }
+    case 'day_off':
+      return { bg: '#EDE9FE', color: '#5B21B6', label: 'Day Off', sub: status.name ? status.name : status.pendingApproval ? 'Pending approval' : status.rejected ? 'Rejected — try again' : null }
     case 'not_applicable':
       return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null }
   }
@@ -199,6 +201,56 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
     setEndingDay(false)
     if (result.error) { setEndDayError(result.error); return }
     setEndDayOverride({ endDayAt: new Date().toISOString(), endDayPlaceName: endDayPlaceNameRef.current || null })
+    router.refresh()
+  }
+
+  // Punch In / Day Off straight from the dashboard (no trip to the Attendance tab).
+  // Available before punch-in whether the day is still open ('pending') or already
+  // provisionally Absent ('leave' no-show, i.e. a late punch-in).
+  const [punchingIn, setPunchingIn] = useState(false)
+  const [markingDayOff, setMarkingDayOff] = useState(false)
+  const [punchInError, setPunchInError] = useState('')
+  const punchInCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
+  const punchInPlaceNameRef = useRef('')
+  const punchInGpsRequestedRef = useRef(false)
+  const canPunchIn = attendanceStatus.kind === 'pending'
+    || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow)
+
+  useEffect(() => {
+    if (!canPunchIn || punchInGpsRequestedRef.current) return
+    punchInGpsRequestedRef.current = true
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        punchInCoordsRef.current = c
+        reverseGeocode(c.lat, c.lng).then(({ label }) => { if (label) punchInPlaceNameRef.current = label })
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 12000 }
+    )
+  }, [canPunchIn])
+
+  async function handlePunchIn() {
+    setPunchInError('')
+    setPunchingIn(true)
+    const result = await markAttendance({
+      latitude: punchInCoordsRef.current?.lat ?? null,
+      longitude: punchInCoordsRef.current?.lng ?? null,
+      placeName: punchInPlaceNameRef.current || null,
+      reason: null,
+    })
+    setPunchingIn(false)
+    if (result.error) { setPunchInError(result.error); return }
+    router.refresh()
+  }
+
+  async function handleDayOff() {
+    setPunchInError('')
+    setMarkingDayOff(true)
+    const result = await markDayOff({})
+    setMarkingDayOff(false)
+    if (result.error) { setPunchInError(result.error); return }
     router.refresh()
   }
 
@@ -699,7 +751,29 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
             )
           }
 
-          const clickable = status.kind === 'pending' || status.kind === 'leave'
+          // Markable day (before punch-in): punch in or take a day off right here.
+          if (canPunchIn) {
+            return (
+              <div style={{ marginBottom: 12, padding: '13px 14px', borderRadius: 12, background: cfg.bg }}>
+                <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                {cfg.sub && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>}
+                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  <button className="mtap" onClick={handlePunchIn} disabled={punchingIn || markingDayOff}
+                    style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: punchingIn ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn || markingDayOff ? 0.6 : 1 }}>
+                    {punchingIn ? 'Punching in…' : 'Punch In'}
+                  </button>
+                  <button className="mtap" onClick={handleDayOff} disabled={punchingIn || markingDayOff}
+                    style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1.5px solid #5B21B6', background: '#fff', color: '#5B21B6', fontSize: 13, fontWeight: 700, cursor: markingDayOff ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn || markingDayOff ? 0.6 : 1 }}>
+                    {markingDayOff ? 'Saving…' : 'Day Off'}
+                  </button>
+                </div>
+                {!!punchInError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{punchInError}</div>}
+              </div>
+            )
+          }
+
+          const clickable = status.kind === 'leave'
           return (
             <button
               className="mtap"
@@ -722,7 +796,7 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
           )
         })()}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 9, marginBottom: 16 }}>
           {departmentCounts.map((dept, i) => {
             const colors = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length]
             return (

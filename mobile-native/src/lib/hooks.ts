@@ -15,7 +15,7 @@ import type {
   ProfileResponse, UpdateProfileVariables, AvatarUploadVariables, AvatarUploadResponse, ChangePasswordVariables,
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
-  MarkEndDayVariables, MarkEndDayResponse, RequestAmendmentVariables, RequestAmendmentResponse,
+  MarkEndDayVariables, MarkEndDayResponse, MarkDayOffVariables, MarkDayOffResponse, RequestAmendmentVariables, RequestAmendmentResponse,
   CustomersResponse, TransformersResponse, CreateCustomerVariables, CreateNotificationVariables, CreateEntityResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
@@ -263,6 +263,20 @@ export function useMarkEndDay() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (variables: MarkEndDayVariables) => apiPost<MarkEndDayResponse>('/api/mobile/v1/attendance/end-day', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// Voluntary Day Off for today. Auto-accepted on Sundays/holidays, otherwise sent to the
+// Service Manager for approval.
+export function useMarkDayOff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: MarkDayOffVariables) => apiPost<MarkDayOffResponse>('/api/mobile/v1/attendance/day-off', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });

@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, reverseGeocode } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, reverseGeocode } from '@/lib/hooks';
 import AppVersionFooter from '@/components/AppVersionFooter';
 import { useAuth } from '@/lib/AuthContext';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
@@ -73,6 +73,8 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     }
     case 'holiday':
       return { bg: '#F1F5F9', color: '#475569', label: 'Holiday', sub: status.name };
+    case 'day_off':
+      return { bg: '#EDE9FE', color: '#5B21B6', label: 'Day Off', sub: status.name ? status.name : status.pendingApproval ? 'Pending approval' : status.rejected ? 'Rejected — try again' : null };
     case 'not_applicable':
       return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null };
   }
@@ -91,7 +93,10 @@ export default function DashboardScreen() {
   const unreadAlerts = alertsData?.unreadCount ?? 0;
 
   const markEndDay = useMarkEndDay();
+  const markAttendance = useMarkAttendance();
+  const markDayOff = useMarkDayOff();
   const [endDayError, setEndDayError] = useState('');
+  const [punchInError, setPunchInError] = useState('');
   // GPS captures silently in the background as soon as End Day becomes available —
   // same single-step pattern as the Attendance tab — so the button here is a genuine
   // single tap with no separate "capture location" step.
@@ -113,6 +118,50 @@ export default function DashboardScreen() {
       if (pos) reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) endDayPlaceNameRef.current = label; }).catch(() => {});
     });
   }, [canPunchOut]);
+
+  // Punch In can happen straight from the dashboard (no trip to the Attendance tab) —
+  // available before punch-in whether the day is still open ('pending') or already
+  // provisionally Absent ('leave' no-show, i.e. a late punch-in). GPS pre-captures the
+  // same way End Day does so the button is a single tap.
+  const punchInCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const punchInPlaceNameRef = useRef('');
+  const punchInGpsRequestedRef = useRef(false);
+  const canPunchIn = !!attendanceStatus
+    && (attendanceStatus.kind === 'pending' || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow));
+
+  useEffect(() => {
+    if (!canPunchIn || punchInGpsRequestedRef.current) return;
+    punchInGpsRequestedRef.current = true;
+    getCurrentPositionWithFallback().then(pos => {
+      punchInCoordsRef.current = pos;
+      if (pos) reverseGeocode(pos.lat, pos.lng).then(({ label }) => { if (label) punchInPlaceNameRef.current = label; }).catch(() => {});
+    });
+  }, [canPunchIn]);
+
+  async function handlePunchIn() {
+    setPunchInError('');
+    try {
+      const result = await markAttendance.mutateAsync({
+        latitude: punchInCoordsRef.current?.lat ?? null,
+        longitude: punchInCoordsRef.current?.lng ?? null,
+        placeName: punchInPlaceNameRef.current || null,
+        reason: null,
+      });
+      if (result.error) setPunchInError(result.error);
+    } catch (e) {
+      setPunchInError(apiErrorMessage(e));
+    }
+  }
+
+  async function handleDayOff() {
+    setPunchInError('');
+    try {
+      const result = await markDayOff.mutateAsync({});
+      if (result.error) setPunchInError(result.error);
+    } catch (e) {
+      setPunchInError(apiErrorMessage(e));
+    }
+  }
 
   // Punch Out only records — no reason, no gate. Under 6h settles as Short Hours (Absent)
   // server-side; the engineer requests an amendment separately if they want it reviewed.
@@ -236,7 +285,28 @@ export default function DashboardScreen() {
           );
         }
 
-        const clickable = status.kind === 'pending' || status.kind === 'leave';
+        // Markable day (before punch-in): punch in or take a day off right here, no
+        // trip to the Attendance tab.
+        if (canPunchIn) {
+          return (
+            <View style={[styles.attendanceCard, { backgroundColor: cfg.bg, flexDirection: 'column', alignItems: 'stretch' }]}>
+              <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
+              <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
+              {cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
+              <View style={styles.attendanceActions}>
+                <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={handlePunchIn} disabled={markAttendance.isPending || markDayOff.isPending}>
+                  {markAttendance.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.punchInButtonText}>Punch In</Text>}
+                </Pressable>
+                <Pressable style={[styles.dayOffButton, markDayOff.isPending && styles.attendanceBtnDisabled]} onPress={handleDayOff} disabled={markAttendance.isPending || markDayOff.isPending}>
+                  {markDayOff.isPending ? <ActivityIndicator color="#5B21B6" size="small" /> : <Text style={styles.dayOffButtonText}>Day Off</Text>}
+                </Pressable>
+              </View>
+              {!!punchInError && <Text style={styles.endDayError}>{punchInError}</Text>}
+            </View>
+          );
+        }
+
+        const clickable = status.kind === 'leave';
         return (
           <Pressable
             style={[styles.attendanceCard, { backgroundColor: cfg.bg }]}
@@ -315,12 +385,18 @@ const styles = StyleSheet.create({
   attendanceChevron: { fontSize: 22, fontWeight: '700' },
   endDayButton: { backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
   endDayButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  attendanceActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  punchInButton: { flex: 1, backgroundColor: '#7D1D3F', borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  punchInButtonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  dayOffButton: { flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#5B21B6', borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  dayOffButtonText: { color: '#5B21B6', fontSize: 13, fontWeight: '700' },
+  attendanceBtnDisabled: { opacity: 0.6 },
   amendButton: { marginTop: 10, borderWidth: 1, borderColor: '#991B1B', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   amendButtonText: { color: '#991B1B', fontSize: 12, fontWeight: '700' },
   endDayError: { color: '#DC2626', fontSize: 10, marginTop: 8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   statCard: {
-    flexBasis: '47%', backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    flexBasis: '31%', backgroundColor: '#fff', borderRadius: 12, padding: 14,
     shadowColor: '#7D1D3F', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   statValue: { fontSize: 22, fontWeight: '700' },

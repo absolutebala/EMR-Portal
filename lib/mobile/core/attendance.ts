@@ -58,6 +58,7 @@ function eachDateStr(fromStr: string, toStr: string): string[] {
 export interface AttendanceRowCore {
   status: 'present' | 'leave'
   approval_status: 'pending' | 'approved' | 'rejected' | null
+  day_off: boolean
   reason: string | null
   marked_at: string | null
   place_name: string | null
@@ -104,6 +105,7 @@ interface AttendanceDay {
 
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
+  | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)
@@ -117,6 +119,17 @@ export function computeEffectiveStatus(params: {
   profileCreatedAtDateStr: string | null
 }): AttendanceEffectiveStatus {
   const { dateStr, todayStr, row, holidayName, profileCreatedAtDateStr } = params
+
+  // A voluntary Day Off (Sunday/holiday auto-approved, other days pending) takes
+  // precedence over the punch-based derivation — the row carries no punch times.
+  if (row?.day_off) {
+    return {
+      kind: 'day_off',
+      pendingApproval: row.approval_status === 'pending',
+      rejected: row.approval_status === 'rejected',
+      name: holidayName || null,
+    }
+  }
 
   // A row exists = the engineer punched in (marked_at). Derive Present vs Absent from
   // the causes + amendment decision.
@@ -210,6 +223,7 @@ export function getAttendanceStatusLabel(s: AttendanceEffectiveStatus): string {
       return `Absent (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
     case 'holiday': return `Holiday: ${s.name}`
+    case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending approval)' : s.rejected ? 'Day Off (rejected)' : 'Day Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
@@ -220,7 +234,7 @@ async function getProfileCreatedAtDateStr(admin: AdminClient, userId: string): P
   return data?.created_at ? getISTDateStr(new Date(data.created_at)) : null
 }
 
-const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name'
+const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, day_off, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name'
 
 // Sweeps for a Punch In with no Punch Out once its calendar day (IST) has already
 // ended — no cron job in this codebase (see file header), so this runs lazily
@@ -373,6 +387,91 @@ export async function markEndDayCore(admin: AdminClient, userId: string, params:
     if (result.error) return { error: result.error.message, needsApproval: false }
 
     return { error: null, needsApproval: false }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
+  }
+}
+
+// Date-only strings parse as UTC midnight, so getUTCDay reads the weekday of the IST
+// calendar date itself without further timezone shifting.
+function isSundayIST(istDateStr: string): boolean {
+  return new Date(`${istDateStr}T00:00:00Z`).getUTCDay() === 0
+}
+
+// Voluntary Day Off for today. On a Sunday or a configured holiday it's accepted
+// immediately (approval_status 'approved'); on any other weekday it goes to the Service
+// Manager for approval (pending). Records no punch times. Blocked once the engineer has
+// already punched in for the day.
+export async function markDayOffCore(admin: AdminClient, userId: string, params: {
+  attendanceDate?: string
+}): Promise<{ error: string | null; needsApproval: boolean }> {
+  try {
+    const now = new Date()
+    const todayStr = getISTDateStr(now)
+    const targetDateStr = params.attendanceDate ?? todayStr
+    if (targetDateStr !== todayStr) {
+      return { error: 'Day Off can only be marked for today.', needsApproval: false }
+    }
+
+    const { data: existing } = await admin.from('attendance').select('id, marked_at, day_off, approval_status')
+      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+    if (existing?.marked_at) {
+      return { error: "You've already punched in today, so it can't be marked as a day off.", needsApproval: false }
+    }
+    if (existing?.day_off && existing.approval_status !== 'rejected') {
+      return {
+        error: existing.approval_status === 'pending' ? 'Your day off is already pending approval.' : 'Today is already marked as a day off.',
+        needsApproval: false,
+      }
+    }
+
+    const { data: holiday } = await admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle()
+    const holidayName = holiday?.name ?? null
+    const autoOff = isSundayIST(todayStr) || !!holidayName
+    const approvalStatus: 'approved' | 'pending' = autoOff ? 'approved' : 'pending'
+
+    const result = await withTimeout(
+      admin.from('attendance').upsert({
+        engineer_id: userId,
+        attendance_date: todayStr,
+        status: 'present',
+        day_off: true,
+        marked_at: null,
+        latitude: null,
+        longitude: null,
+        place_name: null,
+        reason: holidayName || 'Day off',
+        approval_status: approvalStatus,
+        approved_by: null,
+        approved_at: autoOff ? now.toISOString() : null,
+        late_in: false,
+        early_out: false,
+        single_punch: false,
+        short_hours: false,
+        end_day_at: null,
+        end_day_latitude: null,
+        end_day_longitude: null,
+        end_day_place_name: null,
+        updated_at: now.toISOString(),
+      }, { onConflict: 'engineer_id,attendance_date' }).select('id').single(),
+      8000
+    )
+    if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.', needsApproval: false }
+    if (result.error) return { error: result.error.message, needsApproval: false }
+
+    if (!autoOff && result.data?.id) {
+      notifyUsers(admin, [
+        { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+      ], {
+        type: 'attendance_amendment_pending',
+        title: 'Day off needs approval',
+        body: `An engineer requested a day off for ${todayStr}.`,
+        entityType: 'attendance', entityId: result.data.id,
+        linkPath: '/attendance',
+      }).catch(() => {})
+    }
+
+    return { error: null, needsApproval: !autoOff }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
   }

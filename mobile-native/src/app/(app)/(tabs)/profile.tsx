@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { useMyProfile, useUpdateMyProfile, useUploadAvatar } from '@/lib/hooks';
-import { capturePhoto } from '@/lib/photo';
+import { capturePhoto, pickPhotoFromLibrary, type CapturedPhoto } from '@/lib/photo';
 
 function initials(firstName: string, lastName: string): string {
   return ((firstName[0] || '') + (lastName[0] || '')).toUpperCase() || '?';
@@ -26,10 +26,17 @@ export default function ProfileScreen() {
     }
   }, [data]);
 
-  async function handleAvatarTap() {
-    const photo = await capturePhoto();
+  function uploadPhoto(photo: CapturedPhoto | null) {
     if (!photo) return;
     avatarMutation.mutate({ base64: photo.dataUrl, mimeType: photo.mimeType, ext: photo.ext });
+  }
+
+  function handleAvatarTap() {
+    Alert.alert('Update profile photo', 'Choose a source', [
+      { text: 'Take photo', onPress: () => capturePhoto().then(uploadPhoto) },
+      { text: 'Choose from gallery', onPress: () => pickPhotoFromLibrary().then(uploadPhoto) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   }
 
   function handleSave() {
