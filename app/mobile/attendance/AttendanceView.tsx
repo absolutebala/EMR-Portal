@@ -520,42 +520,8 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
           </div>
         )}
 
-        {/* Today's outcome once resolved (punched out, or a pending/rejected request). */}
-        {!showPunchIn && !canPunchOutNow && (todayStatus?.kind === 'present' || todayStatus?.kind === 'leave') && (todayStatus.markedAt || todayStatus.pendingApproval || todayStatus.rejected) && (
-          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 16, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-            {(() => {
-              const s = todayStatus
-              const isPresent = s.kind === 'present'
-              const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
-              return (
-                <>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: isPresent ? '#065F46' : '#991B1B', margin: '0 0 4px' }}>
-                    {isPresent ? (causes ? `Present (${causes.toLowerCase()})` : 'Present') : `Absent${causes ? ` (${causes})` : ''}`}
-                  </p>
-                  {s.markedAt && (
-                    <p style={{ fontSize: 11, color: '#7A6870', margin: '0 0 2px' }}>
-                      Punched in {formatTimeOnly(s.markedAt)}{s.endDayAt ? ` · Punched out ${formatTimeOnly(s.endDayAt)}` : ''}
-                    </p>
-                  )}
-                  {s.pendingApproval && (
-                    <p style={{ fontSize: 11, color: '#92400E', margin: '4px 0 0' }}>Approval is Pending — your Service Manager will review your amendment.</p>
-                  )}
-                  {s.rejected && (
-                    <p style={{ fontSize: 11, color: '#991B1B', margin: '4px 0 0' }}>Amendment rejected{s.approvedByName ? ` by ${s.approvedByName}` : ''} — you can request again.</p>
-                  )}
-                  {isPresent && s.amended && s.approvedByName && (
-                    <p style={{ fontSize: 11, color: '#065F46', margin: '4px 0 0' }}>Approved by {s.approvedByName}</p>
-                  )}
-                  {/* No auto amendment: an Absent day is amended only by tapping its row in
-                      the list below and submitting a reason. */}
-                  {s.kind === 'leave' && !s.pendingApproval && !s.rejected && (
-                    <p style={{ fontSize: 11, color: '#7A6870', margin: '4px 0 0' }}>Tap today&apos;s row in the list below to request an amendment.</p>
-                  )}
-                </>
-              )
-            })()}
-          </div>
-        )}
+        {/* No separate "today" summary/amendment card — today is just another row in the
+            list below, tappable to request an amendment like any other day. */}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 24, color: '#9CA3AF', fontSize: 12 }}>Loading…</div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput, LayoutAnimation } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
@@ -321,6 +321,9 @@ export default function AttendanceScreen() {
 
   function toggleDay(day: { date: string; status: AttendanceEffectiveStatus }) {
     if (!isAmendable(day)) return;
+    // Smooth expand/collapse. Opening a different day replaces the currently open one
+    // (accordion — only one amendment form open at a time).
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (expandedDate === day.date) { setExpandedDate(null); return; }
     setExpandedDate(day.date);
     setAmendReason(''); setAmendError('');
@@ -429,29 +432,8 @@ export default function AttendanceScreen() {
       )}
 
       {/* Today's outcome once resolved (punched out, or a pending/rejected request). */}
-      {!showPunchIn && !canPunchOutNow && todayStatus && (todayStatus.kind === 'present' || todayStatus.kind === 'leave') && (todayStatus.markedAt || todayStatus.pendingApproval || todayStatus.rejected) && (() => {
-        const s = todayStatus;
-        const isPresent = s.kind === 'present';
-        const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ');
-        return (
-          <View style={styles.markCard}>
-            <Text style={[styles.markTitle, { color: isPresent ? '#065F46' : '#991B1B' }]}>
-              {isPresent ? (causes ? `Present (${causes.toLowerCase()})` : 'Present') : `Absent${causes ? ` (${causes})` : ''}`}
-            </Text>
-            {s.markedAt && (
-              <Text style={styles.reasonNote}>Punched in {formatTimeOnly(s.markedAt)}{s.endDayAt ? ` · Punched out ${formatTimeOnly(s.endDayAt)}` : ''}</Text>
-            )}
-            {s.pendingApproval && <Text style={[styles.reasonNote, { color: '#92400E' }]}>Approval is Pending — your Service Manager will review your amendment.</Text>}
-            {s.rejected && <Text style={[styles.reasonNote, { color: '#991B1B' }]}>Amendment rejected{s.approvedByName ? ` by ${s.approvedByName}` : ''} — you can request again.</Text>}
-            {isPresent && s.amended && s.approvedByName && <Text style={[styles.reasonNote, { color: '#065F46' }]}>Approved by {s.approvedByName}</Text>}
-            {/* No auto amendment: an Absent day is amended only by tapping its row in the
-                list below and submitting a reason. */}
-            {s.kind === 'leave' && !s.pendingApproval && !s.rejected && (
-              <Text style={styles.reasonNote}>Tap today&apos;s row in the list below to request an amendment.</Text>
-            )}
-          </View>
-        );
-      })()}
+      {/* No separate "today" summary/amendment card — today is just another row in the
+          list below, tappable to request an amendment like any other day. */}
 
       {isLoading ? (
         <ActivityIndicator color="#7D1D3F" style={{ marginTop: 20 }} />
@@ -469,31 +451,35 @@ export default function AttendanceScreen() {
           const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved';
           return (
             <View key={day.date} style={styles.dayRow}>
-              <Pressable style={styles.dayRowHeader} onPress={() => toggleDay(day)} disabled={!amendable}>
-                <Text style={styles.dayLabel}>{formatDayLabel(day.date)}</Text>
-                <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                  <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+              {/* The whole box is the tap target for amendable days — a single tap
+                  anywhere on it opens (or closes) the amendment form. */}
+              <Pressable onPress={() => toggleDay(day)} disabled={!amendable}>
+                <View style={styles.dayRowHeader}>
+                  <Text style={styles.dayLabel}>{formatDayLabel(day.date)}</Text>
+                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                    <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+                  </View>
                 </View>
+                {(s.kind === 'present' || s.kind === 'leave') && s.markedAt && (
+                  <Text style={styles.punchNote}>
+                    Punch in {formatTimeOnly(s.markedAt)}
+                    {s.endDayAt ? ` · Punch out ${formatTimeOnly(s.endDayAt)} · ${formatWorkedDuration(s.markedAt, s.endDayAt)}` : ' · not punched out'}
+                  </Text>
+                )}
+                {hasRequested && s.markedAt && (
+                  <Text style={styles.reasonNote}>Requested: {formatDateTime(s.markedAt)}</Text>
+                )}
+                {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
+                  <Text style={styles.reasonNote}>Reason: {s.reason}</Text>
+                )}
+                {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
+                  <>
+                    {s.approvedByName && <Text style={styles.reasonNote}>{decisionLabel} by: {s.approvedByName}</Text>}
+                    {s.approvedAt && <Text style={styles.reasonNote}>{decisionLabel}: {formatDateTime(s.approvedAt)}</Text>}
+                  </>
+                )}
+                {amendable && !expanded && <Text style={styles.amendHint}>Tap to request an amendment →</Text>}
               </Pressable>
-              {(s.kind === 'present' || s.kind === 'leave') && s.markedAt && (
-                <Text style={styles.punchNote}>
-                  Punch in {formatTimeOnly(s.markedAt)}
-                  {s.endDayAt ? ` · Punch out ${formatTimeOnly(s.endDayAt)} · ${formatWorkedDuration(s.markedAt, s.endDayAt)}` : ' · not punched out'}
-                </Text>
-              )}
-              {hasRequested && s.markedAt && (
-                <Text style={styles.reasonNote}>Requested: {formatDateTime(s.markedAt)}</Text>
-              )}
-              {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
-                <Text style={styles.reasonNote}>Reason: {s.reason}</Text>
-              )}
-              {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
-                <>
-                  {s.approvedByName && <Text style={styles.reasonNote}>{decisionLabel} by: {s.approvedByName}</Text>}
-                  {s.approvedAt && <Text style={styles.reasonNote}>{decisionLabel}: {formatDateTime(s.approvedAt)}</Text>}
-                </>
-              )}
-              {amendable && !expanded && <Text style={styles.amendHint}>Tap to request an amendment →</Text>}
               {expanded && amendable && (
                 <View style={styles.amendForm}>
                   <TextInput
