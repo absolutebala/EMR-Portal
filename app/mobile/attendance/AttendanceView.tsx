@@ -347,11 +347,11 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   }
 
   // Any past Absent day this month with no pending request can request an amendment; a
-  // rejected day can request again. Today's amendment is offered on the today card above,
-  // so it's excluded here to avoid a duplicate form.
+  // rejected day can request again. Includes today — the amendment is only ever created
+  // when the engineer taps the row and submits a reason; nothing is requested automatically.
   function isAmendable(day: AttendanceCalendarDay): boolean {
     return day.status.kind === 'leave' && !day.status.pendingApproval
-      && day.date !== todayStr && day.date.slice(0, 7) === todayStr.slice(0, 7)
+      && day.date.slice(0, 7) === todayStr.slice(0, 7)
   }
 
   function toggleDay(day: AttendanceCalendarDay) {
@@ -546,16 +546,10 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
                   {isPresent && s.amended && s.approvedByName && (
                     <p style={{ fontSize: 11, color: '#065F46', margin: '4px 0 0' }}>Approved by {s.approvedByName}</p>
                   )}
-                  {s.kind === 'leave' && !s.pendingApproval && (
-                    <>
-                      <textarea value={amendReason} onChange={e => setAmendReason(e.target.value)} placeholder="Reason for amendment (required)" rows={3}
-                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'none', boxSizing: 'border-box', marginTop: 10 }} />
-                      {amendError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 6 }}>{amendError}</div>}
-                      <button className="mtap" onClick={() => handleAmendSubmit(todayStr)} disabled={amendSubmitting}
-                        style={{ width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #7D1D3F', background: '#fff', color: '#7D1D3F', fontSize: 13, fontWeight: 600, cursor: amendSubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 8 }}>
-                        {amendSubmitting ? 'Submitting…' : 'Request Amendment'}
-                      </button>
-                    </>
+                  {/* No auto amendment: an Absent day is amended only by tapping its row in
+                      the list below and submitting a reason. */}
+                  {s.kind === 'leave' && !s.pendingApproval && !s.rejected && (
+                    <p style={{ fontSize: 11, color: '#7A6870', margin: '4px 0 0' }}>Tap today&apos;s row in the list below to request an amendment.</p>
                   )}
                 </>
               )

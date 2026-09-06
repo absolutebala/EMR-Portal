@@ -199,8 +199,6 @@ export default function AttendanceScreen() {
   const [endDayPlaceName, setEndDayPlaceName] = useState('');
   const [endDayError, setEndDayError] = useState('');
 
-  const [todayAmendReason, setTodayAmendReason] = useState('');
-  const [todayAmendError, setTodayAmendError] = useState('');
 
   const todayEntry = data?.days.find(d => d.date === todayStr) ?? null;
   const todayStatus = todayEntry?.status ?? null;
@@ -300,7 +298,7 @@ export default function AttendanceScreen() {
   }
 
   // The one path that notifies the Service Manager — the engineer explicitly asks for an
-  // Absent day (today's card, below) or a past day (calendar row) to be reviewed.
+  // Absent day (any day's calendar row, including today) to be reviewed.
   async function submitAmendment(dateStr: string, reasonText: string, setErr: (m: string) => void, done: () => void) {
     setErr('');
     if (!reasonText.trim()) { setErr('Please give a reason for this amendment'); return; }
@@ -313,15 +311,12 @@ export default function AttendanceScreen() {
     }
   }
 
-  async function handleTodayAmendment() {
-    await submitAmendment(todayStr, todayAmendReason, setTodayAmendError, () => setTodayAmendReason(''));
-  }
-
-  // Past Absent day this month with no pending request. Today is handled on its own card
-  // above, so it's excluded here to avoid a duplicate form.
+  // Any Absent day this month with no pending request — including today. The amendment
+  // is only ever created when the engineer taps the row and submits a reason; nothing
+  // is requested automatically.
   function isAmendable(day: { date: string; status: AttendanceEffectiveStatus }): boolean {
     return day.status.kind === 'leave' && !day.status.pendingApproval
-      && day.date !== todayStr && day.date.slice(0, 7) === todayStr.slice(0, 7);
+      && day.date.slice(0, 7) === todayStr.slice(0, 7);
   }
 
   function toggleDay(day: { date: string; status: AttendanceEffectiveStatus }) {
@@ -449,21 +444,10 @@ export default function AttendanceScreen() {
             {s.pendingApproval && <Text style={[styles.reasonNote, { color: '#92400E' }]}>Approval is Pending — your Service Manager will review your amendment.</Text>}
             {s.rejected && <Text style={[styles.reasonNote, { color: '#991B1B' }]}>Amendment rejected{s.approvedByName ? ` by ${s.approvedByName}` : ''} — you can request again.</Text>}
             {isPresent && s.amended && s.approvedByName && <Text style={[styles.reasonNote, { color: '#065F46' }]}>Approved by {s.approvedByName}</Text>}
-            {s.kind === 'leave' && !s.pendingApproval && (
-              <>
-                <TextInput
-                  style={styles.reasonInput}
-                  placeholder="Reason for amendment (required)"
-                  placeholderTextColor="#9CA3AF"
-                  value={todayAmendReason}
-                  onChangeText={setTodayAmendReason}
-                  multiline
-                />
-                {!!todayAmendError && <Text style={styles.markError}>{todayAmendError}</Text>}
-                <Pressable style={[styles.outlineButton, requestAmendment.isPending && styles.submitButtonDisabled]} onPress={handleTodayAmendment} disabled={requestAmendment.isPending}>
-                  {requestAmendment.isPending ? <ActivityIndicator color="#7D1D3F" /> : <Text style={styles.outlineButtonText}>Request Amendment</Text>}
-                </Pressable>
-              </>
+            {/* No auto amendment: an Absent day is amended only by tapping its row in the
+                list below and submitting a reason. */}
+            {s.kind === 'leave' && !s.pendingApproval && !s.rejected && (
+              <Text style={styles.reasonNote}>Tap today&apos;s row in the list below to request an amendment.</Text>
             )}
           </View>
         );
