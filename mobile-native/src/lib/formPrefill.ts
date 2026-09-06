@@ -7,11 +7,15 @@ import type { MobileWorkOrderWithCustomer } from './types';
 export function getPrefillValue(label: string, wo: MobileWorkOrderWithCustomer): string {
   const l = label.toLowerCase();
   if (l.includes('engineer') && l.includes('name')) return wo.engineer_name || '';
+  // Customer phone: the actual phone number, not the contact person's name.
+  if (l.includes('customer') && l.includes('phone')) return wo.customer_phone || '';
   if (l.includes('customer') && l.includes('name')) return wo.customer_name;
   if (l.includes('contact')) return wo.customer_contact || '';
   if (l.includes('installation location') || (l.includes('site') && l.includes('address'))) return wo.site_address || '';
   if (l.includes('serial')) return wo.serial_numbers.join(', ');
   if (l.includes('rating')) return wo.rating || '';
   if (l.includes('manufacturer')) return wo.manufacturer || '';
+  // A bare "Customer" field (no "name"/"phone"/"email" qualifier) means the customer name.
+  if (l.includes('customer') && !l.includes('email')) return wo.customer_name;
   return '';
 }
