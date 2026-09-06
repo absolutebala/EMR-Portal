@@ -315,6 +315,7 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
         engineer_id: userId,
         attendance_date: todayStr,
         status: 'present',
+        day_off: false,
         marked_at: now.toISOString(),
         latitude: params.latitude,
         longitude: params.longitude,

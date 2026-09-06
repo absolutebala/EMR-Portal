@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useChangeMyPassword } from '@/lib/hooks';
 
@@ -55,7 +55,7 @@ export default function AccountPasswordScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ headerShown: true, title: 'Change Password', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {(formError || mutation.isError) && <Text style={styles.errorText}>{formError || mutation.error?.message}</Text>}
 
         <View style={styles.field}>
@@ -74,7 +74,7 @@ export default function AccountPasswordScreen() {
         <Pressable style={[styles.saveButton, mutation.isPending && styles.saveButtonDisabled]} onPress={handleSubmit} disabled={mutation.isPending}>
           {mutation.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Update password</Text>}
         </Pressable>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

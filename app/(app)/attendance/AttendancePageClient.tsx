@@ -33,6 +33,14 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+// Worked span between punch-in and punch-out, e.g. "6h 20m".
+function formatWorkedDuration(markedAt: string, endDayAt: string): string {
+  const mins = Math.max(0, Math.round((new Date(endDayAt).getTime() - new Date(markedAt).getTime()) / 60000))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
 // Duplicated from lib/mobile/core/attendance.ts's getAttendanceStatusLabel rather
 // than imported — that module also pulls in server-only code (web-push via
 // lib/notifications.ts), which breaks the client bundle if imported at runtime
@@ -160,15 +168,19 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
       {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
         <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>Reason: {s.reason}</div>
       )}
-      {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (
-        <>
-          {s.approvedByName && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{decisionLabel} by: {s.approvedByName}</div>}
-          {s.approvedAt && <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>{decisionLabel}: {formatDateTime(s.approvedAt)}</div>}
-        </>
+      {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (s.approvedByName || s.approvedAt) && (
+        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+          {decisionLabel}{s.approvedByName ? ` by ${s.approvedByName}` : ''}{s.approvedAt ? ` on ${formatDateTime(s.approvedAt)}` : ''}
+        </div>
       )}
       {row.endDayAt && (
         <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
           Punched out: {formatTime(row.endDayAt)}{row.endDayPlaceName ? ` — ${row.endDayPlaceName}` : ''}
+        </div>
+      )}
+      {row.markedAt && row.endDayAt && (
+        <div style={{ fontSize: 10, color: 'var(--tx)', fontWeight: 600, marginTop: 2 }}>
+          Working hours: {formatWorkedDuration(row.markedAt, row.endDayAt)}
         </div>
       )}
     </div>

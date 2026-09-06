@@ -8,6 +8,7 @@ import { searchTransformersBySerial, searchCustomersByName, getTransformersForCu
 import { getMyAssignableDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
 import CustomerCategoryPicker from './CustomerCategoryPicker'
+import EngineerSearchSelect from './EngineerSearchSelect'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
 
@@ -260,10 +261,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           </div>
           <div>
             <label style={fl2}>Assign engineer</label>
-            <select style={fi2} value={engineerId} onChange={e => setEngineerId(e.target.value)}>
-              <option value="">Unassigned — assign later</option>
-              {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-            </select>
+            <EngineerSearchSelect engineers={engineers} value={engineerId} onChange={setEngineerId} inputStyle={fi2} placeholder="Search engineer, or leave unassigned" />
           </div>
           <div>
             <label style={fl2}>Scheduled date</label>

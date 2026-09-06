@@ -126,8 +126,10 @@ export default function DashboardScreen() {
   const punchInCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const punchInPlaceNameRef = useRef('');
   const punchInGpsRequestedRef = useRef(false);
+  // Also punchable on a holiday — the day shows "Holiday · <name>" but the engineer can
+  // still punch in if they worked, which overwrites the holiday/day-off for their record.
   const canPunchIn = !!attendanceStatus
-    && (attendanceStatus.kind === 'pending' || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow));
+    && (attendanceStatus.kind === 'pending' || attendanceStatus.kind === 'holiday' || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow));
 
   useEffect(() => {
     if (!canPunchIn || punchInGpsRequestedRef.current) return;
@@ -297,9 +299,12 @@ export default function DashboardScreen() {
                 <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={handlePunchIn} disabled={markAttendance.isPending || markDayOff.isPending}>
                   {markAttendance.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.punchInButtonText}>Punch In</Text>}
                 </Pressable>
-                <Pressable style={[styles.dayOffButton, markDayOff.isPending && styles.attendanceBtnDisabled]} onPress={handleDayOff} disabled={markAttendance.isPending || markDayOff.isPending}>
-                  {markDayOff.isPending ? <ActivityIndicator color="#5B21B6" size="small" /> : <Text style={styles.dayOffButtonText}>Day Off</Text>}
-                </Pressable>
+                {/* On a holiday the day is already off, so only Punch In is offered. */}
+                {status.kind !== 'holiday' && (
+                  <Pressable style={[styles.dayOffButton, markDayOff.isPending && styles.attendanceBtnDisabled]} onPress={handleDayOff} disabled={markAttendance.isPending || markDayOff.isPending}>
+                    {markDayOff.isPending ? <ActivityIndicator color="#5B21B6" size="small" /> : <Text style={styles.dayOffButtonText}>Day Off</Text>}
+                  </Pressable>
+                )}
               </View>
               {!!punchInError && <Text style={styles.endDayError}>{punchInError}</Text>}
             </View>

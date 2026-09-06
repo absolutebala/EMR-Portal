@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
+import EngineerSearchSelect from '@/components/work-orders/EngineerSearchSelect'
 import {
   getWorkOrderDetail, getTransformersForCustomer, getAssignableEngineers, getEngineerSchedule,
   type WorkOrderSubmittedForm, type WorkOrderVisit, type EngineerScheduleEntry,
@@ -192,12 +193,6 @@ interface Engineer {
   lastSeenAt?: string | null
 }
 
-function engineerOptionLabel(e: Engineer, nearestId: string | null): string {
-  const name = `${e.first_name} ${e.last_name}`
-  if (e.distanceKm == null) return name
-  const suffix = e.id === nearestId ? ' — Nearest' : ''
-  return `${name} (~${e.distanceKm < 1 ? '<1' : Math.round(e.distanceKm)} km away)${suffix}`
-}
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -554,10 +549,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       </select>
 
                       {fieldLabel('Assign engineer')}
-                      <select style={inputStyle} value={form.engineer_id} onChange={e => setForm(f => ({ ...f, engineer_id: e.target.value }))}>
-                        <option value="">Unassigned</option>
-                        {engineers.map(e => <option key={e.id} value={e.id}>{engineerOptionLabel(e, nearestEngineerId)}</option>)}
-                      </select>
+                      <EngineerSearchSelect engineers={engineers} value={form.engineer_id} onChange={id => setForm(f => ({ ...f, engineer_id: id }))} inputStyle={inputStyle} placeholder="Search engineer, or leave unassigned" />
 
                       {fieldLabel('Scheduled date')}
                       <input type="date" style={inputStyle} value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />

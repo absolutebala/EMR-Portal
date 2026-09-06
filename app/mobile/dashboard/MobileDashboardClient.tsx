@@ -213,7 +213,10 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   const punchInCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
   const punchInPlaceNameRef = useRef('')
   const punchInGpsRequestedRef = useRef(false)
+  // Also punchable on a holiday — the day shows "Holiday · <name>" but the engineer can
+  // still punch in if they worked, which overwrites the holiday/day-off for their record.
   const canPunchIn = attendanceStatus.kind === 'pending'
+    || attendanceStatus.kind === 'holiday'
     || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow)
 
   useEffect(() => {

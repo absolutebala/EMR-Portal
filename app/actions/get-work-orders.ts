@@ -570,14 +570,17 @@ export interface AssignableEngineer {
 
 export async function getAssignableEngineers(workOrderId?: string): Promise<{ engineers: AssignableEngineer[] }> {
   const admin = adminClient()
-  const { data } = await admin
+  const { data: rawData } = await admin
     .from('profiles')
-    .select('id, first_name, last_name, role, last_seen_lat, last_seen_lng, last_seen_at, last_seen_place_label')
-    // An engineer marked On Leave isn't available to take on a new job.
+    .select('id, first_name, last_name, role, engineer_status, last_seen_lat, last_seen_lng, last_seen_at, last_seen_place_label')
     .eq('role', 'Field Engineer')
-    .neq('engineer_status', 'on_leave')
     .order('first_name')
-  const engineers: AssignableEngineer[] = (data || []).map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name, role: e.role, distanceKm: null, lastSeenPlace: null, lastSeenAt: null }))
+  // An engineer marked On Leave isn't available to take on a new job. Filtered in JS
+  // (not `.neq('engineer_status','on_leave')`) because a SQL `<> 'on_leave'` also drops
+  // rows where engineer_status IS NULL — which silently hid valid engineers whose status
+  // was never set.
+  const data = (rawData || []).filter(e => e.engineer_status !== 'on_leave')
+  const engineers: AssignableEngineer[] = data.map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name, role: e.role, distanceKm: null, lastSeenPlace: null, lastSeenAt: null }))
   if (!workOrderId) return { engineers }
   const lastSeenByEng: Record<string, { lat: number | null; lng: number | null; at: string | null; placeLabel: string | null }> = {}
   ;(data || []).forEach(e => { lastSeenByEng[e.id] = { lat: e.last_seen_lat, lng: e.last_seen_lng, at: e.last_seen_at, placeLabel: e.last_seen_place_label } })

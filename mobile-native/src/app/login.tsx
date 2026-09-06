@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { login } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
@@ -56,6 +56,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         <Text style={styles.title}>EMR Field App</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
@@ -103,12 +104,14 @@ export default function LoginScreen() {
         <Text style={styles.footerLink} onPress={() => Linking.openURL('https://www.ittrident.com')}>itTrident</Text>
       </Text>
       <AppVersionFooter light />
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#7D1D3F', justifyContent: 'center', padding: 24 },
+  container: { flex: 1, backgroundColor: '#7D1D3F' },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 24, gap: 12 },
   title: { fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center' },
   subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 8 },
