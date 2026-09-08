@@ -352,27 +352,44 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     setExporting(false)
   }
 
-  // "Export Status" — a single sheet mirroring exactly what the grid shows on screen:
-  // one row per engineer/day with the status, punch-in/out times, and worked hours.
+  // "Export Status" — the same engineer × date grid shown on screen, as a single sheet.
+  // Engineers run down column A; dates across the top; each cell is stacked over five
+  // rows: Status, Punch in, Punched out (+ location), Working hours, and the day's job(s).
   function handleExportStatus() {
     setExporting(true)
     setExportError('')
-    if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
+    if (!engineers.length || !dates.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const headers = ['Engineer', 'Date', 'Status', 'Punch In', 'Punch Out', 'Working Hours']
-    const aoa: string[][] = [headers]
-    for (const row of rows) {
-      const s = row.attendance
-      const punchInIso = s.kind === 'present' ? row.markedAt : s.kind === 'leave' ? s.markedAt : null
-      const punchIn = punchInIso ? formatTime(punchInIso) : ''
-      const punchOut = row.endDayAt ? formatTime(row.endDayAt) : ''
-      const workingHours = punchInIso && row.endDayAt ? formatWorkedDuration(punchInIso, row.endDayAt) : ''
-      aoa.push([row.engineerName, row.date, attendanceLabel(s), punchIn, punchOut, workingHours])
+    const cellFor = (engId: string, date: string) => cellByEngDate[`${engId}:${date}`] ?? null
+    const statusText = (r: AttendanceOverviewRow | null) => (r && r.attendance.kind !== 'not_applicable') ? attendanceLabel(r.attendance) : ''
+    const punchInText = (r: AttendanceOverviewRow | null) => r?.markedAt ? `Punch in: ${formatTime(r.markedAt)}` : ''
+    const punchOutText = (r: AttendanceOverviewRow | null) => r?.endDayAt ? `Punched out: ${formatTime(r.endDayAt)}${r.endDayPlaceName ? ` — ${r.endDayPlaceName}` : ''}` : ''
+    const hoursText = (r: AttendanceOverviewRow | null) => (r?.markedAt && r.endDayAt) ? `Working hours: ${formatWorkedDuration(r.markedAt, r.endDayAt)}` : ''
+    const jobsText = (r: AttendanceOverviewRow | null) => {
+      if (!r || r.jobs.length === 0) return 'No job scheduled'
+      return r.jobs.map(j => `${j.projectName || 'Job'} — ${JOB_STATUS_CFG[j.state.kind].label}`).join('\n')
+    }
+
+    const dateHeaders = dates.map(d => { const { weekday, dayMonth } = formatDateCell(d); return `${weekday}, ${dayMonth}` })
+    const aoa: string[][] = [['Field Engineer', ...dateHeaders]]
+    const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = []
+
+    for (const eng of engineers) {
+      const cells = dates.map(d => cellFor(eng.id, d))
+      const blockStart = aoa.length
+      aoa.push([eng.name, ...cells.map(statusText)])
+      aoa.push(['', ...cells.map(punchInText)])
+      aoa.push(['', ...cells.map(punchOutText)])
+      aoa.push(['', ...cells.map(hoursText)])
+      aoa.push(['', ...cells.map(jobsText)])
+      // Merge the engineer name down its 5-row block in column A.
+      merges.push({ s: { r: blockStart, c: 0 }, e: { r: blockStart + 4, c: 0 } })
     }
 
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 14 }]
+    ws['!merges'] = merges
+    ws['!cols'] = [{ wch: 24 }, ...dates.map(() => ({ wch: 30 }))]
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance Status')
     XLSX.writeFile(wb, `attendance_status_${range.from}_to_${range.to}.xlsx`)
     setExporting(false)
