@@ -352,6 +352,32 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     setExporting(false)
   }
 
+  // "Export Status" — a single sheet mirroring exactly what the grid shows on screen:
+  // one row per engineer/day with the status, punch-in/out times, and worked hours.
+  function handleExportStatus() {
+    setExporting(true)
+    setExportError('')
+    if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
+
+    const headers = ['Engineer', 'Date', 'Status', 'Punch In', 'Punch Out', 'Working Hours']
+    const aoa: string[][] = [headers]
+    for (const row of rows) {
+      const s = row.attendance
+      const punchInIso = s.kind === 'present' ? row.markedAt : s.kind === 'leave' ? s.markedAt : null
+      const punchIn = punchInIso ? formatTime(punchInIso) : ''
+      const punchOut = row.endDayAt ? formatTime(row.endDayAt) : ''
+      const workingHours = punchInIso && row.endDayAt ? formatWorkedDuration(punchInIso, row.endDayAt) : ''
+      aoa.push([row.engineerName, row.date, attendanceLabel(s), punchIn, punchOut, workingHours])
+    }
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance Status')
+    XLSX.writeFile(wb, `attendance_status_${range.from}_to_${range.to}.xlsx`)
+    setExporting(false)
+  }
+
   const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
     const { rows: r, error: err } = await getAttendanceOverview(from, to)
@@ -471,6 +497,15 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                 Pending amendments ({amendments.length})
               </button>
             )}
+            <button
+              onClick={handleExportStatus}
+              disabled={exporting}
+              title="Single sheet matching the on-screen view: Engineer, Date, Status, Punch In, Punch Out, Working Hours"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
+            >
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              {exporting ? 'Exporting…' : 'Export Status'}
+            </button>
             <button
               onClick={handleExport}
               disabled={exporting}
