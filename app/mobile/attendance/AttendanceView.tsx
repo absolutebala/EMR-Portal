@@ -6,6 +6,8 @@ import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import { reverseGeocode } from '@/app/actions/mobile-actions'
 import { markAttendance, markEndDay, getAttendanceCalendar, requestAttendanceAmendment } from '@/app/actions/attendance'
+import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
+import { categoryMeta } from '@/lib/punchCategory'
 import type { AttendanceCalendarDay, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 
 interface Props {
@@ -161,6 +163,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
   const gpsRequestedRef = useRef(false)
   const [gpsResolved, setGpsResolved] = useState(false)
   const [markError, setMarkError] = useState('')
+  const [showPunchInModal, setShowPunchInModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [justSubmitted, setJustSubmitted] = useState<'pending' | 'approval' | null>(null)
 
@@ -288,19 +291,21 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     if (showPunchIn && !gpsRequestedRef.current) startGpsCapture()
   }, [showPunchIn])
 
-  async function handleMark() {
+  async function handleMark(payload: PunchInPayload) {
     setMarkError('')
-    // Punch In simply records — no reason needed even if late. A late punch-in makes the
-    // day Absent, and the engineer requests an amendment separately if they want it.
+    // Punch In records the chosen category + visit details. A late punch-in still makes
+    // the day Absent; the engineer requests an amendment separately if they want it.
     setSubmitting(true)
     const result = await markAttendance({
       latitude: coords?.lat ?? null,
       longitude: coords?.lng ?? null,
       placeName: placeName || null,
       reason: null,
+      ...payload,
     })
     setSubmitting(false)
     if (result.error) { setMarkError(result.error); return }
+    setShowPunchInModal(false)
     setJustSubmitted('pending')
     load(range.from, range.to)
   }
@@ -411,6 +416,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
+      <PunchInModal open={showPunchInModal} onCancel={() => setShowPunchInModal(false)} onConfirm={handleMark} submitting={submitting} error={markError} />
       <MobileHeader title="Attendance" backHref="/mobile/dashboard" />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 100 }}>
@@ -508,7 +514,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
               📍 {coords ? (placeName || 'Location captured') : gpsResolved ? (gpsError || 'Location unavailable — you can still punch in') : 'Getting your location…'}
             </div>
             {markError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{markError}</div>}
-            <button className="mtap" onClick={handleMark} disabled={submitting}
+            <button className="mtap" onClick={() => { setMarkError(''); setShowPunchInModal(true) }} disabled={submitting}
               style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: submitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}>
               {submitting ? 'Saving…' : 'Punch In'}
             </button>
@@ -548,17 +554,24 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
             const hasRequested = s.kind === 'leave' && (s.pendingApproval || s.rejected) && !!s.markedAt
             const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected)
             const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved'
+            const cat = (s.kind === 'present' || s.kind === 'leave') ? categoryMeta(s.punchCategory) : null
             return (
               <div
                 key={day.date}
                 className="mtap"
                 onClick={() => toggleDay(day)}
-                style={{ background: '#fff', borderRadius: 12, padding: 13, marginBottom: 8, cursor: amendable ? 'pointer' : 'default' }}
+                style={{ background: cat ? cat.bg : '#fff', border: cat ? `1px solid ${cat.ac}55` : '1px solid transparent', borderRadius: 12, padding: 13, marginBottom: 8, cursor: amendable ? 'pointer' : 'default' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{formatDayLabel(day.date)}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, background: badge.bg, color: badge.color, borderRadius: 20, padding: '3px 9px' }}>{badge.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: cat ? cat.tx : '#1C0D14' }}>{formatDayLabel(day.date)}</span>
+                  <span style={{ display: 'flex', gap: 6 }}>
+                    {cat && <span style={{ fontSize: 10, fontWeight: 700, background: cat.ac, color: '#fff', borderRadius: 20, padding: '3px 9px' }}>{cat.label}</span>}
+                    <span style={{ fontSize: 10, fontWeight: 700, background: badge.bg, color: badge.color, borderRadius: 20, padding: '3px 9px' }}>{badge.label}</span>
+                  </span>
                 </div>
+                {cat && (s.kind === 'present' || s.kind === 'leave') && s.visitCustomerName && (
+                  <div style={{ fontSize: 11, color: cat.tx, marginTop: 5 }}>{s.visitCustomerName}{s.visitSiteAddress ? ` · ${s.visitSiteAddress}` : ''}</div>
+                )}
                 {(s.kind === 'present' || s.kind === 'leave') && s.markedAt && (
                   <div style={{ fontSize: 11, color: '#374151', fontWeight: 500, marginTop: 6 }}>
                     Punch in {formatTimeOnly(s.markedAt)}

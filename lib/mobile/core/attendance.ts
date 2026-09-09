@@ -68,11 +68,20 @@ export interface AttendanceRowCore {
   early_out: boolean
   single_punch: boolean
   short_hours: boolean
+  // Punch-in work category + visit details (null for HQ / old rows).
+  punch_category: PunchCategory | null
+  visit_customer_name: string | null
+  visit_site_address: string | null
+  visit_purpose: string | null
   // Only selected by callers that need it (e.g. getAttendanceCalendarCore) — optional
   // since computeEffectiveStatus itself never reads these.
   end_day_at?: string | null
   end_day_place_name?: string | null
 }
+
+// Work category chosen at punch-in. HQ needs no visit details; the other four collect
+// customer/site/purpose and each maps to a colour in the attendance views.
+export type PunchCategory = 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq'
 
 // Shared shape for a working day the engineer has (or should have) attendance for.
 // 'present' = the day counts as Present (on time + >=6h, OR an approved amendment).
@@ -98,6 +107,11 @@ interface AttendanceDay {
   placeName: string | null
   endDayAt: string | null
   endDayPlaceName: string | null
+  // Punch-in work category + visit details (null when not a punch-in day / HQ).
+  punchCategory: PunchCategory | null
+  visitCustomerName: string | null
+  visitSiteAddress: string | null
+  visitPurpose: string | null
   // Retained for shape compatibility; there is no longer a Punch Out enable gate, so
   // this is always null (Punch Out is available any time after Punch In).
   endDayEnableAt: string | null
@@ -157,6 +171,10 @@ export function computeEffectiveStatus(params: {
       placeName: row.place_name,
       endDayAt: row.end_day_at ?? null,
       endDayPlaceName: row.end_day_place_name ?? null,
+      punchCategory: row.punch_category ?? null,
+      visitCustomerName: row.visit_customer_name ?? null,
+      visitSiteAddress: row.visit_site_address ?? null,
+      visitPurpose: row.visit_purpose ?? null,
       endDayEnableAt: null,
     }
 
@@ -177,7 +195,9 @@ export function computeEffectiveStatus(params: {
     kind: 'leave', reason: null, pendingApproval: false, rejected: false, amended: false,
     lateIn: false, earlyOut: false, singlePunch: false, noShow: true,
     approvedByName: null, approvedAt: null, markedAt: null, placeName: null,
-    endDayAt: null, endDayPlaceName: null, endDayEnableAt: null,
+    endDayAt: null, endDayPlaceName: null,
+    punchCategory: null, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null,
+    endDayEnableAt: null,
   })
 
   if (dateStr === todayStr) {
@@ -234,7 +254,7 @@ async function getProfileCreatedAtDateStr(admin: AdminClient, userId: string): P
   return data?.created_at ? getISTDateStr(new Date(data.created_at)) : null
 }
 
-const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, day_off, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name'
+const ATTENDANCE_ROW_COLUMNS = 'status, approval_status, day_off, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name, punch_category, visit_customer_name, visit_site_address, visit_purpose'
 
 // Sweeps for a Punch In with no Punch Out once its calendar day (IST) has already
 // ended — no cron job in this codebase (see file header), so this runs lazily
@@ -292,6 +312,10 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
   placeName: string | null
   reason?: string | null
   attendanceDate?: string
+  category?: PunchCategory | null
+  visitCustomerName?: string | null
+  visitSiteAddress?: string | null
+  visitPurpose?: string | null
 }): Promise<{ error: string | null; needsApproval: boolean }> {
   try {
     const now = new Date()
@@ -300,6 +324,19 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
 
     if (targetDateStr !== todayStr) {
       return { error: 'Punch In is only available for today. Use Request Amendment for a past day.', needsApproval: false }
+    }
+
+    // Work category is required; the four non-HQ categories also need visit details.
+    const category = params.category ?? null
+    const VALID: PunchCategory[] = ['travel_r', 'travel_nr', 'site_r', 'site_nr', 'hq']
+    if (!category || !VALID.includes(category)) {
+      return { error: 'Choose what you are doing today before punching in.', needsApproval: false }
+    }
+    const customerName = params.visitCustomerName?.trim() || null
+    const siteAddress = params.visitSiteAddress?.trim() || null
+    const purpose = params.visitPurpose?.trim() || null
+    if (category !== 'hq' && (!customerName || !siteAddress || !purpose)) {
+      return { error: 'Customer name, site address and purpose of visit are all required.', needsApproval: false }
     }
 
     const lateIn = isPastAttendanceCutoff(now)
@@ -332,6 +369,10 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
         end_day_latitude: null,
         end_day_longitude: null,
         end_day_place_name: null,
+        punch_category: category,
+        visit_customer_name: category === 'hq' ? null : customerName,
+        visit_site_address: category === 'hq' ? null : siteAddress,
+        visit_purpose: category === 'hq' ? null : purpose,
         updated_at: now.toISOString(),
       }, { onConflict: 'engineer_id,attendance_date' }).select('id').single(),
       8000

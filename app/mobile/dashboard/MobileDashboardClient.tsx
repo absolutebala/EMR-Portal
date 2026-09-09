@@ -9,6 +9,7 @@ import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
 import { markEndDay, markAttendance, markDayOff } from '@/app/actions/attendance'
+import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
 import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
@@ -234,7 +235,8 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
     )
   }, [canPunchIn])
 
-  async function handlePunchIn() {
+  const [showPunchIn, setShowPunchIn] = useState(false)
+  async function submitPunchIn(payload: PunchInPayload) {
     setPunchInError('')
     setPunchingIn(true)
     const result = await markAttendance({
@@ -242,9 +244,11 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
       longitude: punchInCoordsRef.current?.lng ?? null,
       placeName: punchInPlaceNameRef.current || null,
       reason: null,
+      ...payload,
     })
     setPunchingIn(false)
     if (result.error) { setPunchInError(result.error); return }
+    setShowPunchIn(false)
     router.refresh()
   }
 
@@ -367,6 +371,7 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
+      <PunchInModal open={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={punchingIn} error={punchInError} />
       {showStatusModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 51, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
@@ -762,7 +767,7 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                 <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
                 {cfg.sub && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                  <button className="mtap" onClick={handlePunchIn} disabled={punchingIn || markingDayOff}
+                  <button className="mtap" onClick={() => { setPunchInError(''); setShowPunchIn(true) }} disabled={punchingIn || markingDayOff}
                     style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: punchingIn ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn || markingDayOff ? 0.6 : 1 }}>
                     {punchingIn ? 'Punching in…' : 'Punch In'}
                   </button>

@@ -145,8 +145,13 @@ export interface AttendanceDay {
   placeName: string | null;
   endDayAt: string | null;
   endDayPlaceName: string | null;
+  punchCategory: PunchCategory | null;
+  visitCustomerName: string | null;
+  visitSiteAddress: string | null;
+  visitPurpose: string | null;
   endDayEnableAt: string | null;
 }
+export type PunchCategory = 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq';
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
   | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }
@@ -181,6 +186,10 @@ export interface MarkAttendanceVariables {
   placeName: string | null;
   reason?: string | null;
   attendanceDate?: string;
+  category?: PunchCategory | null;
+  visitCustomerName?: string | null;
+  visitSiteAddress?: string | null;
+  visitPurpose?: string | null;
 }
 
 export interface MarkEndDayVariables {

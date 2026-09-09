@@ -14,6 +14,7 @@ import StreakStrip from '@/components/StreakStrip';
 import NearbyEngineersStrip from '@/components/NearbyEngineersStrip';
 import PendingProductsCard from '@/components/PendingProductsCard';
 import AppUpdatePopup from '@/components/AppUpdatePopup';
+import PunchInModal, { type PunchInPayload } from '@/components/PunchInModal';
 import { useBannerStackHeight } from '@/lib/bannerLayout';
 import type { AttendanceEffectiveStatus } from '@/lib/types';
 
@@ -97,6 +98,7 @@ export default function DashboardScreen() {
   const markDayOff = useMarkDayOff();
   const [endDayError, setEndDayError] = useState('');
   const [punchInError, setPunchInError] = useState('');
+  const [showPunchIn, setShowPunchIn] = useState(false);
   // GPS captures silently in the background as soon as End Day becomes available —
   // same single-step pattern as the Attendance tab — so the button here is a genuine
   // single tap with no separate "capture location" step.
@@ -140,7 +142,7 @@ export default function DashboardScreen() {
     });
   }, [canPunchIn]);
 
-  async function handlePunchIn() {
+  async function submitPunchIn(payload: PunchInPayload) {
     setPunchInError('');
     try {
       const result = await markAttendance.mutateAsync({
@@ -148,8 +150,10 @@ export default function DashboardScreen() {
         longitude: punchInCoordsRef.current?.lng ?? null,
         placeName: punchInPlaceNameRef.current || null,
         reason: null,
+        ...payload,
       });
-      if (result.error) setPunchInError(result.error);
+      if (result.error) { setPunchInError(result.error); return; }
+      setShowPunchIn(false);
     } catch (e) {
       setPunchInError(apiErrorMessage(e));
     }
@@ -215,6 +219,7 @@ export default function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D1D3F" />}
     >
       <AppUpdatePopup prompt={data?.updatePrompt ?? null} />
+      <PunchInModal visible={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={markAttendance.isPending} error={punchInError} />
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.greeting}>Hi, {engineerName || data?.engineer?.name || 'Engineer'}</Text>
@@ -296,7 +301,7 @@ export default function DashboardScreen() {
               <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
               {cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
               <View style={styles.attendanceActions}>
-                <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={handlePunchIn} disabled={markAttendance.isPending || markDayOff.isPending}>
+                <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={() => { setPunchInError(''); setShowPunchIn(true); }} disabled={markAttendance.isPending || markDayOff.isPending}>
                   {markAttendance.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.punchInButtonText}>Punch In</Text>}
                 </Pressable>
                 {/* On a holiday the day is already off, so only Punch In is offered. */}

@@ -8,6 +8,8 @@ import * as Sharing from 'expo-sharing';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMarkEndDay, useRequestAmendment, useMyProfile } from '@/lib/hooks';
 import AppVersionFooter from '@/components/AppVersionFooter';
+import PunchInModal, { type PunchInPayload } from '@/components/PunchInModal';
+import { categoryMeta } from '@/lib/punchCategory';
 import { apiGet } from '@/lib/api';
 import { apiErrorMessage } from '@/lib/offlineSubmit';
 import type { AttendanceEffectiveStatus, AttendanceCalendarDay, AttendanceCalendarResponse } from '@/lib/types';
@@ -184,6 +186,7 @@ export default function AttendanceScreen() {
   // below, never read in JSX, so it doesn't need to be reactive.
   const gpsRequestedRef = useRef(false);
   const [markError, setMarkError] = useState('');
+  const [showPunchInModal, setShowPunchInModal] = useState(false);
 
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [amendReason, setAmendReason] = useState('');
@@ -258,18 +261,20 @@ export default function AttendanceScreen() {
     if (showPunchIn && !gpsRequestedRef.current) startGpsCapture();
   }, [showPunchIn]);
 
-  async function handleMark() {
+  async function handleMark(payload: PunchInPayload) {
     setMarkError('');
-    // Punch In simply records — no reason even if late. A late punch-in makes the day
-    // Absent, and the engineer requests an amendment separately if they want it.
+    // Punch In records the chosen category + visit details. A late punch-in still makes
+    // the day Absent; the engineer requests an amendment separately if they want it.
     try {
       const result = await markAttendance.mutateAsync({
         latitude: coords?.lat ?? null,
         longitude: coords?.lng ?? null,
         placeName: placeName || null,
         reason: null,
+        ...payload,
       });
       if (result.error) { setMarkError(result.error); return; }
+      setShowPunchInModal(false);
     } catch (e) {
       setMarkError(apiErrorMessage(e));
     }
@@ -379,6 +384,7 @@ export default function AttendanceScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ headerShown: true, title: 'Attendance', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
+      <PunchInModal visible={showPunchInModal} onCancel={() => setShowPunchInModal(false)} onConfirm={handleMark} submitting={markAttendance.isPending} error={markError} />
 
       <View style={styles.weekNav}>
         <Pressable style={styles.navButton} onPress={goPrev} accessibilityLabel={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
@@ -420,7 +426,7 @@ export default function AttendanceScreen() {
             📍 {coords ? (placeName || 'Location captured') : gpsResolved ? 'Location unavailable — you can still punch in' : 'Getting your location…'}
           </Text>
           {!!markError && <Text style={styles.markError}>{markError}</Text>}
-          <Pressable style={[styles.submitButton, markAttendance.isPending && styles.submitButtonDisabled]} onPress={handleMark} disabled={markAttendance.isPending}>
+          <Pressable style={[styles.submitButton, markAttendance.isPending && styles.submitButtonDisabled]} onPress={() => { setMarkError(''); setShowPunchInModal(true); }} disabled={markAttendance.isPending}>
             {markAttendance.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Punch In</Text>}
           </Pressable>
         </View>
@@ -461,17 +467,24 @@ export default function AttendanceScreen() {
           const hasRequested = s.kind === 'leave' && (s.pendingApproval || s.rejected) && !!s.markedAt;
           const hasDecision = (s.kind === 'present' && s.amended) || (s.kind === 'leave' && s.rejected);
           const decisionLabel = s.kind === 'leave' && s.rejected ? 'Rejected' : 'Approved';
+          const cat = (s.kind === 'present' || s.kind === 'leave') ? categoryMeta(s.punchCategory) : null;
           return (
-            <View key={day.date} style={styles.dayRow}>
+            <View key={day.date} style={[styles.dayRow, cat && { backgroundColor: cat.bg, borderColor: cat.ac + '55', borderWidth: 1 }]}>
               {/* The whole box is the tap target for amendable days — a single tap
                   anywhere on it opens (or closes) the amendment form. */}
               <Pressable onPress={() => toggleDay(day)} disabled={!amendable}>
                 <View style={styles.dayRowHeader}>
-                  <Text style={styles.dayLabel}>{formatDayLabel(day.date)}</Text>
-                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+                  <Text style={[styles.dayLabel, cat && { color: cat.tx }]}>{formatDayLabel(day.date)}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    {cat && <View style={[styles.badge, { backgroundColor: cat.ac }]}><Text style={[styles.badgeText, { color: '#fff' }]}>{cat.label}</Text></View>}
+                    <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+                    </View>
                   </View>
                 </View>
+                {cat && (s.kind === 'present' || s.kind === 'leave') && s.visitCustomerName && (
+                  <Text style={[styles.punchNote, { color: cat.tx }]}>{s.visitCustomerName}{s.visitSiteAddress ? ` · ${s.visitSiteAddress}` : ''}</Text>
+                )}
                 {(s.kind === 'present' || s.kind === 'leave') && s.markedAt && (
                   <Text style={styles.punchNote}>
                     Punch in {formatTimeOnly(s.markedAt)}

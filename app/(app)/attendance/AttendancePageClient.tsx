@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats } from '@/app/actions/get-attendance'
+import { categoryMeta } from '@/lib/punchCategory'
 import { approveRejectAttendanceAmendment } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
@@ -127,10 +128,14 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
   const hasDecision = (s.kind === 'present' || s.kind === 'leave') && (s.rejected || (s.kind === 'present' && s.amended))
   const decisionLabel = (s.kind === 'present' || s.kind === 'leave') && s.rejected ? 'Rejected' : 'Approved'
   const showPendingActions = canApprove && (s.kind === 'leave' || s.kind === 'present') && s.pendingApproval && !!row.attendanceId
+  const cat = categoryMeta(row.punchCategory)
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={cat ? { background: cat.bg, border: `1px solid ${cat.ac}55`, borderRadius: 8, padding: 8, margin: -2 } : undefined}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {cat && (
+          <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, background: cat.ac, color: '#fff', borderRadius: 20, padding: '3px 9px' }}>{cat.label}</span>
+        )}
         <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '3px 9px' }}>
           {label}
         </span>
@@ -155,6 +160,12 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
           </>
         )}
       </div>
+      {cat && row.visitCustomerName && (
+        <div style={{ fontSize: 10, color: cat.tx, marginTop: 4 }}>Customer: {row.visitCustomerName}</div>
+      )}
+      {cat && row.visitSiteAddress && (
+        <div style={{ fontSize: 10, color: cat.tx, marginTop: 2 }}>Site: {row.visitSiteAddress}</div>
+      )}
       {timeLabel && (
         <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>
           {timeLabel}{row.placeName ? ` — ${row.placeName}` : ''}
@@ -362,6 +373,9 @@ export default function AttendancePageClient({ initialRows, initialError, initia
 
     const cellFor = (engId: string, date: string) => cellByEngDate[`${engId}:${date}`] ?? null
     const statusText = (r: AttendanceOverviewRow | null) => (r && r.attendance.kind !== 'not_applicable') ? attendanceLabel(r.attendance) : ''
+    const categoryText = (r: AttendanceOverviewRow | null) => categoryMeta(r?.punchCategory ?? null)?.label ?? ''
+    const customerText = (r: AttendanceOverviewRow | null) => r?.visitCustomerName ? `Customer: ${r.visitCustomerName}` : ''
+    const siteText = (r: AttendanceOverviewRow | null) => r?.visitSiteAddress ? `Site: ${r.visitSiteAddress}` : ''
     const punchInText = (r: AttendanceOverviewRow | null) => r?.markedAt ? `Punch in: ${formatTime(r.markedAt)}` : ''
     const punchOutText = (r: AttendanceOverviewRow | null) => r?.endDayAt ? `Punched out: ${formatTime(r.endDayAt)}${r.endDayPlaceName ? ` — ${r.endDayPlaceName}` : ''}` : ''
     const hoursText = (r: AttendanceOverviewRow | null) => (r?.markedAt && r.endDayAt) ? `Working hours: ${formatWorkedDuration(r.markedAt, r.endDayAt)}` : ''
@@ -374,16 +388,20 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     const aoa: string[][] = [['Field Engineer', ...dateHeaders]]
     const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = []
 
+    const BLOCK = 7
     for (const eng of engineers) {
       const cells = dates.map(d => cellFor(eng.id, d))
       const blockStart = aoa.length
       aoa.push([eng.name, ...cells.map(statusText)])
+      aoa.push(['', ...cells.map(categoryText)])
+      aoa.push(['', ...cells.map(customerText)])
+      aoa.push(['', ...cells.map(siteText)])
       aoa.push(['', ...cells.map(punchInText)])
       aoa.push(['', ...cells.map(punchOutText)])
       aoa.push(['', ...cells.map(hoursText)])
       aoa.push(['', ...cells.map(jobsText)])
-      // Merge the engineer name down its 5-row block in column A.
-      merges.push({ s: { r: blockStart, c: 0 }, e: { r: blockStart + 4, c: 0 } })
+      // Merge the engineer name down its block in column A.
+      merges.push({ s: { r: blockStart, c: 0 }, e: { r: blockStart + BLOCK, c: 0 } })
     }
 
     const wb = XLSX.utils.book_new()

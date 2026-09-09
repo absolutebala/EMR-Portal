@@ -40,6 +40,11 @@ export interface AttendanceOverviewRow {
   // The raw attendance row's own id, null when no row exists for this date — used
   // to target the approve/reject action directly from the grid cell.
   attendanceId: string | null
+  // Punch-in work category + visit details (null for HQ / no punch-in). Drive the
+  // cell's colour and the Customer/Site lines shown in the grid.
+  punchCategory: 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq' | null
+  visitCustomerName: string | null
+  visitSiteAddress: string | null
   jobs: AttendanceOverviewJob[]
 }
 
@@ -116,7 +121,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       workOrderIds.length
         ? admin.from('work_order_checkins').select('work_order_id, checked_in_at').in('work_order_id', workOrderIds)
         : Promise.resolve({ data: [] as { work_order_id: string; checked_in_at: string }[] }),
-      admin.from('attendance').select('id, engineer_id, attendance_date, status, day_off, marked_at, place_name, reason, approval_status, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
+      admin.from('attendance').select('id, engineer_id, attendance_date, status, day_off, marked_at, place_name, reason, approval_status, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name, punch_category, visit_customer_name, visit_site_address, visit_purpose').in('engineer_id', engineerIds).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
     ])
 
@@ -217,6 +222,9 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
           endDayAt: row?.end_day_at ?? null,
           endDayPlaceName: row?.end_day_place_name ?? null,
           attendanceId: row?.id ?? null,
+          punchCategory: row?.punch_category ?? null,
+          visitCustomerName: row?.visit_customer_name ?? null,
+          visitSiteAddress: row?.visit_site_address ?? null,
           jobs: jobsByEngDate[`${eng.id}:${dateStr}`] || [],
         })
       }
@@ -268,7 +276,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const [{ data: profiles, error: profErr }, { data: attRows }, { data: holidays }] = await Promise.all([
       admin.from('profiles').select('id, created_at').eq('role', 'Field Engineer'),
       admin.from('attendance')
-        .select('engineer_id, attendance_date, status, day_off, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name')
+        .select('engineer_id, attendance_date, status, day_off, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name, punch_category, visit_customer_name, visit_site_address, visit_purpose')
         .gte('attendance_date', fetchFrom).lte('attendance_date', todayStr),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', fetchFrom).lte('holiday_date', todayStr),
     ])

@@ -16,15 +16,19 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const body = await req.json()
-  const { latitude, longitude, placeName, reason, attendanceDate } = body as {
+  const { latitude, longitude, placeName, reason, attendanceDate, category, visitCustomerName, visitSiteAddress, visitPurpose } = body as {
     latitude: number | null
     longitude: number | null
     placeName: string | null
     reason?: string | null
     attendanceDate?: string
+    category?: 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq' | null
+    visitCustomerName?: string | null
+    visitSiteAddress?: string | null
+    visitPurpose?: string | null
   }
 
-  const result = await markAttendanceCore(adminClient(), user.id, { latitude, longitude, placeName, reason, attendanceDate })
+  const result = await markAttendanceCore(adminClient(), user.id, { latitude, longitude, placeName, reason, attendanceDate, category, visitCustomerName, visitSiteAddress, visitPurpose })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)
 }
