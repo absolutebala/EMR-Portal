@@ -69,6 +69,29 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
   }
 }
 
+// Export Status uses a plain status word only — no Late In / Single Punch / Short
+// Hours flags or approval qualifiers (the amendment detail lives elsewhere).
+function exportStatusLabel(s: AttendanceEffectiveStatus): string {
+  switch (s.kind) {
+    case 'present': return 'Present'
+    case 'leave': return 'Absent'
+    case 'day_off': return 'Day Off'
+    case 'holiday': return 'Holiday'
+    case 'pending': return 'Pending'
+    case 'not_applicable': return ''
+  }
+}
+
+// The grid tint for an engineer/date cell: category colour when present with a
+// punch category, otherwise the plain status colour. Returned as an Excel ARGB
+// (opaque) hex, or null for empty/not-applicable cells (left unfilled).
+function exportCellArgb(r: AttendanceOverviewRow | null): string | null {
+  if (!r || r.attendance.kind === 'not_applicable') return null
+  const cat = r.attendance.kind === 'present' ? categoryMeta(r.punchCategory) : null
+  const hex = cat ? cat.bg : ATTENDANCE_CFG[r.attendance.kind].bg
+  return 'FF' + hex.replace('#', '').toUpperCase()
+}
+
 // Excel sheet names: max 31 chars, can't contain : \ / ? * [ ], can't be blank,
 // can't repeat within a workbook — dedupe collisions with a numeric suffix.
 function sheetNameFor(name: string, used: Set<string>): string {
@@ -366,51 +389,79 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   // "Export Status" — the same engineer × date grid shown on screen, as a single sheet.
   // Engineers run down column A; dates across the top; each cell is stacked over five
   // rows: Status, Punch in, Punched out (+ location), Working hours, and the day's job(s).
-  function handleExportStatus() {
+  async function handleExportStatus() {
     setExporting(true)
     setExportError('')
     if (!engineers.length || !dates.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
-    const cellFor = (engId: string, date: string) => cellByEngDate[`${engId}:${date}`] ?? null
-    const statusText = (r: AttendanceOverviewRow | null) => (r && r.attendance.kind !== 'not_applicable') ? attendanceLabel(r.attendance) : ''
-    const categoryText = (r: AttendanceOverviewRow | null) => categoryMeta(r?.punchCategory ?? null)?.label ?? ''
-    const customerText = (r: AttendanceOverviewRow | null) => r?.visitCustomerName ? `Customer: ${r.visitCustomerName}` : ''
-    const siteText = (r: AttendanceOverviewRow | null) => r?.visitSiteAddress ? `Site: ${r.visitSiteAddress}` : ''
-    const punchInText = (r: AttendanceOverviewRow | null) => r?.markedAt ? `Punch in: ${formatTime(r.markedAt)}` : ''
-    const punchOutText = (r: AttendanceOverviewRow | null) => r?.endDayAt ? `Punched out: ${formatTime(r.endDayAt)}${r.endDayPlaceName ? ` — ${r.endDayPlaceName}` : ''}` : ''
-    const hoursText = (r: AttendanceOverviewRow | null) => (r?.markedAt && r.endDayAt) ? `Working hours: ${formatWorkedDuration(r.markedAt, r.endDayAt)}` : ''
-    const jobsText = (r: AttendanceOverviewRow | null) => {
-      if (!r || r.jobs.length === 0) return 'No job scheduled'
-      return r.jobs.map(j => `${j.projectName || 'Job'} — ${JOB_STATUS_CFG[j.state.kind].label}`).join('\n')
+    try {
+      // ExcelJS (dynamically imported so it stays out of the main bundle) — SheetJS
+      // community can't write cell fills, and the export needs the grid's colours.
+      const ExcelJS = (await import('exceljs')).default
+
+      const cellFor = (engId: string, date: string) => cellByEngDate[`${engId}:${date}`] ?? null
+      const statusText = (r: AttendanceOverviewRow | null) => (r && r.attendance.kind !== 'not_applicable') ? exportStatusLabel(r.attendance) : ''
+      const categoryText = (r: AttendanceOverviewRow | null) => categoryMeta(r?.punchCategory ?? null)?.label ?? ''
+      const customerText = (r: AttendanceOverviewRow | null) => r?.visitCustomerName ? `Customer: ${r.visitCustomerName}` : ''
+      const siteText = (r: AttendanceOverviewRow | null) => r?.visitSiteAddress ? `Site: ${r.visitSiteAddress}` : ''
+      const punchInText = (r: AttendanceOverviewRow | null) => r?.markedAt ? `Punch in: ${formatTime(r.markedAt)}` : ''
+      const punchOutText = (r: AttendanceOverviewRow | null) => r?.endDayAt ? `Punched out: ${formatTime(r.endDayAt)}${r.endDayPlaceName ? ` — ${r.endDayPlaceName}` : ''}` : ''
+      const hoursText = (r: AttendanceOverviewRow | null) => (r?.markedAt && r.endDayAt) ? `Working hours: ${formatWorkedDuration(r.markedAt, r.endDayAt)}` : ''
+      const jobsText = (r: AttendanceOverviewRow | null) => {
+        if (!r || r.jobs.length === 0) return 'No job scheduled'
+        return r.jobs.map(j => `${j.projectName || 'Job'} — ${JOB_STATUS_CFG[j.state.kind].label}`).join('\n')
+      }
+      const rowText = [statusText, categoryText, customerText, siteText, punchInText, punchOutText, hoursText, jobsText]
+      const ROWS_PER = rowText.length
+
+      const dateHeaders = dates.map(d => { const { weekday, dayMonth } = formatDateCell(d); return `${weekday}, ${dayMonth}` })
+
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet('Attendance Status')
+      ws.columns = [{ width: 24 }, ...dates.map(() => ({ width: 30 }))]
+
+      const header = ws.addRow(['Field Engineer', ...dateHeaders])
+      header.font = { bold: true }
+      header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+
+      for (const eng of engineers) {
+        const cells = dates.map(d => cellFor(eng.id, d))
+        const startRow = ws.rowCount + 1
+        rowText.forEach((fn, i) => ws.addRow([i === 0 ? eng.name : '', ...cells.map(fn)]))
+        const endRow = startRow + ROWS_PER - 1
+
+        // Engineer name merged down column A for the whole block.
+        ws.mergeCells(startRow, 1, endRow, 1)
+        const nameCell = ws.getCell(startRow, 1)
+        nameCell.font = { bold: true }
+        nameCell.alignment = { vertical: 'middle', wrapText: true }
+
+        // Tint each engineer/date block with the grid colour and top-align its text.
+        cells.forEach((r, i) => {
+          const argb = exportCellArgb(r)
+          const col = i + 2
+          for (let rr = startRow; rr <= endRow; rr++) {
+            const c = ws.getCell(rr, col)
+            c.alignment = { vertical: 'top', wrapText: true }
+            if (rr === startRow) c.font = { bold: true }
+            if (argb) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+          }
+        })
+      }
+
+      const buf = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attendance_status_${range.from}_to_${range.to}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      setExportError(e instanceof Error ? e.message : 'Export failed — please try again.')
+    } finally {
+      setExporting(false)
     }
-
-    const dateHeaders = dates.map(d => { const { weekday, dayMonth } = formatDateCell(d); return `${weekday}, ${dayMonth}` })
-    const aoa: string[][] = [['Field Engineer', ...dateHeaders]]
-    const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = []
-
-    const BLOCK = 7
-    for (const eng of engineers) {
-      const cells = dates.map(d => cellFor(eng.id, d))
-      const blockStart = aoa.length
-      aoa.push([eng.name, ...cells.map(statusText)])
-      aoa.push(['', ...cells.map(categoryText)])
-      aoa.push(['', ...cells.map(customerText)])
-      aoa.push(['', ...cells.map(siteText)])
-      aoa.push(['', ...cells.map(punchInText)])
-      aoa.push(['', ...cells.map(punchOutText)])
-      aoa.push(['', ...cells.map(hoursText)])
-      aoa.push(['', ...cells.map(jobsText)])
-      // Merge the engineer name down its block in column A.
-      merges.push({ s: { r: blockStart, c: 0 }, e: { r: blockStart + BLOCK, c: 0 } })
-    }
-
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!merges'] = merges
-    ws['!cols'] = [{ wch: 24 }, ...dates.map(() => ({ wch: 30 }))]
-    XLSX.utils.book_append_sheet(wb, ws, 'Attendance Status')
-    XLSX.writeFile(wb, `attendance_status_${range.from}_to_${range.to}.xlsx`)
-    setExporting(false)
   }
 
   const load = useCallback(async (from: string, to: string) => {
