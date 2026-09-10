@@ -82,14 +82,25 @@ function exportStatusLabel(s: AttendanceEffectiveStatus): string {
   }
 }
 
-// The grid tint for an engineer/date cell: category colour when present with a
-// punch category, otherwise the plain status colour. Returned as an Excel ARGB
-// (opaque) hex, or null for empty/not-applicable cells (left unfilled).
-function exportCellArgb(r: AttendanceOverviewRow | null): string | null {
+const toArgb = (hex: string) => 'FF' + hex.replace('#', '').toUpperCase()
+
+// A box awaiting approval (pending Day Off / pending amendment / standalone
+// Pending) gets its own colour so it never wears one of the five category tints.
+function isPendingStatus(s: AttendanceEffectiveStatus): boolean {
+  if (s.kind === 'pending') return true
+  if (s.kind === 'present' || s.kind === 'leave' || s.kind === 'day_off') return s.pendingApproval
+  return false
+}
+
+// Grid-matching fill + border for an engineer/date box, or null for an empty
+// (not-applicable) cell which stays borderless like the on-screen grid.
+function exportCellStyle(r: AttendanceOverviewRow | null): { fill: string; border: string } | null {
   if (!r || r.attendance.kind === 'not_applicable') return null
+  if (isPendingStatus(r.attendance)) return { fill: 'FFFFE0B2', border: 'FFF59E0B' } // distinct pending orange
   const cat = r.attendance.kind === 'present' ? categoryMeta(r.punchCategory) : null
-  const hex = cat ? cat.bg : ATTENDANCE_CFG[r.attendance.kind].bg
-  return 'FF' + hex.replace('#', '').toUpperCase()
+  if (cat) return { fill: toArgb(cat.bg), border: toArgb(cat.ac) }
+  const cfg = ATTENDANCE_CFG[r.attendance.kind]
+  return { fill: toArgb(cfg.bg), border: toArgb(cfg.color) }
 }
 
 // Excel sheet names: max 31 chars, can't contain : \ / ? * [ ], can't be blank,
@@ -416,13 +427,36 @@ export default function AttendancePageClient({ initialRows, initialError, initia
 
       const dateHeaders = dates.map(d => { const { weekday, dayMonth } = formatDateCell(d); return `${weekday}, ${dayMonth}` })
 
+      const thin = (argb: string) => ({ style: 'thin' as const, color: { argb } })
+      const NAME_BORDER = 'FFDDD5D9'
+
+      // Outline a single-column block (startRow..endRow at col) as one box — outer
+      // rectangle only, so the eight stacked rows read as a single bordered cell.
+      const outlineBox = (col: number, startRow: number, endRow: number, argb: string) => {
+        for (let rr = startRow; rr <= endRow; rr++) {
+          const c = ws.getCell(rr, col)
+          c.border = {
+            left: thin(argb),
+            right: thin(argb),
+            ...(rr === startRow ? { top: thin(argb) } : {}),
+            ...(rr === endRow ? { bottom: thin(argb) } : {}),
+          }
+        }
+      }
+
       const wb = new ExcelJS.Workbook()
       const ws = wb.addWorksheet('Attendance Status')
       ws.columns = [{ width: 24 }, ...dates.map(() => ({ width: 30 }))]
+      ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }]
 
       const header = ws.addRow(['Field Engineer', ...dateHeaders])
-      header.font = { bold: true }
-      header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+      header.height = 26
+      header.eachCell(c => {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7D1D3F' } }
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        c.border = { bottom: thin('FF7D1D3F') }
+      })
 
       for (const eng of engineers) {
         const cells = dates.map(d => cellFor(eng.id, d))
@@ -430,22 +464,25 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         rowText.forEach((fn, i) => ws.addRow([i === 0 ? eng.name : '', ...cells.map(fn)]))
         const endRow = startRow + ROWS_PER - 1
 
-        // Engineer name merged down column A for the whole block.
+        // Engineer name merged down column A for the whole block, with a light box.
         ws.mergeCells(startRow, 1, endRow, 1)
         const nameCell = ws.getCell(startRow, 1)
         nameCell.font = { bold: true }
         nameCell.alignment = { vertical: 'middle', wrapText: true }
+        outlineBox(1, startRow, endRow, NAME_BORDER)
 
-        // Tint each engineer/date block with the grid colour and top-align its text.
+        // Each engineer/date box takes the grid colour + a matching border; empty
+        // (not-applicable) cells stay unfilled and borderless like the on-screen grid.
         cells.forEach((r, i) => {
-          const argb = exportCellArgb(r)
+          const style = exportCellStyle(r)
           const col = i + 2
           for (let rr = startRow; rr <= endRow; rr++) {
             const c = ws.getCell(rr, col)
             c.alignment = { vertical: 'top', wrapText: true }
             if (rr === startRow) c.font = { bold: true }
-            if (argb) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+            if (style) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: style.fill } }
           }
+          if (style) outlineBox(col, startRow, endRow, style.border)
         })
       }
 
@@ -598,7 +635,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
             >
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              {exporting ? 'Exporting…' : `Export to Excel`}
+              {exporting ? 'Exporting…' : `Export Attendance`}
             </button>
           </div>
         </div>
