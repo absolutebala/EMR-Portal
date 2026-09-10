@@ -51,6 +51,15 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     case 'pending':
       return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' };
     case 'leave': {
+      if (status.latePending) {
+        return {
+          bg: '#FFE0B2', color: '#9A5B00', label: 'Punched in Late',
+          sub: status.pendingApproval ? 'Approval is Pending'
+            : status.rejected ? 'Amendment rejected — request again'
+            : !status.endDayAt ? 'Punch out to finish your day'
+            : 'Request an amendment to make it Present',
+        };
+      }
       const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ');
       return {
         bg: '#FEE2E2', color: '#991B1B', label: causes ? `Absent (${causes})` : 'Absent',
@@ -248,6 +257,8 @@ export default function DashboardScreen() {
         // check-in/out times, and until punched out, a Punch Out button.
         if ((status.kind === 'present' || status.kind === 'leave') && status.markedAt) {
           const ended = !!status.endDayAt;
+          // Punch Out is gated: 8h45m after an on-time Punch In, or 6:45 PM IST for a late one.
+          const punchOutUnlocked = !status.endDayEnableAt || Date.now() >= new Date(status.endDayEnableAt).getTime();
           const bigLabel = ended && status.kind === 'present'
             ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}`
             : cfg.label;
@@ -274,11 +285,11 @@ export default function DashboardScreen() {
                 </View>
                 {!ended && (
                   <Pressable
-                    style={styles.endDayButton}
+                    style={[styles.endDayButton, (markEndDay.isPending || !punchOutUnlocked) && { backgroundColor: '#C9AEB8' }]}
                     onPress={handleEndDay}
-                    disabled={markEndDay.isPending}
+                    disabled={markEndDay.isPending || !punchOutUnlocked}
                   >
-                    {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>Punch Out</Text>}
+                    {markEndDay.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.endDayButtonText}>{!punchOutUnlocked && status.endDayEnableAt ? `Opens ${formatClockTime(status.endDayEnableAt)}` : 'Punch Out'}</Text>}
                   </Pressable>
                 )}
               </View>

@@ -126,10 +126,9 @@ export interface PendingProductItem {
 }
 
 // Mirrors lib/mobile/core/attendance.ts's AttendanceEffectiveStatus on the backend.
-// Both 'present' and 'leave' (= Absent) share the same day shape — a caused day is
-// Absent (late in / short hours / single punch) unless an amendment is approved, at
-// which point it becomes Present with the cause noted. earlyOut carries the Short Hours
-// cause (< 6h gross); endDayEnableAt is always null now (Punch Out has no time gate).
+// Both 'present' and 'leave' (= Absent) share the same day shape. latePending marks
+// today's unapproved late Punch In ("Punched in Late", not yet Absent). endDayEnableAt
+// is when Punch Out unlocks (8h45m after an on-time Punch In, or 6:45 PM for a late one).
 export interface AttendanceDay {
   reason: string | null;
   pendingApproval: boolean;
@@ -139,6 +138,7 @@ export interface AttendanceDay {
   earlyOut: boolean;
   singlePunch: boolean;
   noShow: boolean;
+  latePending: boolean;
   approvedByName: string | null;
   approvedAt: string | null;
   markedAt: string | null;

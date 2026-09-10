@@ -63,16 +63,10 @@ export default function AppUpdatePopup({ prompt }: { prompt: AppUpdatePrompt | n
         <View style={styles.card}>
           <Text style={styles.title}>Update available</Text>
           <Text style={styles.body}>{prompt.message}</Text>
-          <View style={styles.row}>
-            <Pressable style={styles.later} onPress={dismiss}>
-              <Text style={styles.laterText}>Later</Text>
-            </Pressable>
-            {!!prompt.playStoreUrl && (
-              <Pressable style={styles.update} onPress={handleUpdate}>
-                <Text style={styles.updateText}>Update now</Text>
-              </Pressable>
-            )}
-          </View>
+          {/* Single mandatory action — no "Later". Okay opens the Play Store. */}
+          <Pressable style={styles.okay} onPress={handleUpdate}>
+            <Text style={styles.okayText}>Okay</Text>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -84,9 +78,6 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 16, padding: 20 },
   title: { fontSize: 16, fontWeight: '700', color: '#1C0D14', marginBottom: 10 },
   body: { fontSize: 13, color: '#4A3A42', lineHeight: 19, marginBottom: 18 },
-  row: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  later: { paddingVertical: 11, paddingHorizontal: 16, borderRadius: 10 },
-  laterText: { color: '#7A6870', fontSize: 14, fontWeight: '600' },
-  update: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 18, alignItems: 'center' },
-  updateText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  okay: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  okayText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

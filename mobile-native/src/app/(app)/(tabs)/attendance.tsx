@@ -72,8 +72,9 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
       return { bg, color, label: `Present (${flags.join(', ')})` };
     }
     case 'leave': {
-      const causes = leaveCauses(status);
       const suffix = status.pendingApproval ? ' — pending approval' : status.rejected ? ' — amendment rejected' : '';
+      if (status.latePending) return { bg: '#FFE0B2', color: '#9A5B00', label: `Punched in Late${suffix}` };
+      const causes = leaveCauses(status);
       return { bg: '#FEE2E2', color: '#991B1B', label: `Absent${causes ? ` (${causes})` : ''}${suffix}` };
     }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' };
@@ -92,8 +93,9 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`;
     }
     case 'leave': {
-      const causes = leaveCauses(s);
       const suffix = s.rejected ? ' — amendment rejected' : s.pendingApproval ? ' — pending approval' : '';
+      if (s.latePending) return `Punched in Late${suffix}`;
+      const causes = leaveCauses(s);
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`;
     }
     case 'holiday': return `Holiday: ${s.name}`;
@@ -101,6 +103,15 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     case 'pending': return 'Pending';
     case 'not_applicable': return '—';
   }
+}
+
+// Short phrase naming what the engineer's amendment is for, shown in the request form.
+function amendCauseLabel(s: AttendanceEffectiveStatus): string {
+  if (s.kind !== 'leave') return 'this day';
+  if (s.latePending) return 'Punched in Late';
+  if (s.noShow) return 'Absent (No Show)';
+  const causes = leaveCauses(s);
+  return causes ? `Absent (${causes})` : 'Absent';
 }
 
 function formatTimeOnly(iso: string): string {
@@ -226,6 +237,9 @@ export default function AttendanceScreen() {
     && (todayStatus?.kind === 'pending' || (todayStatus?.kind === 'leave' && todayStatus.noShow));
   const isLatePunchIn = todayStatus?.kind === 'leave';
   const canPunchOutNow = hasPunchedIn && !hasPunchedOut;
+  // Punch Out is gated: 8h45m after an on-time Punch In, or 6:45 PM IST for a late one.
+  const punchOutEnableAtIso = (todayStatus?.kind === 'present' || todayStatus?.kind === 'leave') ? todayStatus.endDayEnableAt : null;
+  const punchOutUnlocked = !punchOutEnableAtIso || Date.now() >= new Date(punchOutEnableAtIso).getTime();
 
   function goPrev() {
     setAnchorDate(d => {
@@ -419,7 +433,7 @@ export default function AttendanceScreen() {
           <Text style={styles.markTitle}>Punch In</Text>
           {isLatePunchIn && (
             <Text style={[styles.markSub, { color: '#92400E' }]}>
-              It&apos;s past 10:00 AM — this will be recorded as Absent (Late In). You can request an amendment after you punch out.
+              It&apos;s past 10:00 AM — today will show Punched in Late and Punch Out opens at 6:45 PM. Request an amendment to have it approved as Present.
             </Text>
           )}
           <Text style={[styles.locationStatus, { color: coords ? '#059669' : gpsResolved ? '#B91C1C' : '#7A6870' }]}>
@@ -432,19 +446,22 @@ export default function AttendanceScreen() {
         </View>
       )}
 
-      {/* Punch Out — available any time after Punch In (compulsory). Under 6h = Short Hours. */}
+      {/* Punch Out — compulsory, but gated: 8h45m after an on-time Punch In, or 6:45 PM for a late one. */}
       {canPunchOutNow && todayStatus && (
         <View style={styles.markCard}>
           <Text style={styles.markTitle}>Punch Out</Text>
           {(todayStatus.kind === 'present' || todayStatus.kind === 'leave') && todayStatus.markedAt && (
-            <Text style={styles.markSub}>Punched in at {formatTimeOnly(todayStatus.markedAt)}. Punch Out is compulsory — under 6 hours is Short Hours (Absent).</Text>
+            <Text style={styles.markSub}>
+              Punched in at {formatTimeOnly(todayStatus.markedAt)}. Punch Out is compulsory.
+              {!punchOutUnlocked && punchOutEnableAtIso ? ` It opens at ${formatTimeOnly(punchOutEnableAtIso)}.` : ''}
+            </Text>
           )}
           <Text style={[styles.locationStatus, { color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }]}>
             📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? 'Location unavailable — you can still punch out' : 'Getting your location…'}
           </Text>
           {!!endDayError && <Text style={styles.markError}>{endDayError}</Text>}
-          <Pressable style={[styles.submitButton, markEndDay.isPending && styles.submitButtonDisabled]} onPress={handleEndDay} disabled={markEndDay.isPending}>
-            {markEndDay.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Punch Out</Text>}
+          <Pressable style={[styles.submitButton, (markEndDay.isPending || !punchOutUnlocked) && styles.submitButtonDisabled]} onPress={handleEndDay} disabled={markEndDay.isPending || !punchOutUnlocked}>
+            {markEndDay.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{!punchOutUnlocked && punchOutEnableAtIso ? `Punch Out opens at ${formatTimeOnly(punchOutEnableAtIso)}` : 'Punch Out'}</Text>}
           </Pressable>
         </View>
       )}
@@ -507,6 +524,9 @@ export default function AttendanceScreen() {
               </Pressable>
               {expanded && amendable && (
                 <View style={styles.amendForm}>
+                  <Text style={styles.amendSubject}>
+                    Requesting an amendment for <Text style={styles.amendSubjectStrong}>{amendCauseLabel(day.status)}</Text> on {formatDayLabel(day.date)}
+                  </Text>
                   <TextInput
                     style={styles.reasonInput}
                     placeholder="Reason (required)"
@@ -574,4 +594,6 @@ const styles = StyleSheet.create({
   punchNote: { fontSize: 11, color: '#374151', fontWeight: '500', marginTop: 6 },
   amendHint: { fontSize: 10, color: '#7D1D3F', marginTop: 6, fontWeight: '600' },
   amendForm: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#F5F3F5', paddingTop: 10 },
+  amendSubject: { fontSize: 11, color: '#7A6870', marginBottom: 8 },
+  amendSubjectStrong: { color: '#1C0D14', fontWeight: '700' },
 });

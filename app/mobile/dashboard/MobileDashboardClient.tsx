@@ -34,6 +34,15 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
     case 'pending':
       return { bg: '#FEF3C7', color: '#92400E', label: 'Punch in', sub: 'Before 10:00 AM' }
     case 'leave': {
+      if (status.latePending) {
+        return {
+          bg: '#FFE0B2', color: '#9A5B00', label: 'Punched in Late',
+          sub: status.pendingApproval ? 'Approval is Pending'
+            : status.rejected ? 'Amendment rejected — request again'
+            : !status.endDayAt ? 'Punch out to finish your day'
+            : 'Request an amendment to make it Present',
+        }
+      }
       const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       return {
         bg: '#FEE2E2', color: '#991B1B', label: causes ? `Absent (${causes})` : 'Absent',
@@ -708,6 +717,9 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
           // shows check-in/out times and, until punched out, a Punch Out button.
           if ((status.kind === 'present' || status.kind === 'leave') && status.markedAt) {
             const ended = !!status.endDayAt
+            // Punch Out is gated: 8h45m after an on-time Punch In, or 6:45 PM IST for a late one.
+            // eslint-disable-next-line react-hooks/purity
+            const punchOutUnlocked = !status.endDayEnableAt || Date.now() >= new Date(status.endDayEnableAt).getTime()
             const bigLabel = ended && status.kind === 'present'
               ? `Today: ${formatLoggedHours(status.markedAt, status.endDayAt!)}`
               : cfg.label
@@ -738,10 +750,11 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                     <button
                       className="mtap"
                       onClick={handleEndDay}
-                      disabled={endingDay}
-                      style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 700, cursor: endingDay ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', flexShrink: 0 }}
+                      disabled={endingDay || !punchOutUnlocked}
+                      title={!punchOutUnlocked && status.endDayEnableAt ? `Punch Out opens at ${formatClockTime(status.endDayEnableAt)}` : undefined}
+                      style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: (endingDay || !punchOutUnlocked) ? '#C9AEB8' : '#7D1D3F', color: '#fff', fontSize: 12, fontWeight: 700, cursor: (endingDay || !punchOutUnlocked) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', flexShrink: 0 }}
                     >
-                      {endingDay ? 'Saving…' : 'Punch Out'}
+                      {endingDay ? 'Saving…' : !punchOutUnlocked && status.endDayEnableAt ? `Opens ${formatClockTime(status.endDayEnableAt)}` : 'Punch Out'}
                     </button>
                   )}
                 </div>

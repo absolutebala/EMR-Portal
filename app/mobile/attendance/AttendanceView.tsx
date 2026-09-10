@@ -35,8 +35,9 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
       return { bg, color, label: `Present (${flags.join(', ')})` }
     }
     case 'leave': {
-      const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       const suffix = status.pendingApproval ? ' — pending approval' : status.rejected ? ' — amendment rejected' : ''
+      if (status.latePending) return { bg: '#FFE0B2', color: '#9A5B00', label: `Punched in Late${suffix}` }
+      const causes = [status.lateIn && 'Late In', status.earlyOut && 'Short Hours', status.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       return { bg: '#FEE2E2', color: '#991B1B', label: `Absent${causes ? ` (${causes})` : ''}${suffix}` }
     }
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' }
@@ -59,8 +60,9 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
     case 'leave': {
-      const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       const suffix = s.rejected ? ' — amendment rejected' : s.pendingApproval ? ' — pending approval' : ''
+      if (s.latePending) return `Punched in Late${suffix}`
+      const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`
     }
     case 'holiday': return `Holiday: ${s.name}`
@@ -68,6 +70,15 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
+}
+
+// Short phrase naming what the engineer's amendment is for, shown in the request form.
+function amendCauseLabel(s: AttendanceEffectiveStatus): string {
+  if (s.kind !== 'leave') return 'this day'
+  if (s.latePending) return 'Punched in Late'
+  if (s.noShow) return 'Absent (No Show)'
+  const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
+  return causes ? `Absent (${causes})` : 'Absent'
 }
 
 function formatTimeOnly(iso: string): string {
@@ -343,9 +354,12 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     )
   }
 
-  // Punch Out is available any time after Punch In (no enable-time gate). Start the
-  // background GPS capture as soon as it becomes relevant.
+  // Punch Out card shows once punched in (and not out). But the action is gated: it
+  // unlocks 8h45m after an on-time Punch In, or at 6:45 PM IST for a late one.
   const canPunchOutNow = hasPunchedIn && !hasPunchedOut
+  const punchOutEnableAtIso = (todayStatus?.kind === 'present' || todayStatus?.kind === 'leave') ? todayStatus.endDayEnableAt : null
+  // eslint-disable-next-line react-hooks/purity
+  const punchOutUnlocked = !punchOutEnableAtIso || Date.now() >= new Date(punchOutEnableAtIso).getTime()
   useEffect(() => {
     if (canPunchOutNow && !endDayGpsRequestedRef.current) startEndDayGpsCapture()
   }, [canPunchOutNow])
@@ -507,7 +521,7 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
             <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 4px' }}>Punch In</p>
             {isLatePunchIn && (
               <p style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5, margin: '0 0 8px' }}>
-                It&apos;s past 10:00 AM — this will be recorded as <strong>Absent (Late In)</strong>. You can request an amendment after you punch out.
+                It&apos;s past 10:00 AM — today will show <strong>Punched in Late</strong> and Punch Out opens at 6:45 PM. Request an amendment to have it approved as Present.
               </p>
             )}
             <div style={{ fontSize: 10, color: coords ? '#059669' : gpsResolved ? '#B91C1C' : '#7A6870' }}>
@@ -521,20 +535,23 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
           </div>
         )}
 
-        {/* Punch Out — available any time after Punch In (compulsory). Under 6h = Short Hours. */}
+        {/* Punch Out — compulsory, but gated: 8h45m after an on-time Punch In, or 6:45 PM for a late one. */}
         {canPunchOutNow && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 16, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14', margin: '0 0 4px' }}>Punch Out</p>
             {todayEntry?.markedAt && (
-              <p style={{ fontSize: 11, color: '#7A6870', margin: '0 0 8px' }}>Punched in at {formatTimeOnly(todayEntry.markedAt)}. Punch Out is compulsory — under 6 hours is Short Hours (Absent).</p>
+              <p style={{ fontSize: 11, color: '#7A6870', margin: '0 0 8px' }}>
+                Punched in at {formatTimeOnly(todayEntry.markedAt)}. Punch Out is compulsory.
+                {!punchOutUnlocked && punchOutEnableAtIso ? ` It opens at ${formatTimeOnly(punchOutEnableAtIso)}.` : ''}
+              </p>
             )}
             <div style={{ fontSize: 10, color: endDayCoords ? '#059669' : endDayGpsResolved ? '#B91C1C' : '#7A6870' }}>
               📍 {endDayCoords ? (endDayPlaceName || 'Location captured') : endDayGpsResolved ? (endDayGpsError || 'Location unavailable — you can still punch out') : 'Getting your location…'}
             </div>
             {endDayError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{endDayError}</div>}
-            <button className="mtap" onClick={handleEndDay} disabled={endDaySubmitting}
-              style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: endDaySubmitting ? '#A8294F' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: endDaySubmitting ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}>
-              {endDaySubmitting ? 'Saving…' : 'Punch Out'}
+            <button className="mtap" onClick={handleEndDay} disabled={endDaySubmitting || !punchOutUnlocked}
+              style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: (endDaySubmitting || !punchOutUnlocked) ? '#C9AEB8' : '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 600, cursor: (endDaySubmitting || !punchOutUnlocked) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', marginTop: 10 }}>
+              {endDaySubmitting ? 'Saving…' : !punchOutUnlocked && punchOutEnableAtIso ? `Punch Out opens at ${formatTimeOnly(punchOutEnableAtIso)}` : 'Punch Out'}
             </button>
           </div>
         )}
@@ -595,6 +612,9 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
                 )}
                 {expanded && amendable && (
                   <div style={{ marginTop: 10, borderTop: '1px solid #F5F3F5', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ fontSize: 11, color: '#7A6870', marginBottom: 8 }}>
+                      Requesting an amendment for <strong style={{ color: '#1C0D14' }}>{amendCauseLabel(day.status)}</strong> on {formatDayLabel(day.date)}
+                    </div>
                     <textarea
                       value={amendReason}
                       onChange={e => setAmendReason(e.target.value)}

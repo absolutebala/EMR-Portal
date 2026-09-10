@@ -58,8 +58,9 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
       return `Present (${flags.join(', ')}${decision ? ` — ${decision}` : ''})`
     }
     case 'leave': {
-      const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       const suffix = s.rejected ? ' — amendment rejected' : s.pendingApproval ? ' — pending approval' : ''
+      if (s.latePending) return `Punched in Late${suffix}`
+      const causes = [s.lateIn && 'Late In', s.earlyOut && 'Short Hours', s.singlePunch && 'Single Punch'].filter(Boolean).join(', ')
       return `Absent${causes ? ` (${causes})` : ''}${suffix}`
     }
     case 'holiday': return `Holiday: ${s.name}`
@@ -74,7 +75,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
 function exportStatusLabel(s: AttendanceEffectiveStatus): string {
   switch (s.kind) {
     case 'present': return 'Present'
-    case 'leave': return 'Absent'
+    case 'leave': return s.latePending ? 'Punched in Late' : 'Absent'
     case 'day_off': return 'Day Off'
     case 'holiday': return 'Holiday'
     case 'pending': return 'Pending'
@@ -88,6 +89,7 @@ const toArgb = (hex: string) => 'FF' + hex.replace('#', '').toUpperCase()
 // Pending) gets its own colour so it never wears one of the five category tints.
 function isPendingStatus(s: AttendanceEffectiveStatus): boolean {
   if (s.kind === 'pending') return true
+  if (s.kind === 'leave' && s.latePending) return true // "Punched in Late" is provisional
   if (s.kind === 'present' || s.kind === 'leave' || s.kind === 'day_off') return s.pendingApproval
   return false
 }
@@ -145,7 +147,9 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
   // rejected gets the same amber/red treatment as a Leave amendment — plain
   // Present (or an approved amendment) stays green. Every other kind uses the
   // static palette.
-  const cfg = s.kind === 'present' && (s.pendingApproval || s.rejected)
+  const cfg = s.kind === 'leave' && s.latePending
+    ? { bg: '#FFE0B2', color: '#9A5B00' } // "Punched in Late" — provisional orange, not Absent red
+    : s.kind === 'present' && (s.pendingApproval || s.rejected)
     ? (s.rejected ? { bg: '#FEE2E2', color: '#991B1B' } : { bg: '#FEF3C7', color: '#92400E' })
     : ATTENDANCE_CFG[s.kind]
   const label = attendanceLabel(s)
