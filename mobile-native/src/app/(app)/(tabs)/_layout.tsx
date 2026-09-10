@@ -8,6 +8,12 @@ import { Text, type ColorValue } from 'react-native';
 export default function TabsLayout() {
   return (
     <Tabs
+      // Every screen (the five real tabs AND the href:null detail screens) lives in
+      // this one bottom-tab navigator. Its default backBehavior is 'firstRoute', which
+      // makes "back" from any pushed detail screen jump to Dashboard instead of the
+      // screen it was opened from. 'history' makes back return to the previously
+      // focused route — i.e. the actual previous screen.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#7D1D3F',

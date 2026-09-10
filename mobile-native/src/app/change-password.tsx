@@ -4,6 +4,24 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { completeNewPassword, finishPasswordSetup } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
 
+// Cognito password policy (infra/lib/auth-stack.ts): min 8, upper, lower, digit, symbol.
+function passwordChecks(pw: string) {
+  return {
+    length: pw.length >= 8,
+    upper: /[A-Z]/.test(pw),
+    lower: /[a-z]/.test(pw),
+    digit: /[0-9]/.test(pw),
+    symbol: /[^A-Za-z0-9]/.test(pw),
+  };
+}
+const REQUIREMENTS: { key: keyof ReturnType<typeof passwordChecks>; label: string }[] = [
+  { key: 'length', label: 'At least 8 characters' },
+  { key: 'upper', label: 'An uppercase letter (A–Z)' },
+  { key: 'lower', label: 'A lowercase letter (a–z)' },
+  { key: 'digit', label: 'A number (0–9)' },
+  { key: 'symbol', label: 'A symbol (e.g. ! @ # $)' },
+];
+
 // Completes the NEW_PASSWORD_REQUIRED challenge login.tsx started for a temp-password
 // account (freshly invited, or admin-reset) — session/email were passed as route
 // params from that one screen transition, not persisted anywhere. Cognito never
@@ -17,6 +35,7 @@ export default function ChangePasswordScreen() {
   const { session, email } = useLocalSearchParams<{ session: string; email: string }>();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The Cognito temp-password challenge is single-use — once it's answered, the temp
@@ -25,17 +44,25 @@ export default function ChangePasswordScreen() {
   // the challenge (which would fail with a confusing "session expired").
   const passwordSetRef = useRef(false);
 
+  const checks = passwordChecks(password);
+  const allMet = Object.values(checks).every(Boolean);
+  const matches = confirm.length > 0 && password === confirm;
+  const mismatch = confirm.length > 0 && password !== confirm;
+  const canSubmit = allMet && matches && !loading;
+
   async function handleSubmit() {
     if (!session || !email) {
       setError('Your session has expired. Please sign in again with your temporary password.');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    // Give the exact reason rather than a raw Cognito policy string.
+    if (!allMet) {
+      const missing = REQUIREMENTS.filter(r => !checks[r.key]).map(r => r.label.toLowerCase());
+      setError(`Your password still needs: ${missing.join(', ')}.`);
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match');
+      setError("The two passwords don't match.");
       return;
     }
     setLoading(true);
@@ -81,24 +108,47 @@ export default function ChangePasswordScreen() {
 
         {error && <Text style={styles.error}>{error}</Text>}
 
-        <TextInput
-          style={styles.input}
-          placeholder="New password"
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm password"
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry
-          value={confirm}
-          onChangeText={setConfirm}
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="New password"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry={!show}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}>
+            <Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text>
+          </Pressable>
+        </View>
 
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSubmit} disabled={loading}>
+        {/* Live requirement checklist — shows exactly what's still missing. */}
+        {password.length > 0 && (
+          <View style={styles.checklist}>
+            {REQUIREMENTS.map(r => (
+              <Text key={r.key} style={[styles.checkItem, checks[r.key] ? styles.checkMet : styles.checkUnmet]}>
+                {checks[r.key] ? '✓' : '○'}  {r.label}
+              </Text>
+            ))}
+          </View>
+        )}
+
+        <View style={[styles.passwordRow, mismatch && styles.rowError]}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Confirm password"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry={!show}
+            value={confirm}
+            onChangeText={setConfirm}
+          />
+          <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}>
+            <Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text>
+          </Pressable>
+        </View>
+        {mismatch && <Text style={styles.hintError}>The two passwords don&apos;t match.</Text>}
+
+        <Pressable style={[styles.button, !canSubmit && styles.buttonDisabled]} onPress={handleSubmit} disabled={!canSubmit}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save and continue</Text>}
         </Pressable>
       </View>
@@ -114,10 +164,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: '#111827', textAlign: 'center' },
   subtitle: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 8 },
   error: { color: '#DC2626', fontSize: 13, textAlign: 'center' },
-  input: {
-    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: '#111827',
-  },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10 },
+  rowError: { borderColor: '#DC2626' },
+  passwordInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#111827' },
+  toggle: { paddingHorizontal: 14, paddingVertical: 10 },
+  toggleText: { fontSize: 18 },
+  checklist: { gap: 4, paddingHorizontal: 2, marginTop: -4 },
+  checkItem: { fontSize: 12 },
+  checkMet: { color: '#047857' },
+  checkUnmet: { color: '#9CA3AF' },
+  hintError: { color: '#DC2626', fontSize: 12, marginTop: -4 },
   button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },

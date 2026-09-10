@@ -3,6 +3,24 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Keyboa
 import { Stack, useRouter } from 'expo-router';
 import { useChangeMyPassword } from '@/lib/hooks';
 
+// Cognito password policy (infra/lib/auth-stack.ts): min 8, upper, lower, digit, symbol.
+function passwordChecks(pw: string) {
+  return {
+    length: pw.length >= 8,
+    upper: /[A-Z]/.test(pw),
+    lower: /[a-z]/.test(pw),
+    digit: /[0-9]/.test(pw),
+    symbol: /[^A-Za-z0-9]/.test(pw),
+  };
+}
+const REQUIREMENTS: { key: keyof ReturnType<typeof passwordChecks>; label: string }[] = [
+  { key: 'length', label: 'At least 8 characters' },
+  { key: 'upper', label: 'An uppercase letter (A–Z)' },
+  { key: 'lower', label: 'A lowercase letter (a–z)' },
+  { key: 'digit', label: 'A number (0–9)' },
+  { key: 'symbol', label: 'A symbol (e.g. ! @ # $)' },
+];
+
 // Voluntary password change for an already-signed-in engineer, reached from the
 // account menu — distinct from the top-level change-password.tsx, which completes
 // Cognito's NEW_PASSWORD_REQUIRED challenge for a temp-password account and has no
@@ -13,17 +31,23 @@ export default function AccountPasswordScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const checks = passwordChecks(newPassword);
+  const allMet = Object.values(checks).every(Boolean);
+  const mismatch = confirm.length > 0 && newPassword !== confirm;
+
   function handleSubmit() {
     setFormError(null);
-    if (newPassword.length < 8) {
-      setFormError('New password must be at least 8 characters');
+    if (!allMet) {
+      const missing = REQUIREMENTS.filter(r => !checks[r.key]).map(r => r.label.toLowerCase());
+      setFormError(`Your new password still needs: ${missing.join(', ')}.`);
       return;
     }
     if (newPassword !== confirm) {
-      setFormError('New passwords do not match');
+      setFormError("The two passwords don't match.");
       return;
     }
     mutation.mutate(
@@ -60,15 +84,32 @@ export default function AccountPasswordScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Current password</Text>
-          <TextInput style={styles.input} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry placeholder="Current password" placeholderTextColor="#9CA3AF" />
+          <View style={styles.passwordRow}>
+            <TextInput style={styles.passwordInput} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry={!show} placeholder="Current password" placeholderTextColor="#9CA3AF" />
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+          </View>
         </View>
         <View style={styles.field}>
           <Text style={styles.label}>New password</Text>
-          <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="At least 8 characters" placeholderTextColor="#9CA3AF" />
+          <View style={styles.passwordRow}>
+            <TextInput style={styles.passwordInput} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!show} placeholder="At least 8 characters" placeholderTextColor="#9CA3AF" />
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+          </View>
+          {newPassword.length > 0 && (
+            <View style={styles.checklist}>
+              {REQUIREMENTS.map(r => (
+                <Text key={r.key} style={[styles.checkItem, checks[r.key] ? styles.checkMet : styles.checkUnmet]}>{checks[r.key] ? '✓' : '○'}  {r.label}</Text>
+              ))}
+            </View>
+          )}
         </View>
         <View style={styles.field}>
           <Text style={styles.label}>Confirm new password</Text>
-          <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} secureTextEntry placeholder="Re-enter new password" placeholderTextColor="#9CA3AF" />
+          <View style={[styles.passwordRow, mismatch && styles.rowError]}>
+            <TextInput style={styles.passwordInput} value={confirm} onChangeText={setConfirm} secureTextEntry={!show} placeholder="Re-enter new password" placeholderTextColor="#9CA3AF" />
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+          </View>
+          {mismatch && <Text style={styles.hintError}>The two passwords don&apos;t match.</Text>}
         </View>
 
         <Pressable style={[styles.saveButton, mutation.isPending && styles.saveButtonDisabled]} onPress={handleSubmit} disabled={mutation.isPending}>
@@ -89,6 +130,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 14, color: '#1C0D14', backgroundColor: '#fff',
   },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, backgroundColor: '#fff' },
+  rowError: { borderColor: '#DC2626' },
+  passwordInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#1C0D14' },
+  toggle: { paddingHorizontal: 14, paddingVertical: 10 },
+  toggleText: { fontSize: 18 },
+  checklist: { gap: 4, marginTop: 8, paddingHorizontal: 2 },
+  checkItem: { fontSize: 12 },
+  checkMet: { color: '#047857' },
+  checkUnmet: { color: '#9CA3AF' },
+  hintError: { color: '#DC2626', fontSize: 12, marginTop: 6 },
   errorText: { color: '#DC2626', fontSize: 12.5, textAlign: 'center', marginBottom: 14 },
   saveButton: { backgroundColor: '#7D1D3F', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
   saveButtonDisabled: { opacity: 0.7 },
