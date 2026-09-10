@@ -127,7 +127,7 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
   const hasReason = (s.kind === 'present' || s.kind === 'leave') && !!s.reason
   const hasDecision = (s.kind === 'present' || s.kind === 'leave') && (s.rejected || (s.kind === 'present' && s.amended))
   const decisionLabel = (s.kind === 'present' || s.kind === 'leave') && s.rejected ? 'Rejected' : 'Approved'
-  const showPendingActions = canApprove && (s.kind === 'leave' || s.kind === 'present') && s.pendingApproval && !!row.attendanceId
+  const showPendingActions = canApprove && (s.kind === 'leave' || s.kind === 'present' || s.kind === 'day_off') && s.pendingApproval && !!row.attendanceId
   const cat = categoryMeta(row.punchCategory)
 
   return (

@@ -635,6 +635,7 @@ export interface PendingAmendment {
   lateIn: boolean
   earlyOut: boolean
   singlePunch: boolean
+  dayOff: boolean
 }
 
 export async function getPendingAmendmentsCore(admin: AdminClient): Promise<{ amendments: PendingAmendment[]; error: string | null }> {
@@ -642,7 +643,7 @@ export async function getPendingAmendmentsCore(admin: AdminClient): Promise<{ am
     await resolveOverdueSinglePunches(admin)
 
     const { data: rows, error } = await admin.from('attendance')
-      .select('id, engineer_id, attendance_date, reason, marked_at, place_name, late_in, early_out, single_punch')
+      .select('id, engineer_id, attendance_date, reason, marked_at, place_name, late_in, early_out, single_punch, day_off')
       .eq('approval_status', 'pending')
       .order('attendance_date', { ascending: false })
     if (error) return { amendments: [], error: error.message }
@@ -657,7 +658,7 @@ export async function getPendingAmendmentsCore(admin: AdminClient): Promise<{ am
     const amendments: PendingAmendment[] = (rows || []).map(r => ({
       id: r.id, engineerId: r.engineer_id, engineerName: nameById[r.engineer_id] || 'Engineer',
       attendanceDate: r.attendance_date, reason: r.reason, markedAt: r.marked_at, placeName: r.place_name,
-      lateIn: r.late_in, earlyOut: r.early_out, singlePunch: r.single_punch,
+      lateIn: r.late_in, earlyOut: r.early_out, singlePunch: r.single_punch, dayOff: r.day_off,
     }))
     return { amendments, error: null }
   } catch (e: unknown) {

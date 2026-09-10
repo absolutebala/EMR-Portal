@@ -34,8 +34,8 @@ export default function PendingAmendmentsModal({ amendments, actingOn, onDecisio
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < amendments.length - 1 ? '1px solid var(--gl)' : 'none' }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{a.engineerName} — {a.attendanceDate}</div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#92400E', marginTop: 3 }}>
-                  {[a.lateIn && 'Late In', a.earlyOut && 'Short Hours', a.singlePunch && 'Single Punch'].filter(Boolean).join(', ') || 'No Show'}
+                <div style={{ fontSize: 10, fontWeight: 600, color: a.dayOff ? '#5B21B6' : '#92400E', marginTop: 3 }}>
+                  {a.dayOff ? 'Day Off request' : ([a.lateIn && 'Late In', a.earlyOut && 'Short Hours', a.singlePunch && 'Single Punch'].filter(Boolean).join(', ') || 'No Show')}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>
                   {a.markedAt ? new Date(a.markedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
