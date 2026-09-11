@@ -2,6 +2,11 @@ import type { NextConfig } from 'next'
 import path from 'path'
 
 const nextConfig: NextConfig = {
+  // Build date (IST) captured at build time and inlined into the bundle, so the version
+  // footer's date is automatic instead of a hand-maintained constant that drifts.
+  env: {
+    NEXT_PUBLIC_BUILD_DATE: new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  },
   // Required for a minimal Docker image (AWS ECS deploy) — bundles a self-contained
   // server into .next/standalone instead of needing the full node_modules tree at runtime.
   output: 'standalone',
