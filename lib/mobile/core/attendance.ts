@@ -369,6 +369,9 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
       'hq', 'business_dev', 'others',
       'travel_recoverable', 'travel_non_recoverable', 'travel_nfpfs_installation', 'travel_nfpfs_commissioning',
       'site_recoverable', 'site_non_recoverable', 'site_nfpfs_installation', 'site_nfpfs_commissioning',
+      // Legacy v1 keys — older installed app builds still send these, so keep accepting
+      // them or those users can't punch in until they update.
+      'travel_r', 'travel_nr', 'site_r', 'site_nr',
     ]
     if (!category || !VALID.includes(category)) {
       return { error: 'Choose what you are doing today before punching in.', needsApproval: false }
