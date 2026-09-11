@@ -2,6 +2,7 @@
 
 import { adminClient } from '@/lib/db/admin-client'
 import { computeEffectiveStatus, getISTDateStr, resolveApprovedByNames, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
+import type { PunchCategory } from '@/lib/punchCategory'
 
 export interface AttendanceOverviewJob {
   workOrderId: string
@@ -42,7 +43,7 @@ export interface AttendanceOverviewRow {
   attendanceId: string | null
   // Punch-in work category + visit details (null for HQ / no punch-in). Drive the
   // cell's colour and the Customer/Site lines shown in the grid.
-  punchCategory: 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq' | null
+  punchCategory: PunchCategory | null
   visitCustomerName: string | null
   visitSiteAddress: string | null
   jobs: AttendanceOverviewJob[]

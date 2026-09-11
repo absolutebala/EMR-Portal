@@ -96,9 +96,15 @@ export interface AttendanceRowCore {
   end_day_place_name?: string | null
 }
 
-// Work category chosen at punch-in. HQ needs no visit details; the other four collect
-// customer/site/purpose and each maps to a colour in the attendance views.
-export type PunchCategory = 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq'
+// Work category chosen at punch-in (v2, hierarchical). HQ needs no visit details; every
+// other category collects customer/site/purpose. Travel and Site Visit each carry one of
+// four sub-types, encoded into the combined key. Legacy v1 keys (travel_r/nr, site_r/nr)
+// remain for historical rows. Each key maps to a colour in the attendance views.
+export type PunchCategory =
+  | 'hq' | 'business_dev' | 'others'
+  | 'travel_recoverable' | 'travel_non_recoverable' | 'travel_nfpfs_installation' | 'travel_nfpfs_commissioning'
+  | 'site_recoverable' | 'site_non_recoverable' | 'site_nfpfs_installation' | 'site_nfpfs_commissioning'
+  | 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr'
 
 // Shared shape for a working day the engineer has (or should have) attendance for.
 // 'present' = the day counts as Present (on time + >=6h, OR an approved amendment).
@@ -357,9 +363,13 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
       return { error: 'Punch In is only available for today. Use Request Amendment for a past day.', needsApproval: false }
     }
 
-    // Work category is required; the four non-HQ categories also need visit details.
+    // Work category is required; every category except HQ also needs visit details.
     const category = params.category ?? null
-    const VALID: PunchCategory[] = ['travel_r', 'travel_nr', 'site_r', 'site_nr', 'hq']
+    const VALID: PunchCategory[] = [
+      'hq', 'business_dev', 'others',
+      'travel_recoverable', 'travel_non_recoverable', 'travel_nfpfs_installation', 'travel_nfpfs_commissioning',
+      'site_recoverable', 'site_non_recoverable', 'site_nfpfs_installation', 'site_nfpfs_commissioning',
+    ]
     if (!category || !VALID.includes(category)) {
       return { error: 'Choose what you are doing today before punching in.', needsApproval: false }
     }

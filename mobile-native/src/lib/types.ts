@@ -151,7 +151,11 @@ export interface AttendanceDay {
   visitPurpose: string | null;
   endDayEnableAt: string | null;
 }
-export type PunchCategory = 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq';
+export type PunchCategory =
+  | 'hq' | 'business_dev' | 'others'
+  | 'travel_recoverable' | 'travel_non_recoverable' | 'travel_nfpfs_installation' | 'travel_nfpfs_commissioning'
+  | 'site_recoverable' | 'site_non_recoverable' | 'site_nfpfs_installation' | 'site_nfpfs_commissioning'
+  | 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr';
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
   | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }

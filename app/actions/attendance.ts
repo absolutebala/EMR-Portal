@@ -5,7 +5,7 @@ import { adminClient } from '@/lib/mobile/core/shared'
 import {
   getMyAttendanceStatusCore, markAttendanceCore, markEndDayCore, markDayOffCore, getAttendanceCalendarCore,
   getPendingAmendmentsCore, approveRejectAmendmentCore, requestAttendanceAmendmentCore,
-  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment,
+  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment, type PunchCategory,
 } from '@/lib/mobile/core/attendance'
 // Thin auth-resolution wrappers only — business logic lives in
 // lib/mobile/core/attendance.ts, shared with the React Native REST routes
@@ -25,7 +25,7 @@ export async function markAttendance(params: {
   placeName: string | null
   reason?: string | null
   attendanceDate?: string
-  category?: 'travel_r' | 'travel_nr' | 'site_r' | 'site_nr' | 'hq' | null
+  category?: PunchCategory | null
   visitCustomerName?: string | null
   visitSiteAddress?: string | null
   visitPurpose?: string | null
