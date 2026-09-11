@@ -38,7 +38,7 @@ export default function PendingAmendmentsModal({ amendments, actingOn, onDecisio
                   {a.dayOff ? 'Day Off request' : ([a.lateIn && 'Late In', a.earlyOut && 'Short Hours', a.singlePunch && 'Single Punch'].filter(Boolean).join(', ') || 'No Show')}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>
-                  {a.markedAt ? new Date(a.markedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                  {a.markedAt ? new Date(a.markedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata',  hour: '2-digit', minute: '2-digit' }) : ''}
                   {a.placeName ? ` · ${a.placeName}` : ''}
                 </div>
                 {a.reason && <div style={{ fontSize: 11, color: 'var(--tx)', marginTop: 4 }}>Reason: {a.reason}</div>}

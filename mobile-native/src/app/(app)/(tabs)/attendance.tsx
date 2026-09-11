@@ -115,7 +115,7 @@ function amendCauseLabel(s: AttendanceEffectiveStatus): string {
 }
 
 function formatTimeOnly(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 // Total worked span between punch-in and punch-out, e.g. "6h 20m".
@@ -131,19 +131,19 @@ function formatDayLabel(dateStr: string): string {
 }
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 async function exportDaysToXlsx(exportDays: AttendanceCalendarDay[], filename: string) {
   const headers = ['Date', 'Status', 'Punched In At', 'Reason', 'Approved By', 'Approved Date', 'Punched Out At', 'Punch Out Location'];
   const aoa = [headers, ...exportDays.map(d => {
-    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN') : '';
+    const markedAt = d.markedAt ? new Date(d.markedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '';
     const reason = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.reason || '') : '';
     const approvedBy = d.status.kind === 'present' || d.status.kind === 'leave' ? (d.status.approvedByName || '') : '';
     const approvedAt = d.status.kind === 'present' || d.status.kind === 'leave'
-      ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN') : '')
+      ? (d.status.approvedAt ? new Date(d.status.approvedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '')
       : '';
-    const endDayAt = d.endDayAt ? new Date(d.endDayAt).toLocaleString('en-IN') : '';
+    const endDayAt = d.endDayAt ? new Date(d.endDayAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '';
     return [d.date, attendanceLabel(d.status), markedAt, reason, approvedBy, approvedAt, endDayAt, d.endDayPlaceName || ''];
   })];
   const wb = XLSX.utils.book_new();

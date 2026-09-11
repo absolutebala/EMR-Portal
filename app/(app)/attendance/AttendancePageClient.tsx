@@ -27,11 +27,11 @@ const ATTENDANCE_CFG: Record<AttendanceEffectiveStatus['kind'], { bg: string; co
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })
 }
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 // Worked span between punch-in and punch-out, e.g. "6h 20m".
@@ -373,15 +373,15 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         const s = row.attendance
         const attendanceStatus = attendanceLabel(s)
         const markedAt = s.kind === 'present'
-          ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN') : '')
+          ? (row.markedAt ? new Date(row.markedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '')
           : s.kind === 'leave'
-            ? (s.markedAt ? new Date(s.markedAt).toLocaleString('en-IN') : '')
+            ? (s.markedAt ? new Date(s.markedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '')
             : ''
         const reason = s.kind === 'present' || s.kind === 'leave' ? (s.reason || '') : ''
         const approvedBy = s.kind === 'present' || s.kind === 'leave' ? (s.approvedByName || '') : ''
-        const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN') : '') : ''
+        const approvedAt = s.kind === 'present' || s.kind === 'leave' ? (s.approvedAt ? new Date(s.approvedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '') : ''
         const markedAtLocation = row.placeName || ''
-        const endDayAt = row.endDayAt ? new Date(row.endDayAt).toLocaleString('en-IN') : ''
+        const endDayAt = row.endDayAt ? new Date(row.endDayAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : ''
         const endDayLocation = row.endDayPlaceName || ''
         if (row.jobs.length === 0) {
           aoa.push([row.engineerName, row.date, attendanceStatus, markedAt, markedAtLocation, reason, approvedBy, approvedAt, endDayAt, endDayLocation, '', ''])
