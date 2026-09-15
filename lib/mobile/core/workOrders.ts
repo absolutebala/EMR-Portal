@@ -293,6 +293,30 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
 
     logActivity(admin, params.workOrderId, userId, 'Checked in at project').catch(() => {})
 
+    // Notify the monitoring roles (dashboard bell + push) that the engineer has reached
+    // the site — so it's confirmed live instead of only on a manual page refresh.
+    // Fire-and-forget: the engineer's check-in response must not wait on this.
+    ;(async () => {
+      const [{ data: eng }, { data: wo }] = await Promise.all([
+        admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle(),
+        admin.from('work_orders').select('wo_number, customer_id').eq('id', params.workOrderId).maybeSingle(),
+      ])
+      const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'An engineer'
+      let customerName = ''
+      if (wo?.customer_id) {
+        const { data: c } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
+        customerName = c?.name || ''
+      }
+      const woLabel = wo?.wo_number ? ` (${wo.wo_number})` : ''
+      await notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Head of Service' }, { role: 'Service Manager' }], {
+        type: 'engineer_checked_in',
+        title: 'Engineer reached site',
+        body: `${engName} checked in${customerName ? ` at ${customerName}` : ''}${woLabel}${photoUrl ? ' with a site photo' : ''}.`,
+        entityType: 'work_order', entityId: params.workOrderId,
+        linkPath: `/work-orders/${params.workOrderId}`,
+      })
+    })().catch(() => {})
+
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
