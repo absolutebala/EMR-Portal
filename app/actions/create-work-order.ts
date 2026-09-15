@@ -333,7 +333,28 @@ export async function updateWorkOrder(id: string, payload: {
           body: `${engName} has been assigned to take over this notification.`,
           entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
         }).catch(() => {})
+      } else if (current.engineer_id && current.engineer_id !== user.id) {
+        // The job was moved off a different engineer — tell them it's no longer theirs.
+        notifyUsers(admin, [{ userId: current.engineer_id }], {
+          type: 'work_order_unassigned',
+          title: `Notification reassigned: ${payload.wo_number}`,
+          body: `${actorName} reassigned this notification to ${engName}.`,
+          entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+        }).catch(() => {})
       }
+    } else if (!payload.engineer_id && current.engineer_id && current.engineer_id !== user.id) {
+      // Unassigned entirely (no new engineer) — tell the previous engineer they've
+      // been removed. The main assign/reassign branch above doesn't run when there's
+      // no new engineer_id, so this is handled separately here.
+      const { data: prevEng } = await admin.from('profiles').select('first_name, last_name').eq('id', current.engineer_id).maybeSingle()
+      const prevEngName = prevEng ? `${prevEng.first_name} ${prevEng.last_name}` : 'the engineer'
+      activityRows.push({ work_order_id: id, action: `Unassigned from ${prevEngName}`, actor_name: actorName })
+      notifyUsers(admin, [{ userId: current.engineer_id }], {
+        type: 'work_order_unassigned',
+        title: `Notification unassigned: ${payload.wo_number}`,
+        body: `${actorName} removed you from this notification.`,
+        entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+      }).catch(() => {})
     }
     await admin.from('work_order_activity').insert(activityRows)
     await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification ${payload.wo_number}`, entityType: 'work_order', entityId: id })
@@ -397,6 +418,14 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
           type: 'work_order_reassignment_completed',
           title: `Reassignment completed${current.wo_number ? `: ${current.wo_number}` : ''}`,
           body: `${engName} has been assigned to take over this notification.`,
+          entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
+        }).catch(() => {})
+      } else if (current?.engineer_id && current.engineer_id !== user.id) {
+        // Moved off a different engineer — tell them it's no longer theirs.
+        notifyUsers(admin, [{ userId: current.engineer_id }], {
+          type: 'work_order_unassigned',
+          title: `Notification reassigned${current.wo_number ? `: ${current.wo_number}` : ''}`,
+          body: `${actorName} reassigned this notification to ${engName}.`,
           entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
         }).catch(() => {})
       }
