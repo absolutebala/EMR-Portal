@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator, Alert, Vibration } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useJobs, searchProducts, useSubmitProductRequest } from '@/lib/hooks';
 import { capturePhoto, type CapturedPhoto } from '@/lib/photo';
@@ -71,6 +71,8 @@ export default function NewRequestScreen() {
   }
 
   function addToCart(product: Product) {
+    // Short buzz so the engineer feels the product was added to the request.
+    Vibration.vibrate(40);
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity || 0) + 1 } }));
   }
 

@@ -67,6 +67,8 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   }
 
   function addToCart(product: Product) {
+    // Short buzz so the engineer feels the product was added (Android; no-op on iOS).
+    navigator.vibrate?.(40)
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity || 0) + 1 } }))
   }
 

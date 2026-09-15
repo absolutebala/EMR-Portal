@@ -182,7 +182,18 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 4 }}>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>Docket (PDF or image) <span style={{ color: '#DC2626' }}>*</span></label>
-            <input type="file" accept="application/pdf,image/*" onChange={onDocketFile} style={{ fontSize: 13, fontFamily: 'Poppins,sans-serif' }} />
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+              padding: '9px 14px', borderRadius: 8, border: '1.5px solid var(--brand, #7D1D3F)',
+              background: docket ? '#F0FDF4' : 'transparent', color: docket ? '#065F46' : 'var(--brand, #7D1D3F)',
+              fontSize: 13, fontWeight: 600, fontFamily: 'Poppins,sans-serif',
+            }}>
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              {docket ? 'Change file' : 'Upload Docket'}
+              <input type="file" accept="application/pdf,image/*" onChange={onDocketFile} style={{ display: 'none' }} />
+            </label>
             {docket && <div style={{ fontSize: 11, color: '#065F46', marginTop: 6 }}>Selected: {docket.name}</div>}
           </div>
           <div>
