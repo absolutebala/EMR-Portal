@@ -6,7 +6,7 @@ import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
   type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
-  touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity,
+  touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity, reverseGeocodeCore,
 } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
 
@@ -242,9 +242,13 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
   latitude: number | null
   longitude: number | null
   placeName: string | null
-  photoBase64: string
-  mimeType: string
-  ext: string
+  // Empty/absent for an "Offline Check-In" (GPS-only, no photo). A normal check-in
+  // still sends the base64 image.
+  photoBase64?: string | null
+  mimeType?: string | null
+  ext?: string | null
+  // Marks a GPS-only, no-photo "Offline Check-In" so the desktop can label it.
+  offline?: boolean
 }): Promise<{ error: string | null }> {
   try {
     touchHeartbeat(admin, userId)
@@ -258,16 +262,33 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
       return { error: 'This notification is flagged for reassignment — an admin needs to assign a new engineer before it can be checked into again.' }
     }
 
-    const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
-    const buffer = Buffer.from(base64, 'base64')
-    const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext}`
-
+    // Photo is optional: an Offline Check-In sends none. Skip the upload entirely
+    // rather than uploading an empty object.
     let photoUrl: string | null = null
-    const uploadedUrl = await withTimeout(uploadAsset(path, buffer, params.mimeType), 25000)
-    if (uploadedUrl) {
-      photoUrl = uploadedUrl
-    } else {
-      console.error(`submitCheckIn: photo upload failed or timed out for work order ${params.workOrderId} (path: ${path})`)
+    if (params.photoBase64) {
+      const base64 = params.photoBase64.split(',')[1] ?? params.photoBase64
+      const buffer = Buffer.from(base64, 'base64')
+      const path = `checkins/${params.workOrderId}-${Date.now()}.${params.ext || 'jpg'}`
+      const uploadedUrl = await withTimeout(uploadAsset(path, buffer, params.mimeType || 'image/jpeg'), 25000)
+      if (uploadedUrl) {
+        photoUrl = uploadedUrl
+      } else {
+        console.error(`submitCheckIn: photo upload failed or timed out for work order ${params.workOrderId} (path: ${path})`)
+      }
+    }
+
+    // Resolve the human-readable place-name from coordinates if the client couldn't
+    // (e.g. an offline check-in captured GPS but had no connection to geocode). This
+    // runs when the request actually reaches the server — i.e. when the connection is
+    // back — so a queued offline check-in gets its label filled in on sync.
+    let placeName = params.placeName
+    if (!placeName && params.latitude != null && params.longitude != null) {
+      try {
+        const { label } = await withTimeout(reverseGeocodeCore(params.latitude, params.longitude), 6000) || { label: null }
+        if (label) placeName = label
+      } catch {
+        // best-effort — coordinates are still recorded without a label
+      }
     }
 
     const insResult = await withTimeout(
@@ -276,8 +297,9 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
         engineer_id: userId,
         latitude: params.latitude,
         longitude: params.longitude,
-        place_name: params.placeName,
+        place_name: placeName,
         photo_url: photoUrl,
+        is_offline: !!params.offline,
       }),
       8000
     )
@@ -303,7 +325,7 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
       engineer_status_updated_at: new Date().toISOString(),
     }).eq('id', userId).then(() => {}, () => {})
 
-    logActivity(admin, params.workOrderId, userId, 'Checked in at project').catch(() => {})
+    logActivity(admin, params.workOrderId, userId, params.offline ? 'Checked in at project (offline — no photo)' : 'Checked in at project').catch(() => {})
 
     // Notify the monitoring roles (dashboard bell + push) that the engineer has reached
     // the site — so it's confirmed live instead of only on a manual page refresh.

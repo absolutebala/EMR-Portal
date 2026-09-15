@@ -7,9 +7,12 @@ interface CheckInPayload {
   latitude: number | null
   longitude: number | null
   placeName: string | null
+  // Empty on an "Offline Check-In" (GPS-only, no photo); populated on a normal check-in.
   photoBase64: string
   mimeType: string
   ext: string
+  // true = "Offline Check-In": no photo, checked in immediately with GPS only.
+  offline?: boolean
 }
 
 const keyFor = (workOrderId: string) => `emr-checkin-sync:${workOrderId}`

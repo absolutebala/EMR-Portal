@@ -756,7 +756,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                   />
                                 )}
                                 <div>
-                                  <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 2 }}>Checked in</div>
+                                  <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    Checked in
+                                    {v.checkin.isOffline && (
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: '#9A3412', background: '#FFEDD5', borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Offline · no photo</span>
+                                    )}
+                                  </div>
                                   <div style={{ fontSize: 12, color: 'var(--tx)' }}>{v.checkin.placeName || 'Location unavailable'}</div>
                                   <div style={{ fontSize: 10, color: 'var(--txm)' }}>
                                     {new Date(v.checkin.checkedInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}

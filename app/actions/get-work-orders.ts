@@ -61,6 +61,7 @@ export interface WorkOrderVisit {
     latitude: number | null
     longitude: number | null
     photoUrl: string | null
+    isOffline: boolean
   } | null
 }
 
@@ -188,11 +189,11 @@ export async function getWorkOrderDetail(id: string): Promise<{
     const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }, { data: departmentRow }] = await Promise.all([
       admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
-      admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('forms').select('id, name').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_checkins')
-        .select('latitude, longitude, place_name, photo_url, checked_in_at')
+        .select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline')
         .eq('work_order_id', id)
         .order('checked_in_at', { ascending: true }),
       admin.from('work_order_daily_closures')
@@ -214,7 +215,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     // check-in → closure cycle, so pair every closure with the check-in(s)
     // that happened before it (most recent one wins). Any check-ins left over
     // after the last closure represent the visit currently in progress.
-    type CheckinRow = { latitude: number | null; longitude: number | null; place_name: string | null; photo_url: string | null; checked_in_at: string }
+    type CheckinRow = { latitude: number | null; longitude: number | null; place_name: string | null; photo_url: string | null; checked_in_at: string; is_offline?: boolean }
     type ClosureRow = {
       id: string; outcome: string; summary: string; pending_reason: string | null; materials_required: string | null
       revisit_date: string | null; needs_reassignment: boolean; engineer_signature: string | null
@@ -260,6 +261,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
           latitude: matchedCheckin.latitude,
           longitude: matchedCheckin.longitude,
           photoUrl: matchedCheckin.photo_url,
+          isOffline: !!matchedCheckin.is_offline,
         } : null,
       }
     })
@@ -289,6 +291,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
           latitude: ongoing.latitude,
           longitude: ongoing.longitude,
           photoUrl: ongoing.photo_url,
+          isOffline: !!ongoing.is_offline,
         },
       })
     }

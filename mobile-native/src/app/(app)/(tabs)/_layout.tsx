@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
+import HeaderBack from '@/components/HeaderBack';
 
 // Standard (not the newer expo-router/unstable-native-tabs) — this renders on real
 // native bottom-tab primitives already and is the documented-stable API; the
@@ -18,6 +19,12 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: '#7D1D3F',
         tabBarInactiveTintColor: '#9CA3AF',
+        // Detail/sub screens turn their header on via a child <Stack.Screen
+        // headerShown:true>; give every such header a Back button. A bottom-tab header
+        // has no native back arrow, and HeaderBack hides itself when there's nowhere to
+        // go back to, so this is a no-op on the five tab roots (which keep headerShown
+        // false anyway).
+        headerLeft: () => <HeaderBack />,
       }}
     >
       <Tabs.Screen

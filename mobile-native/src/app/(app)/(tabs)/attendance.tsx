@@ -397,7 +397,9 @@ export default function AttendanceScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ headerShown: true, title: 'Attendance', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
+      {/* Attendance is a bottom-tab root, not a pushed detail screen — suppress the
+          global headerLeft Back button (from (tabs)/_layout) so it isn't shown here. */}
+      <Stack.Screen options={{ headerShown: true, title: 'Attendance', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal', headerLeft: () => null }} />
       <PunchInModal visible={showPunchInModal} onCancel={() => setShowPunchInModal(false)} onConfirm={handleMark} submitting={markAttendance.isPending} error={markError} />
 
       <View style={styles.weekNav}>

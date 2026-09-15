@@ -410,9 +410,12 @@ export interface CheckInVariables {
   latitude: number | null;
   longitude: number | null;
   placeName: string | null;
+  // Empty on an Offline Check-In (GPS-only, no photo); populated on a normal check-in.
   photoBase64: string;
   mimeType: string;
   ext: string;
+  // true = "Offline Check-In" — GPS captured, no photo, checked in immediately.
+  offline?: boolean;
 }
 
 export interface ClosureVariables {

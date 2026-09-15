@@ -6,8 +6,9 @@ import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
-import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
+import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, startBackgroundCheckIn, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
 import { getClosureSyncStatus, retryClosure, syncPendingClosures, type ClosureSyncStatus } from '@/lib/mobile/backgroundClosure'
+import { reverseGeocode } from '@/app/actions/mobile-actions'
 
 interface Props {
   detail: MobileWorkOrderDetail
@@ -26,6 +27,36 @@ export default function JobDetailClient({ detail }: Props) {
   const { workOrder: wo } = detail
   const [checkInSync, setCheckInSync] = useState<CheckInSyncStatus | null>(null)
   const [closureSync, setClosureSync] = useState<ClosureSyncStatus | null>(null)
+  const [offlineChecking, setOfflineChecking] = useState(false)
+
+  // "Offline Check-In": grab GPS and check in immediately — no photo, no navigation to
+  // the check-in screen. Reuses the existing background check-in queue, so if offline
+  // it's sent automatically on reconnect (the server fills the place-name label from
+  // the coordinates at that point). GPS comes from the device, so it works offline.
+  async function handleOfflineCheckIn() {
+    if (offlineChecking) return
+    setOfflineChecking(true)
+    try {
+      const coords = await new Promise<{ lat: number; lng: number } | null>(resolve => {
+        if (!('geolocation' in navigator)) return resolve(null)
+        navigator.geolocation.getCurrentPosition(
+          p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 8000 }
+        )
+      })
+      let placeName: string | null = null
+      if (coords) {
+        try { const { label } = await reverseGeocode(coords.lat, coords.lng); if (label) placeName = label } catch { /* label resolves server-side on sync */ }
+      }
+      startBackgroundCheckIn({
+        workOrderId: wo.id, latitude: coords?.lat ?? null, longitude: coords?.lng ?? null,
+        placeName, photoBase64: '', mimeType: '', ext: '', offline: true,
+      })
+    } finally {
+      setOfflineChecking(false)
+    }
+  }
 
   useEffect(() => {
     router.prefetch(`/mobile/work-orders/${wo.id}/checkin`)
@@ -247,21 +278,25 @@ export default function JobDetailClient({ detail }: Props) {
             </div>
           </div>
         ) : !detail.hasCheckedIn ? (
-          <button
-            className="mtap"
-            onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#7D1D3F', border: 'none', borderRadius: 10, padding: '12px 14px', width: '100%', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
-          >
-            <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,0.2)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" />
-              </svg>
-            </div>
-            <div style={{ flex: 1, textAlign: 'left' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${wo.id}/checkin`)}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 2, background: '#7D1D3F', border: 'none', borderRadius: 10, padding: '12px 14px', minHeight: 58, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            >
               <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>Check in at project</p>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Capture GPS + photo to start work</span>
-            </div>
-          </button>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>GPS + photo</span>
+            </button>
+            <button
+              className="mtap"
+              onClick={handleOfflineCheckIn}
+              disabled={offlineChecking}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 2, background: '#fff', border: '1.5px solid #7D1D3F', borderRadius: 10, padding: '12px 14px', minHeight: 58, cursor: offlineChecking ? 'default' : 'pointer', opacity: offlineChecking ? 0.7 : 1, fontFamily: 'Poppins, sans-serif' }}
+            >
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#7D1D3F', margin: 0 }}>{offlineChecking ? 'Checking in…' : 'Offline Check-In'}</p>
+              <span style={{ fontSize: 10, color: '#A8708A' }}>GPS only, no photo</span>
+            </button>
+          </div>
         ) : (
           <button
             className="mtap"

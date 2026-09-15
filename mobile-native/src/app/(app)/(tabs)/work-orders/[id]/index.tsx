@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { useMemo, useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useWorkOrderDetail } from '@/lib/hooks';
+import { useWorkOrderDetail, useSubmitCheckIn, reverseGeocode } from '@/lib/hooks';
+import { getCurrentPositionWithFallback } from '@/lib/gps';
+import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
 
 function formatDate(d: string | null) {
@@ -18,6 +20,39 @@ export default function WorkOrderDetailScreen() {
   const router = useRouter();
   const { data, isLoading, error } = useWorkOrderDetail(id);
   const detail = data?.detail;
+  const submitCheckIn = useSubmitCheckIn();
+  const [offlineChecking, setOfflineChecking] = useState(false);
+
+  // "Offline Check-In": grab GPS on the spot and check in immediately — no photo, no
+  // extra screen. GPS comes from the device sensor so it works without a connection;
+  // if offline, the check-in is queued and auto-sent when back online (the server
+  // fills in the place-name label from the coordinates at that point).
+  const handleOfflineCheckIn = useCallback(async () => {
+    if (offlineChecking) return;
+    setOfflineChecking(true);
+    try {
+      const pos = await getCurrentPositionWithFallback();
+      let placeName: string | null = null;
+      if (pos) {
+        try { const { label } = await reverseGeocode(pos.lat, pos.lng); if (label) placeName = label; } catch { /* label resolves server-side on sync */ }
+      }
+      const vars = {
+        workOrderId: id, latitude: pos?.lat ?? null, longitude: pos?.lng ?? null,
+        placeName, photoBase64: '', mimeType: '', ext: '', offline: true,
+      };
+      if (!(await isOnline())) {
+        submitCheckIn.mutate(vars);
+        Alert.alert('Saved — will sync', "You're offline. This check-in will be sent automatically once you're back online.");
+        return;
+      }
+      const result = await submitCheckIn.mutateAsync(vars);
+      if (result.error) { Alert.alert('Check-in failed', result.error); return; }
+    } catch (e) {
+      Alert.alert('Check-in failed', apiErrorMessage(e));
+    } finally {
+      setOfflineChecking(false);
+    }
+  }, [id, offlineChecking, submitCheckIn]);
 
   const steps = useMemo(() => {
     if (!detail) return [];
@@ -93,20 +128,38 @@ export default function WorkOrderDetailScreen() {
           <View style={styles.noticeGreen}>
             <Text style={styles.noticeGreenText}>This visit is marked completed.</Text>
           </View>
-        ) : (
+        ) : detail.hasCheckedIn ? (
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.push(
-              detail.hasCheckedIn ? `/(app)/(tabs)/work-orders/${id}/closure` : `/(app)/(tabs)/work-orders/${id}/checkin`
-            )}
+            onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/closure`)}
           >
-            <Text style={styles.primaryButtonTitle}>
-              {detail.hasCheckedIn ? 'End of day closure' : 'Check in at project'}
-            </Text>
-            <Text style={styles.primaryButtonSub}>
-              {detail.hasCheckedIn ? "Mark today's work complete or pending" : 'Capture GPS + photo to start work'}
-            </Text>
+            <Text style={styles.primaryButtonTitle}>End of day closure</Text>
+            <Text style={styles.primaryButtonSub}>Mark today&apos;s work complete or pending</Text>
           </Pressable>
+        ) : (
+          <View style={styles.checkinRow}>
+            <Pressable
+              style={[styles.primaryButton, styles.checkinHalf]}
+              onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/checkin`)}
+            >
+              <Text style={styles.primaryButtonTitle}>Check in at project</Text>
+              <Text style={styles.primaryButtonSub}>GPS + photo</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.offlineButton, styles.checkinHalf, offlineChecking && styles.offlineButtonBusy]}
+              onPress={handleOfflineCheckIn}
+              disabled={offlineChecking}
+            >
+              {offlineChecking ? (
+                <ActivityIndicator color="#7D1D3F" />
+              ) : (
+                <>
+                  <Text style={styles.offlineButtonTitle}>Offline Check-In</Text>
+                  <Text style={styles.offlineButtonSub}>GPS only, no photo</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
         )}
 
         <Text style={styles.formsLabel}>Job forms</Text>
@@ -275,6 +328,12 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: '#7D1D3F', borderRadius: 10, padding: 14 },
   primaryButtonTitle: { color: '#fff', fontSize: 13, fontWeight: '600' },
   primaryButtonSub: { color: 'rgba(255,255,255,0.65)', fontSize: 11, marginTop: 2 },
+  checkinRow: { flexDirection: 'row', gap: 10 },
+  checkinHalf: { flex: 1, minHeight: 58, justifyContent: 'center' },
+  offlineButton: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#7D1D3F', borderRadius: 10, padding: 14, alignItems: 'center' },
+  offlineButtonBusy: { opacity: 0.7 },
+  offlineButtonTitle: { color: '#7D1D3F', fontSize: 13, fontWeight: '600' },
+  offlineButtonSub: { color: '#A8708A', fontSize: 11, marginTop: 2 },
   secondaryButton: { borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
   secondaryButtonText: { fontSize: 12, color: '#7A6870', fontWeight: '500' },
   formsLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },

@@ -9,20 +9,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const body = await req.json()
-  const { latitude, longitude, placeName, photoBase64, mimeType, ext } = body as {
+  const { latitude, longitude, placeName, photoBase64, mimeType, ext, offline } = body as {
     latitude: number | null
     longitude: number | null
     placeName: string | null
-    photoBase64: string
-    mimeType: string
-    ext: string
+    photoBase64?: string | null
+    mimeType?: string | null
+    ext?: string | null
+    offline?: boolean
   }
-  if (!photoBase64 || !mimeType || !ext) {
+  // A normal check-in requires a photo; an Offline Check-In (offline: true) is
+  // GPS-only and legitimately sends none.
+  if (!offline && (!photoBase64 || !mimeType || !ext)) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
   const result = await submitCheckInCore(adminClient(), user.id, {
-    workOrderId: id, latitude, longitude, placeName, photoBase64, mimeType, ext,
+    workOrderId: id, latitude, longitude, placeName, photoBase64, mimeType, ext, offline,
   })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)

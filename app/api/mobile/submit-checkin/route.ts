@@ -16,21 +16,24 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json()
-    const { workOrderId, latitude, longitude, placeName, photoBase64, mimeType, ext } = body as {
+    const { workOrderId, latitude, longitude, placeName, photoBase64, mimeType, ext, offline } = body as {
       workOrderId: string
       latitude: number | null
       longitude: number | null
       placeName: string | null
-      photoBase64: string
-      mimeType: string
-      ext: string
+      photoBase64?: string | null
+      mimeType?: string | null
+      ext?: string | null
+      offline?: boolean
     }
 
-    if (!workOrderId || !photoBase64) {
+    // A normal check-in must carry a photo; an Offline Check-In (offline: true) is
+    // GPS-only and legitimately has none.
+    if (!workOrderId || (!photoBase64 && !offline)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const result = await submitCheckInCore(adminClient(), user.id, { workOrderId, latitude, longitude, placeName, photoBase64, mimeType, ext })
+    const result = await submitCheckInCore(adminClient(), user.id, { workOrderId, latitude, longitude, placeName, photoBase64, mimeType, ext, offline })
     if (result.error) return NextResponse.json({ error: result.error }, { status: 500 })
 
     return NextResponse.json({ success: true })

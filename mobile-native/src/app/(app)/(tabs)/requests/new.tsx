@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useJobs, searchProducts, useSubmitProductRequest } from '@/lib/hooks';
 import { capturePhoto, type CapturedPhoto } from '@/lib/photo';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
@@ -26,6 +26,26 @@ export default function NewRequestScreen() {
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // This screen lives inside the persistent Tabs navigator, so it is never unmounted —
+  // its state survives across visits. Without this reset, opening it a second time
+  // (e.g. for a different notification) would still show the previous submission's
+  // "Request submitted / View my requests" success screen instead of a fresh form.
+  // Re-initialise everything each time the screen regains focus, and re-sync the
+  // selected notification from the incoming `wo` param.
+  useFocusEffect(
+    useCallback(() => {
+      setSubmitted(false);
+      setSubmitError('');
+      setCart({});
+      setDamagePhotos([]);
+      setQuery('');
+      setResults([]);
+      setHasSearched(false);
+      setSearching(false);
+      setSelectedWoId(wo || '');
+    }, [wo])
+  );
 
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q);
