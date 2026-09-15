@@ -342,6 +342,23 @@ export default function JobDetailClient({ detail }: Props) {
           <InfoRow label="Scheduled date" value={formatDate(wo.scheduled_date)} last />
         </div>
 
+        {(wo.customer_message || wo.notes) && (
+          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+            {wo.customer_message && (
+              <div style={{ marginBottom: wo.notes ? 12 : 0 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Customer message</p>
+                <p style={{ fontSize: 13, color: '#1C0D14', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>{wo.customer_message}</p>
+              </div>
+            )}
+            {wo.notes && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Notes for engineer</p>
+                <p style={{ fontSize: 13, color: '#1C0D14', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>{wo.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {wo.transformers.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Transformers</p>

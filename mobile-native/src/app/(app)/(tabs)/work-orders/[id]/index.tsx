@@ -128,6 +128,23 @@ export default function WorkOrderDetailScreen() {
         <InfoRow label="Scheduled date" value={formatDate(wo.scheduled_date)} last />
       </View>
 
+      {(wo.customer_message || wo.notes) && (
+        <View style={styles.card}>
+          {wo.customer_message && (
+            <View style={{ marginBottom: wo.notes ? 12 : 0 }}>
+              <Text style={styles.msgLabel}>Customer message</Text>
+              <Text style={styles.msgText}>{wo.customer_message}</Text>
+            </View>
+          )}
+          {wo.notes && (
+            <View>
+              <Text style={styles.msgLabel}>Notes for engineer</Text>
+              <Text style={styles.msgText}>{wo.notes}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {wo.transformers.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Transformers</Text>
@@ -247,6 +264,8 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 13, padding: 14, margin: 16, marginBottom: 0 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: '#1C0D14', marginBottom: 8 },
+  msgLabel: { fontSize: 11, fontWeight: '700', color: '#7D1D3F', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
+  msgText: { fontSize: 13, color: '#1C0D14', lineHeight: 19 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, gap: 10 },
   infoRowBorder: { borderBottomWidth: 1, borderBottomColor: '#E5E0E3' },
   infoLabel: { fontSize: 12, color: '#7A6870' },

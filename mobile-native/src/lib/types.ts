@@ -11,6 +11,7 @@ export interface MobileWorkOrder {
   status: string;
   scheduled_date: string | null;
   notes: string | null;
+  customer_message: string | null;
   customer_name: string;
   serial_numbers: string[];
   site_name: string | null;

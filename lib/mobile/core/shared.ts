@@ -68,7 +68,10 @@ export interface MobileWorkOrder {
   job_type: string
   status: string
   scheduled_date: string | null
+  // Notes/instructions to the engineer + what the customer reported — both entered by
+  // the creator on the notification form, shown on the mobile detail screen.
   notes: string | null
+  customer_message: string | null
   customer_name: string
   serial_numbers: string[]
   site_name: string | null
@@ -101,14 +104,14 @@ export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
 
 type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
-  scheduled_date: string | null; notes: string | null; customer_id: string; customer_type: string | null
+  scheduled_date: string | null; notes: string | null; customer_message: string | null; customer_id: string; customer_type: string | null
   expense_approval: string | null
   customers: { name: string; contact_person: string; phone: string } | null
   work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; dispatch_date: string | null; warranty_years: number | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 export const WORK_ORDER_SELECT = `
-  id, wo_number, job_type, status, scheduled_date, notes, customer_id, customer_type, expense_approval,
+  id, wo_number, job_type, status, scheduled_date, notes, customer_message, customer_id, customer_type, expense_approval,
   customers ( name, contact_person, phone ),
   work_order_transformers ( transformers ( serial_number, rating, manufacturer, dispatch_date, warranty_years, customer_sites ( id, site_name, site_address ) ) )
 `
@@ -133,6 +136,7 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: n
     status: w.status,
     scheduled_date: w.scheduled_date,
     notes: w.notes,
+    customer_message: w.customer_message,
     customer_name: w.customers?.name || '',
     serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
     site_name: site?.site_name || null,
