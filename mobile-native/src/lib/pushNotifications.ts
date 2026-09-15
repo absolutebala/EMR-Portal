@@ -32,13 +32,15 @@ async function getExpoPushToken(): Promise<string | null> {
   if (status !== 'granted') return null;
 
   if (Platform.OS === 'android') {
-    // MAX importance = a heads-up banner (pops over whatever's on screen) + sound +
-    // vibration, so a new job assignment is impossible to miss. A new channel id is
-    // used deliberately: Android makes a channel's importance immutable once created,
-    // so the old DEFAULT-importance 'default' channel could never be upgraded in place.
-    // The server targets this channel via channelId in the push payload.
-    await Notifications.setNotificationChannelAsync('job_alerts', {
-      name: 'Job & work alerts',
+    // Raise the 'default' channel (the one incoming pushes route to when the server
+    // sends no channelId) to MAX importance so notifications pop a heads-up banner +
+    // sound + vibration. Kept as id 'default' — no new channel id — so nothing depends
+    // on the server tagging a channel, which would break older installs. (Android locks
+    // a channel's importance after first creation, so this upgrade applies to fresh
+    // installs; existing installs still gain the high FCM priority + sound from the
+    // server, which is what actually improves delivery on battery-optimised phones.)
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
       importance: Notifications.AndroidImportance.MAX,
       sound: 'default',
       vibrationPattern: [0, 250, 250, 250],

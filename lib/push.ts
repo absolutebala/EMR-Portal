@@ -51,10 +51,10 @@ export async function sendExpoPushToUser(
         // whether it also pops a heads-up banner.
         priority: 'high',
         sound: 'default',
-        // Route to the app's max-importance channel so Android pops a heads-up banner
-        // (the 'default' channel is only DEFAULT importance = no banner). Devices on an
-        // older build that lack this channel fall back gracefully and still show it.
-        channelId: 'job_alerts',
+        // No channelId is sent: every installed app version already has its 'default'
+        // channel, and Expo routes to it automatically. Specifying a channel id that an
+        // older build lacks can make Android suppress the notification, so the display
+        // channel's importance is raised app-side (see pushNotifications.ts) instead.
       })
     }
     if (staleIds.length) await admin.from('expo_push_tokens').delete().in('id', staleIds)
