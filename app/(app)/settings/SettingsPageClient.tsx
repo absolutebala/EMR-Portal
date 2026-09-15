@@ -28,6 +28,7 @@ interface SettingsShape {
   whatsapp_campaign_completed: string
   whatsapp_campaign_pending: string
   whatsapp_campaign_expense_reminder: string
+  whatsapp_campaign_dispatched_customer: string
   sms_gateway: string
   sms_api_key: string
   sms_sender_id: string
@@ -80,6 +81,11 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
     key: 'whatsapp_campaign_expense_reminder', label: 'Pending expense reminder — Admin campaign',
     params: '1) Engineer name  2) Pending expense count',
     example: 'Hi, {{1}} has {{2}} expense(s) awaiting your approval.\n\nPlease review in the EMR Portal.',
+  },
+  {
+    key: 'whatsapp_campaign_dispatched_customer', label: 'Material dispatched — Customer campaign',
+    params: '1) Customer name  2) Notification number  3) Docket number (or "-")',
+    example: 'Hello {{1}}, the material for your notification {{2}} has been dispatched. Docket no: {{3}}.',
   },
 ]
 
@@ -250,6 +256,8 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
               whatsapp_campaign_escalation: settings.whatsapp_campaign_escalation || null,
               whatsapp_campaign_completed: settings.whatsapp_campaign_completed || null,
               whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
+              whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
+              whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
               sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null,
             })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>
               {saving === 'notifications' ? 'Saving…' : 'Save notification settings'}

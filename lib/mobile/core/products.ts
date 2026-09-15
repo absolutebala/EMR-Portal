@@ -33,6 +33,10 @@ export interface ProductRequestView {
   damagePhotoUrls: string[]
   items: ProductRequestItemView[]
   engineerName?: string
+  // Dispatch docket (PDF/image) attached when items are marked dispatched.
+  docketUrl: string | null
+  docketNumber: string | null
+  docketUploadedAt: string | null
 }
 
 // Shared with the desktop-only request views in app/actions/products.ts (admin
@@ -43,11 +47,11 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
   if (!requestIds.length) return []
 
   const [{ data: requests }, { data: items }] = await Promise.all([
-    admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, work_orders(wo_number)').in('id', requestIds),
+    admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, docket_url, docket_number, docket_uploaded_at, work_orders(wo_number)').in('id', requestIds),
     admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivered_at, delivery_estimate, admin_notes').in('request_id', requestIds),
   ])
 
-  type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; work_orders: { wo_number: string } | null }
+  type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; docket_url: string | null; docket_number: string | null; docket_uploaded_at: string | null; work_orders: { wo_number: string } | null }
   type ItemRow = {
     id: string; request_id: string; product_id: string; quantity: number; status: string
     approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivered_at: string | null; delivery_estimate: string | null; admin_notes: string | null
@@ -97,6 +101,9 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
       damagePhotoUrls: r.damage_photo_urls || [],
       items: itemsByRequest[r.id] || [],
       engineerName: r.engineer_id ? (nameMap[r.engineer_id] || 'Engineer') : undefined,
+      docketUrl: r.docket_url,
+      docketNumber: r.docket_number,
+      docketUploadedAt: r.docket_uploaded_at,
     }))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }

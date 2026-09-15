@@ -5,6 +5,7 @@ import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { adminClient } from '@/lib/mobile/core/shared'
+import { uploadAsset } from '@/lib/storage/s3'
 import { getMyDepartmentScope } from './departments'
 import {
   fetchRequestViews, searchProductsCore, submitProductRequestCore, getMyProductRequestsCore,
@@ -151,7 +152,12 @@ export async function getAllProductRequests(): Promise<{ requests: ProductReques
 export async function updateProductRequestItemStatus(
   itemId: string,
   status: 'approved' | 'rejected' | 'dispatched' | 'delivered',
-  extra?: { deliveryEstimate?: string | null; notes?: string | null }
+  extra?: {
+    deliveryEstimate?: string | null; notes?: string | null
+    // Dispatch docket (PDF/image) + optional docket/tracking number, stored on the request.
+    docket?: { base64: string; mimeType: string; ext: string } | null
+    docketNumber?: string | null
+  }
 ): Promise<{ error: string | null }> {
   try {
     const user = await getAuthedUser()
@@ -170,6 +176,27 @@ export async function updateProductRequestItemStatus(
     const { error } = await admin.from('product_request_items').update(patch).eq('id', itemId)
     if (error) return { error: error.message }
 
+    // On dispatch: attach the docket to the request (upload the PDF/image, save the
+    // number) so the engineer sees it in the app and the customer can be told.
+    let docketNumber: string | null = (extra?.docketNumber ?? '').trim() || null
+    if (status === 'dispatched' && item?.request_id) {
+      const docketPatch: Record<string, unknown> = { docket_uploaded_at: new Date().toISOString() }
+      if (extra?.docket) {
+        const base64 = extra.docket.base64.split(',')[1] ?? extra.docket.base64
+        const buffer = Buffer.from(base64, 'base64')
+        const path = `dockets/${item.request_id}-${Date.now()}.${extra.docket.ext}`
+        const url = await uploadAsset(path, buffer, extra.docket.mimeType)
+        if (url) docketPatch.docket_url = url
+      }
+      if (docketNumber !== null) docketPatch.docket_number = docketNumber
+      await admin.from('product_requests').update(docketPatch).eq('id', item.request_id)
+      // If no number was passed this time, keep whatever the request already had.
+      if (docketNumber === null) {
+        const { data: existing } = await admin.from('product_requests').select('docket_number').eq('id', item.request_id).maybeSingle()
+        docketNumber = existing?.docket_number ?? null
+      }
+    }
+
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const label: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched for', delivered: 'Marked delivered for' }
@@ -177,22 +204,36 @@ export async function updateProductRequestItemStatus(
 
     if (item?.request_id) {
       const { data: reqRow } = await admin.from('product_requests').select('engineer_id, work_order_id').eq('id', item.request_id).maybeSingle()
+      const productName = item.products?.[0]?.name || 'item'
+      const { data: wo } = reqRow?.work_order_id
+        ? await admin.from('work_orders').select('wo_number, customer_id').eq('id', reqRow.work_order_id).maybeSingle()
+        : { data: null }
+
       if (reqRow?.engineer_id) {
+        // Engineer: dashboard bell + push. On dispatch, spell out the docket.
+        const engBody = status === 'dispatched'
+          ? `${actorName} dispatched "${productName}"${docketNumber ? ` (docket ${docketNumber})` : ''} for ${wo?.wo_number || 'your notification'}.`
+          : `${actorName} ${label[status].toLowerCase()} an item in your product request.`
         notifyUsers(admin, [{ userId: reqRow.engineer_id }], {
           type: 'product_request_status',
-          title: `Product request ${status}`,
-          body: `${actorName} ${label[status].toLowerCase()} an item in your product request.`,
+          title: status === 'dispatched' ? 'Material dispatched' : `Product request ${status}`,
+          body: engBody,
           entityType: 'product_request_item', entityId: itemId,
           linkPath: reqRow.work_order_id ? `/mobile/work-orders/${reqRow.work_order_id}` : '/mobile/requests',
         }).catch(() => {})
 
-        const [{ data: eng }, { data: wo }] = await Promise.all([
-          admin.from('profiles').select('first_name, phone').eq('id', reqRow.engineer_id).maybeSingle(),
-          admin.from('work_orders').select('wo_number').eq('id', reqRow.work_order_id).maybeSingle(),
-        ])
-        const productName = item.products?.[0]?.name || 'item'
+        const { data: eng } = await admin.from('profiles').select('first_name, phone').eq('id', reqRow.engineer_id).maybeSingle()
         sendWhatsApp(admin, 'product_request', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
           [eng?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName]).catch(() => {})
+      }
+
+      // Customer: WhatsApp that the material has been dispatched.
+      if (status === 'dispatched' && wo?.customer_id) {
+        const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
+        if (customer) {
+          sendWhatsApp(admin, 'dispatched_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+            [customer.contact_person, wo.wo_number || '', docketNumber || '-']).catch(() => {})
+        }
       }
     }
 

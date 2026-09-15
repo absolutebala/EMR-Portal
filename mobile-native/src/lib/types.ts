@@ -533,6 +533,9 @@ export interface ProductRequestView {
   damagePhotoUrls: string[];
   items: ProductRequestItemView[];
   engineerName?: string;
+  docketUrl: string | null;
+  docketNumber: string | null;
+  docketUploadedAt: string | null;
 }
 
 export interface ProductSearchResponse {

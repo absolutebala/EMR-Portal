@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMyProductRequests } from '@/lib/hooks';
@@ -75,6 +75,11 @@ function RequestCard({ request }: { request: ProductRequestView }) {
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{request.woNumber}</Text>
       <Text style={styles.cardDate}>{formatDate(request.createdAt)}</Text>
+      {(request.docketUrl || request.docketNumber) && (
+        <Pressable onPress={() => request.docketUrl && Linking.openURL(request.docketUrl)} disabled={!request.docketUrl}>
+          <Text style={styles.docket}>📄 Docket{request.docketNumber ? ` ${request.docketNumber}` : ''}{request.docketUrl ? ' · Tap to view' : ''}</Text>
+        </Pressable>
+      )}
       {request.items.map(item => {
         const cfg = PRODUCT_REQUEST_STATUS_CFG[item.status];
         return (
@@ -107,6 +112,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 13, marginBottom: 10, shadowColor: '#7D1D3F', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   cardTitle: { fontSize: 12, fontWeight: '600', color: '#1C0D14' },
   cardDate: { fontSize: 10, color: '#7A6870', marginBottom: 8, marginTop: 2 },
+  docket: { fontSize: 11, color: '#7D1D3F', fontWeight: '600', marginBottom: 8 },
   itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 5 },
   itemText: { fontSize: 12, color: '#1C0D14' },
   badge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },

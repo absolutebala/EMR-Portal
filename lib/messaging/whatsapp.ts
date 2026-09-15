@@ -30,9 +30,12 @@ import { sendCombirdsMessage } from './combirds'
 //   expense_reminder    (2): 1) engineer full name, 2) count of expenses awaiting their
 //                          approval (recipient's own name comes from `userName`, same as
 //                          escalation)
+//   dispatched_customer (3): 1) customer contact person, 2) WO number, 3) docket number
+//                          (or "-" when none was entered) — sent when an admin/Service
+//                          Manager marks a product request item dispatched.
 export type WhatsAppEvent =
   | 'assigned_engineer' | 'assigned_customer' | 'on_the_way' | 'product_request' | 'escalation'
-  | 'completed' | 'pending' | 'expense_reminder'
+  | 'completed' | 'pending' | 'expense_reminder' | 'dispatched_customer'
 
 const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   assigned_engineer: 'whatsapp_campaign_assigned_engineer',
@@ -43,6 +46,7 @@ const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   completed: 'whatsapp_campaign_completed',
   pending: 'whatsapp_campaign_pending',
   expense_reminder: 'whatsapp_campaign_expense_reminder',
+  dispatched_customer: 'whatsapp_campaign_dispatched_customer',
 }
 
 function formatPhoneForWhatsApp(raw: string): string {

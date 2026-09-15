@@ -91,6 +91,12 @@ export default function RequestsListClient({ requests, error }: Props) {
           <div key={req.id} style={{ background: '#fff', borderRadius: 12, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>{req.woNumber}</div>
             <div style={{ fontSize: 10, color: '#7A6870', marginBottom: 8 }}>{formatDate(req.createdAt)}</div>
+            {(req.docketUrl || req.docketNumber) && (
+              <div style={{ fontSize: 11, color: '#7D1D3F', fontWeight: 600, marginBottom: 8 }}>
+                📄 Docket{req.docketNumber ? ` ${req.docketNumber}` : ''}
+                {req.docketUrl && <> · <a href={req.docketUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#7D1D3F', textDecoration: 'underline' }}>View</a></>}
+              </div>
+            )}
             {req.items.map(item => (
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0' }}>
                 <span style={{ fontSize: 12, color: '#1C0D14' }}>{item.productName} × {item.quantity}</span>
