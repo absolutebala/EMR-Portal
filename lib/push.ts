@@ -45,6 +45,16 @@ export async function sendExpoPushToUser(
         title: payload.title,
         body: payload.body || '',
         data: { url: payload.url || '/(app)/alerts' },
+        // High FCM priority wakes battery-optimized / Doze'd Android phones (common on
+        // Xiaomi/Vivo/Oppo/Samsung) so the push arrives promptly instead of only when
+        // the app is next opened. sound makes it audible; the app-side channel controls
+        // whether it also pops a heads-up banner.
+        priority: 'high',
+        sound: 'default',
+        // Route to the app's max-importance channel so Android pops a heads-up banner
+        // (the 'default' channel is only DEFAULT importance = no banner). Devices on an
+        // older build that lack this channel fall back gracefully and still show it.
+        channelId: 'job_alerts',
       })
     }
     if (staleIds.length) await admin.from('expo_push_tokens').delete().in('id', staleIds)

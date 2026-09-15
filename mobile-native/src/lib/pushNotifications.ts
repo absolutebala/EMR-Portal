@@ -32,9 +32,18 @@ async function getExpoPushToken(): Promise<string | null> {
   if (status !== 'granted') return null;
 
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.DEFAULT,
+    // MAX importance = a heads-up banner (pops over whatever's on screen) + sound +
+    // vibration, so a new job assignment is impossible to miss. A new channel id is
+    // used deliberately: Android makes a channel's importance immutable once created,
+    // so the old DEFAULT-importance 'default' channel could never be upgraded in place.
+    // The server targets this channel via channelId in the push payload.
+    await Notifications.setNotificationChannelAsync('job_alerts', {
+      name: 'Job & work alerts',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
   }
 
