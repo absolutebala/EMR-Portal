@@ -180,7 +180,7 @@ export async function createWorkOrder(payload: {
 
       if (customer) {
         sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-          [customer.contact_person, woNumber, engName, serials, scheduledLabel]).catch(() => {})
+          [engName, scheduledLabel, assignedEngineer?.phone || '']).catch(() => {})
       }
     }
 
@@ -321,7 +321,7 @@ export async function updateWorkOrder(id: string, payload: {
         [eng?.first_name || 'Engineer', payload.wo_number, customer?.name || '', serials, scheduledLabel]).catch(() => {})
       if (customer) {
         sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-          [customer.contact_person, payload.wo_number, engName, serials, scheduledLabel]).catch(() => {})
+          [engName, scheduledLabel, eng?.phone || '']).catch(() => {})
       }
 
       // The previous engineer flagged this job "needs reassignment" during closure —
@@ -388,7 +388,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
           [eng?.first_name || 'Engineer', current.wo_number || '', customer?.name || '', serials, scheduledLabel]).catch(() => {})
         if (customer) {
           sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-            [customer.contact_person, current.wo_number || '', engName, serials, scheduledLabel]).catch(() => {})
+            [engName, scheduledLabel, eng?.phone || '']).catch(() => {})
         }
       }
 

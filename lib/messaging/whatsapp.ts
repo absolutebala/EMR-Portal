@@ -11,8 +11,9 @@ import { sendCombirdsMessage } from './combirds'
 //   assigned_engineer (5): 1) engineer first name, 2) WO number, 3) customer name,
 //                          4) transformer serial number(s) (comma-joined if more than
 //                          one), 5) scheduled date ("DD MMM YYYY" or "Not scheduled")
-//   assigned_customer (5): 1) customer contact person, 2) WO number, 3) engineer full
-//                          name, 4) transformer serial number(s), 5) scheduled date
+//   assigned_customer (3): 1) engineer full name, 2) scheduled date ("DD MMM YYYY" or
+//                          "Not scheduled"), 3) engineer phone number (so the customer
+//                          can reach the engineer directly)
 //   on_the_way        (4): 1) customer contact person, 2) engineer full name,
 //                          3) WO number, 4) start-by time ("HH:mm" or "")
 //   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,

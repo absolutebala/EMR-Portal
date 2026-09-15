@@ -48,8 +48,8 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
   },
   {
     key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign',
-    params: '1) Customer name  2) Notification number  3) Engineer name  4) Transformer serial no.  5) Scheduled date',
-    example: 'Hi {{1}}, your notification *{{2}}* has been assigned to {{3}}.\n\nTransformer S/N: {{4}}\nScheduled: {{5}}\n\nWe’ll keep you updated.',
+    params: '1) Engineer name  2) Scheduled date  3) Engineer phone number',
+    example: 'Hello Sir, our Service Engineer {{1}} will visit the site on {{2}}. You can reach the engineer directly at {{3}}.',
   },
   {
     key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign',
