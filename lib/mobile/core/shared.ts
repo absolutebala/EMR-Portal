@@ -334,6 +334,10 @@ export interface MobileWorkOrderDetail {
   // gates the "View form entries filled by X" button, independent of whether the
   // viewing engineer has their own (that's hasFormSubmission, above).
   handoverEngineerHasFormSubmission: boolean
+  // Every active form (across all job types), so the engineer can pick any one to
+  // fill for this notification. `submitted` = this engineer already submitted that
+  // form for this notification. Newly-activated forms appear here automatically.
+  availableForms: { id: string; name: string; submitted: boolean }[]
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
   // Serial numbers the viewing engineer is specifically responsible for, from
   // work_order_engineer_assignments — null means "whole notification, no split"

@@ -11,9 +11,9 @@ import TableSection from '@/components/form/TableSection';
 import type { FieldValues, RowValues } from '@/lib/types';
 
 export default function JobFormScreen() {
-  const { id, view } = useLocalSearchParams<{ id: string; view?: string }>();
+  const { id, view, formId } = useLocalSearchParams<{ id: string; view?: string; formId?: string }>();
   const router = useRouter();
-  const { data, isLoading, error: loadError } = useJobForm(id, view);
+  const { data, isLoading, error: loadError } = useJobForm(id, view, formId);
   const submitJobForm = useSubmitJobForm();
   const readOnly = !!data?.readOnly;
 

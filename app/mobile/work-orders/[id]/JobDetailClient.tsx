@@ -280,21 +280,33 @@ export default function JobDetailClient({ detail }: Props) {
           </button>
         )}
 
-        <button
-          className="mtap"
-          onClick={() => router.push(`/mobile/work-orders/${wo.id}/form`)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
-            padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
-            color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 8,
-            fontFamily: 'Poppins, sans-serif',
-          }}
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          </svg>
-          {detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}
-        </button>
+        <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '14px 0 2px' }}>Job forms</p>
+        {detail.availableForms.length === 0 ? (
+          <div style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6', color: '#7A6870', fontSize: 11, marginTop: 8, textAlign: 'center', fontFamily: 'Poppins, sans-serif' }}>
+            No forms available yet
+          </div>
+        ) : detail.availableForms.map(f => (
+          <button
+            key={f.id}
+            className="mtap"
+            onClick={() => router.push(`/mobile/work-orders/${wo.id}/form?formId=${f.id}`)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%',
+              padding: '11px 12px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
+              cursor: 'pointer', marginTop: 8, fontFamily: 'Poppins, sans-serif', textAlign: 'left',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, fontSize: 12.5, fontWeight: 600, color: '#1C0D14' }}>
+              <svg width="13" height="13" fill="none" stroke="#7D1D3F" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              </svg>
+              {f.name}
+            </span>
+            {f.submitted
+              ? <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>Submitted</span>
+              : <span style={{ fontSize: 18, color: '#B5A9AF', lineHeight: 1 }}>›</span>}
+          </button>
+        ))}
 
         <button
           className="mtap"

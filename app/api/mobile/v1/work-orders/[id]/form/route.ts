@@ -9,5 +9,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const view = req.nextUrl.searchParams.get('view') || undefined
-  return NextResponse.json(await getMobileWorkOrderWithFormCore(adminClient(), user.id, id, view))
+  const formId = req.nextUrl.searchParams.get('formId') || undefined
+  return NextResponse.json(await getMobileWorkOrderWithFormCore(adminClient(), user.id, id, view, formId))
 }

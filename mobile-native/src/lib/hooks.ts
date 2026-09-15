@@ -166,10 +166,16 @@ export function useSubmitClosure() {
 
 // view: pass the handover engineer's id to fetch their submission read-only instead
 // of the current viewer's own.
-export function useJobForm(workOrderId: string | undefined, view?: string) {
+export function useJobForm(workOrderId: string | undefined, view?: string, formId?: string) {
   return useQuery({
-    queryKey: [WORK_ORDER_FORM_QUERY_KEY, workOrderId, view],
-    queryFn: () => apiGet<WorkOrderFormResponse>(`/api/mobile/v1/work-orders/${workOrderId}/form${view ? `?view=${view}` : ''}`),
+    queryKey: [WORK_ORDER_FORM_QUERY_KEY, workOrderId, view, formId],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (view) qs.set('view', view);
+      if (formId) qs.set('formId', formId);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return apiGet<WorkOrderFormResponse>(`/api/mobile/v1/work-orders/${workOrderId}/form${suffix}`);
+    },
     enabled: !!workOrderId,
   });
 }

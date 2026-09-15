@@ -109,9 +109,25 @@ export default function WorkOrderDetailScreen() {
           </Pressable>
         )}
 
-        <Pressable style={styles.secondaryButton} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form`)}>
-          <Text style={styles.secondaryButtonText}>{detail.hasFormSubmission ? 'Review job form' : 'Fill job form'}</Text>
-        </Pressable>
+        <Text style={styles.formsLabel}>Job forms</Text>
+        {detail.availableForms.length === 0 ? (
+          <View style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>No forms available yet</Text>
+          </View>
+        ) : (
+          detail.availableForms.map(f => (
+            <Pressable
+              key={f.id}
+              style={styles.formButton}
+              onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form?formId=${f.id}`)}
+            >
+              <Text style={styles.formButtonText} numberOfLines={2}>{f.name}</Text>
+              {f.submitted
+                ? <Text style={styles.formSubmittedBadge}>Submitted</Text>
+                : <Text style={styles.formButtonChevron}>›</Text>}
+            </Pressable>
+          ))
+        )}
         <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/requests/new', params: { wo: id } })}>
           <Text style={styles.secondaryButtonText}>Request products</Text>
         </Pressable>
@@ -261,6 +277,11 @@ const styles = StyleSheet.create({
   primaryButtonSub: { color: 'rgba(255,255,255,0.65)', fontSize: 11, marginTop: 2 },
   secondaryButton: { borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
   secondaryButtonText: { fontSize: 12, color: '#7A6870', fontWeight: '500' },
+  formsLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
+  formButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 11, paddingHorizontal: 12, marginTop: 8 },
+  formButtonText: { flex: 1, fontSize: 12.5, color: '#1C0D14', fontWeight: '600' },
+  formButtonChevron: { fontSize: 20, color: '#B5A9AF', fontWeight: '400', lineHeight: 20 },
+  formSubmittedBadge: { fontSize: 10, fontWeight: '700', color: '#166534', backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
 
   card: { backgroundColor: '#fff', borderRadius: 13, padding: 14, margin: 16, marginBottom: 0 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: '#1C0D14', marginBottom: 8 },

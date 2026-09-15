@@ -95,6 +95,9 @@ export interface MobileWorkOrderDetail {
   // (handover) engineer has their own submission, independent of whether the
   // viewing engineer has theirs.
   handoverEngineerHasFormSubmission: boolean;
+  // Every active form (across all job types) — the engineer picks any one to fill
+  // for this notification. `submitted` = this engineer already submitted it here.
+  availableForms: { id: string; name: string; submitted: boolean }[];
   previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[];
   // Which serials this engineer is scoped to when the notification covers 2+
   // transformers and they're an additional (non-primary) assignee — null when

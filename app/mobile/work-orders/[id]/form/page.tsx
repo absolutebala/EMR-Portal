@@ -8,7 +8,7 @@ import FormFillView from '@/components/mobile/FormFillView'
 
 interface Props {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ view?: string }>
+  searchParams: Promise<{ view?: string; formId?: string }>
 }
 
 export default async function MobileWorkOrderFormPage({ params, searchParams }: Props) {
@@ -17,8 +17,8 @@ export default async function MobileWorkOrderFormPage({ params, searchParams }: 
   await requireMobilePasswordChanged(user.id)
 
   const { id } = await params
-  const { view } = await searchParams
-  const { workOrder, form, existingSubmission, readOnly, viewedEngineerName, error } = await getMobileWorkOrderWithForm(id, view)
+  const { view, formId } = await searchParams
+  const { workOrder, form, existingSubmission, readOnly, viewedEngineerName, error } = await getMobileWorkOrderWithForm(id, view, formId)
 
   if (error || !workOrder) {
     return (

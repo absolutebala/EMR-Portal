@@ -30,7 +30,7 @@ export async function getMobileWorkOrderBasicCore(admin: AdminClient, userId: st
   }
 }
 
-export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId: string, woId: string, viewSubmittedBy?: string): Promise<{
+export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId: string, woId: string, viewSubmittedBy?: string, formId?: string): Promise<{
   workOrder: MobileWorkOrderWithCustomer | null
   form: MobileForm | null
   existingSubmission: { id: string; form_data: Record<string, unknown> } | null
@@ -54,15 +54,14 @@ export async function getMobileWorkOrderWithFormCore(admin: AdminClient, userId:
       viewedEngineerName = viewedProfile ? `${viewedProfile.first_name} ${viewedProfile.last_name}` : null
     }
 
-    // Find the active form for this job type
-    const { data: formRow } = await admin
-      .from('forms')
-      .select('id, name, job_type')
-      .eq('job_type', workOrder.job_type)
-      .eq('status', 'active')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // Load the form the engineer picked (formId) — any active form, regardless of
+    // job type. When no formId is given (older app builds, or the handover-view
+    // link), fall back to the single active form matching this notification's job
+    // type, preserving the previous behaviour.
+    const formQuery = admin.from('forms').select('id, name, job_type').eq('status', 'active')
+    const { data: formRow } = await (formId
+      ? formQuery.eq('id', formId).maybeSingle()
+      : formQuery.eq('job_type', workOrder.job_type).order('updated_at', { ascending: false }).limit(1).maybeSingle())
 
     let form: MobileForm | null = null
     let existingSubmission: { id: string; form_data: Record<string, unknown> } | null = null
@@ -119,17 +118,19 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
     const workOrder = await fetchSingleWorkOrder(admin, woId)
     if (!workOrder) return { detail: null, error: 'Notification not found' }
 
-    const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }, { data: myAssignmentRows }] = await Promise.all([
+    const [{ data: checkins }, { data: submission }, { data: closures }, { data: currentWotRows }, { data: myAssignmentRows }, { data: activeForms }] = await Promise.all([
       // Scoped to the viewing engineer specifically — not just the work order — so
       // "have I checked in today" reflects this engineer's own state. Without the
       // engineer_id filter, a second engineer opening an in-progress-but-unclosed job
       // would inherit whichever engineer checked in last as if it were their own,
       // wrongly hiding the Check-In CTA behind "End of day closure" for them.
       admin.from('work_order_checkins').select('checked_in_at').eq('work_order_id', woId).eq('engineer_id', userId).order('checked_in_at', { ascending: false }).limit(1),
-      // Scoped to the viewing engineer's own submission — a notification with 2+
+      // Scoped to the viewing engineer's own submissions — a notification with 2+
       // engineers can now have one form_submissions row per engineer, so "has a
       // submission" must mean "has MY submission," not "does anyone have one."
-      admin.from('form_submissions').select('id').eq('work_order_id', woId).eq('submitted_by', userId).limit(1),
+      // form_id (not just existence) is needed to mark which of the available forms
+      // this engineer has already submitted for this notification.
+      admin.from('form_submissions').select('form_id').eq('work_order_id', woId).eq('submitted_by', userId),
       admin.from('work_order_daily_closures')
         .select('outcome, created_at, revisit_date, needs_reassignment, summary, pending_reason, materials_required, engineer_id')
         .eq('work_order_id', woId)
@@ -137,6 +138,9 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         .limit(1),
       admin.from('work_order_transformers').select('transformer_id').eq('work_order_id', woId),
       admin.from('work_order_engineer_assignments').select('transformer_id').eq('work_order_id', woId).eq('engineer_id', userId),
+      // Every active form (all job types) — the engineer picks any one to fill for
+      // this notification. Newly-activated forms appear here automatically.
+      admin.from('forms').select('id, name').eq('status', 'active').order('name'),
     ])
 
     // null = whole notification (no carve-out) — either the primary engineer with no
@@ -193,6 +197,13 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       materialsRequired: closureRow.materials_required,
     } : null
 
+    const mySubmittedFormIds = new Set(((submission as { form_id: string }[]) || []).map(s => s.form_id))
+    const availableForms = ((activeForms as { id: string; name: string }[]) || []).map(f => ({
+      id: f.id,
+      name: f.name,
+      submitted: mySubmittedFormIds.has(f.id),
+    }))
+
     const checkedInToday = !!lastCheckinAt && new Date(lastCheckinAt).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
     const hasCheckedIn = checkedInToday && (!latestClosure || new Date(lastCheckinAt!) > new Date(latestClosure.created_at))
     const handoverFromOtherEngineer = !!(latestClosure?.engineerId && latestClosure.engineerId !== userId)
@@ -211,10 +222,11 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         workOrder,
         hasCheckedIn,
         lastCheckinAt,
-        hasFormSubmission: !!submission?.length,
+        hasFormSubmission: mySubmittedFormIds.size > 0,
         latestClosure,
         handoverFromOtherEngineer,
         handoverEngineerHasFormSubmission,
+        availableForms,
         previousVisits: previous || [],
         myAssignedSerials,
       },
