@@ -89,6 +89,10 @@ export default function WorkOrderDetailScreen() {
   }
 
   const wo = detail.workOrder;
+  // Defensive: a notification cached by an older app build (persisted to AsyncStorage)
+  // predates availableForms, so it can rehydrate here as undefined before the refetch
+  // lands — guard so the screen never crashes on stale cache.
+  const availableForms = detail.availableForms ?? [];
   const st = STATUS_CONFIG[wo.status] || STATUS_CONFIG.assigned;
   const isClosed = wo.status === 'completed';
   const needsReassignment = wo.status === 'needs_reassignment';
@@ -163,12 +167,12 @@ export default function WorkOrderDetailScreen() {
         )}
 
         <Text style={styles.formsLabel}>Job forms</Text>
-        {detail.availableForms.length === 0 ? (
+        {availableForms.length === 0 ? (
           <View style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>No forms available yet</Text>
           </View>
         ) : (
-          detail.availableForms.map(f => (
+          availableForms.map(f => (
             <Pressable
               key={f.id}
               style={styles.formButton}

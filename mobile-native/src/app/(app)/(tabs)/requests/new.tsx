@@ -164,6 +164,29 @@ export default function NewRequestScreen() {
           <RNWorkOrderPicker workOrders={jobsData?.workOrders || []} value={selectedWoId} onChange={setSelectedWoId} placeholder="Select a notification…" />
         </View>
 
+        {cartItems.length > 0 && (
+          <View style={styles.cartBox}>
+            <View style={styles.cartHeader}>
+              <Text style={styles.cartTitle}>Request cart</Text>
+              <Text style={styles.cartCount}>{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</Text>
+            </View>
+            {cartItems.map(c => (
+              <View key={c.product.id} style={styles.cartRow}>
+                <Text style={styles.cartItemName}>{c.product.name}</Text>
+                <View style={styles.qtyRow}>
+                  <Pressable style={styles.qtyButton} onPress={() => changeQty(c.product.id, -1)}>
+                    <Text style={styles.qtyButtonText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.qtyValue}>{c.quantity}</Text>
+                  <Pressable style={styles.qtyButton} onPress={() => changeQty(c.product.id, 1)}>
+                    <Text style={styles.qtyButtonText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Products</Text>
           <View style={styles.searchWrap}>
@@ -209,31 +232,6 @@ export default function NewRequestScreen() {
               {capturing ? <ActivityIndicator size="small" color="#7D1D3F" /> : <Text style={styles.addPhotoIcon}>+</Text>}
             </Pressable>
           </View>
-        </View>
-
-        <View style={styles.cartBox}>
-          <View style={styles.cartHeader}>
-            <Text style={styles.cartTitle}>Request cart</Text>
-            <Text style={styles.cartCount}>{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</Text>
-          </View>
-          {cartItems.length === 0 ? (
-            <Text style={styles.cartEmpty}>No products added yet.</Text>
-          ) : (
-            cartItems.map(c => (
-              <View key={c.product.id} style={styles.cartRow}>
-                <Text style={styles.cartItemName}>{c.product.name}</Text>
-                <View style={styles.qtyRow}>
-                  <Pressable style={styles.qtyButton} onPress={() => changeQty(c.product.id, -1)}>
-                    <Text style={styles.qtyButtonText}>−</Text>
-                  </Pressable>
-                  <Text style={styles.qtyValue}>{c.quantity}</Text>
-                  <Pressable style={styles.qtyButton} onPress={() => changeQty(c.product.id, 1)}>
-                    <Text style={styles.qtyButtonText}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))
-          )}
         </View>
 
         {!!submitError && (

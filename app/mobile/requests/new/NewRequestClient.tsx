@@ -168,6 +168,25 @@ export default function NewRequestClient({ workOrders, error }: Props) {
           </select>
         </div>
 
+        {cartItems.length > 0 && (
+          <div style={{ background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 11, padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#7D1D3F', margin: 0 }}>Request cart</p>
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#7D1D3F' }}>{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</span>
+            </div>
+            {cartItems.map(c => (
+              <div key={c.product.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0' }}>
+                <span style={{ fontSize: 12, color: '#1C0D14' }}>{c.product.name}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button className="mtap" onClick={() => changeQty(c.product.id, -1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E0E3', background: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>−</button>
+                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{c.quantity}</span>
+                  <button className="mtap" onClick={() => changeQty(c.product.id, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E0E3', background: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Products</p>
           <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -233,27 +252,6 @@ export default function NewRequestClient({ workOrders, error }: Props) {
               )}
             </div>
           </div>
-        </div>
-
-        <div style={{ background: '#F9EEF2', border: '1px solid #E8C5D0', borderRadius: 11, padding: '12px 14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#7D1D3F', margin: 0 }}>Request cart</p>
-            <span style={{ fontSize: 11, fontWeight: 500, color: '#7D1D3F' }}>{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</span>
-          </div>
-          {cartItems.length === 0 ? (
-            <p style={{ fontSize: 11, color: '#7A6870' }}>No products added yet.</p>
-          ) : (
-            cartItems.map(c => (
-              <div key={c.product.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0' }}>
-                <span style={{ fontSize: 12, color: '#1C0D14' }}>{c.product.name}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button className="mtap" onClick={() => changeQty(c.product.id, -1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E0E3', background: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>−</button>
-                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{c.quantity}</span>
-                  <button className="mtap" onClick={() => changeQty(c.product.id, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E0E3', background: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>+</button>
-                </div>
-              </div>
-            ))
-          )}
         </div>
 
         {submitError && (

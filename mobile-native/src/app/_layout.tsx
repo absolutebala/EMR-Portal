@@ -27,7 +27,11 @@ export default function RootLayout() {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
+      // buster: bump when a cached payload's SHAPE changes so old persisted caches are
+      // discarded on update instead of rehydrating a stale shape into new code (e.g. a
+      // pre-availableForms notification crashing the detail screen). Any change here
+      // drops the whole persisted cache once; it refetches fresh from the network.
+      persistOptions={{ persister: asyncStoragePersister, buster: 'v38-availableForms' }}
       // Paused mutations (queued while offline) are persisted alongside query data,
       // but react-query does not auto-resume them after a cache rehydration on its
       // own — this is the documented hook for kicking that off once restore completes.
