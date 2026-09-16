@@ -29,11 +29,13 @@ function getPrefillValue(label: string, sectionTitle: string, wo: MobileWorkOrde
   const l = label.toLowerCase()
   const s = sectionTitle.toLowerCase()
   if (l.includes('engineer') && l.includes('name')) return wo.engineer_name || ''
+  // "Inspected By" / "Tested By" on inspection forms = the field engineer.
+  if (l.includes('inspected by') || l.includes('tested by')) return wo.engineer_name || ''
   // Customer phone: the actual phone number, not the contact person's name.
   if (l.includes('phone') && (l.includes('customer') || s.includes('customer'))) return wo.customer_phone || ''
   if (l.includes('customer') && l.includes('name')) return wo.customer_name
   if (l.includes('contact')) return wo.customer_contact || ''
-  if (l.includes('installation location') || (l.includes('site') && l.includes('address'))) return wo.site_address || ''
+  if (l.includes('installation location') || l.includes('substation') || (l.includes('site') && l.includes('address'))) return wo.site_address || ''
   if (l.includes('serial')) return wo.serial_numbers.join(', ')
   if (l.includes('rating')) return wo.rating || ''
   if (l.includes('manufacturer')) return wo.manufacturer || ''
