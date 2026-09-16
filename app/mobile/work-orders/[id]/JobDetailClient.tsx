@@ -28,6 +28,7 @@ export default function JobDetailClient({ detail }: Props) {
   const [checkInSync, setCheckInSync] = useState<CheckInSyncStatus | null>(null)
   const [closureSync, setClosureSync] = useState<ClosureSyncStatus | null>(null)
   const [offlineChecking, setOfflineChecking] = useState(false)
+  const [showForms, setShowForms] = useState(false)
 
   // "Offline Check-In": grab GPS and check in immediately — no photo, no navigation to
   // the check-in screen. Reuses the existing background check-in queue, so if offline
@@ -315,8 +316,23 @@ export default function JobDetailClient({ detail }: Props) {
           </button>
         )}
 
-        <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '14px 0 2px' }}>Job forms</p>
-        {detail.availableForms.length === 0 ? (
+        {(() => {
+          const actionBtn = (active: boolean): React.CSSProperties => ({
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            padding: '10px 6px', borderRadius: 8, border: `1px solid ${active ? '#7D1D3F' : '#E5E0E3'}`,
+            background: active ? '#F9EEF2' : '#F8F5F6', color: active ? '#7D1D3F' : '#7A6870',
+            fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', whiteSpace: 'nowrap',
+          })
+          return (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button className="mtap" onClick={() => setShowForms(v => !v)} style={actionBtn(showForms)}>Forms</button>
+              <button className="mtap" onClick={() => router.push(`/mobile/requests/new?wo=${wo.id}`)} style={actionBtn(false)}>Product Request</button>
+              <button className="mtap" onClick={() => router.push(`/mobile/expenses/new?wo=${wo.id}`)} style={actionBtn(false)}>Log Expense</button>
+            </div>
+          )
+        })()}
+
+        {showForms && (detail.availableForms.length === 0 ? (
           <div style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6', color: '#7A6870', fontSize: 11, marginTop: 8, textAlign: 'center', fontFamily: 'Poppins, sans-serif' }}>
             No forms available yet
           </div>
@@ -341,39 +357,7 @@ export default function JobDetailClient({ detail }: Props) {
               ? <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>Submitted</span>
               : <span style={{ fontSize: 18, color: '#B5A9AF', lineHeight: 1 }}>›</span>}
           </button>
-        ))}
-
-        <button
-          className="mtap"
-          onClick={() => router.push(`/mobile/requests/new?wo=${wo.id}`)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
-            padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
-            color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 8,
-            fontFamily: 'Poppins, sans-serif',
-          }}
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" />
-          </svg>
-          Request products
-        </button>
-
-        <button
-          className="mtap"
-          onClick={() => router.push(`/mobile/expenses/new?wo=${wo.id}`)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
-            padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
-            color: '#7A6870', fontSize: 11, fontWeight: 500, cursor: 'pointer', marginTop: 8,
-            fontFamily: 'Poppins, sans-serif',
-          }}
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" /><path d="M14.5 9.5a2.5 2.5 0 00-2.5-1H11a2 2 0 000 4h2a2 2 0 010 4h-1a2.5 2.5 0 01-2.5-1M12 6.5v1M12 16.5v1" />
-          </svg>
-          Log expense
-        </button>
+        )))}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>

@@ -22,6 +22,7 @@ export default function WorkOrderDetailScreen() {
   const detail = data?.detail;
   const submitCheckIn = useSubmitCheckIn();
   const [offlineChecking, setOfflineChecking] = useState(false);
+  const [showForms, setShowForms] = useState(false);
 
   // "Offline Check-In": grab GPS on the spot and check in immediately — no photo, no
   // extra screen. GPS comes from the device sensor so it works without a connection;
@@ -166,31 +167,38 @@ export default function WorkOrderDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.formsLabel}>Job forms</Text>
-        {availableForms.length === 0 ? (
-          <View style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>No forms available yet</Text>
-          </View>
-        ) : (
-          availableForms.map(f => (
-            <Pressable
-              key={f.id}
-              style={styles.formButton}
-              onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form?formId=${f.id}`)}
-            >
-              <Text style={styles.formButtonText} numberOfLines={2}>{f.name}</Text>
-              {f.submitted
-                ? <Text style={styles.formSubmittedBadge}>Submitted</Text>
-                : <Text style={styles.formButtonChevron}>›</Text>}
-            </Pressable>
-          ))
+        <View style={styles.actionRow}>
+          <Pressable style={[styles.actionBtn, showForms && styles.actionBtnActive]} onPress={() => setShowForms(v => !v)}>
+            <Text style={[styles.actionBtnText, showForms && styles.actionBtnTextActive]}>Forms</Text>
+          </Pressable>
+          <Pressable style={styles.actionBtn} onPress={() => router.push({ pathname: '/(app)/(tabs)/requests/new', params: { wo: id } })}>
+            <Text style={styles.actionBtnText} numberOfLines={1}>Product Request</Text>
+          </Pressable>
+          <Pressable style={styles.actionBtn} onPress={() => router.push({ pathname: '/(app)/(tabs)/expenses/new', params: { wo: id } })}>
+            <Text style={styles.actionBtnText} numberOfLines={1}>Log Expense</Text>
+          </Pressable>
+        </View>
+
+        {showForms && (
+          availableForms.length === 0 ? (
+            <View style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>No forms available yet</Text>
+            </View>
+          ) : (
+            availableForms.map(f => (
+              <Pressable
+                key={f.id}
+                style={styles.formButton}
+                onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form?formId=${f.id}`)}
+              >
+                <Text style={styles.formButtonText} numberOfLines={2}>{f.name}</Text>
+                {f.submitted
+                  ? <Text style={styles.formSubmittedBadge}>Submitted</Text>
+                  : <Text style={styles.formButtonChevron}>›</Text>}
+              </Pressable>
+            ))
+          )
         )}
-        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/requests/new', params: { wo: id } })}>
-          <Text style={styles.secondaryButtonText}>Request products</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/(app)/(tabs)/expenses/new', params: { wo: id } })}>
-          <Text style={styles.secondaryButtonText}>Log expense</Text>
-        </Pressable>
       </View>
 
       <View style={styles.card}>
@@ -341,6 +349,11 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
   secondaryButtonText: { fontSize: 12, color: '#7A6870', fontWeight: '500' },
   formsLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actionBtn: { flex: 1, borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  actionBtnActive: { borderColor: '#7D1D3F', backgroundColor: '#F9EEF2' },
+  actionBtnText: { fontSize: 11.5, color: '#7A6870', fontWeight: '600' },
+  actionBtnTextActive: { color: '#7D1D3F' },
   formButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6', borderRadius: 8, paddingVertical: 11, paddingHorizontal: 12, marginTop: 8 },
   formButtonText: { flex: 1, fontSize: 12.5, color: '#1C0D14', fontWeight: '600' },
   formButtonChevron: { fontSize: 20, color: '#B5A9AF', fontWeight: '400', lineHeight: 20 },
