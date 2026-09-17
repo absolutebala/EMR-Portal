@@ -50,35 +50,29 @@ export default function ClosureView({ workOrder }: Props) {
   const [revisitDate, setRevisitDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [needsReassignment, setNeedsReassignment] = useState(false)
   const [engineerSignature, setEngineerSignature] = useState('')
-  // Auto-populated (editable) sign-off names + contact numbers.
-  const [clientName, setClientName] = useState(workOrder.customer_contact || workOrder.customer_name || '')
+  const [clientName, setClientName] = useState('')
   const [clientSignature, setClientSignature] = useState('')
-  const [clientPhone, setClientPhone] = useState(workOrder.customer_phone || '')
-  const [engineerPhone, setEngineerPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   const isProductRequest = outcome === 'pending' && pendingReason === 'Product Request'
 
+  // "Mark Completed" is a plain action now — sign-off (both signatures) is captured
+  // on the forms, so completing just flips the notification to completed.
   function handleCompleteSubmit() {
-    if (!engineerSignature) { setError('Field Engineer signature is required'); return }
-    if (!offSite && !clientName.trim()) { setError('Customer name is required'); return }
-    if (!offSite && !clientSignature) { setError('Customer signature is required'); return }
     setSubmitting(true)
     setError('')
     startBackgroundClosure({
       workOrderId: workOrder.id,
       outcome: 'completed',
-      summary: summary.trim(),
+      summary: '',
       pendingReason: null,
       materialsRequired: null,
       revisitDate: null,
       needsReassignment: false,
-      engineerSignature,
-      clientName: clientName.trim(),
-      clientSignature,
-      clientPhone: clientPhone.trim() || null,
-      engineerPhone: engineerPhone.trim() || null,
+      engineerSignature: '',
+      clientName: '',
+      clientSignature: '',
       offSite,
     })
     router.push(`/mobile/work-orders/${workOrder.id}`)
@@ -201,34 +195,10 @@ export default function ClosureView({ workOrder }: Props) {
         {outcome === 'completed' && (
           <>
             <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
-                Summary <span style={{ color: '#9CA3AF' }}>(optional)</span>
-              </label>
-              <textarea rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="Any notes about the visit…" style={{ ...inputStyle, resize: 'none' }} />
-            </div>
-
-            <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Field Engineer sign-off</p>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Name</label>
-              <input type="text" value={workOrder.engineer_name || ''} readOnly style={{ ...inputStyle, background: '#F8F5F6', marginBottom: 10 }} />
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Contact number</label>
-              <input type="tel" value={engineerPhone} onChange={e => setEngineerPhone(e.target.value)} placeholder="Phone number" style={{ ...inputStyle, marginBottom: 12 }} />
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 6 }}>
-                Field Engineer signature <span style={{ color: '#7D1D3F' }}>*</span>
-              </label>
-              <SignaturePad value={engineerSignature} onChange={setEngineerSignature} />
-            </div>
-
-            <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Customer sign-off</p>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Name</label>
-              <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Customer representative name" style={{ ...inputStyle, marginBottom: 10 }} />
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Contact number</label>
-              <input type="tel" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Phone number" style={{ ...inputStyle, marginBottom: 12 }} />
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 6 }}>
-                Customer signature {!offSite && <span style={{ color: '#7D1D3F' }}>*</span>}
-              </label>
-              <SignaturePad value={clientSignature} onChange={setClientSignature} />
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 6 }}>Mark this visit completed</p>
+              <p style={{ fontSize: 11, color: '#7A6870', lineHeight: 1.5 }}>
+                Sign-off is captured on the forms themselves. This will mark the notification completed and notify the customer.
+              </p>
             </div>
 
             {error && (

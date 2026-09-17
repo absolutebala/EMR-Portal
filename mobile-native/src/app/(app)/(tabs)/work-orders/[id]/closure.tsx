@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import RNSignaturePad from '@/components/RNSignaturePad';
-import { useSubmitClosure, useWorkOrderDetail } from '@/lib/hooks';
-import { useAuth } from '@/lib/AuthContext';
-import { apiGet } from '@/lib/api';
+import { useSubmitClosure } from '@/lib/hooks';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 
 // "Product Request" is a special reason: picking it abandons the normal pending-
@@ -45,48 +43,25 @@ export default function ClosureScreen() {
   const [engineerSignature, setEngineerSignature] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientSignature, setClientSignature] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [engineerPhone, setEngineerPhone] = useState('');
   const [error, setError] = useState('');
-
-  // Auto-populate the sign-off names + contact numbers (all editable): customer from
-  // the notification, field engineer from the logged-in profile.
-  const { data: detailData } = useWorkOrderDetail(id);
-  const { engineerName: authEngineerName } = useAuth();
-  useEffect(() => {
-    const wo = detailData?.detail?.workOrder;
-    if (!wo) return;
-    setClientName(prev => prev || wo.customer_contact || wo.customer_name || '');
-    setClientPhone(prev => prev || wo.customer_phone || '');
-  }, [detailData]);
-  useEffect(() => {
-    apiGet<{ profile?: { phone?: string | null } }>('/api/mobile/v1/profile')
-      .then(d => setEngineerPhone(prev => prev || d?.profile?.phone || ''))
-      .catch(() => {});
-  }, []);
 
   const isProductRequest = outcome === 'pending' && pendingReason === 'Product Request';
 
+  // "Mark Completed" is a plain action now — sign-off (both signatures) is captured
+  // on the forms, so completing just flips the notification to completed.
   async function handleCompleteSubmit() {
-    if (!engineerSignature) { setError('Field Engineer signature is required'); return; }
-    // Off-site completion is done away from the customer, so their name/signature are
-    // optional there; on-site completion requires the customer sign-off.
-    if (!offSite && !clientName.trim()) { setError('Customer name is required'); return; }
-    if (!offSite && !clientSignature) { setError('Customer signature is required'); return; }
     setError('');
     const variables = {
       workOrderId: id,
       outcome: 'completed' as const,
-      summary: summary.trim(),
+      summary: '',
       pendingReason: null,
       materialsRequired: null,
       revisitDate: null,
       needsReassignment: false,
-      engineerSignature,
-      clientName: clientName.trim(),
-      clientSignature,
-      clientPhone: clientPhone.trim() || null,
-      engineerPhone: engineerPhone.trim() || null,
+      engineerSignature: '',
+      clientName: '',
+      clientSignature: '',
       offSite,
     };
     if (!(await isOnline())) {
@@ -199,38 +174,11 @@ export default function ClosureScreen() {
       {outcome === 'completed' && (
         <>
           <View style={styles.card}>
-            <Text style={styles.label}>Summary <Text style={{ color: '#9CA3AF' }}>(optional)</Text></Text>
-            <TextInput
-              style={styles.textarea}
-              multiline
-              numberOfLines={3}
-              value={summary}
-              onChangeText={setSummary}
-              placeholder="Any notes about the visit…"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Field Engineer sign-off</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={authEngineerName || ''} editable={false} />
-            <Text style={[styles.label, { marginTop: 8 }]}>Contact number</Text>
-            <TextInput style={styles.input} value={engineerPhone} onChangeText={setEngineerPhone} keyboardType="phone-pad" placeholder="Phone number" placeholderTextColor="#9CA3AF" />
-            <View style={{ marginTop: 8 }}>
-              <RNSignaturePad label="Field Engineer signature *" value={engineerSignature} onChange={setEngineerSignature} />
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Customer sign-off</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={clientName} onChangeText={setClientName} placeholder="Customer representative name" placeholderTextColor="#9CA3AF" />
-            <Text style={[styles.label, { marginTop: 8 }]}>Contact number</Text>
-            <TextInput style={styles.input} value={clientPhone} onChangeText={setClientPhone} keyboardType="phone-pad" placeholder="Phone number" placeholderTextColor="#9CA3AF" />
-            <View style={{ marginTop: 8 }}>
-              <RNSignaturePad label="Customer signature *" value={clientSignature} onChange={setClientSignature} />
-            </View>
+            <Text style={styles.cardTitle}>Mark this visit completed</Text>
+            <Text style={styles.completeFormNote}>
+              Sign-off is captured on the forms themselves. This will mark the notification completed
+              and notify the customer.
+            </Text>
           </View>
 
           {!!error && (

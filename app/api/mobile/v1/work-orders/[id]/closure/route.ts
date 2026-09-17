@@ -26,7 +26,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     engineerPhone?: string | null
     offSite?: boolean
   }
-  if (!outcome || !engineerSignature) {
+  // Completion is a plain action now (sign-off lives on the forms); only a pending
+  // closure requires the engineer's signature.
+  if (!outcome || (outcome === 'pending' && !engineerSignature)) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
