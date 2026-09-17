@@ -32,6 +32,8 @@ export interface WorkOrderSubmittedForm {
   sections: MobileFormSection[]
   fieldValues: Record<string, string>
   rowValues: Record<string, { status: string; remarks: string }>
+  pdfUrl: string | null
+  wordUrl: string | null
 }
 
 // One entry per check-in → closure cycle, richer than the raw work_order_visits
@@ -186,12 +188,11 @@ export async function getWorkOrderDetail(id: string): Promise<{
 
     if (!wo) return { ...empty, error: 'Not found' }
 
-    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: formRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }, { data: departmentRow }] = await Promise.all([
+    const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }, { data: departmentRow }] = await Promise.all([
       admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single(),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      admin.from('forms').select('id, name').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_checkins')
         .select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline')
         .eq('work_order_id', id)
@@ -336,55 +337,71 @@ export async function getWorkOrderDetail(id: string): Promise<{
     // assignments) can each have their own form_submissions row now — one per
     // engineer, not one shared row — so service managers see all of them, not
     // just whoever submitted last.
+    // Every form the engineer(s) submitted for this notification — a visit can now
+    // have several different forms, each with its own report — not just the one
+    // matching the notification's job type.
     const submittedForms: WorkOrderSubmittedForm[] = []
-    if (formRow) {
-      type SectionEmbed = {
-        id: string; title: string; order_index: number
-        form_fields: MobileFormField[]
-        form_tables: (MobileFormTable & { form_table_rows: MobileFormRow[] })[]
-      }
-      const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
+    {
+      const { data: subs } = await admin.from('form_submissions')
+        .select('form_id, form_data, submitted_at, submitted_by, pdf_url, word_url')
+        .eq('work_order_id', id)
+        .order('submitted_at', { ascending: true })
 
-      const [{ data: secs }, { data: subs }] = await Promise.all([
-        admin.from('form_sections')
-          .select('id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
-          .eq('form_id', formRow.id)
-          .order('order_index'),
-        admin.from('form_submissions')
-          .select('form_data, submitted_at, submitted_by')
-          .eq('work_order_id', id)
-          .eq('form_id', formRow.id)
-          .order('submitted_at', { ascending: true }),
-      ])
+      if (subs && subs.length) {
+        type SectionEmbed = {
+          id: string; form_id: string; title: string; order_index: number
+          form_fields: MobileFormField[]
+          form_tables: (MobileFormTable & { form_table_rows: MobileFormRow[] })[]
+        }
+        const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
 
-      const sections: MobileFormSection[] = ((secs as unknown as SectionEmbed[]) || []).map(sec => ({
-        id: sec.id,
-        title: sec.title,
-        order_index: sec.order_index,
-        fields: (sec.form_fields || []).slice().sort(byOrder),
-        tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
-          ...t,
-          rows: (t.form_table_rows || []).slice().sort(byOrder),
-        })),
-      }))
+        const formIds = [...new Set(subs.map(s => s.form_id).filter(Boolean))] as string[]
+        const submitterIds = [...new Set(subs.map(s => s.submitted_by).filter(Boolean))] as string[]
 
-      const submitterIds = [...new Set((subs || []).map(s => s.submitted_by).filter(Boolean))] as string[]
-      const { data: submitterProfiles } = submitterIds.length
-        ? await admin.from('profiles').select('id, first_name, last_name').in('id', submitterIds)
-        : { data: [] as { id: string; first_name: string; last_name: string }[] }
-      const submitterNameMap: Record<string, string> = {}
-      ;(submitterProfiles || []).forEach(p => { submitterNameMap[p.id] = `${p.first_name} ${p.last_name}` })
+        const [{ data: formsMeta }, { data: allSecs }, { data: submitterProfiles }] = await Promise.all([
+          admin.from('forms').select('id, name').in('id', formIds),
+          admin.from('form_sections')
+            .select('id, form_id, title, order_index, form_fields(*), form_tables(*, form_table_rows(*))')
+            .in('form_id', formIds)
+            .order('order_index'),
+          submitterIds.length
+            ? admin.from('profiles').select('id, first_name, last_name').in('id', submitterIds)
+            : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
+        ])
 
-      for (const sub of subs || []) {
-        const formData = sub.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }
-        submittedForms.push({
-          formName: formRow.name,
-          submittedAt: sub.submitted_at,
-          submittedByName: sub.submitted_by ? (submitterNameMap[sub.submitted_by] || 'Engineer') : 'Engineer',
-          sections,
-          fieldValues: formData?.fields || {},
-          rowValues: formData?.table_rows || {},
-        })
+        const formNameMap: Record<string, string> = {}
+        ;(formsMeta || []).forEach(f => { formNameMap[f.id] = f.name })
+        const submitterNameMap: Record<string, string> = {}
+        ;(submitterProfiles || []).forEach(p => { submitterNameMap[p.id] = `${p.first_name} ${p.last_name}` })
+
+        const sectionsByForm: Record<string, MobileFormSection[]> = {}
+        for (const sec of (allSecs as unknown as SectionEmbed[]) || []) {
+          ;(sectionsByForm[sec.form_id] ||= []).push({
+            id: sec.id,
+            title: sec.title,
+            order_index: sec.order_index,
+            fields: (sec.form_fields || []).slice().sort(byOrder),
+            tables: (sec.form_tables || []).slice().sort(byOrder).map(t => ({
+              ...t,
+              rows: (t.form_table_rows || []).slice().sort(byOrder),
+            })),
+          })
+        }
+        for (const forms of Object.values(sectionsByForm)) forms.sort(byOrder)
+
+        for (const sub of subs) {
+          const formData = sub.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }
+          submittedForms.push({
+            formName: formNameMap[sub.form_id] || 'Form',
+            submittedAt: sub.submitted_at,
+            submittedByName: sub.submitted_by ? (submitterNameMap[sub.submitted_by] || 'Engineer') : 'Engineer',
+            sections: sectionsByForm[sub.form_id] || [],
+            fieldValues: formData?.fields || {},
+            rowValues: formData?.table_rows || {},
+            pdfUrl: sub.pdf_url ?? null,
+            wordUrl: sub.word_url ?? null,
+          })
+        }
       }
     }
 

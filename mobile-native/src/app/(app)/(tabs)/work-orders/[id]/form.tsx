@@ -22,7 +22,6 @@ export default function JobFormScreen() {
   const [incompleteIds, setIncompleteIds] = useState<Set<string>>(new Set());
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [visitCompleted, setVisitCompleted] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
   const [loadedDraft, setLoadedDraft] = useState(false);
 
@@ -139,10 +138,9 @@ export default function JobFormScreen() {
     }
 
     try {
-      const result = await submitJobForm.mutateAsync(variables);
+      await submitJobForm.mutateAsync(variables);
       await AsyncStorage.removeItem(draftKey);
       setSubmitted(true);
-      setVisitCompleted(!!result.completed);
     } catch (e) {
       setSubmitError(apiErrorMessage(e));
     }
@@ -170,17 +168,16 @@ export default function JobFormScreen() {
     return (
       <View style={styles.center}>
         <Stack.Screen options={{ headerShown: true, title: 'Job Form', headerTintColor: '#7D1D3F', headerBackVisible: false }} />
-        <Text style={styles.successTitle}>{visitCompleted ? 'Visit completed!' : 'Form submitted!'}</Text>
+        <Text style={styles.successTitle}>Form submitted!</Text>
         <Text style={styles.successBody}>
-          {visitCompleted
-            ? `The form for ${workOrder.wo_number} has been saved and the visit is marked completed — the summary PDF/Word doc has been generated.`
-            : `The form for ${workOrder.wo_number} has been saved. Sign off below to mark the visit done.`}
+          The form for {workOrder.wo_number} has been saved and its report generated. You can
+          submit more forms, and tap “Mark Completed” on the notification when the visit is done.
         </Text>
         <Pressable
           style={styles.successButton}
-          onPress={() => router.replace(visitCompleted ? `/(app)/(tabs)/work-orders/${id}` : `/(app)/(tabs)/work-orders/${id}/closure`)}
+          onPress={() => router.replace(`/(app)/(tabs)/work-orders/${id}`)}
         >
-          <Text style={styles.successButtonText}>{visitCompleted ? 'Back to notification' : 'Continue to closure'}</Text>
+          <Text style={styles.successButtonText}>Back to notification</Text>
         </Pressable>
       </View>
     );

@@ -857,6 +857,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               </span>
                             )}
                           </div>
+                          {(sf.pdfUrl || sf.wordUrl) && (
+                            <div style={{ display: 'flex', gap: 14, margin: '2px 0 8px' }}>
+                              {sf.pdfUrl && <a href={sf.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download PDF</a>}
+                              {sf.wordUrl && <a href={sf.wordUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download Word</a>}
+                            </div>
+                          )}
                           {renderFormSections(sf)}
                         </div>
                       ))}

@@ -99,6 +99,7 @@ export default function WorkOrderDetailScreen() {
   const needsReassignment = wo.status === 'needs_reassignment';
 
   return (
+    <View style={styles.screen}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ headerShown: true, title: wo.wo_number, headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <View style={styles.progressBar}>
@@ -134,13 +135,9 @@ export default function WorkOrderDetailScreen() {
             <Text style={styles.noticeGreenText}>This visit is marked completed.</Text>
           </View>
         ) : detail.hasCheckedIn ? (
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/closure`)}
-          >
-            <Text style={styles.primaryButtonTitle}>End of day closure</Text>
-            <Text style={styles.primaryButtonSub}>Mark today&apos;s work complete or pending</Text>
-          </Pressable>
+          <View style={styles.noticeInfo}>
+            <Text style={styles.noticeInfoText}>Checked in. Submit any forms you need — then tap “Mark Completed” at the bottom to close the visit.</Text>
+          </View>
         ) : (
           <View style={styles.checkinRow}>
             <Pressable
@@ -299,6 +296,14 @@ export default function WorkOrderDetailScreen() {
         </View>
       )}
     </ScrollView>
+    {detail.hasCheckedIn && !isClosed && !needsReassignment && (
+      <View style={styles.footer}>
+        <Pressable style={styles.markCompletedBtn} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/closure`)}>
+          <Text style={styles.markCompletedText}>Mark Completed</Text>
+        </Pressable>
+      </View>
+    )}
+    </View>
   );
 }
 
@@ -312,8 +317,14 @@ function InfoRow({ label, value, highlight, last }: { label: string; value: stri
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#F8F5F6' },
   container: { flex: 1, backgroundColor: '#F8F5F6' },
   content: { paddingBottom: 32 },
+  footer: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E0E3', padding: 14 },
+  markCompletedBtn: { backgroundColor: '#059669', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
+  markCompletedText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  noticeInfo: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 10, padding: 12 },
+  noticeInfoText: { color: '#1E40AF', fontSize: 12, lineHeight: 17 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F5F6' },
   errorText: { color: '#DC2626', fontSize: 13 },
 

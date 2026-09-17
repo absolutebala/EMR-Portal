@@ -64,7 +64,6 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
   const [language, setLanguage] = useState<Language>('en')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [visitCompleted, setVisitCompleted] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -227,7 +226,6 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
       } else {
         localStorage.removeItem(draftKey)
         setSubmitted(true)
-        setVisitCompleted(!!data.completed)
       }
     } catch {
       setSubmitError('Network error. Please try again.')
@@ -254,20 +252,17 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
             <path d="M20 6L9 17l-5-5"/>
           </svg>
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>
-          {visitCompleted ? 'Visit completed!' : 'Form submitted!'}
-        </h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C0D14', margin: '0 0 8px' }}>Form submitted!</h2>
         <p style={{ fontSize: 13, color: '#7A6870', textAlign: 'center', margin: '0 0 28px', lineHeight: 1.5 }}>
-          {visitCompleted
-            ? `The form for ${workOrder.wo_number} has been saved and the visit is marked completed — the summary PDF/Word doc has been generated.`
-            : `The form for ${workOrder.wo_number} has been saved. Sign off below to mark the visit done.`}
+          The form for {workOrder.wo_number} has been saved and its report generated. You can submit more
+          forms, and tap “Mark Completed” on the notification when the visit is done.
         </p>
         <button
           className="mtap"
-          onClick={() => router.push(visitCompleted ? `/mobile/work-orders/${workOrder.id}` : `/mobile/work-orders/${workOrder.id}/closure`)}
+          onClick={() => router.push(`/mobile/work-orders/${workOrder.id}`)}
           style={{ background: '#7D1D3F', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
         >
-          {visitCompleted ? 'Back to notification' : 'Continue to closure'}
+          Back to notification
         </button>
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}><BottomNav /></div>
       </div>

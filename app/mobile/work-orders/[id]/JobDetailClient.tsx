@@ -302,16 +302,16 @@ export default function JobDetailClient({ detail }: Props) {
           <button
             className="mtap"
             onClick={() => router.push(`/mobile/work-orders/${wo.id}/closure`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#7D1D3F', border: 'none', borderRadius: 10, padding: '12px 14px', width: '100%', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#059669', border: 'none', borderRadius: 10, padding: '12px 14px', width: '100%', cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}
           >
             <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,0.2)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                <path d="M20 6L9 17l-5-5" />
               </svg>
             </div>
             <div style={{ flex: 1, textAlign: 'left' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>End of day closure</p>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Mark today&apos;s work complete or pending</span>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>Mark Completed</p>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Submit any forms first, then close the visit (sign-off)</span>
             </div>
           </button>
         )}

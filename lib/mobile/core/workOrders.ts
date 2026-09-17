@@ -363,7 +363,8 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
 async function buildVisitDocs(
   admin: AdminClient,
   workOrderId: string,
-  userId: string,
+  formId: string,
+  formData: { fields?: Record<string, string>; table_rows?: Record<string, unknown> },
   engineerName: string,
   clientName: string | null,
   engineerSignature: string | null,
@@ -376,31 +377,27 @@ async function buildVisitDocs(
   const wo = woResult?.data
   if (!wo) return { pdfUrl: null, wordUrl: null }
 
+  // Renders the specific submitted form (formId + formData), so a notification with
+  // multiple forms produces one report per form rather than one ambiguous visit doc.
   const dataResult = await withTimeout(
     Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
       admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
-      admin.from('forms').select('id').eq('job_type', wo.job_type).eq('status', 'active').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      // Scoped to the closing engineer's own submission — a notification can now
-      // have one form_submissions row per engineer, so this must be scoped or
-      // .maybeSingle() throws once 2+ rows exist for the same work order/form.
-      admin.from('form_submissions').select('form_data').eq('work_order_id', workOrderId).eq('submitted_by', userId).maybeSingle(),
     ]),
     8000
   )
   if (!dataResult) return { pdfUrl: null, wordUrl: null }
-  const [{ data: customer }, { data: wotRows }, { data: formRow }, { data: submission }] = dataResult
+  const [{ data: customer }, { data: wotRows }] = dataResult
 
   type WotRow = { transformers: { serial_number: string } | null }
   const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
-  const formData = (submission?.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }) || {}
 
   let sections: { title: string; fields: { id: string; label: string; field_type: string }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
-  if (formRow) {
+  {
     const secsResult = await withTimeout(
       admin.from('form_sections')
         .select('title, order_index, form_fields(id, label, field_type, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
-        .eq('form_id', formRow.id)
+        .eq('form_id', formId)
         .order('order_index'),
       8000
     )
@@ -429,7 +426,7 @@ async function buildVisitDocs(
     visitType: 'final' as const,
     sections,
     fieldValues: formData.fields || {},
-    rowValues: formData.table_rows || {},
+    rowValues: (formData.table_rows || {}) as Record<string, { status: string; remarks: string }>,
     engineerSignature,
     clientSignature,
   }
@@ -494,20 +491,14 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     const actor = actorResult?.data
     const engineerName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
 
-    // Only a completed (final) visit generates a PDF + Word doc and gets flagged as
-    // sent to SAP — "sent to SAP" is mocked, there is no real SAP integration, but
-    // both documents are real.
-    let pdfUrl: string | null = null
-    let wordUrl: string | null = null
-    let sentToSap = false
-    let sentToSapAt: string | null = null
-    if (params.outcome === 'completed') {
-      const result = await buildVisitDocs(admin, params.workOrderId, userId, engineerName, params.clientName, params.engineerSignature, params.clientSignature)
-      pdfUrl = result.pdfUrl
-      wordUrl = result.wordUrl
-      sentToSap = !!pdfUrl
-      sentToSapAt = pdfUrl ? new Date().toISOString() : null
-    }
+    // Completion no longer builds a form-based visit doc — each submitted form now
+    // carries its own report (see submitJobFormCore / buildVisitDocs). "Mark Completed"
+    // records the closing sign-off (summary + signatures), flips status, and messages
+    // the customer; the per-form reports are the downloadable documents.
+    const pdfUrl: string | null = null
+    const wordUrl: string | null = null
+    const sentToSap = false
+    const sentToSapAt: string | null = null
 
     const closureResult = await withTimeout(
       admin.from('work_order_daily_closures').insert({
@@ -677,9 +668,11 @@ export async function submitJobFormCore(admin: AdminClient, userId: string, para
       actor_name: actorName,
     })
 
-    let completed = false
-    const { data: wo } = await admin.from('work_orders').select('status').eq('id', params.workOrderId).maybeSingle()
-    if (wo && wo.status !== 'completed') {
+    // Submitting a form NO LONGER completes the notification — an engineer can submit
+    // several forms for the same visit, and completion is a separate "Mark Completed"
+    // action. Instead, generate THIS form's own report (PDF/Word) from the submitted
+    // data and store it on the submission row (one report per form).
+    try {
       const { data: secs } = await admin
         .from('form_sections')
         .select('form_fields(id, label, field_type)')
@@ -692,27 +685,24 @@ export async function submitJobFormCore(admin: AdminClient, userId: string, para
       const engineerSignature = engineerField ? params.formData.fields[engineerField.id] : null
       const clientSignature = customerField ? params.formData.fields[customerField.id] : null
 
-      if (engineerSignature && clientSignature) {
-        const workOrder = await fetchSingleWorkOrder(admin, params.workOrderId)
-        const clientName = workOrder?.customer_contact || workOrder?.customer_name || ''
-        const closureResult = await submitDailyClosureCore(admin, userId, {
-          workOrderId: params.workOrderId,
-          outcome: 'completed',
-          summary: 'Completed via job form',
-          pendingReason: null,
-          materialsRequired: null,
-          revisitDate: null,
-          needsReassignment: false,
-          engineerSignature,
-          clientName,
-          clientSignature,
-          offSite: false,
-        })
-        if (!closureResult.error) completed = true
+      const workOrder = await fetchSingleWorkOrder(admin, params.workOrderId)
+      const clientName = workOrder?.customer_contact || workOrder?.customer_name || ''
+      const { pdfUrl, wordUrl } = await buildVisitDocs(
+        admin, params.workOrderId, params.formId, params.formData, actorName, clientName, engineerSignature, clientSignature
+      )
+      if (pdfUrl || wordUrl) {
+        await admin.from('form_submissions')
+          .update({ pdf_url: pdfUrl, word_url: wordUrl })
+          .eq('work_order_id', params.workOrderId)
+          .eq('form_id', params.formId)
+          .eq('submitted_by', userId)
       }
+    } catch (e) {
+      // Report generation is best-effort — never fail the submission over it.
+      console.error('submitJobForm: report generation failed', e instanceof Error ? e.message : e)
     }
 
-    return { error: null, completed }
+    return { error: null, completed: false }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e), completed: false }
   }
