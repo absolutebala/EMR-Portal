@@ -421,7 +421,7 @@ export default function JobDetailClient({ detail }: Props) {
 
         {wo.transformers.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 10, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Transformers</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Product Details</p>
             {wo.transformers.map((t, i) => (
               <div key={t.serialNumber + i} style={{ padding: '8px 0', borderTop: i > 0 ? '1px solid #F5F3F5' : undefined }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{t.serialNumber}</div>

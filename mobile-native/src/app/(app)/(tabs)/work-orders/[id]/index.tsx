@@ -241,7 +241,7 @@ export default function WorkOrderDetailScreen() {
 
       {wo.transformers.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Transformers</Text>
+          <Text style={styles.cardTitle}>Product Details</Text>
           {wo.transformers.map((t, i) => (
             <View key={t.serialNumber + i} style={[styles.transformerRow, i > 0 && styles.transformerRowBordered]}>
               <Text style={styles.transformerSerial}>{t.serialNumber}</Text>
