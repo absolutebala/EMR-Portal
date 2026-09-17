@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json()
   const {
     outcome, summary, pendingReason, materialsRequired, revisitDate,
-    needsReassignment, engineerSignature, clientName, clientSignature, offSite,
+    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite,
   } = body as {
     outcome: 'completed' | 'pending'
     summary: string
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     engineerSignature: string
     clientName: string
     clientSignature: string
+    clientPhone?: string | null
+    engineerPhone?: string | null
     offSite?: boolean
   }
   if (!outcome || !engineerSignature) {
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const result = await submitDailyClosureCore(adminClient(), user.id, {
     workOrderId: id, outcome, summary, pendingReason, materialsRequired, revisitDate,
-    needsReassignment, engineerSignature, clientName, clientSignature, offSite,
+    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite,
   })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)

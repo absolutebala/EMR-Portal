@@ -429,6 +429,8 @@ export interface ClosureVariables {
   engineerSignature: string;
   clientName: string;
   clientSignature: string;
+  clientPhone?: string | null;
+  engineerPhone?: string | null;
   offSite?: boolean;
 }
 

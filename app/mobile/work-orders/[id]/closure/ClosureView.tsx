@@ -50,12 +50,39 @@ export default function ClosureView({ workOrder }: Props) {
   const [revisitDate, setRevisitDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [needsReassignment, setNeedsReassignment] = useState(false)
   const [engineerSignature, setEngineerSignature] = useState('')
-  const [clientName, setClientName] = useState('')
+  // Auto-populated (editable) sign-off names + contact numbers.
+  const [clientName, setClientName] = useState(workOrder.customer_contact || workOrder.customer_name || '')
   const [clientSignature, setClientSignature] = useState('')
+  const [clientPhone, setClientPhone] = useState(workOrder.customer_phone || '')
+  const [engineerPhone, setEngineerPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   const isProductRequest = outcome === 'pending' && pendingReason === 'Product Request'
+
+  function handleCompleteSubmit() {
+    if (!engineerSignature) { setError('Field Engineer signature is required'); return }
+    if (!offSite && !clientName.trim()) { setError('Customer name is required'); return }
+    if (!offSite && !clientSignature) { setError('Customer signature is required'); return }
+    setSubmitting(true)
+    setError('')
+    startBackgroundClosure({
+      workOrderId: workOrder.id,
+      outcome: 'completed',
+      summary: summary.trim(),
+      pendingReason: null,
+      materialsRequired: null,
+      revisitDate: null,
+      needsReassignment: false,
+      engineerSignature,
+      clientName: clientName.trim(),
+      clientSignature,
+      clientPhone: clientPhone.trim() || null,
+      engineerPhone: engineerPhone.trim() || null,
+      offSite,
+    })
+    router.push(`/mobile/work-orders/${workOrder.id}`)
+  }
 
   // Only the "pending" path (excluding the Product Request shortcut) submits through
   // this screen — "completed" hands off entirely to the job form (Complete Form
@@ -172,24 +199,55 @@ export default function ClosureView({ workOrder }: Props) {
         )}
 
         {outcome === 'completed' && (
-          <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>Complete the job form</p>
-            <p style={{ fontSize: 11, color: '#7A6870', lineHeight: 1.5, marginBottom: 12 }}>
-              Submitting the job form marks this visit completed — your signature is captured as part of the form
-              itself, and the visit summary PDF/Word doc is generated automatically.
-            </p>
+          <>
+            <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>
+                Summary <span style={{ color: '#9CA3AF' }}>(optional)</span>
+              </label>
+              <textarea rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="Any notes about the visit…" style={{ ...inputStyle, resize: 'none' }} />
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Field Engineer sign-off</p>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Name</label>
+              <input type="text" value={workOrder.engineer_name || ''} readOnly style={{ ...inputStyle, background: '#F8F5F6', marginBottom: 10 }} />
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Contact number</label>
+              <input type="tel" value={engineerPhone} onChange={e => setEngineerPhone(e.target.value)} placeholder="Phone number" style={{ ...inputStyle, marginBottom: 12 }} />
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 6 }}>
+                Field Engineer signature <span style={{ color: '#7D1D3F' }}>*</span>
+              </label>
+              <SignaturePad value={engineerSignature} onChange={setEngineerSignature} />
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Customer sign-off</p>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Name</label>
+              <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Customer representative name" style={{ ...inputStyle, marginBottom: 10 }} />
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }}>Contact number</label>
+              <input type="tel" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Phone number" style={{ ...inputStyle, marginBottom: 12 }} />
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 6 }}>
+                Customer signature {!offSite && <span style={{ color: '#7D1D3F' }}>*</span>}
+              </label>
+              <SignaturePad value={clientSignature} onChange={setClientSignature} />
+            </div>
+
+            {error && (
+              <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>{error}</div>
+            )}
+
             <button
               className="mtap"
-              onClick={() => router.push(`/mobile/work-orders/${workOrder.id}/form`)}
+              onClick={handleCompleteSubmit}
+              disabled={submitting}
               style={{
                 width: '100%', padding: '14px', borderRadius: 10, border: 'none',
-                background: '#059669', color: '#fff', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+                background: submitting ? '#4B9E80' : '#059669', color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: submitting ? 'default' : 'pointer', fontFamily: 'Poppins, sans-serif', marginBottom: 12,
               }}
             >
-              Complete Form
+              {submitting ? 'Marking…' : 'Mark Completed'}
             </button>
-          </div>
+          </>
         )}
 
         {outcome === 'pending' && (

@@ -464,6 +464,11 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
   engineerSignature: string
   clientName: string
   clientSignature: string
+  // Contact numbers captured alongside the sign-off (auto-populated in the UI from the
+  // customer record / engineer profile, editable). engineerPhone falls back to the
+  // signing engineer's own profile phone when not sent.
+  clientPhone?: string | null
+  engineerPhone?: string | null
   // Self-reported completion from the "still checked in" dashboard prompt when the
   // engineer says they're no longer at the site — client signature is skipped (they're
   // not there to get one), everything else (engineer signature, PDF/Word, activity log)
@@ -485,11 +490,12 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
     const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id').eq('id', params.workOrderId).maybeSingle()
 
     const actorResult = await withTimeout(
-      admin.from('profiles').select('first_name, last_name').eq('id', userId).single(),
+      admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).single(),
       8000
     )
     const actor = actorResult?.data
     const engineerName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    const engineerPhone = params.engineerPhone || actor?.phone || null
 
     // Completion no longer builds a form-based visit doc — each submitted form now
     // carries its own report (see submitJobFormCore / buildVisitDocs). "Mark Completed"
@@ -513,6 +519,8 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
         engineer_signature: params.engineerSignature,
         client_name: params.clientName,
         client_signature: params.clientSignature,
+        client_phone: params.clientPhone || null,
+        engineer_phone: engineerPhone,
         pdf_url: pdfUrl,
         word_url: wordUrl,
         sent_to_sap: sentToSap,
