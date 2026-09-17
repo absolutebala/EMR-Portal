@@ -2,7 +2,7 @@ import PDFDocument from 'pdfkit'
 
 interface VisitPdfSection {
   title: string
-  fields: { id: string; label: string; field_type: string }[]
+  fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]
   tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[]
 }
 
@@ -65,6 +65,14 @@ export function generateVisitPdf(params: VisitPdfParams): Promise<Buffer> {
       doc.fontSize(10)
       for (const f of textFields) {
         const raw = params.fieldValues[f.id]
+        if (f.repeatable) {
+          // Points list — one bullet per non-empty line.
+          const points = raw.split('\n').map(p => p.trim()).filter(Boolean)
+          if (!points.length) continue
+          doc.text(`${f.label}:`)
+          for (const p of points) doc.text(`  • ${p}`)
+          continue
+        }
         const display = f.field_type === 'checkbox' ? (raw === 'true' ? 'Yes' : raw === 'false' ? 'No' : raw) : raw
         doc.text(`${f.label}: ${display}`)
       }

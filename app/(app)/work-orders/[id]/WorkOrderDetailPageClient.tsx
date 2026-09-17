@@ -111,7 +111,9 @@ function renderFormSections(sf: WorkOrderSubmittedForm) {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={val} alt={f.label} style={{ maxWidth: f.field_type === 'signature' ? 200 : 120, maxHeight: 120, borderRadius: 6, border: '1px solid var(--gm)' }} />
                     ) : (
-                      <div style={{ fontSize: 12, color: 'var(--tx)' }}>{val}</div>
+                      // pre-wrap so a repeatable "points" field (stored newline-joined)
+                      // shows each point on its own line rather than run together.
+                      <div style={{ fontSize: 12, color: 'var(--tx)', whiteSpace: 'pre-wrap' }}>{val}</div>
                     )}
                   </div>
                 )

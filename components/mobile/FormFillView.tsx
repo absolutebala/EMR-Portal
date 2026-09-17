@@ -646,6 +646,38 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         <div style={{ fontSize: 13, fontWeight: 500, color: '#1C0D14', background: '#F5F3F5', borderRadius: 10, padding: '10px 12px', border: '1px solid #E5E0E3' }}>
           {value || '—'}
         </div>
+      ) : field.repeatable ? (
+        (() => {
+          // Repeatable "points" list — each line is one point; "+ Add point" appends
+          // another. Stored newline-joined in the field value.
+          const points = value.length ? value.split('\n') : ['']
+          const commit = (next: string[]) => onChange(field.id, next.join('\n'))
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {points.map((pt, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ fontSize: 13, color: '#7A6870', paddingTop: 11, minWidth: 16 }}>{i + 1}.</span>
+                  <textarea
+                    value={pt}
+                    onChange={e => { const n = [...points]; n[i] = e.target.value; commit(n) }}
+                    placeholder="Add a point"
+                    rows={2}
+                    style={{ flex: 1, padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: '#fff' }}
+                  />
+                  {points.length > 1 && (
+                    <button type="button" onClick={() => { const n = points.filter((_, j) => j !== i); commit(n.length ? n : ['']) }}
+                      aria-label="Remove point"
+                      style={{ marginTop: 6, width: 30, height: 30, flexShrink: 0, borderRadius: 8, border: '1.5px solid #E5E0E3', background: '#fff', color: '#991B1B', fontSize: 16, lineHeight: 1, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>×</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => commit([...points, ''])}
+                style={{ alignSelf: 'flex-start', padding: '8px 14px', borderRadius: 8, border: '1.5px solid #7D1D3F', background: '#F9EEF2', color: '#7D1D3F', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+                + Add point
+              </button>
+            </div>
+          )
+        })()
       ) : field.field_type === 'long_text' ? (
         <textarea
           value={value}

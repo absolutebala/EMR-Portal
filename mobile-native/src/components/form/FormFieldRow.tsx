@@ -44,6 +44,37 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         <View style={styles.prefillBox}>
           <Text style={styles.prefillText}>{value || '—'}</Text>
         </View>
+      ) : field.repeatable ? (
+        (() => {
+          // Repeatable "points" list — each line is one point; value stored newline-joined.
+          const points = value.length ? value.split('\n') : [''];
+          const commit = (next: string[]) => onChange(field.id, next.join('\n'));
+          return (
+            <View style={{ gap: 8 }}>
+              {points.map((pt, i) => (
+                <View key={i} style={styles.pointRow}>
+                  <Text style={styles.pointNum}>{i + 1}.</Text>
+                  <TextInput
+                    style={styles.pointInput}
+                    value={pt}
+                    onChangeText={v => { const n = [...points]; n[i] = v; commit(n); }}
+                    placeholder="Add a point"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                  />
+                  {points.length > 1 && (
+                    <Pressable onPress={() => { const n = points.filter((_, j) => j !== i); commit(n.length ? n : ['']); }} style={styles.pointRemove}>
+                      <Text style={styles.pointRemoveText}>×</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+              <Pressable onPress={() => commit([...points, ''])} style={styles.addPointBtn}>
+                <Text style={styles.addPointText}>+ Add point</Text>
+              </Pressable>
+            </View>
+          );
+        })()
       ) : field.field_type === 'long_text' ? (
         <TextInput
           style={[styles.textarea, field.read_only_on_mobile && styles.readOnlyBg]}
@@ -118,4 +149,14 @@ const styles = StyleSheet.create({
   yesNoText: { fontSize: 14, fontWeight: '500', color: '#1C0D14' },
   yesNoTextOn: { color: '#fff' },
   helpText: { fontSize: 11, color: '#7A6870', marginTop: 4 },
+  pointRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  pointNum: { fontSize: 13, color: '#7A6870', paddingTop: 12, minWidth: 16 },
+  pointInput: {
+    flex: 1, borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 11, fontSize: 14,
+    color: '#1C0D14', backgroundColor: '#fff', textAlignVertical: 'top', minHeight: 48,
+  },
+  pointRemove: { marginTop: 6, width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: '#E5E0E3', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  pointRemoveText: { color: '#991B1B', fontSize: 18, lineHeight: 20 },
+  addPointBtn: { alignSelf: 'flex-start', borderWidth: 1.5, borderColor: '#7D1D3F', backgroundColor: '#F9EEF2', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
+  addPointText: { color: '#7D1D3F', fontSize: 13, fontWeight: '700' },
 });

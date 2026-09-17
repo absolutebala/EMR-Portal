@@ -2,7 +2,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Imag
 
 interface VisitWordSection {
   title: string
-  fields: { id: string; label: string; field_type: string }[]
+  fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]
   tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[]
 }
 
@@ -71,6 +71,14 @@ export async function generateVisitWord(params: VisitWordParams): Promise<Buffer
     children.push(new Paragraph({ text: sec.title, heading: HeadingLevel.HEADING_2 }))
     for (const f of textFields) {
       const raw = params.fieldValues[f.id]
+      if (f.repeatable) {
+        // Points list — one bullet paragraph per non-empty line.
+        const points = raw.split('\n').map(p => p.trim()).filter(Boolean)
+        if (!points.length) continue
+        children.push(new Paragraph({ children: [new TextRun({ text: `${f.label}:`, bold: true })] }))
+        for (const p of points) children.push(new Paragraph({ text: p, bullet: { level: 0 } }))
+        continue
+      }
       const display = f.field_type === 'checkbox' ? (raw === 'true' ? 'Yes' : raw === 'false' ? 'No' : raw) : raw
       children.push(new Paragraph({ children: [new TextRun({ text: `${f.label}: `, bold: true }), new TextRun(display)] }))
     }

@@ -382,6 +382,9 @@ export interface MobileFormField {
   placeholder: string | null
   help_text: string | null
   order_index: number
+  // Repeatable "points" field: renders as an add/remove list of point entries on
+  // mobile; the value is the points joined by newlines. Defaults false.
+  repeatable?: boolean
 }
 
 export interface MobileFormSection {

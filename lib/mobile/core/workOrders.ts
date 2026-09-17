@@ -392,11 +392,11 @@ async function buildVisitDocs(
   type WotRow = { transformers: { serial_number: string } | null }
   const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
 
-  let sections: { title: string; fields: { id: string; label: string; field_type: string }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
+  let sections: { title: string; fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
   {
     const secsResult = await withTimeout(
       admin.from('form_sections')
-        .select('title, order_index, form_fields(id, label, field_type, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
+        .select('title, order_index, form_fields(id, label, field_type, repeatable, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
         .eq('form_id', formId)
         .order('order_index'),
       8000
@@ -405,7 +405,7 @@ async function buildVisitDocs(
 
     type SectionEmbed = {
       title: string; order_index: number
-      form_fields: { id: string; label: string; field_type: string; order_index: number }[]
+      form_fields: { id: string; label: string; field_type: string; repeatable?: boolean; order_index: number }[]
       form_tables: { order_index: number; form_table_rows: { id: string; row_label: string; sno_label: string | null; order_index: number }[] }[]
     }
     const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
