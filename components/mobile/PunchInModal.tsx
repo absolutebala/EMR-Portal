@@ -22,7 +22,7 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
   title?: string
   subtitle?: string
 }) {
-  const [step, setStep] = useState<'top' | 'sub' | 'details'>('top')
+  const [step, setStep] = useState<'top' | 'sub' | 'details' | 'confirm'>('top')
   const [top, setTop] = useState<TopCategory | null>(null)
   const [category, setCategory] = useState<PunchCategory | null>(null)
   const [customer, setCustomer] = useState('')
@@ -38,7 +38,9 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
     const opt = TOP_OPTIONS.find(o => o.id === id)!
     setTop(id)
     if (opt.needsSub) { setStep('sub'); return }
-    if (!opt.needsDetails) { onConfirm({ category: opt.directCategory!, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null }); return }
+    // No visit details needed (HQ): don't mark immediately — show a Submit confirmation
+    // step first so the engineer explicitly commits.
+    if (!opt.needsDetails) { setCategory(opt.directCategory!); setStep('confirm'); return }
     setCategory(opt.directCategory!)
     setStep('details')
   }
@@ -100,6 +102,25 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
                 </button>
               )
             })}
+          </>
+        )}
+
+        {step === 'confirm' && (
+          <>
+            <button className="mtap" onClick={() => setStep('top')} disabled={submitting} style={{ background: 'none', border: 'none', color: '#7D1D3F', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 0', fontFamily: 'Poppins, sans-serif' }}>‹ Back</button>
+            {meta && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: meta.bg, borderRadius: 12, padding: 11, margin: '6px 0 6px' }}>
+                <span style={{ width: 22, height: 22, borderRadius: 7, background: meta.ac, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 9 }}>{meta.tag[0]}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: meta.tx }}>{meta.label}</span>
+              </div>
+            )}
+            <div style={{ fontSize: 13, color: '#4B5563', margin: '8px 0 4px' }}>Confirm your status as {meta?.label ?? 'HQ'}.</div>
+            {!!error && <div style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</div>}
+            <button className="mtap" onClick={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null })}
+              disabled={submitting}
+              style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
+              {submitting ? 'Submitting…' : 'Submit'}
+            </button>
           </>
         )}
 

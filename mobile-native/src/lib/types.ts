@@ -163,10 +163,39 @@ export type PunchCategory =
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
   | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }
+  | { kind: 'off'; name: string; approvedLeave: boolean }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)
   | ({ kind: 'present' } & AttendanceDay);
+
+export interface LeaveRequestItem {
+  id: string;
+  engineerId: string;
+  engineerName: string;
+  fromDate: string;
+  toDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedByName: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApplyForLeaveVariables {
+  fromDate: string;
+  toDate: string;
+  reason: string;
+}
+
+export interface ApplyForLeaveResponse {
+  error: string | null;
+}
+
+export interface LeaveRequestsResponse {
+  requests: LeaveRequestItem[];
+  error: string | null;
+}
 
 export interface AttendanceCalendarDay {
   date: string;

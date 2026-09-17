@@ -17,6 +17,7 @@ import type {
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
   MarkEndDayVariables, MarkEndDayResponse, MarkDayOffVariables, MarkDayOffResponse, RequestAmendmentVariables, RequestAmendmentResponse,
   UpdatePunchCategoryVariables, UpdatePunchCategoryResponse,
+  ApplyForLeaveVariables, ApplyForLeaveResponse, LeaveRequestsResponse,
   CustomersResponse, TransformersResponse, CreateCustomerVariables, CreateNotificationVariables, CreateEntityResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
@@ -314,6 +315,27 @@ export function useRequestAmendment() {
   return useMutation({
     mutationFn: (variables: RequestAmendmentVariables) => apiPost<RequestAmendmentResponse>('/api/mobile/v1/attendance/request-amendment', variables),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// Apply for Leave — a date-range request the engineer submits for manager approval.
+export function useMyLeaveRequests() {
+  return useQuery({
+    queryKey: ['leave-requests'],
+    queryFn: () => apiGet<LeaveRequestsResponse>('/api/mobile/v1/attendance/leave'),
+  });
+}
+
+export function useApplyForLeave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: ApplyForLeaveVariables) => apiPost<ApplyForLeaveResponse>('/api/mobile/v1/attendance/leave', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leave-requests'] });
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });

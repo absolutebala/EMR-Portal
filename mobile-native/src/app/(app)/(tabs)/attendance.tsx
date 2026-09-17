@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
-import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMarkEndDay, useRequestAmendment, useMyProfile } from '@/lib/hooks';
+import { reverseGeocode, useAttendanceCalendar, useMarkAttendance, useMarkEndDay, useRequestAmendment, useMyProfile, useApplyForLeave, useMyLeaveRequests } from '@/lib/hooks';
 import AppVersionFooter from '@/components/AppVersionFooter';
 import PunchInModal, { type PunchInPayload } from '@/components/PunchInModal';
 import { categoryMeta } from '@/lib/punchCategory';
@@ -80,6 +80,7 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' };
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` };
     case 'day_off': return { bg: '#EDE9FE', color: '#5B21B6', label: status.name ? `Day Off: ${status.name}` : status.pendingApproval ? 'Day Off (pending)' : status.rejected ? 'Day Off (rejected)' : 'Day Off' };
+    case 'off': return { bg: '#F1F5F9', color: '#475569', label: status.approvedLeave ? 'On Leave' : status.name };
     case 'not_applicable': return { bg: '#F1F5F9', color: '#475569', label: '—' };
   }
 }
@@ -100,6 +101,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     }
     case 'holiday': return `Holiday: ${s.name}`;
     case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending)' : s.rejected ? 'Day Off (rejected)' : 'Day Off';
+    case 'off': return s.approvedLeave ? 'On Leave' : s.name;
     case 'pending': return 'Pending';
     case 'not_applicable': return '—';
   }
@@ -206,6 +208,30 @@ export default function AttendanceScreen() {
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+
+  // Apply for Leave — a date-range request the engineer files for manager approval.
+  const applyForLeave = useApplyForLeave();
+  const { data: leaveData } = useMyLeaveRequests();
+  const todayIso = new Date().toLocaleDateString('en-CA');
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveFrom, setLeaveFrom] = useState(todayIso);
+  const [leaveTo, setLeaveTo] = useState(todayIso);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveError, setLeaveError] = useState('');
+
+  async function handleApplyForLeave() {
+    setLeaveError('');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(leaveFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(leaveTo)) {
+      setLeaveError('Enter dates as YYYY-MM-DD.'); return;
+    }
+    try {
+      const result = await applyForLeave.mutateAsync({ fromDate: leaveFrom, toDate: leaveTo, reason: leaveReason.trim() });
+      if (result.error) { setLeaveError(result.error); return; }
+      setShowLeaveForm(false); setLeaveReason('');
+    } catch (e) {
+      setLeaveError(apiErrorMessage(e));
+    }
+  }
 
   const endDayGpsRequestedRef = useRef(false);
   const [endDayGpsResolved, setEndDayGpsResolved] = useState(false);
@@ -429,6 +455,56 @@ export default function AttendanceScreen() {
       </View>
       {!!exportError && <Text style={styles.error}>{exportError}</Text>}
 
+      {/* Apply for Leave — date range + reason, sent to a manager for approval. */}
+      <View style={styles.leaveCard}>
+        <View style={styles.leaveHeaderRow}>
+          <Text style={styles.leaveTitle}>Leave</Text>
+          <Pressable style={styles.leaveToggle} onPress={() => { setLeaveError(''); setShowLeaveForm(v => !v); }}>
+            <Text style={styles.leaveToggleText}>{showLeaveForm ? 'Close' : 'Apply for Leave'}</Text>
+          </Pressable>
+        </View>
+
+        {showLeaveForm && (
+          <View style={styles.leaveForm}>
+            <View style={styles.leaveDatesRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.leaveLabel}>From</Text>
+                <TextInput style={styles.leaveInput} value={leaveFrom} onChangeText={setLeaveFrom} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.leaveLabel}>To</Text>
+                <TextInput style={styles.leaveInput} value={leaveTo} onChangeText={setLeaveTo} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
+              </View>
+            </View>
+            <Text style={styles.leaveLabel}>Reason</Text>
+            <TextInput style={[styles.leaveInput, styles.leaveTextarea]} value={leaveReason} onChangeText={setLeaveReason} placeholder="Why are you taking leave?" placeholderTextColor="#9CA3AF" multiline />
+            {!!leaveError && <Text style={styles.markError}>{leaveError}</Text>}
+            <Pressable style={[styles.submitButton, applyForLeave.isPending && styles.submitButtonDisabled]} onPress={handleApplyForLeave} disabled={applyForLeave.isPending}>
+              {applyForLeave.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit Leave Request</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        {!!leaveData?.requests?.length && (
+          <View style={styles.leaveList}>
+            {leaveData.requests.slice(0, 5).map(r => {
+              const c = r.status === 'approved' ? { bg: '#D1FAE5', fg: '#065F46' } : r.status === 'rejected' ? { bg: '#FEE2E2', fg: '#991B1B' } : { bg: '#FEF3C7', fg: '#92400E' };
+              return (
+                <View key={r.id} style={styles.leaveRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.leaveRowDates}>{r.fromDate === r.toDate ? r.fromDate : `${r.fromDate} → ${r.toDate}`}</Text>
+                    {!!r.reason && <Text style={styles.leaveRowReason} numberOfLines={1}>{r.reason}</Text>}
+                  </View>
+                  <View style={[styles.leaveBadge, { backgroundColor: c.bg }]}>
+                    <Text style={[styles.leaveBadgeText, { color: c.fg }]}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
       {/* Punch In — a punch-in after 10:00 AM is recorded as Absent (Late In). */}
       {showPunchIn && (
         <View style={styles.markCard}>
@@ -573,6 +649,22 @@ const styles = StyleSheet.create({
   exportButtonDisabled: { opacity: 0.6 },
   exportButtonText: { color: '#7D1D3F', fontSize: 11, fontWeight: '600' },
   markCard: { backgroundColor: '#fff', borderRadius: 13, padding: 14, marginBottom: 16 },
+  leaveCard: { backgroundColor: '#fff', borderRadius: 13, padding: 14, marginBottom: 16 },
+  leaveHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  leaveTitle: { fontSize: 14, fontWeight: '700', color: '#1C0D14' },
+  leaveToggle: { backgroundColor: '#F9EEF2', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12 },
+  leaveToggleText: { color: '#7D1D3F', fontSize: 12, fontWeight: '700' },
+  leaveForm: { marginTop: 12 },
+  leaveDatesRow: { flexDirection: 'row', gap: 10 },
+  leaveLabel: { fontSize: 11, fontWeight: '600', color: '#374151', marginBottom: 5, marginTop: 8 },
+  leaveInput: { borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 10, fontSize: 13, color: '#1C0D14', backgroundColor: '#fff' },
+  leaveTextarea: { minHeight: 56, textAlignVertical: 'top' },
+  leaveList: { marginTop: 12, gap: 8 },
+  leaveRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#F1ECEE', paddingTop: 8 },
+  leaveRowDates: { fontSize: 12, fontWeight: '600', color: '#1C0D14' },
+  leaveRowReason: { fontSize: 11, color: '#7A6870', marginTop: 1 },
+  leaveBadge: { borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
+  leaveBadgeText: { fontSize: 10, fontWeight: '700' },
   markTitle: { fontSize: 13, fontWeight: '700', color: '#1C0D14', marginBottom: 4 },
   markSub: { fontSize: 11, color: '#7A6870', lineHeight: 16, marginBottom: 10 },
   locationStatus: { fontSize: 10, marginTop: 4, marginBottom: 8 },

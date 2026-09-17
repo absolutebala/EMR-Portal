@@ -147,6 +147,10 @@ interface AttendanceDay {
 export type AttendanceEffectiveStatus =
   | { kind: 'holiday'; name: string }
   | { kind: 'day_off'; pendingApproval: boolean; rejected: boolean; name: string | null }
+  // A non-working day with no punch-in: a Sunday weekly-off, or a date inside an
+  // approved Apply-for-Leave range. Both read as "Leave" in the UI; `approvedLeave`
+  // distinguishes an approved leave ("On Leave") from the automatic Sunday off.
+  | { kind: 'off'; name: string; approvedLeave: boolean }
   | { kind: 'not_applicable' }
   | { kind: 'pending' }
   | ({ kind: 'leave' } & AttendanceDay)
@@ -158,8 +162,16 @@ export function computeEffectiveStatus(params: {
   row: AttendanceRowCore | null
   holidayName: string | null
   profileCreatedAtDateStr: string | null
+  // Item 1: a Sunday is a non-working "Weekly Off" UNLESS the engineer has a notification
+  // scheduled that day (then it's a normal working day — Absent if they don't punch in).
+  hasScheduledNotification?: boolean
+  // Items 3/4: the date falls inside an approved leave range. Reads "On Leave" unless the
+  // engineer punches in that day (a site visit during leave), in which case the punch row
+  // wins below and the day shows Site Visit/Travel.
+  onApprovedLeave?: boolean
 }): AttendanceEffectiveStatus {
-  const { dateStr, todayStr, row, holidayName, profileCreatedAtDateStr } = params
+  const { dateStr, todayStr, row, holidayName, profileCreatedAtDateStr, hasScheduledNotification = false, onApprovedLeave = false } = params
+  const isSunday = new Date(dateStr + 'T00:00:00Z').getUTCDay() === 0
 
   // A voluntary Day Off (Sunday/holiday auto-approved, other days pending) takes
   // precedence over the punch-based derivation — the row carries no punch times.
@@ -227,6 +239,16 @@ export function computeEffectiveStatus(params: {
   if (holidayName) return { kind: 'holiday', name: holidayName }
   if (profileCreatedAtDateStr && dateStr < profileCreatedAtDateStr) return { kind: 'not_applicable' }
 
+  // Approved leave with no punch-in reads "On Leave". (A punch-in on a leave day was
+  // already handled above — the row wins, so a site visit during leave shows Site
+  // Visit/Travel for that date.)
+  if (onApprovedLeave) return { kind: 'off', name: 'On Leave', approvedLeave: true }
+
+  // A Sunday with no scheduled notification (and no punch-in) is the automatic Weekly
+  // Off. A Sunday that DOES have a scheduled notification falls through to the normal
+  // working-day path below (Absent if the engineer never punches in).
+  if (isSunday && !hasScheduledNotification) return { kind: 'off', name: 'Weekly Off', approvedLeave: false }
+
   const absentNoShow = (): AttendanceEffectiveStatus => ({
     kind: 'leave', reason: null, pendingApproval: false, rejected: false, amended: false,
     lateIn: false, earlyOut: false, singlePunch: false, noShow: true, latePending: false,
@@ -243,6 +265,80 @@ export function computeEffectiveStatus(params: {
   }
   if (dateStr < todayStr) return absentNoShow() // a past day with no punch-in is Absent
   return { kind: 'not_applicable' } // future date
+}
+
+// 'YYYY-MM-DD' + n days, staying on the date-only (UTC) calendar.
+function addDaysStr(dateStr: string, n: number): string {
+  const dt = new Date(dateStr + 'T00:00:00Z')
+  dt.setUTCDate(dt.getUTCDate() + n)
+  return dt.toISOString().slice(0, 10)
+}
+
+// Item 1 signal — the set of dates in [fromStr, toStr] on which an engineer has a
+// notification scheduled (primary engineer_id OR an additional-engineer assignment).
+// A scheduled notification turns a Sunday into a normal working day.
+export async function getScheduledNotificationDates(admin: AdminClient, engineerId: string, fromStr: string, toStr: string): Promise<Set<string>> {
+  const { data: assigns } = await admin.from('work_order_engineer_assignments').select('work_order_id').eq('engineer_id', engineerId)
+  const extraIds = [...new Set((assigns || []).map(a => a.work_order_id))]
+  const queries = [
+    admin.from('work_orders').select('scheduled_date').eq('engineer_id', engineerId).gte('scheduled_date', fromStr).lte('scheduled_date', toStr),
+  ]
+  if (extraIds.length) queries.push(admin.from('work_orders').select('scheduled_date').in('id', extraIds).gte('scheduled_date', fromStr).lte('scheduled_date', toStr))
+  const results = await Promise.all(queries)
+  const dates = new Set<string>()
+  results.forEach(({ data }) => (data || []).forEach(r => { if (r.scheduled_date) dates.add(r.scheduled_date) }))
+  return dates
+}
+
+// Items 3/4 signal — the set of dates in [fromStr, toStr] the engineer is on APPROVED
+// leave (Apply-for-Leave). Only approved requests affect the attendance view.
+export async function getApprovedLeaveDates(admin: AdminClient, engineerId: string, fromStr: string, toStr: string): Promise<Set<string>> {
+  const { data } = await admin.from('leave_requests')
+    .select('from_date, to_date').eq('engineer_id', engineerId).eq('status', 'approved')
+    .lte('from_date', toStr).gte('to_date', fromStr)
+  const dates = new Set<string>()
+  ;(data || []).forEach(lr => {
+    let d = lr.from_date < fromStr ? fromStr : lr.from_date
+    const end = lr.to_date > toStr ? toStr : lr.to_date
+    while (d <= end) { dates.add(d); d = addDaysStr(d, 1) }
+  })
+  return dates
+}
+
+// Batch variants for the desktop overview (all engineers at once). Return one date set
+// per engineer id; an engineer with no rows simply isn't a key (treated as empty).
+export async function getScheduledNotificationDatesByEngineer(admin: AdminClient, engineerIds: string[], fromStr: string, toStr: string): Promise<Record<string, Set<string>>> {
+  const out: Record<string, Set<string>> = {}
+  if (!engineerIds.length) return out
+  const [{ data: primary }, { data: assigns }] = await Promise.all([
+    admin.from('work_orders').select('engineer_id, scheduled_date').in('engineer_id', engineerIds).gte('scheduled_date', fromStr).lte('scheduled_date', toStr),
+    admin.from('work_order_engineer_assignments').select('engineer_id, work_order_id').in('engineer_id', engineerIds),
+  ])
+  ;(primary || []).forEach(r => { if (r.engineer_id && r.scheduled_date) (out[r.engineer_id] ??= new Set()).add(r.scheduled_date) })
+  const woIds = [...new Set((assigns || []).map(a => a.work_order_id))]
+  if (woIds.length) {
+    const { data: extraWo } = await admin.from('work_orders').select('id, scheduled_date').in('id', woIds).gte('scheduled_date', fromStr).lte('scheduled_date', toStr)
+    const dateByWo: Record<string, string> = {}
+    ;(extraWo || []).forEach(w => { if (w.scheduled_date) dateByWo[w.id] = w.scheduled_date })
+    ;(assigns || []).forEach(a => { const d = dateByWo[a.work_order_id]; if (a.engineer_id && d) (out[a.engineer_id] ??= new Set()).add(d) })
+  }
+  return out
+}
+
+export async function getApprovedLeaveDatesByEngineer(admin: AdminClient, engineerIds: string[], fromStr: string, toStr: string): Promise<Record<string, Set<string>>> {
+  const out: Record<string, Set<string>> = {}
+  if (!engineerIds.length) return out
+  const { data } = await admin.from('leave_requests')
+    .select('engineer_id, from_date, to_date').in('engineer_id', engineerIds).eq('status', 'approved')
+    .lte('from_date', toStr).gte('to_date', fromStr)
+  ;(data || []).forEach(lr => {
+    if (!lr.engineer_id) return
+    const set = (out[lr.engineer_id] ??= new Set())
+    let d = lr.from_date < fromStr ? fromStr : lr.from_date
+    const end = lr.to_date > toStr ? toStr : lr.to_date
+    while (d <= end) { set.add(d); d = addDaysStr(d, 1) }
+  })
+  return out
 }
 
 // Resolves a set of `attendance.approved_by` uuids to display names in one query —
@@ -281,6 +377,7 @@ export function getAttendanceStatusLabel(s: AttendanceEffectiveStatus): string {
     }
     case 'holiday': return `Holiday: ${s.name}`
     case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending approval)' : s.rejected ? 'Day Off (rejected)' : 'Day Off'
+    case 'off': return s.approvedLeave ? 'On Leave' : s.name
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
@@ -320,10 +417,12 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
     await resolveOverdueSinglePunches(admin, userId)
 
     const todayStr = getISTDateStr()
-    const [{ data: row }, { data: holiday }, profileCreatedAtDateStr] = await Promise.all([
+    const [{ data: row }, { data: holiday }, profileCreatedAtDateStr, scheduledDates, leaveDates] = await Promise.all([
       admin.from('attendance').select(ATTENDANCE_ROW_COLUMNS).eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle(),
       admin.from('holidays').select('name').eq('holiday_date', todayStr).maybeSingle(),
       getProfileCreatedAtDateStr(admin, userId),
+      getScheduledNotificationDates(admin, userId, todayStr, todayStr),
+      getApprovedLeaveDates(admin, userId, todayStr, todayStr),
     ])
 
     const nameByApprover = await resolveApprovedByNames(admin, [row?.approved_by ?? null])
@@ -331,6 +430,7 @@ export async function getMyAttendanceStatusCore(admin: AdminClient, userId: stri
 
     const status = computeEffectiveStatus({
       dateStr: todayStr, todayStr, row: rowWithName, holidayName: holiday?.name ?? null, profileCreatedAtDateStr,
+      hasScheduledNotification: scheduledDates.has(todayStr), onApprovedLeave: leaveDates.has(todayStr),
     })
     return { status, error: null }
   } catch (e: unknown) {
@@ -705,10 +805,12 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
 
     const todayStr = getISTDateStr()
 
-    const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr] = await Promise.all([
+    const [{ data: rows }, { data: holidays }, profileCreatedAtDateStr, scheduledDates, leaveDates] = await Promise.all([
       admin.from('attendance').select(`attendance_date, ${ATTENDANCE_ROW_COLUMNS}`).eq('engineer_id', userId).gte('attendance_date', from).lte('attendance_date', to),
       admin.from('holidays').select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to),
       getProfileCreatedAtDateStr(admin, userId),
+      getScheduledNotificationDates(admin, userId, from, to),
+      getApprovedLeaveDates(admin, userId, from, to),
     ])
 
     const nameByApprover = await resolveApprovedByNames(admin, (rows || []).map(r => r.approved_by))
@@ -719,7 +821,7 @@ export async function getAttendanceCalendarCore(admin: AdminClient, userId: stri
 
     const days: AttendanceCalendarDay[] = eachDateStr(from, to).map(dateStr => ({
       date: dateStr,
-      status: computeEffectiveStatus({ dateStr, todayStr, row: rowByDate[dateStr] ?? null, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr }),
+      status: computeEffectiveStatus({ dateStr, todayStr, row: rowByDate[dateStr] ?? null, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr, hasScheduledNotification: scheduledDates.has(dateStr), onApprovedLeave: leaveDates.has(dateStr) }),
       markedAt: rowByDate[dateStr]?.marked_at ?? null,
       endDayAt: rowByDate[dateStr]?.end_day_at ?? null,
       endDayPlaceName: rowByDate[dateStr]?.end_day_place_name ?? null,
@@ -793,6 +895,138 @@ export async function approveRejectAmendmentCore(admin: AdminClient, managerId: 
       title: decision === 'approved' ? 'Attendance amendment approved' : 'Attendance amendment rejected',
       body: `${managerName} ${decision} your attendance amendment for ${row.attendance_date}.`,
       entityType: 'attendance', entityId: attendanceId,
+      linkPath: '/mobile/attendance',
+    }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// ----- Apply for Leave (items 3 & 4) --------------------------------------------------
+// A date-range leave request the engineer submits for manager approval. Distinct from a
+// same-day voluntary Day Off (markDayOffCore) and from an attendance amendment. Only an
+// APPROVED range turns its dates into "On Leave" in the attendance views (unless the
+// engineer punches in that day — a site visit during leave, which the punch row wins).
+
+export interface LeaveRequestItem {
+  id: string
+  engineerId: string
+  engineerName: string
+  fromDate: string
+  toDate: string
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  approvedByName: string | null
+  approvedAt: string | null
+  createdAt: string
+}
+
+export async function applyForLeaveCore(admin: AdminClient, userId: string, params: {
+  fromDate: string
+  toDate: string
+  reason: string
+}): Promise<{ error: string | null }> {
+  try {
+    const fromDate = params.fromDate
+    const toDate = params.toDate
+    const reason = params.reason?.trim()
+    if (!fromDate || !toDate) return { error: 'Choose both a From and To date.' }
+    if (toDate < fromDate) return { error: 'The To date must be on or after the From date.' }
+    if (!reason) return { error: 'A reason is required.' }
+
+    // Block overlapping requests that are still pending or already approved.
+    const { data: clashes } = await admin.from('leave_requests')
+      .select('id').eq('engineer_id', userId).in('status', ['pending', 'approved'])
+      .lte('from_date', toDate).gte('to_date', fromDate).limit(1)
+    if (clashes && clashes.length) return { error: 'You already have a leave request covering those dates.' }
+
+    const { data: inserted, error } = await admin.from('leave_requests').insert({
+      engineer_id: userId, from_date: fromDate, to_date: toDate, reason, status: 'pending',
+    }).select('id').single()
+    if (error) return { error: error.message }
+
+    if (inserted?.id) {
+      notifyUsers(admin, [
+        { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+      ], {
+        type: 'leave_request_pending',
+        title: 'Leave request needs approval',
+        body: `An engineer applied for leave from ${fromDate} to ${toDate}.`,
+        entityType: 'leave_request', entityId: inserted.id,
+        linkPath: '/attendance',
+      }).catch(() => {})
+    }
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getMyLeaveRequestsCore(admin: AdminClient, userId: string): Promise<{ requests: LeaveRequestItem[]; error: string | null }> {
+  try {
+    const { data, error } = await admin.from('leave_requests')
+      .select('id, engineer_id, from_date, to_date, reason, status, approved_by, approved_at, created_at')
+      .eq('engineer_id', userId).order('created_at', { ascending: false }).limit(50)
+    if (error) return { requests: [], error: error.message }
+
+    const nameByApprover = await resolveApprovedByNames(admin, (data || []).map(r => r.approved_by))
+    const requests: LeaveRequestItem[] = (data || []).map(r => ({
+      id: r.id, engineerId: r.engineer_id, engineerName: '',
+      fromDate: r.from_date, toDate: r.to_date, reason: r.reason, status: r.status,
+      approvedByName: r.approved_by ? nameByApprover[r.approved_by] ?? null : null,
+      approvedAt: r.approved_at, createdAt: r.created_at,
+    }))
+    return { requests, error: null }
+  } catch (e: unknown) {
+    return { requests: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function getPendingLeaveRequestsCore(admin: AdminClient): Promise<{ requests: LeaveRequestItem[]; error: string | null }> {
+  try {
+    const { data, error } = await admin.from('leave_requests')
+      .select('id, engineer_id, from_date, to_date, reason, status, approved_by, approved_at, created_at')
+      .eq('status', 'pending').order('created_at', { ascending: false })
+    if (error) return { requests: [], error: error.message }
+
+    const engineerIds = [...new Set((data || []).map(r => r.engineer_id))]
+    const { data: profiles } = engineerIds.length
+      ? await admin.from('profiles').select('id, first_name, last_name').in('id', engineerIds)
+      : { data: [] as { id: string; first_name: string; last_name: string }[] }
+    const nameById: Record<string, string> = {}
+    ;(profiles || []).forEach(p => { nameById[p.id] = `${p.first_name} ${p.last_name}` })
+
+    const requests: LeaveRequestItem[] = (data || []).map(r => ({
+      id: r.id, engineerId: r.engineer_id, engineerName: nameById[r.engineer_id] || 'Engineer',
+      fromDate: r.from_date, toDate: r.to_date, reason: r.reason, status: r.status,
+      approvedByName: null, approvedAt: r.approved_at, createdAt: r.created_at,
+    }))
+    return { requests, error: null }
+  } catch (e: unknown) {
+    return { requests: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function approveRejectLeaveCore(admin: AdminClient, managerId: string, leaveRequestId: string, decision: 'approved' | 'rejected'): Promise<{ error: string | null }> {
+  try {
+    const { data: row } = await admin.from('leave_requests').select('engineer_id, from_date, to_date').eq('id', leaveRequestId).maybeSingle()
+    if (!row) return { error: 'Leave request not found' }
+
+    const { error } = await admin.from('leave_requests').update({
+      status: decision, approved_by: managerId, approved_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', leaveRequestId)
+    if (error) return { error: error.message }
+
+    const { data: manager } = await admin.from('profiles').select('first_name, last_name').eq('id', managerId).maybeSingle()
+    const managerName = manager ? `${manager.first_name} ${manager.last_name}` : 'Your manager'
+    notifyUsers(admin, [{ userId: row.engineer_id }], {
+      type: 'leave_request_decided',
+      title: decision === 'approved' ? 'Leave request approved' : 'Leave request rejected',
+      body: `${managerName} ${decision} your leave from ${row.from_date} to ${row.to_date}.`,
+      entityType: 'leave_request', entityId: leaveRequestId,
       linkPath: '/mobile/attendance',
     }).catch(() => {})
 

@@ -5,6 +5,7 @@ import { useWorkOrderDetail, useSubmitCheckIn, reverseGeocode } from '@/lib/hook
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
+import * as Clipboard from 'expo-clipboard';
 
 function formatDate(d: string | null) {
   if (!d) return '—';
@@ -242,7 +243,7 @@ export default function WorkOrderDetailScreen() {
         <Text style={styles.cardTitle}>Customer information</Text>
         <InfoRow label="Customer" value={wo.customer_name} />
         <InfoRow label="Contact" value={wo.customer_contact || '—'} />
-        <InfoRow label="Phone" value={wo.customer_phone || '—'} />
+        <InfoRow label="Phone" value={wo.customer_phone || '—'} copyValue={wo.customer_phone || undefined} />
         <InfoRow label="End user type" value={wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—'} />
         <InfoRow label="Project" value={wo.site_name || '—'} />
         <InfoRow label="Project address" value={wo.site_address || '—'} last />
@@ -307,11 +308,23 @@ export default function WorkOrderDetailScreen() {
   );
 }
 
-function InfoRow({ label, value, highlight, last }: { label: string; value: string; highlight?: boolean; last?: boolean }) {
+function InfoRow({ label, value, highlight, last, copyValue }: { label: string; value: string; highlight?: boolean; last?: boolean; copyValue?: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (!copyValue) return;
+    try { await Clipboard.setStringAsync(copyValue); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ }
+  }
   return (
     <View style={[styles.infoRow, !last && styles.infoRowBorder]}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={[styles.infoValue, highlight && styles.infoValueHighlight]}>{value}</Text>
+      <View style={styles.infoValueWrap}>
+        <Text style={[styles.infoValue, highlight && styles.infoValueHighlight]}>{value}</Text>
+        {!!copyValue && (
+          <Pressable onPress={copy} hitSlop={8} style={[styles.copyBtn, copied && styles.copyBtnDone]}>
+            <Text style={[styles.copyBtnText, copied && styles.copyBtnTextDone]}>{copied ? 'Copied ✓' : 'Copy'}</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -379,6 +392,11 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 12, color: '#7A6870' },
   infoValue: { fontSize: 12, fontWeight: '500', color: '#1C0D14', textAlign: 'right', flexShrink: 1 },
   infoValueHighlight: { color: '#7D1D3F' },
+  infoValueWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, justifyContent: 'flex-end' },
+  copyBtn: { backgroundColor: '#F9EEF2', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
+  copyBtnDone: { backgroundColor: '#ECFDF5' },
+  copyBtnText: { fontSize: 10, fontWeight: '700', color: '#7D1D3F' },
+  copyBtnTextDone: { color: '#065F46' },
 
   handoverCard: { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' },
   handoverTitle: { fontSize: 12, fontWeight: '600', color: '#9A3412', marginBottom: 8 },

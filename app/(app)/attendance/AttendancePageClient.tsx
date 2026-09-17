@@ -5,9 +5,10 @@ import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats } from '@/app/actions/get-attendance'
 import { categoryMeta } from '@/lib/punchCategory'
-import { approveRejectAttendanceAmendment } from '@/app/actions/attendance'
-import type { PendingAmendment, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
+import { approveRejectAttendanceAmendment, getPendingLeaveRequests, approveRejectLeaveRequest } from '@/app/actions/attendance'
+import type { PendingAmendment, AttendanceEffectiveStatus, LeaveRequestItem } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
+import PendingLeaveModal from './PendingLeaveModal'
 import { toDateStr, getRange, type ViewMode } from './dateRange'
 
 const JOB_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -22,6 +23,7 @@ const ATTENDANCE_CFG: Record<AttendanceEffectiveStatus['kind'], { bg: string; co
   leave: { bg: '#FEE2E2', color: '#DC2626' },
   holiday: { bg: '#F1F5F9', color: '#475569' },
   day_off: { bg: '#EDE9FE', color: '#5B21B6' },
+  off: { bg: '#F1F5F9', color: '#475569' },
   pending: { bg: '#FEF3C7', color: '#D97706' },
   not_applicable: { bg: '#F3F4F6', color: '#B0A8AC' },
 }
@@ -65,6 +67,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     }
     case 'holiday': return `Holiday: ${s.name}`
     case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending)' : s.rejected ? 'Day Off (rejected)' : 'Day Off'
+    case 'off': return s.approvedLeave ? 'On Leave' : s.name
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
@@ -78,6 +81,7 @@ function exportStatusLabel(s: AttendanceEffectiveStatus): string {
     case 'leave': return s.latePending ? 'Punched in Late' : 'Absent'
     case 'day_off': return 'Day Off'
     case 'holiday': return 'Holiday'
+    case 'off': return s.approvedLeave ? 'On Leave' : 'Weekly Off'
     case 'pending': return 'Pending'
     case 'not_applicable': return ''
   }
@@ -317,6 +321,14 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   const [amendments, setAmendments] = useState(initialAmendments)
   const [actingOn, setActingOn] = useState<string | null>(null)
   const [showAmendmentsModal, setShowAmendmentsModal] = useState(false)
+
+  // Pending Apply-for-Leave requests (loaded client-side for approvers).
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestItem[]>([])
+  const [showLeaveModal, setShowLeaveModal] = useState(false)
+  useEffect(() => {
+    if (!canApprove) return
+    getPendingLeaveRequests().then(({ requests }) => setLeaveRequests(requests)).catch(() => {})
+  }, [canApprove])
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
 
@@ -343,6 +355,20 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     // cell itself flips from "Leave (pending)" to "Present (amended)"/rejected
     // immediately, whether the decision came from the popup or the inline cell
     // buttons.
+    load(range.from, range.to)
+  }
+
+  async function handleLeaveDecision(id: string, decision: 'approved' | 'rejected') {
+    setActingOn(id)
+    const { error: err } = await approveRejectLeaveRequest(id, decision)
+    setActingOn(null)
+    if (err) { setExportError(err); return }
+    setLeaveRequests(prev => {
+      const next = prev.filter(r => r.id !== id)
+      if (next.length === 0) setShowLeaveModal(false)
+      return next
+    })
+    // An approved leave flips the covered dates to "On Leave" in the grid — reload.
     load(range.from, range.to)
   }
 
@@ -624,6 +650,14 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                 Pending amendments ({amendments.length})
               </button>
             )}
+            {canApprove && leaveRequests.length > 0 && (
+              <button
+                onClick={() => setShowLeaveModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #7D1D3F', background: '#F9EEF2', color: '#7D1D3F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+              >
+                Leave requests ({leaveRequests.length})
+              </button>
+            )}
             <button
               onClick={handleExportStatus}
               disabled={exporting}
@@ -656,6 +690,9 @@ export default function AttendancePageClient({ initialRows, initialError, initia
 
         {showAmendmentsModal && (
           <PendingAmendmentsModal amendments={amendments} actingOn={actingOn} onDecision={handleDecision} onClose={() => setShowAmendmentsModal(false)} />
+        )}
+        {showLeaveModal && (
+          <PendingLeaveModal requests={leaveRequests} actingOn={actingOn} onDecision={handleLeaveDecision} onClose={() => setShowLeaveModal(false)} />
         )}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>

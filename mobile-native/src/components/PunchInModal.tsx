@@ -21,7 +21,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   title?: string;
   subtitle?: string;
 }) {
-  const [step, setStep] = useState<'top' | 'sub' | 'details'>('top');
+  const [step, setStep] = useState<'top' | 'sub' | 'details' | 'confirm'>('top');
   const [top, setTop] = useState<TopCategory | null>(null);
   const [category, setCategory] = useState<PunchCategory | null>(null);
   const [customer, setCustomer] = useState('');
@@ -37,7 +37,9 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
     const opt = TOP_OPTIONS.find(o => o.id === id)!;
     setTop(id);
     if (opt.needsSub) { setStep('sub'); return; }
-    if (!opt.needsDetails) { onConfirm({ category: opt.directCategory!, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null }); return; }
+    // No visit details needed (HQ): don't mark immediately — show a Submit confirmation
+    // step first so the engineer explicitly commits.
+    if (!opt.needsDetails) { setCategory(opt.directCategory!); setStep('confirm'); return; }
     setCategory(opt.directCategory!);
     setStep('details');
   }
@@ -106,6 +108,23 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
               </>
             )}
 
+            {step === 'confirm' && (
+              <>
+                <Pressable onPress={() => setStep('top')} disabled={submitting}><Text style={styles.back}>‹ Back</Text></Pressable>
+                {meta && (
+                  <View style={[styles.cathdr, { backgroundColor: meta.bg }]}>
+                    <View style={[styles.dotSm, { backgroundColor: meta.ac }]}><Text style={styles.dotSmText}>{meta.tag[0]}</Text></View>
+                    <Text style={[styles.cathdrText, { color: meta.tx }]}>{meta.label}</Text>
+                  </View>
+                )}
+                <Text style={styles.confirmText}>Confirm your status as {meta?.label ?? 'HQ'}.</Text>
+                {!!error && <Text style={styles.err}>{error}</Text>}
+                <Pressable style={[styles.continue, submitting && styles.continueOff]} onPress={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null })} disabled={submitting}>
+                  {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueText}>Submit</Text>}
+                </Pressable>
+              </>
+            )}
+
             {step === 'details' && (
               <>
                 <Pressable onPress={() => setStep(topNeedsSub ? 'sub' : 'top')} disabled={submitting}><Text style={styles.back}>‹ Back</Text></Pressable>
@@ -155,6 +174,7 @@ const styles = StyleSheet.create({
   dotSm: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   dotSmText: { color: '#fff', fontWeight: '800', fontSize: 11 },
   cathdrText: { fontWeight: '700', fontSize: 13, flex: 1 },
+  confirmText: { fontSize: 13, color: '#4B5563', marginBottom: 14 },
   label: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 5 },
   req: { color: '#DC2626' },
   input: { borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 11, fontSize: 14, color: '#1C0D14', backgroundColor: '#fff', marginBottom: 12 },

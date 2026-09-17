@@ -86,6 +86,8 @@ function attendanceCardStyle(status: AttendanceEffectiveStatus): { bg: string; c
       return { bg: '#F1F5F9', color: '#475569', label: 'Holiday', sub: status.name };
     case 'day_off':
       return { bg: '#EDE9FE', color: '#5B21B6', label: 'Day Off', sub: status.name ? status.name : status.pendingApproval ? 'Pending approval' : status.rejected ? 'Rejected — try again' : null };
+    case 'off':
+      return { bg: '#F1F5F9', color: '#475569', label: status.approvedLeave ? 'On Leave' : 'Weekly Off', sub: status.approvedLeave ? 'Approved leave' : null };
     case 'not_applicable':
       return { bg: '#F1F5F9', color: '#475569', label: '—', sub: null };
   }

@@ -5,7 +5,8 @@ import { adminClient } from '@/lib/mobile/core/shared'
 import {
   getMyAttendanceStatusCore, markAttendanceCore, updatePunchCategoryCore, markEndDayCore, markDayOffCore, getAttendanceCalendarCore,
   getPendingAmendmentsCore, approveRejectAmendmentCore, requestAttendanceAmendmentCore,
-  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment, type PunchCategory,
+  applyForLeaveCore, getMyLeaveRequestsCore, getPendingLeaveRequestsCore, approveRejectLeaveCore,
+  type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment, type PunchCategory, type LeaveRequestItem,
 } from '@/lib/mobile/core/attendance'
 // Thin auth-resolution wrappers only — business logic lives in
 // lib/mobile/core/attendance.ts, shared with the React Native REST routes
@@ -85,4 +86,29 @@ export async function approveRejectAttendanceAmendment(attendanceId: string, dec
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return approveRejectAmendmentCore(adminClient(), user.id, attendanceId, decision)
+}
+
+// ----- Apply for Leave -----
+export async function applyForLeave(params: { fromDate: string; toDate: string; reason: string }): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return applyForLeaveCore(adminClient(), user.id, params)
+}
+
+export async function getMyLeaveRequests(): Promise<{ requests: LeaveRequestItem[]; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { requests: [], error: 'Not authenticated' }
+  return getMyLeaveRequestsCore(adminClient(), user.id)
+}
+
+export async function getPendingLeaveRequests(): Promise<{ requests: LeaveRequestItem[]; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { requests: [], error: 'Not authenticated' }
+  return getPendingLeaveRequestsCore(adminClient())
+}
+
+export async function approveRejectLeaveRequest(leaveRequestId: string, decision: 'approved' | 'rejected'): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return approveRejectLeaveCore(adminClient(), user.id, leaveRequestId, decision)
 }

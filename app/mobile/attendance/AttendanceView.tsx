@@ -5,10 +5,10 @@ import * as XLSX from 'xlsx'
 import MobileHeader from '@/components/mobile/MobileHeader'
 import BottomNav from '@/components/mobile/BottomNav'
 import { reverseGeocode } from '@/app/actions/mobile-actions'
-import { markAttendance, markEndDay, getAttendanceCalendar, requestAttendanceAmendment } from '@/app/actions/attendance'
+import { markAttendance, markEndDay, getAttendanceCalendar, requestAttendanceAmendment, applyForLeave, getMyLeaveRequests } from '@/app/actions/attendance'
 import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
 import { categoryMeta } from '@/lib/punchCategory'
-import type { AttendanceCalendarDay, AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
+import type { AttendanceCalendarDay, AttendanceEffectiveStatus, LeaveRequestItem } from '@/lib/mobile/core/attendance'
 
 interface Props {
   initialDays: AttendanceCalendarDay[]
@@ -43,6 +43,7 @@ function getStatusBadge(status: AttendanceEffectiveStatus): { bg: string; color:
     case 'pending': return { bg: '#FEF3C7', color: '#92400E', label: 'Not marked yet' }
     case 'holiday': return { bg: '#F1F5F9', color: '#475569', label: `Holiday: ${status.name}` }
     case 'day_off': return { bg: '#EDE9FE', color: '#5B21B6', label: status.name ? `Day Off: ${status.name}` : status.pendingApproval ? 'Day Off (pending)' : status.rejected ? 'Day Off (rejected)' : 'Day Off' }
+    case 'off': return { bg: '#F1F5F9', color: '#475569', label: status.approvedLeave ? 'On Leave' : status.name }
     case 'not_applicable': return { bg: '#F1F5F9', color: '#475569', label: '—' }
   }
 }
@@ -67,6 +68,7 @@ function attendanceLabel(s: AttendanceEffectiveStatus): string {
     }
     case 'holiday': return `Holiday: ${s.name}`
     case 'day_off': return s.name ? `Day Off: ${s.name}` : s.pendingApproval ? 'Day Off (pending)' : s.rejected ? 'Day Off (rejected)' : 'Day Off'
+    case 'off': return s.approvedLeave ? 'On Leave' : s.name
     case 'pending': return 'Pending'
     case 'not_applicable': return '—'
   }
@@ -185,6 +187,31 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
 
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+
+  // Apply for Leave — date range + reason, sent to a manager for approval.
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestItem[]>([])
+  const [showLeaveForm, setShowLeaveForm] = useState(false)
+  const [leaveFrom, setLeaveFrom] = useState(todayStr)
+  const [leaveTo, setLeaveTo] = useState(todayStr)
+  const [leaveReason, setLeaveReason] = useState('')
+  const [leaveError, setLeaveError] = useState('')
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false)
+
+  const loadLeaveRequests = useCallback(() => {
+    getMyLeaveRequests().then(({ requests }) => setLeaveRequests(requests)).catch(() => {})
+  }, [])
+  useEffect(() => { loadLeaveRequests() }, [loadLeaveRequests])
+
+  async function handleApplyForLeave() {
+    setLeaveError('')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(leaveFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(leaveTo)) { setLeaveError('Enter dates as YYYY-MM-DD.'); return }
+    setLeaveSubmitting(true)
+    const result = await applyForLeave({ fromDate: leaveFrom, toDate: leaveTo, reason: leaveReason.trim() })
+    setLeaveSubmitting(false)
+    if (result.error) { setLeaveError(result.error); return }
+    setShowLeaveForm(false); setLeaveReason('')
+    loadLeaveRequests()
+  }
 
   const endDayGpsRequestedRef = useRef(false)
   const [endDayGpsResolved, setEndDayGpsResolved] = useState(false)
@@ -508,6 +535,59 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
         {exportError && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '8px 10px', fontSize: 11, marginBottom: 12 }}>{exportError}</div>
         )}
+
+        {/* Apply for Leave — date range + reason, sent to a manager for approval. */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1C0D14' }}>Leave</div>
+            <button className="mtap" onClick={() => { setLeaveError(''); setShowLeaveForm(v => !v) }}
+              style={{ background: '#F9EEF2', border: 'none', borderRadius: 8, padding: '7px 12px', color: '#7D1D3F', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+              {showLeaveForm ? 'Close' : 'Apply for Leave'}
+            </button>
+          </div>
+
+          {showLeaveForm && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>From</label>
+                  <input type="date" value={leaveFrom} onChange={e => setLeaveFrom(e.target.value)} style={{ width: '100%', padding: '9px 10px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 13, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>To</label>
+                  <input type="date" value={leaveTo} min={leaveFrom} onChange={e => setLeaveTo(e.target.value)} style={{ width: '100%', padding: '9px 10px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 13, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', margin: '10px 0 5px' }}>Reason</label>
+              <textarea value={leaveReason} onChange={e => setLeaveReason(e.target.value)} placeholder="Why are you taking leave?"
+                style={{ width: '100%', padding: '9px 10px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 13, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', minHeight: 56, resize: 'vertical' }} />
+              {!!leaveError && <div style={{ color: '#DC2626', fontSize: 11, marginTop: 8 }}>{leaveError}</div>}
+              <button className="mtap" onClick={handleApplyForLeave} disabled={leaveSubmitting}
+                style={{ width: '100%', marginTop: 12, padding: 12, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: leaveSubmitting ? 'not-allowed' : 'pointer', opacity: leaveSubmitting ? 0.6 : 1, fontFamily: 'Poppins, sans-serif' }}>
+                {leaveSubmitting ? 'Submitting…' : 'Submit Leave Request'}
+              </button>
+            </div>
+          )}
+
+          {leaveRequests.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {leaveRequests.slice(0, 5).map(r => {
+                const c = r.status === 'approved' ? { bg: '#D1FAE5', fg: '#065F46' } : r.status === 'rejected' ? { bg: '#FEE2E2', fg: '#991B1B' } : { bg: '#FEF3C7', fg: '#92400E' }
+                return (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #F1ECEE', paddingTop: 8, marginTop: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{r.fromDate === r.toDate ? r.fromDate : `${r.fromDate} → ${r.toDate}`}</div>
+                      {!!r.reason && <div style={{ fontSize: 11, color: '#7A6870', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</div>}
+                    </div>
+                    <div style={{ background: c.bg, borderRadius: 6, padding: '3px 8px' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: c.fg }}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         {justSubmitted && (
           <div style={{ background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#065F46', marginBottom: 12 }}>

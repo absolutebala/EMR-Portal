@@ -29,6 +29,18 @@ export default function JobDetailClient({ detail }: Props) {
   const [closureSync, setClosureSync] = useState<ClosureSyncStatus | null>(null)
   const [offlineChecking, setOfflineChecking] = useState(false)
   const [showForms, setShowForms] = useState(false)
+  const [phoneCopied, setPhoneCopied] = useState(false)
+
+  // Copy the customer phone number to the clipboard and flash a brief "Copied ✓"
+  // confirmation on the button for ~1.5s.
+  async function handleCopyPhone() {
+    if (!wo.customer_phone) return
+    try {
+      await navigator.clipboard.writeText(wo.customer_phone)
+      setPhoneCopied(true)
+      setTimeout(() => setPhoneCopied(false), 1500)
+    } catch { /* clipboard unavailable — leave the number visible to copy manually */ }
+  }
 
   // "Offline Check-In": grab GPS and check in immediately — no photo, no navigation to
   // the check-in screen. Reuses the existing background check-in queue, so if offline
@@ -409,7 +421,28 @@ export default function JobDetailClient({ detail }: Props) {
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Customer information</p>
           <InfoRow label="Customer" value={wo.customer_name} />
           <InfoRow label="Contact" value={wo.customer_contact || '—'} />
-          <InfoRow label="Phone" value={wo.customer_phone || '—'} />
+          <InfoRow label="Phone" value={
+            wo.customer_phone ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                <span>{wo.customer_phone}</span>
+                <button
+                  className="mtap"
+                  onClick={handleCopyPhone}
+                  aria-label="Copy phone number"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                    border: `1px solid ${phoneCopied ? '#A7F3D0' : '#E5E0E3'}`,
+                    background: phoneCopied ? '#ECFDF5' : '#F9EEF2',
+                    color: phoneCopied ? '#065F46' : '#7D1D3F',
+                    fontSize: 10, fontWeight: 600, borderRadius: 6, padding: '3px 8px',
+                    cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
+                  }}
+                >
+                  {phoneCopied ? 'Copied ✓' : 'Copy'}
+                </button>
+              </span>
+            ) : '—'
+          } />
           <InfoRow label="End user type" value={wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—'} />
           <InfoRow label="Project" value={wo.site_name || '—'} />
           <InfoRow label="Project address" value={wo.site_address || '—'} last />

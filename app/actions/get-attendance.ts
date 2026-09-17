@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
-import { computeEffectiveStatus, getISTDateStr, resolveApprovedByNames, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
+import { computeEffectiveStatus, getISTDateStr, resolveApprovedByNames, getScheduledNotificationDatesByEngineer, getApprovedLeaveDatesByEngineer, type AttendanceEffectiveStatus, type AttendanceRowCore } from '@/lib/mobile/core/attendance'
 import type { PunchCategory } from '@/lib/punchCategory'
 
 export interface AttendanceOverviewJob {
@@ -80,6 +80,14 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
     const todayStr = getISTDateStr()
     const dates = eachDateStr(from, to)
     const engineerIds = engineers.map(e => e.id)
+
+    // Item 1 / items 3-4: per-engineer scheduled-notification and approved-leave dates,
+    // so a Sunday with a scheduled job reads as a working day and an approved-leave day
+    // reads "On Leave".
+    const [scheduledByEng, leaveByEng] = await Promise.all([
+      getScheduledNotificationDatesByEngineer(admin, engineerIds, from, to),
+      getApprovedLeaveDatesByEngineer(admin, engineerIds, from, to),
+    ])
 
     const WO_SELECT = 'id, engineer_id, scheduled_date, customer_id, wo_number, status, work_order_transformers(transformers(serial_number, customer_sites(site_name)))'
 
@@ -212,7 +220,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
       const profileCreatedAtDateStr = eng.createdAt ? getISTDateStr(new Date(eng.createdAt)) : null
       for (const dateStr of dates) {
         const row = attendanceByEngDate[`${eng.id}:${dateStr}`] ?? null
-        const attendance = computeEffectiveStatus({ dateStr, todayStr, row, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr })
+        const attendance = computeEffectiveStatus({ dateStr, todayStr, row, holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr, hasScheduledNotification: scheduledByEng[eng.id]?.has(dateStr) ?? false, onApprovedLeave: leaveByEng[eng.id]?.has(dateStr) ?? false })
         rows.push({
           engineerId: eng.id,
           engineerName: eng.name,
@@ -287,6 +295,14 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
       id: p.id as string,
       createdAtDate: p.created_at ? getISTDateStr(new Date(p.created_at as string)) : null,
     }))
+    // Sunday-off and approved-leave signals so a Sunday counts as neither Present nor
+    // Absent (unless a scheduled job or a punch-in makes it a working day), matching the
+    // per-day table.
+    const statEngineerIds = engineers.map(e => e.id)
+    const [scheduledByEng, leaveByEng] = await Promise.all([
+      getScheduledNotificationDatesByEngineer(admin, statEngineerIds, fetchFrom, todayStr),
+      getApprovedLeaveDatesByEngineer(admin, statEngineerIds, fetchFrom, todayStr),
+    ])
     const rowByKey: Record<string, AttendanceRowCore> = {}
     ;(attRows || []).forEach(r => { rowByKey[`${r.engineer_id}:${r.attendance_date}`] = { ...r, approved_by_name: null } as AttendanceRowCore })
     const holidayByDate: Record<string, string> = {}
@@ -300,6 +316,8 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
           const s = computeEffectiveStatus({
             dateStr, todayStr, row: rowByKey[`${eng.id}:${dateStr}`] ?? null,
             holidayName: holidayByDate[dateStr] ?? null, profileCreatedAtDateStr: eng.createdAtDate,
+            hasScheduledNotification: scheduledByEng[eng.id]?.has(dateStr) ?? false,
+            onApprovedLeave: leaveByEng[eng.id]?.has(dateStr) ?? false,
           })
           if (s.kind === 'present') acc.present++
           else if (s.kind === 'leave') acc.absent++
