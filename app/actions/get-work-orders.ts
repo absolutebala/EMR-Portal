@@ -171,6 +171,61 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
   }
 }
 
+type ActivityEntry = { action: string; actor_name: string | null; created_at: string }
+
+// Merges the logged work_order_activity feed (created / assigned / reassigned / status /
+// form submitted / completed / expense-approval) with events that live in their own
+// tables and were never written to the feed — check-ins, product requests and expenses —
+// into one detailed, newest-first timeline for the notification detail page.
+async function buildActivityTimeline(
+  admin: ReturnType<typeof adminClient>,
+  workOrderId: string,
+  actRows: ActivityEntry[],
+  checkins: { engineer_id?: string | null; place_name: string | null; checked_in_at: string; is_offline?: boolean }[],
+): Promise<ActivityEntry[]> {
+  const [{ data: prodReqs }, { data: expenses }] = await Promise.all([
+    admin.from('product_requests').select('engineer_id, created_at, docket_number').eq('work_order_id', workOrderId),
+    admin.from('expense_logs').select('engineer_id, amount, created_at').eq('work_order_id', workOrderId),
+  ])
+
+  type ProdReq = { engineer_id: string | null; created_at: string; docket_number: string | null }
+  type Expense = { engineer_id: string | null; amount: number; created_at: string }
+  const prod = (prodReqs as ProdReq[]) || []
+  const exp = (expenses as Expense[]) || []
+
+  // Resolve engineer display names for every actor referenced by these events.
+  const actorIds = [...new Set([
+    ...checkins.map(c => c.engineer_id),
+    ...prod.map(p => p.engineer_id),
+    ...exp.map(e => e.engineer_id),
+  ].filter((v): v is string => !!v))]
+  const nameById: Record<string, string> = {}
+  if (actorIds.length) {
+    const { data: people } = await admin.from('profiles').select('id, first_name, last_name').in('id', actorIds)
+    ;(people || []).forEach((p: { id: string; first_name: string; last_name: string }) => { nameById[p.id] = `${p.first_name} ${p.last_name}` })
+  }
+
+  const derived: ActivityEntry[] = [
+    ...checkins.map(c => ({
+      action: `${c.is_offline ? 'Offline check-in' : 'Checked in'}${c.place_name ? ` at ${c.place_name}` : ''}`,
+      actor_name: c.engineer_id ? (nameById[c.engineer_id] ?? null) : null,
+      created_at: c.checked_in_at,
+    })),
+    ...prod.map(p => ({
+      action: `Product request submitted${p.docket_number ? ` (Docket ${p.docket_number})` : ''}`,
+      actor_name: p.engineer_id ? (nameById[p.engineer_id] ?? null) : null,
+      created_at: p.created_at,
+    })),
+    ...exp.map(e => ({
+      action: `Expense logged: ₹${Number(e.amount).toLocaleString('en-IN')}`,
+      actor_name: e.engineer_id ? (nameById[e.engineer_id] ?? null) : null,
+      created_at: e.created_at,
+    })),
+  ]
+
+  return [...actRows, ...derived].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+}
+
 export async function getWorkOrderDetail(id: string): Promise<{
   workOrder: WorkOrder | null
   activity: { action: string; actor_name: string | null; created_at: string }[]
@@ -197,7 +252,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_checkins')
-        .select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline')
+        .select('engineer_id, latitude, longitude, place_name, photo_url, checked_in_at, is_offline')
         .eq('work_order_id', id)
         .order('checked_in_at', { ascending: true }),
       admin.from('work_order_daily_closures')
@@ -219,7 +274,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     // check-in → closure cycle, so pair every closure with the check-in(s)
     // that happened before it (most recent one wins). Any check-ins left over
     // after the last closure represent the visit currently in progress.
-    type CheckinRow = { latitude: number | null; longitude: number | null; place_name: string | null; photo_url: string | null; checked_in_at: string; is_offline?: boolean }
+    type CheckinRow = { engineer_id?: string | null; latitude: number | null; longitude: number | null; place_name: string | null; photo_url: string | null; checked_in_at: string; is_offline?: boolean }
     type ClosureRow = {
       id: string; outcome: string; summary: string; pending_reason: string | null; materials_required: string | null
       revisit_date: string | null; needs_reassignment: boolean; engineer_signature: string | null
@@ -424,7 +479,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         end_customer_type_name: endTypeRow?.name || null,
         serial_number_sites: serialNumberSites,
       },
-      activity: actRows || [],
+      activity: await buildActivityTimeline(admin, id, actRows || [], (allCheckins as unknown as CheckinRow[]) || []),
       checkin,
       closure,
       submittedForms,
