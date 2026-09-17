@@ -99,13 +99,16 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
       : wos
 
     const woIds = filtered.map(w => w.id)
-    const customerIds = [...new Set(filtered.map(w => w.customer_id))]
+    // customer_id is nullable (overhauling notifications may have none) — a null in the
+    // .in() list makes the whole customers lookup return nothing, blanking customer
+    // name/address for EVERY row, so filter nulls out (as engineerIds/categoryIds do).
+    const customerIds = [...new Set(filtered.map(w => w.customer_id).filter(Boolean))]
     const engineerIds = [...new Set(filtered.map(w => w.engineer_id).filter(Boolean))]
     const categoryIds = [...new Set(filtered.map(w => w.customer_category_id).filter(Boolean))]
 
     const [{ data: wotRows }, { data: customers }, { data: engineers }, { data: categories }] = await Promise.all([
       admin.from('work_order_transformers').select('work_order_id, transformer_id, transformers(serial_number, warranty_status, site_id, customer_sites(site_name))').in('work_order_id', woIds),
-      admin.from('customers').select('id, name, address, phone').in('id', customerIds),
+      customerIds.length ? admin.from('customers').select('id, name, address, phone').in('id', customerIds) : Promise.resolve({ data: [] }),
       engineerIds.length ? admin.from('profiles').select('id, first_name, last_name, last_seen_place_label').in('id', engineerIds) : Promise.resolve({ data: [] }),
       categoryIds.length ? admin.from('customer_categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [] }),
     ])
