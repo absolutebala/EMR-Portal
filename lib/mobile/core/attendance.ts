@@ -430,6 +430,61 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
   }
 }
 
+// Change today's punch-in work category AFTER punching in (the dashboard status
+// chip). Unlike markAttendanceCore (which refuses a second punch), this only rewrites
+// the category + visit details on the already-marked row — punch-in time, status and
+// everything else are untouched.
+export async function updatePunchCategoryCore(admin: AdminClient, userId: string, params: {
+  category: PunchCategory | null
+  visitCustomerName?: string | null
+  visitSiteAddress?: string | null
+  visitPurpose?: string | null
+}): Promise<{ error: string | null }> {
+  try {
+    const todayStr = getISTDateStr()
+    const category = params.category ?? null
+    const VALID: PunchCategory[] = [
+      'hq', 'business_dev', 'others',
+      'travel_recoverable', 'travel_non_recoverable', 'travel_nfpfs_installation', 'travel_nfpfs_commissioning',
+      'site_recoverable', 'site_non_recoverable', 'site_nfpfs_installation', 'site_nfpfs_commissioning',
+      'travel_r', 'travel_nr', 'site_r', 'site_nr',
+    ]
+    if (!category || !VALID.includes(category)) {
+      return { error: 'Choose a valid status.' }
+    }
+    const customerName = params.visitCustomerName?.trim() || null
+    const siteAddress = params.visitSiteAddress?.trim() || null
+    const purpose = params.visitPurpose?.trim() || null
+    if (category !== 'hq' && (!customerName || !siteAddress || !purpose)) {
+      return { error: 'Customer name, site address and purpose of visit are all required.' }
+    }
+
+    const { data: existing } = await admin.from('attendance')
+      .select('id, marked_at')
+      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+    if (!existing?.marked_at) {
+      return { error: 'Punch in first before setting your status.' }
+    }
+
+    const result = await withTimeout(
+      admin.from('attendance').update({
+        punch_category: category,
+        visit_customer_name: category === 'hq' ? null : customerName,
+        visit_site_address: category === 'hq' ? null : siteAddress,
+        visit_purpose: category === 'hq' ? null : purpose,
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id),
+      8000
+    )
+    if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.' }
+    if (result.error) return { error: result.error.message }
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 // Punch Out — distinct from the app's own session Sign Out. Available any time after
 // Punch In, today only, once per day. A gross span (Punch Out − Punch In) under 6 hours
 // flags Short Hours (the day then reads Absent until the engineer requests an amendment).

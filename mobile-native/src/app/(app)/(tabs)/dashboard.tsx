@@ -3,7 +3,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, reverseGeocode } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, useUpdatePunchCategory, reverseGeocode } from '@/lib/hooks';
+import { categoryMeta } from '@/lib/punchCategory';
 import AppVersionFooter from '@/components/AppVersionFooter';
 import { useAuth } from '@/lib/AuthContext';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
@@ -105,9 +106,12 @@ export default function DashboardScreen() {
   const markEndDay = useMarkEndDay();
   const markAttendance = useMarkAttendance();
   const markDayOff = useMarkDayOff();
+  const updatePunchCategory = useUpdatePunchCategory();
   const [endDayError, setEndDayError] = useState('');
   const [punchInError, setPunchInError] = useState('');
   const [showPunchIn, setShowPunchIn] = useState(false);
+  const [showChangeStatus, setShowChangeStatus] = useState(false);
+  const [changeStatusError, setChangeStatusError] = useState('');
   // GPS captures silently in the background as soon as End Day becomes available —
   // same single-step pattern as the Attendance tab — so the button here is a genuine
   // single tap with no separate "capture location" step.
@@ -165,6 +169,24 @@ export default function DashboardScreen() {
       setShowPunchIn(false);
     } catch (e) {
       setPunchInError(apiErrorMessage(e));
+    }
+  }
+
+  // Change today's work status (HQ / Travel / Site Visit / …) after punching in — reuses
+  // the same category picker as Punch In, but only rewrites the category + visit details.
+  async function submitChangeStatus(payload: PunchInPayload) {
+    setChangeStatusError('');
+    try {
+      const result = await updatePunchCategory.mutateAsync({
+        category: payload.category,
+        visitCustomerName: payload.visitCustomerName,
+        visitSiteAddress: payload.visitSiteAddress,
+        visitPurpose: payload.visitPurpose,
+      });
+      if (result.error) { setChangeStatusError(result.error); return; }
+      setShowChangeStatus(false);
+    } catch (e) {
+      setChangeStatusError(apiErrorMessage(e));
     }
   }
 
@@ -229,6 +251,15 @@ export default function DashboardScreen() {
     >
       <AppUpdatePopup prompt={data?.updatePrompt ?? null} />
       <PunchInModal visible={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={markAttendance.isPending} error={punchInError} />
+      <PunchInModal
+        visible={showChangeStatus}
+        onCancel={() => setShowChangeStatus(false)}
+        onConfirm={submitChangeStatus}
+        submitting={updatePunchCategory.isPending}
+        error={changeStatusError}
+        title="Change your status"
+        subtitle="Update what you're doing today."
+      />
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.greeting}>Hi, {engineerName || data?.engineer?.name || 'Engineer'}</Text>
@@ -343,6 +374,31 @@ export default function DashboardScreen() {
         );
       })()}
 
+      {/* Once punched in, show today's work status (from the punch-in category) and let
+          the engineer change it. Hidden entirely before punch-in. */}
+      {data?.attendanceStatus && (() => {
+        const status = data.attendanceStatus;
+        if (status.kind !== 'present' && status.kind !== 'leave') return null;
+        if (!status.markedAt || !status.punchCategory) return null;
+        const m = categoryMeta(status.punchCategory);
+        if (!m) return null;
+        return (
+          <Pressable
+            style={[styles.statusChip, { backgroundColor: m.bg }]}
+            onPress={() => { setChangeStatusError(''); setShowChangeStatus(true); }}
+          >
+            <View style={[styles.statusDot, { backgroundColor: m.ac }]}>
+              <Text style={styles.statusDotText}>{m.tag[0]}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusEyebrow, { color: m.tx }]}>STATUS</Text>
+              <Text style={[styles.statusLabel, { color: m.tx }]}>{m.label}</Text>
+            </View>
+            <Text style={[styles.statusChange, { color: m.tx }]}>Change ›</Text>
+          </Pressable>
+        );
+      })()}
+
       <View style={styles.statsGrid}>
         {(deptData?.counts ?? []).map((dept, i) => {
           const c = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length];
@@ -394,6 +450,15 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   error: { color: '#DC2626', fontSize: 12, marginBottom: 12 },
+  statusChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14, marginBottom: 12,
+  },
+  statusDot: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  statusDotText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  statusEyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  statusLabel: { fontSize: 14, fontWeight: '700', marginTop: 1 },
+  statusChange: { fontSize: 12, fontWeight: '700' },
   attendanceCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderRadius: 12, padding: 14, marginBottom: 12,

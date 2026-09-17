@@ -12,12 +12,14 @@ export interface PunchInPayload {
 // Punch-in flow: pick a top-level category; Travel / Site Visit then pick a sub-type;
 // every category except HQ then fills the mandatory visit details before the actual GPS
 // check-in the parent runs. HQ confirms straight away.
-export default function PunchInModal({ visible, onCancel, onConfirm, submitting, error }: {
+export default function PunchInModal({ visible, onCancel, onConfirm, submitting, error, title, subtitle }: {
   visible: boolean;
   onCancel: () => void;
   onConfirm: (p: PunchInPayload) => void;
   submitting: boolean;
   error: string;
+  title?: string;
+  subtitle?: string;
 }) {
   const [step, setStep] = useState<'top' | 'sub' | 'details'>('top');
   const [top, setTop] = useState<TopCategory | null>(null);
@@ -62,8 +64,8 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {step === 'top' && (
               <>
-                <Text style={styles.title}>What are you doing today?</Text>
-                <Text style={styles.sub}>Choose one to continue punching in.</Text>
+                <Text style={styles.title}>{title ?? 'What are you doing today?'}</Text>
+                <Text style={styles.sub}>{subtitle ?? 'Choose one to continue punching in.'}</Text>
                 {TOP_OPTIONS.map(o => {
                   const m = o.directCategory ? categoryMeta(o.directCategory) : null;
                   return (

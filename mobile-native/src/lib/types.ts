@@ -200,6 +200,17 @@ export interface MarkAttendanceVariables {
   visitPurpose?: string | null;
 }
 
+export interface UpdatePunchCategoryVariables {
+  category: PunchCategory | null;
+  visitCustomerName?: string | null;
+  visitSiteAddress?: string | null;
+  visitPurpose?: string | null;
+}
+
+export interface UpdatePunchCategoryResponse {
+  error: string | null;
+}
+
 export interface MarkEndDayVariables {
   latitude: number | null;
   longitude: number | null;

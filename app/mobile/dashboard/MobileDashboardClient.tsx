@@ -8,8 +8,9 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
-import { markEndDay, markAttendance, markDayOff } from '@/app/actions/attendance'
+import { markEndDay, markAttendance, markDayOff, updatePunchCategory } from '@/app/actions/attendance'
 import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
+import { categoryMeta } from '@/lib/punchCategory'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
 import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
@@ -245,6 +246,27 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   }, [canPunchIn])
 
   const [showPunchIn, setShowPunchIn] = useState(false)
+  const [showChangeStatus, setShowChangeStatus] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
+  const [changeStatusError, setChangeStatusError] = useState('')
+
+  // Change today's work status after punching in — reuses the punch-in category picker,
+  // but only rewrites the category + visit details.
+  async function submitChangeStatus(payload: PunchInPayload) {
+    setChangeStatusError('')
+    setChangingStatus(true)
+    const result = await updatePunchCategory({
+      category: payload.category,
+      visitCustomerName: payload.visitCustomerName,
+      visitSiteAddress: payload.visitSiteAddress,
+      visitPurpose: payload.visitPurpose,
+    })
+    setChangingStatus(false)
+    if (result.error) { setChangeStatusError(result.error); return }
+    setShowChangeStatus(false)
+    router.refresh()
+  }
+
   async function submitPunchIn(payload: PunchInPayload) {
     setPunchInError('')
     setPunchingIn(true)
@@ -381,6 +403,15 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
       <PunchInModal open={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={punchingIn} error={punchInError} />
+      <PunchInModal
+        open={showChangeStatus}
+        onCancel={() => setShowChangeStatus(false)}
+        onConfirm={submitChangeStatus}
+        submitting={changingStatus}
+        error={changeStatusError}
+        title="Change your status"
+        subtitle="Update what you're doing today."
+      />
       {showStatusModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,20,0.55)', zIndex: 51, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: 20, width: '100%', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)' }}>
@@ -813,6 +844,34 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
               {clickable && (
                 <svg width="14" height="14" fill="none" stroke={cfg.color} strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
               )}
+            </button>
+          )
+        })()}
+
+        {/* Once punched in, show today's work status (from the punch-in category) and
+            let the engineer change it. Hidden entirely before punch-in. */}
+        {(() => {
+          const s = effectiveAttendanceStatus
+          if (s.kind !== 'present' && s.kind !== 'leave') return null
+          if (!s.markedAt || !s.punchCategory) return null
+          const m = categoryMeta(s.punchCategory)
+          if (!m) return null
+          return (
+            <button
+              className="mtap"
+              onClick={() => { setChangeStatusError(''); setShowChangeStatus(true) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+                marginBottom: 12, padding: '11px 14px', borderRadius: 12, border: 'none',
+                background: m.bg, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', textAlign: 'left',
+              }}
+            >
+              <span style={{ width: 30, height: 30, borderRadius: 9, background: m.ac, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{m.tag[0]}</span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: m.tx, textTransform: 'uppercase', letterSpacing: 0.6 }}>Status</span>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: m.tx, marginTop: 1 }}>{m.label}</span>
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: m.tx }}>Change ›</span>
             </button>
           )
         })()}

@@ -16,6 +16,7 @@ import type {
   NearbyEngineersResponse,
   AttendanceCalendarResponse, AttendanceStatusResponse, MarkAttendanceVariables, MarkAttendanceResponse,
   MarkEndDayVariables, MarkEndDayResponse, MarkDayOffVariables, MarkDayOffResponse, RequestAmendmentVariables, RequestAmendmentResponse,
+  UpdatePunchCategoryVariables, UpdatePunchCategoryResponse,
   CustomersResponse, TransformersResponse, CreateCustomerVariables, CreateNotificationVariables, CreateEntityResponse,
   DepartmentCountsResponse, DepartmentJobsResponse,
   MyAnalyticsResponse, MyAnalyticsDrilldownResponse, AnalyticsMetric,
@@ -255,6 +256,20 @@ export function useMarkAttendance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (variables: MarkAttendanceVariables) => apiPost<MarkAttendanceResponse>('/api/mobile/v1/attendance', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+    },
+  });
+}
+
+// Change today's punch-in work category after punching in (the dashboard status chip).
+// Does not touch punch-in time or status — only the category + visit details.
+export function useUpdatePunchCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: UpdatePunchCategoryVariables) => apiPost<UpdatePunchCategoryResponse>('/api/mobile/v1/attendance/punch-category', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });

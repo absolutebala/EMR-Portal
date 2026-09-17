@@ -13,12 +13,14 @@ export interface PunchInPayload {
 // Punch-in flow (PWA): pick a top-level category; Travel / Site Visit then pick a
 // sub-type; every category except HQ then fills the mandatory visit details before the
 // actual GPS check-in the parent runs. HQ confirms straight away.
-export default function PunchInModal({ open, onCancel, onConfirm, submitting, error }: {
+export default function PunchInModal({ open, onCancel, onConfirm, submitting, error, title, subtitle }: {
   open: boolean
   onCancel: () => void
   onConfirm: (p: PunchInPayload) => void
   submitting: boolean
   error: string
+  title?: string
+  subtitle?: string
 }) {
   const [step, setStep] = useState<'top' | 'sub' | 'details'>('top')
   const [top, setTop] = useState<TopCategory | null>(null)
@@ -59,8 +61,8 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
 
         {step === 'top' && (
           <>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#1C0D14' }}>What are you doing today?</div>
-            <div style={{ fontSize: 12, color: '#7A6870', margin: '3px 0 14px' }}>Choose one to continue punching in.</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#1C0D14' }}>{title ?? 'What are you doing today?'}</div>
+            <div style={{ fontSize: 12, color: '#7A6870', margin: '3px 0 14px' }}>{subtitle ?? 'Choose one to continue punching in.'}</div>
             {TOP_OPTIONS.map(o => {
               const m = o.directCategory ? categoryMeta(o.directCategory) : null
               const chipBg = m?.bg ?? '#EEF0F2'
