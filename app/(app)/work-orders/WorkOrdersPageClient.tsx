@@ -408,15 +408,18 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                         {wo.customer_phone && <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 1 }}>{wo.customer_phone}</div>}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--m)', whiteSpace: 'nowrap' }}>{wo.wo_number}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', width: 156, minWidth: 156, maxWidth: 156 }}>
-                        {/* Fixed-width wrapping container — in this auto-layout table a
-                            maxWidth on the <td> alone isn't honored, so long serial lists
-                            spill into the next column. Pin an explicit width on both the
-                            cell and the flex container so the chips wrap instead. */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, width: 132, minWidth: 132, maxWidth: 132 }}>
-                          {(wo.serial_numbers || []).map(sn => (
-                            <span key={sn} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--gl)', border: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{sn}</span>
-                          ))}
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', width: 150, minWidth: 150, maxWidth: 150 }}>
+                        {/* Plain wrapping text rather than flex chips: each serial is
+                            whiteSpace:nowrap as a flex item, giving the flex container an
+                            un-shrinkable min-width that spills into the next column in this
+                            auto-layout table. Comma-separated text with overflowWrap always
+                            wraps to the column width and can't overflow sideways. */}
+                        <div style={{ width: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
+                          {(wo.serial_numbers || []).length
+                            ? (wo.serial_numbers || []).map(sn => (
+                                <span key={sn} style={{ display: 'inline-block', fontSize: 10, padding: '1px 6px', marginRight: 4, marginBottom: 3, borderRadius: 4, background: 'var(--gl)', border: '1px solid var(--gm)' }}>{sn}</span>
+                              ))
+                            : '—'}
                         </div>
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', whiteSpace: 'nowrap' }}>{JOB_LABELS[wo.job_type] || wo.job_type}</td>
