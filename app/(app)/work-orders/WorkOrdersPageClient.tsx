@@ -408,11 +408,12 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
                         {wo.customer_phone && <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 1 }}>{wo.customer_phone}</div>}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--m)', whiteSpace: 'nowrap' }}>{wo.wo_number}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', width: 160 }}>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--tx)', width: 156, minWidth: 156, maxWidth: 156 }}>
                         {/* Fixed-width wrapping container — in this auto-layout table a
-                            maxWidth on the <td> isn't honored, so long serial lists spill
-                            into the next column. An explicit width forces the chips to wrap. */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, width: 150 }}>
+                            maxWidth on the <td> alone isn't honored, so long serial lists
+                            spill into the next column. Pin an explicit width on both the
+                            cell and the flex container so the chips wrap instead. */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, width: 132, minWidth: 132, maxWidth: 132 }}>
                           {(wo.serial_numbers || []).map(sn => (
                             <span key={sn} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--gl)', border: '1px solid var(--gm)', whiteSpace: 'nowrap' }}>{sn}</span>
                           ))}
