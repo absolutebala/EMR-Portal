@@ -349,26 +349,43 @@ export default function JobDetailClient({ detail }: Props) {
             No forms available yet
           </div>
         ) : detail.availableForms.map(f => (
-          <button
-            key={f.id}
-            className="mtap"
-            onClick={() => router.push(`/mobile/work-orders/${wo.id}/form?formId=${f.id}`)}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%',
-              padding: '11px 12px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
-              cursor: 'pointer', marginTop: 8, fontFamily: 'Poppins, sans-serif', textAlign: 'left',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, fontSize: 12.5, fontWeight: 600, color: '#1C0D14' }}>
-              <svg width="13" height="13" fill="none" stroke="#7D1D3F" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              </svg>
-              {f.name}
-            </span>
-            {f.submitted
-              ? <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>Submitted</span>
-              : <span style={{ fontSize: 18, color: '#B5A9AF', lineHeight: 1 }}>›</span>}
-          </button>
+          <div key={f.id}>
+            <button
+              className="mtap"
+              onClick={() => router.push(`/mobile/work-orders/${wo.id}/form?formId=${f.id}`)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%',
+                padding: '11px 12px', borderRadius: 8, border: '1px solid #E5E0E3', background: '#F8F5F6',
+                cursor: 'pointer', marginTop: 8, fontFamily: 'Poppins, sans-serif', textAlign: 'left',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, fontSize: 12.5, fontWeight: 600, color: '#1C0D14' }}>
+                <svg width="13" height="13" fill="none" stroke="#7D1D3F" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                </svg>
+                {f.name}
+              </span>
+              {f.submitted
+                ? <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>Submitted</span>
+                : <span style={{ fontSize: 18, color: '#B5A9AF', lineHeight: 1 }}>›</span>}
+            </button>
+            {f.submitted && (f.pdfUrl || f.wordUrl) && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 6, marginLeft: 4 }}>
+                {!!f.pdfUrl && (
+                  <a href={f.pdfUrl} target="_blank" rel="noopener noreferrer" className="mtap"
+                    style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', border: '1px solid #7D1D3F', borderRadius: 8, padding: '7px 12px', textDecoration: 'none', fontFamily: 'Poppins, sans-serif' }}>
+                    ⬇ PDF
+                  </a>
+                )}
+                {!!f.wordUrl && (
+                  <a href={f.wordUrl} target="_blank" rel="noopener noreferrer" className="mtap"
+                    style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', border: '1px solid #7D1D3F', borderRadius: 8, padding: '7px 12px', textDecoration: 'none', fontFamily: 'Poppins, sans-serif' }}>
+                    ⬇ Word
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         )))}
       </div>
 

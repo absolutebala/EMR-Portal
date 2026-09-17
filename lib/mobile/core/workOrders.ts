@@ -130,7 +130,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       // submission" must mean "has MY submission," not "does anyone have one."
       // form_id (not just existence) is needed to mark which of the available forms
       // this engineer has already submitted for this notification.
-      admin.from('form_submissions').select('form_id').eq('work_order_id', woId).eq('submitted_by', userId),
+      admin.from('form_submissions').select('form_id, pdf_url, word_url').eq('work_order_id', woId).eq('submitted_by', userId),
       admin.from('work_order_daily_closures')
         .select('outcome, created_at, revisit_date, needs_reassignment, summary, pending_reason, materials_required, engineer_id')
         .eq('work_order_id', woId)
@@ -197,12 +197,19 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       materialsRequired: closureRow.materials_required,
     } : null
 
-    const mySubmittedFormIds = new Set(((submission as { form_id: string }[]) || []).map(s => s.form_id))
-    const availableForms = ((activeForms as { id: string; name: string }[]) || []).map(f => ({
-      id: f.id,
-      name: f.name,
-      submitted: mySubmittedFormIds.has(f.id),
-    }))
+    const mySubmissions = (submission as { form_id: string; pdf_url: string | null; word_url: string | null }[]) || []
+    const submissionByFormId = new Map(mySubmissions.map(s => [s.form_id, s]))
+    const availableForms = ((activeForms as { id: string; name: string }[]) || []).map(f => {
+      const sub = submissionByFormId.get(f.id)
+      return {
+        id: f.id,
+        name: f.name,
+        submitted: !!sub,
+        // The engineer's own submitted report, downloadable from the notification detail.
+        pdfUrl: sub?.pdf_url ?? null,
+        wordUrl: sub?.word_url ?? null,
+      }
+    })
 
     const checkedInToday = !!lastCheckinAt && new Date(lastCheckinAt).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
     const hasCheckedIn = checkedInToday && (!latestClosure || new Date(lastCheckinAt!) > new Date(latestClosure.created_at))
@@ -222,7 +229,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         workOrder,
         hasCheckedIn,
         lastCheckinAt,
-        hasFormSubmission: mySubmittedFormIds.size > 0,
+        hasFormSubmission: mySubmissions.length > 0,
         latestClosure,
         handoverFromOtherEngineer,
         handoverEngineerHasFormSubmission,

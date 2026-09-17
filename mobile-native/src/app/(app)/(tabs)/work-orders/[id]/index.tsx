@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useWorkOrderDetail, useSubmitCheckIn, reverseGeocode } from '@/lib/hooks';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
@@ -184,16 +184,31 @@ export default function WorkOrderDetailScreen() {
             </View>
           ) : (
             availableForms.map(f => (
-              <Pressable
-                key={f.id}
-                style={styles.formButton}
-                onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form?formId=${f.id}`)}
-              >
-                <Text style={styles.formButtonText} numberOfLines={2}>{f.name}</Text>
-                {f.submitted
-                  ? <Text style={styles.formSubmittedBadge}>Submitted</Text>
-                  : <Text style={styles.formButtonChevron}>›</Text>}
-              </Pressable>
+              <View key={f.id}>
+                <Pressable
+                  style={styles.formButton}
+                  onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/form?formId=${f.id}`)}
+                >
+                  <Text style={styles.formButtonText} numberOfLines={2}>{f.name}</Text>
+                  {f.submitted
+                    ? <Text style={styles.formSubmittedBadge}>Submitted</Text>
+                    : <Text style={styles.formButtonChevron}>›</Text>}
+                </Pressable>
+                {f.submitted && (f.pdfUrl || f.wordUrl) && (
+                  <View style={styles.formDownloadRow}>
+                    {!!f.pdfUrl && (
+                      <Pressable style={styles.formDownloadBtn} onPress={() => Linking.openURL(f.pdfUrl!)}>
+                        <Text style={styles.formDownloadText}>⬇ PDF</Text>
+                      </Pressable>
+                    )}
+                    {!!f.wordUrl && (
+                      <Pressable style={styles.formDownloadBtn} onPress={() => Linking.openURL(f.wordUrl!)}>
+                        <Text style={styles.formDownloadText}>⬇ Word</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </View>
             ))
           )
         )}
@@ -382,6 +397,9 @@ const styles = StyleSheet.create({
   formButtonText: { flex: 1, fontSize: 12.5, color: '#1C0D14', fontWeight: '600' },
   formButtonChevron: { fontSize: 20, color: '#B5A9AF', fontWeight: '400', lineHeight: 20 },
   formSubmittedBadge: { fontSize: 10, fontWeight: '700', color: '#166534', backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
+  formDownloadRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginLeft: 4 },
+  formDownloadBtn: { borderWidth: 1, borderColor: '#7D1D3F', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12 },
+  formDownloadText: { fontSize: 11, fontWeight: '700', color: '#7D1D3F' },
 
   card: { backgroundColor: '#fff', borderRadius: 13, padding: 14, margin: 16, marginBottom: 0 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: '#1C0D14', marginBottom: 8 },
