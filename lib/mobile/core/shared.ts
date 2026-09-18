@@ -338,7 +338,7 @@ export interface MobileWorkOrderDetail {
   // fill for this notification. `submitted` = this engineer already submitted that
   // form for this notification. Newly-activated forms appear here automatically.
   availableForms: { id: string; name: string; submitted: boolean; pdfUrl: string | null; wordUrl: string | null }[]
-  previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
+  previousVisits: { id: string; wo_number: string; job_type: string; scheduled_date: string | null; status: string }[]
   // Serial numbers the viewing engineer is specifically responsible for, from
   // work_order_engineer_assignments — null means "whole notification, no split"
   // (the primary engineer with no carve-outs against them, or an additional

@@ -157,7 +157,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
     // "Previous visits" is history for the same equipment (serial number), not the
     // customer as a whole.
     const transformerIds = [...new Set((currentWotRows || []).map(r => r.transformer_id))]
-    let previous: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[] = []
+    let previous: { id: string; wo_number: string; job_type: string; scheduled_date: string | null; status: string }[] = []
     if (transformerIds.length) {
       const { data: relatedWotRows } = await admin
         .from('work_order_transformers')
@@ -168,7 +168,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       if (relatedWoIds.length) {
         const { data: relatedWos } = await admin
           .from('work_orders')
-          .select('wo_number, job_type, scheduled_date, status')
+          .select('id, wo_number, job_type, scheduled_date, status')
           .in('id', relatedWoIds)
           .order('scheduled_date', { ascending: false })
           .limit(5)

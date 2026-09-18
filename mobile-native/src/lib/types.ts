@@ -98,7 +98,7 @@ export interface MobileWorkOrderDetail {
   // Every active form (across all job types) — the engineer picks any one to fill
   // for this notification. `submitted` = this engineer already submitted it here.
   availableForms: { id: string; name: string; submitted: boolean; pdfUrl: string | null; wordUrl: string | null }[];
-  previousVisits: { wo_number: string; job_type: string; scheduled_date: string | null; status: string }[];
+  previousVisits: { id: string; wo_number: string; job_type: string; scheduled_date: string | null; status: string }[];
   // Which serials this engineer is scoped to when the notification covers 2+
   // transformers and they're an additional (non-primary) assignee — null when
   // not applicable (primary engineer, or a single-transformer job).

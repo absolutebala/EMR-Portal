@@ -302,12 +302,15 @@ export default function WorkOrderDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Previous visits</Text>
           {detail.previousVisits.map((v, i) => (
-            <View key={i} style={styles.visitRow}>
-              <Text style={styles.visitJobType}>{JOB_TYPE_LABELS[v.job_type] || v.job_type}</Text>
-              <Text style={styles.visitMeta}>
-                {v.wo_number} · {formatDate(v.scheduled_date)} · {STATUS_CONFIG[v.status]?.label || v.status}
-              </Text>
-            </View>
+            <Pressable key={v.id} style={styles.visitRow} onPress={() => router.push(`/(app)/(tabs)/work-orders/${v.id}`)}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.visitJobType}>{JOB_TYPE_LABELS[v.job_type] || v.job_type}</Text>
+                <Text style={styles.visitMeta}>
+                  {v.wo_number} · {formatDate(v.scheduled_date)} · {STATUS_CONFIG[v.status]?.label || v.status}
+                </Text>
+              </View>
+              <Text style={styles.visitChevron}>›</Text>
+            </Pressable>
           ))}
         </View>
       )}
@@ -426,7 +429,8 @@ const styles = StyleSheet.create({
   transformerMetaRow: { flexDirection: 'row', gap: 16 },
   transformerMeta: { fontSize: 11, color: '#7A6870' },
 
-  visitRow: { backgroundColor: '#F8F5F6', borderRadius: 8, padding: 10, marginBottom: 6 },
+  visitRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8F5F6', borderRadius: 8, padding: 10, marginBottom: 6 },
   visitJobType: { fontSize: 12, fontWeight: '500', color: '#1C0D14' },
   visitMeta: { fontSize: 10, color: '#7A6870', marginTop: 2 },
+  visitChevron: { fontSize: 18, color: '#B5A9AF', lineHeight: 18 },
 });

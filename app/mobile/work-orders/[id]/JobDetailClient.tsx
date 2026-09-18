@@ -508,12 +508,16 @@ export default function JobDetailClient({ detail }: Props) {
           <div style={{ background: '#fff', borderRadius: 13, padding: 13, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 10 }}>Previous visits</p>
             {detail.previousVisits.map((v, i) => (
-              <div key={i} style={{ background: '#F8F5F6', borderRadius: 8, padding: '8px 10px', marginBottom: i < detail.previousVisits.length - 1 ? 6 : 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#1C0D14' }}>{JOB_TYPE_LABELS[v.job_type] || v.job_type}</div>
-                <div style={{ fontSize: 10, color: '#7A6870', marginTop: 2 }}>
-                  {v.wo_number} · {formatDate(v.scheduled_date)} · {STATUS_CONFIG[v.status]?.label || v.status}
-                </div>
-              </div>
+              <button key={v.id} className="mtap" onClick={() => router.push(`/mobile/work-orders/${v.id}`)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', background: '#F8F5F6', borderRadius: 8, padding: '8px 10px', marginBottom: i < detail.previousVisits.length - 1 ? 6 : 0, fontFamily: 'Poppins, sans-serif' }}>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#1C0D14' }}>{JOB_TYPE_LABELS[v.job_type] || v.job_type}</span>
+                  <span style={{ display: 'block', fontSize: 10, color: '#7A6870', marginTop: 2 }}>
+                    {v.wo_number} · {formatDate(v.scheduled_date)} · {STATUS_CONFIG[v.status]?.label || v.status}
+                  </span>
+                </span>
+                <span style={{ fontSize: 16, color: '#B5A9AF', lineHeight: 1 }}>›</span>
+              </button>
             ))}
           </div>
         )}
