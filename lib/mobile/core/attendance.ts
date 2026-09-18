@@ -242,12 +242,19 @@ export function computeEffectiveStatus(params: {
   // Approved leave with no punch-in reads "On Leave". (A punch-in on a leave day was
   // already handled above — the row wins, so a site visit during leave shows Site
   // Visit/Travel for that date.)
-  if (onApprovedLeave) return { kind: 'off', name: 'On Leave', approvedLeave: true }
+  //
+  // IMPORTANT — backward-compat: return the existing 'holiday' kind (not a new 'off'
+  // kind) so that older installed apps, which don't know 'off', render this gracefully
+  // as "Holiday: <name>" instead of crashing (they read status.kind through an
+  // exhaustive switch with no 'off' case). 'holiday' has the same "non-working, not
+  // absent" semantics we want for a weekly off / approved leave, and still permits
+  // punch-in (canPunchIn includes the holiday kind). See [[project_mobile_backcompat]].
+  if (onApprovedLeave) return { kind: 'holiday', name: 'On Leave' }
 
   // A Sunday with no scheduled notification (and no punch-in) is the automatic Weekly
   // Off. A Sunday that DOES have a scheduled notification falls through to the normal
   // working-day path below (Absent if the engineer never punches in).
-  if (isSunday && !hasScheduledNotification) return { kind: 'off', name: 'Weekly Off', approvedLeave: false }
+  if (isSunday && !hasScheduledNotification) return { kind: 'holiday', name: 'Weekly Off' }
 
   const absentNoShow = (): AttendanceEffectiveStatus => ({
     kind: 'leave', reason: null, pendingApproval: false, rejected: false, amended: false,
