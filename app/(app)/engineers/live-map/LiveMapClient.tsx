@@ -66,16 +66,18 @@ function formatScheduledDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// "Today" / "Tomorrow" for a scheduled date (compared on the IST calendar day), else the
-// formatted date — the prefix each Next-notification line leads with.
-function scheduledDayPrefix(dateStr: string | null): string {
-  if (!dateStr) return 'Not scheduled'
+// The prefix each assigned-notification line leads with: "Past due" for anything before
+// today, "Today"/"Tomorrow" for the next two days, else the formatted date. `urgent`
+// (past due or today) drives the red highlight.
+function scheduledDayPrefix(dateStr: string | null): { label: string; urgent: boolean } {
+  if (!dateStr) return { label: 'Not scheduled', urgent: false }
   const todayStr = new Date().toLocaleDateString('en-CA')
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toLocaleDateString('en-CA')
-  if (dateStr === todayStr) return 'Today'
-  if (dateStr === tomorrowStr) return 'Tomorrow'
-  return formatScheduledDate(dateStr)
+  if (dateStr < todayStr) return { label: `Past due · ${formatScheduledDate(dateStr)}`, urgent: true }
+  if (dateStr === todayStr) return { label: 'Today', urgent: true }
+  if (dateStr === tomorrowStr) return { label: 'Tomorrow', urgent: false }
+  return { label: formatScheduledDate(dateStr), urgent: false }
 }
 
 interface Props {
@@ -203,13 +205,16 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                           // One blank line of separation, then every upcoming notification —
                           // each led with Today / Tomorrow / date, then WO# and customer.
                           <div style={{ marginTop: 10, borderTop: '1px solid var(--gl)', paddingTop: 6 }}>
-                            <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Next notifications</div>
-                            {e.nextNotifications.map(n => (
-                              <div key={n.woNumber} style={{ fontSize: 10, color: 'var(--tx)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontWeight: 600, color: scheduledDayPrefix(n.scheduledDate) === 'Today' ? '#B0483C' : 'var(--txm)' }}>{scheduledDayPrefix(n.scheduledDate)}:</span>{' '}
-                                {n.woNumber}{n.customerName ? ` · ${n.customerName}` : ''}
-                              </div>
-                            ))}
+                            <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Assigned notifications</div>
+                            {e.nextNotifications.map(n => {
+                              const p = scheduledDayPrefix(n.scheduledDate)
+                              return (
+                                <div key={n.woNumber} style={{ fontSize: 10, color: 'var(--tx)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontWeight: 600, color: p.urgent ? '#B0483C' : 'var(--txm)' }}>{p.label}:</span>{' '}
+                                  {n.woNumber}{n.customerName ? ` · ${n.customerName}` : ''}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
