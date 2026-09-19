@@ -399,11 +399,17 @@ async function buildVisitDocs(
   type WotRow = { transformers: { serial_number: string } | null }
   const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
 
-  let sections: { title: string; fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]; tables: { rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
+  let formName = ''
+  {
+    const formRes = await withTimeout(admin.from('forms').select('name').eq('id', formId).single(), 8000)
+    formName = formRes?.data?.name || ''
+  }
+
+  let sections: { title: string; fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]; tables: { statusType: string; col1Label: string | null; col2Label: string | null; rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
   {
     const secsResult = await withTimeout(
       admin.from('form_sections')
-        .select('title, order_index, form_fields(id, label, field_type, repeatable, order_index), form_tables(order_index, form_table_rows(id, row_label, sno_label, order_index))')
+        .select('title, order_index, form_fields(id, label, field_type, repeatable, order_index), form_tables(order_index, status_type, col1_label, col2_label, form_table_rows(id, row_label, sno_label, order_index))')
         .eq('form_id', formId)
         .order('order_index'),
       8000
@@ -413,17 +419,23 @@ async function buildVisitDocs(
     type SectionEmbed = {
       title: string; order_index: number
       form_fields: { id: string; label: string; field_type: string; repeatable?: boolean; order_index: number }[]
-      form_tables: { order_index: number; form_table_rows: { id: string; row_label: string; sno_label: string | null; order_index: number }[] }[]
+      form_tables: { order_index: number; status_type: string; col1_label: string | null; col2_label: string | null; form_table_rows: { id: string; row_label: string; sno_label: string | null; order_index: number }[] }[]
     }
     const byOrder = <T extends { order_index: number }>(a: T, b: T) => a.order_index - b.order_index
     sections = ((secs as unknown as SectionEmbed[]) || []).slice().sort(byOrder).map(s => ({
       title: s.title,
       fields: (s.form_fields || []).slice().sort(byOrder),
-      tables: (s.form_tables || []).slice().sort(byOrder).map(t => ({ rows: (t.form_table_rows || []).slice().sort(byOrder) })),
+      tables: (s.form_tables || []).slice().sort(byOrder).map(t => ({
+        statusType: t.status_type,
+        col1Label: t.col1_label,
+        col2Label: t.col2_label,
+        rows: (t.form_table_rows || []).slice().sort(byOrder),
+      })),
     }))
   }
 
   const docParams = {
+    formName,
     woNumber: wo.wo_number,
     jobType: wo.job_type,
     customerName: customer?.name || '',
