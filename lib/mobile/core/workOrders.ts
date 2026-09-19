@@ -3,6 +3,7 @@ import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
+import { generateOltcMomPdf, generateOltcMomWord } from '@/lib/mobile/generateOltcMomDoc'
 import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
   type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
@@ -451,9 +452,14 @@ async function buildVisitDocs(
   }
   const stamp = Date.now()
 
+  // The OLTC Service MOM report has a bespoke paper template (EMR Tap Changers
+  // letterhead, framed detail grid, CUSTOMER/EMR sign-off table) — render it with the
+  // dedicated generator; every other form uses the generic structured renderer.
+  const isOltcMom = /oltc/i.test(formName) && /mom/i.test(formName)
+
   let pdfUrl: string | null = null
   try {
-    const pdfBuffer = await generateVisitPdf(docParams)
+    const pdfBuffer = isOltcMom ? await generateOltcMomPdf(docParams) : await generateVisitPdf(docParams)
     const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
     pdfUrl = await withTimeout(uploadAsset(path, pdfBuffer, 'application/pdf'), 12000)
   } catch (e) {
@@ -462,7 +468,7 @@ async function buildVisitDocs(
 
   let wordUrl: string | null = null
   try {
-    const wordBuffer = await generateVisitWord(docParams)
+    const wordBuffer = isOltcMom ? await generateOltcMomWord(docParams) : await generateVisitWord(docParams)
     const path = `visit-docs/${workOrderId}-${stamp}.docx`
     wordUrl = await withTimeout(uploadAsset(path, wordBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 12000)
   } catch (e) {
