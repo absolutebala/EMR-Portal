@@ -56,10 +56,18 @@ function resolveDisplayStatus(params: {
 }): EngineerStatus {
   const { rawStatus, statusUpdatedAt, presentToday, istTodayStr, offline, reachedAtProject, punchToken } = params
   if (offline) return 'unavailable'
-  if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'completed' || rawStatus === 'on_leave') return rawStatus
-  if (rawStatus === 'reached') return reachedAtProject ? 'reached' : 'available'
+  // Movement statuses (on the way / travelling / reached / completed) reflect a live,
+  // same-day activity — a status set on a previous day (e.g. "Reached project" left over
+  // from yesterday evening) is stale and must not carry into today. Only honour it when
+  // it was set today (IST); otherwise fall through to the punch/present-based resolution.
+  const statusSetToday = statusUpdatedAt != null && getISTDateStr(new Date(statusUpdatedAt)) === istTodayStr
+  if (rawStatus === 'on_leave') return 'on_leave'
+  if (statusSetToday) {
+    if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'completed') return rawStatus
+    if (rawStatus === 'reached') return reachedAtProject ? 'reached' : 'available'
+  }
   if (punchToken) return punchToken
-  const setAvailableToday = rawStatus === 'available' && statusUpdatedAt != null && getISTDateStr(new Date(statusUpdatedAt)) === istTodayStr
+  const setAvailableToday = rawStatus === 'available' && statusSetToday
   return presentToday || setAvailableToday ? 'available' : 'unavailable'
 }
 
