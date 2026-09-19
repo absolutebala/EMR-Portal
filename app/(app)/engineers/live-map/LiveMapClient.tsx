@@ -118,7 +118,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
         )}
 
         <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14, flexShrink: 0 }}>
-          Last-known position per engineer — updates automatically. Not a continuous live feed; positions refresh whenever an engineer opens the app or checks in. Every field engineer is listed below regardless of status; only those with a recorded location can be pinned on the map.
+          Last-known position per engineer — updates automatically. Not a continuous live feed; positions refresh whenever an engineer opens the app or checks in. Every field engineer is listed below regardless of status; a pin appears on the map only while a position is recent (within 24 hours) — older locations drop off the map but stay in the list.
         </div>
 
         {/* Map and engineer list are two separate boxes side by side (with a gap), each
@@ -156,12 +156,16 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                   {group.map(e => {
                     const cfg = STATUS_CFG[e.status] || STATUS_CFG.available
                     const hasLocation = e.lastSeen?.lat != null && e.lastSeen?.lng != null
+                    // Only fresh (<24h) positions are pinned on the map, so only those are
+                    // clickable-to-focus. Stale-but-recorded locations still show their
+                    // place + "last seen" text, they're just not tied to a pin.
+                    const isPinned = hasLocation && !!e.lastSeen?.fresh
                     return (
                       <div
                         key={e.id}
-                        onClick={() => hasLocation && setSelectedId(e.id)}
+                        onClick={() => isPinned && setSelectedId(e.id)}
                         style={{
-                          padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: hasLocation ? 'pointer' : 'default',
+                          padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: isPinned ? 'pointer' : 'default',
                           background: selectedId === e.id ? 'var(--mp)' : 'transparent',
                         }}
                       >
@@ -173,8 +177,8 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                           {hasLocation ? (e.lastSeen!.placeName || 'Location unavailable') : 'No location on file yet'}
                         </div>
                         {hasLocation && (
-                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>
-                            Last seen {formatRelativeTime(e.lastSeen!.at)}
+                          <div style={{ fontSize: 10, color: isPinned ? 'var(--txm)' : '#B0483C', marginTop: 1 }}>
+                            Last seen {formatRelativeTime(e.lastSeen!.at)}{!isPinned ? ' · not on map' : ''}
                           </div>
                         )}
                         {e.nextAssigned && (

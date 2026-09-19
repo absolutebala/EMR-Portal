@@ -41,7 +41,7 @@ export interface FieldEngineerOverview {
   // check-in — both are just "where was this engineer last known to be". lat/lng are
   // null on the rare fallback branch (last_active_at heartbeat with no GPS-tagged
   // signal at all — e.g. location permission was denied).
-  lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null } | null
+  lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null; fresh: boolean } | null
   // The check-in immediately before the one lastSeen is based on (e.g. the previous
   // job site) — null if there's no earlier check-in on record. Shown on the Live Map
   // pin alongside the current position, purely informational (not rendered as its
@@ -178,22 +178,25 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
 
       const checkin = latestCheckinByEng[p.id]
       const pingAt = p.last_seen_at
-      let lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null } | null = null
+      let lastSeen: { placeName: string | null; at: string; lat: number | null; lng: number | null; fresh: boolean } | null = null
+      // Computed once here (server time) so the Live Map can decide freshness purely on
+      // read without calling Date.now() during client render. Set per branch below.
+      const markFresh = <T extends { at: string }>(v: T) => ({ ...v, fresh: Date.now() - new Date(v.at).getTime() <= 24 * 60 * 60 * 1000 })
       if (checkin && pingAt) {
-        lastSeen = new Date(pingAt) > new Date(checkin.checkedInAt)
+        lastSeen = markFresh(new Date(pingAt) > new Date(checkin.checkedInAt)
           ? { placeName: p.last_seen_place_label, at: pingAt, lat: p.last_seen_lat, lng: p.last_seen_lng }
-          : { placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng }
+          : { placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng })
       } else if (checkin) {
-        lastSeen = { placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng }
+        lastSeen = markFresh({ placeName: checkin.placeName, at: checkin.checkedInAt, lat: checkin.lat, lng: checkin.lng })
       } else if (pingAt) {
-        lastSeen = { placeName: p.last_seen_place_label, at: pingAt, lat: p.last_seen_lat, lng: p.last_seen_lng }
+        lastSeen = markFresh({ placeName: p.last_seen_place_label, at: pingAt, lat: p.last_seen_lat, lng: p.last_seen_lng })
       } else if (p.last_active_at) {
         // No check-in and no GPS-tagged ping (e.g. location permission was denied),
         // but the app-usage heartbeat still shows they were recently active — surface
         // that rather than showing "No location yet" for someone who clearly opened
         // the app today (this is the same last_active_at the Users page's Last Login
         // column falls back to, so the two should never visibly contradict each other).
-        lastSeen = { placeName: null, at: p.last_active_at, lat: null, lng: null }
+        lastSeen = markFresh({ placeName: null, at: p.last_active_at, lat: null, lng: null })
       }
 
       // First earlier check-in (after the latest one already used above) that has

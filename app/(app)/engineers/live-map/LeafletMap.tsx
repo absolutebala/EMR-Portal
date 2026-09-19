@@ -135,6 +135,10 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
   const rawPoints = engineers.flatMap(e => {
     const ls = e.lastSeen
     if (!ls || ls.lat == null || ls.lng == null) return []
+    // A pin only reflects a genuinely recent position — `fresh` (computed server-side,
+    // <24h) drops stale locations off the map. The engineer still shows in the sidebar
+    // list with their "Last seen …" text, just isn't plotted.
+    if (!ls.fresh) return []
     return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
   })
   const points = jitterOverlapping(rawPoints)
