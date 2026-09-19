@@ -42,13 +42,13 @@ function formatAmount(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function KpiCard({ label, value, color }: { label: string; value: string | number; color: string }) {
+function KpiCard({ label, value, color, href }: { label: string; value: string | number; color: string; href: string }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 16, position: 'relative', overflow: 'hidden' }}>
+    <a href={href} className="kpi-link" style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 14, position: 'relative', overflow: 'hidden', display: 'block', height: '100%', boxSizing: 'border-box', textDecoration: 'none', cursor: 'pointer' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color }} />
-      <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--tx)' }}>{value}</div>
-    </div>
+      <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5, lineHeight: 1.3 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--tx)' }}>{value}</div>
+    </a>
   )
 }
 
@@ -103,14 +103,17 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
           Back to field engineers
         </Link>
 
-        {/* KPI row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
-          <KpiCard label="Open notifications" value={openNotifications} color="#D97706" />
-          <KpiCard label="Closed notifications" value={closedNotifications} color="#059669" />
-          <KpiCard label="Total expense requested" value={formatAmount(totalExpenseRequested)} color="#7D1D3F" />
-          <KpiCard label="Pending expense amount" value={formatAmount(pendingExpenseAmount)} color="#D97706" />
-          <KpiCard label="Over policy limit claims" value={overLimitCount} color="#991B1B" />
-          <KpiCard label="Pending product requests" value={pendingProductItems} color="#1D4ED8" />
+        {/* Each card jumps to its matching section further down the page. */}
+        <style>{`.kpi-link{transition:box-shadow .15s ease,transform .15s ease;}.kpi-link:hover{box-shadow:0 4px 12px rgba(0,0,0,.09);transform:translateY(-1px);}`}</style>
+
+        {/* KPI row — all six in a single row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10, marginBottom: 14 }}>
+          <KpiCard label="Open notifications" value={openNotifications} color="#D97706" href="#notifications" />
+          <KpiCard label="Closed notifications" value={closedNotifications} color="#059669" href="#notifications" />
+          <KpiCard label="Total expense requested" value={formatAmount(totalExpenseRequested)} color="#7D1D3F" href="#expenses" />
+          <KpiCard label="Pending expense amount" value={formatAmount(pendingExpenseAmount)} color="#D97706" href="#expenses" />
+          <KpiCard label="Over policy limit claims" value={overLimitCount} color="#991B1B" href="#expenses" />
+          <KpiCard label="Pending product requests" value={pendingProductItems} color="#1D4ED8" href="#products" />
         </div>
 
         {/* Profile card */}
@@ -147,7 +150,7 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
         </div>
 
         {/* Notifications */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14 }}>
+        <div id="notifications" style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', marginBottom: 14, scrollMarginTop: 70 }}>
           <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--gm)', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>Notifications</div>
           {notifications.length === 0 ? (
             <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>No notifications assigned yet.</div>
@@ -183,10 +186,14 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
         </div>
 
         {/* Expenses */}
-        <EngineerExpensesTable expenses={expenses} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
+        <div id="expenses" style={{ scrollMarginTop: 70 }}>
+          <EngineerExpensesTable expenses={expenses} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
+        </div>
 
         {/* Product requests */}
-        <EngineerProductRequestsTable requests={productRequests} canApprove={canApproveRequests} canDispatch={canDispatchRequests} canDeliver={canDeliverRequests} />
+        <div id="products" style={{ scrollMarginTop: 70 }}>
+          <EngineerProductRequestsTable requests={productRequests} canApprove={canApproveRequests} canDispatch={canDispatchRequests} canDeliver={canDeliverRequests} />
+        </div>
       </div>
     </>
   )
