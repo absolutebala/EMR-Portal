@@ -48,6 +48,11 @@ const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; l
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
   reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+  hq: { bg: '#FBEDE2', color: '#9A5B2E', label: 'HQ' },
+  business_dev: { bg: '#E1E6F5', color: '#1E2A6B', label: 'Business Development' },
+  travel: { bg: '#FBE3F1', color: '#9D174D', label: 'Travel' },
+  site_visit: { bg: '#DCFCE7', color: '#166534', label: 'Site Visit' },
+  others: { bg: '#F6F6F7', color: '#4B5563', label: 'Others' },
 }
 
 const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {

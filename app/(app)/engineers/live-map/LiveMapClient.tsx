@@ -29,6 +29,12 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
   reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+  // Today's punch-in category (shown when there's no active job workflow).
+  hq: { bg: '#FBEDE2', color: '#9A5B2E', label: 'HQ' },
+  business_dev: { bg: '#E1E6F5', color: '#1E2A6B', label: 'Business Development' },
+  travel: { bg: '#FBE3F1', color: '#9D174D', label: 'Travel' },
+  site_visit: { bg: '#DCFCE7', color: '#166534', label: 'Site Visit' },
+  others: { bg: '#F6F6F7', color: '#4B5563', label: 'Others' },
 }
 
 const UNKNOWN_LOCATION = 'Unknown location'
@@ -58,6 +64,18 @@ function formatRelativeTime(at: string): string {
 function formatScheduledDate(dateStr: string | null): string {
   if (!dateStr) return 'Not scheduled'
   return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// "Today" / "Tomorrow" for a scheduled date (compared on the IST calendar day), else the
+// formatted date — the prefix each Next-notification line leads with.
+function scheduledDayPrefix(dateStr: string | null): string {
+  if (!dateStr) return 'Not scheduled'
+  const todayStr = new Date().toLocaleDateString('en-CA')
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toLocaleDateString('en-CA')
+  if (dateStr === todayStr) return 'Today'
+  if (dateStr === tomorrowStr) return 'Tomorrow'
+  return formatScheduledDate(dateStr)
 }
 
 interface Props {
@@ -181,9 +199,17 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                             Last seen {formatRelativeTime(e.lastSeen!.at)}{!isPinned ? ' · not on map' : ''}
                           </div>
                         )}
-                        {e.nextAssigned && (
-                          <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Next: {e.nextAssigned.customerName || 'Notification'} — {formatScheduledDate(e.nextAssigned.scheduledDate)}
+                        {e.nextNotifications.length > 0 && (
+                          // One blank line of separation, then every upcoming notification —
+                          // each led with Today / Tomorrow / date, then WO# and customer.
+                          <div style={{ marginTop: 10, borderTop: '1px solid var(--gl)', paddingTop: 6 }}>
+                            <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Next notifications</div>
+                            {e.nextNotifications.map(n => (
+                              <div key={n.woNumber} style={{ fontSize: 10, color: 'var(--tx)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontWeight: 600, color: scheduledDayPrefix(n.scheduledDate) === 'Today' ? '#B0483C' : 'var(--txm)' }}>{scheduledDayPrefix(n.scheduledDate)}:</span>{' '}
+                                {n.woNumber}{n.customerName ? ` · ${n.customerName}` : ''}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>

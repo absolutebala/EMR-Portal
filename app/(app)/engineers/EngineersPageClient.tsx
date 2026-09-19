@@ -19,6 +19,11 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   travelling: { label: 'Travelling', bg: '#EDE9FE', color: '#5B21B6' },
   reached: { label: 'Reached project', bg: '#FEF3C7', color: '#92400E' },
   completed: { label: 'Completed', bg: '#D1FAE5', color: '#065F46' },
+  hq: { label: 'HQ', bg: '#FBEDE2', color: '#9A5B2E' },
+  business_dev: { label: 'Business Development', bg: '#E1E6F5', color: '#1E2A6B' },
+  travel: { label: 'Travel', bg: '#FBE3F1', color: '#9D174D' },
+  site_visit: { label: 'Site Visit', bg: '#DCFCE7', color: '#166534' },
+  others: { label: 'Others', bg: '#F6F6F7', color: '#4B5563' },
 }
 
 function StatusBadge({ status, statusSiteName, statusStartBy, scheduledTodayCustomer }: { status: EngineerStatus; statusSiteName: string | null; statusStartBy: string | null; scheduledTodayCustomer: string | null }) {

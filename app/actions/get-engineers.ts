@@ -9,17 +9,56 @@ import { getISTDateStr } from '@/lib/mobile/core/attendance'
 // 'unavailable' is not a stored value — it's derived at read time for engineers who
 // have no evidence of being on duty today (see resolveDisplayStatus).
 export type EngineerStatus = 'available' | 'unavailable' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
+  | 'hq' | 'business_dev' | 'travel' | 'site_visit' | 'others'
 
-// An engineer reads as "Available" only when there's real evidence they're on duty
-// today: they marked attendance Present today, or they explicitly set their status to
-// Available today. Otherwise the passive/never-set "available" default is shown as
-// "Unavailable", so idle or absent engineers don't misleadingly read as free. The
-// explicit work / leave statuses (on the way / travelling / reached / completed /
-// on leave) always display as themselves.
-function resolveDisplayStatus(rawStatus: string | null, statusUpdatedAt: string | null, presentToday: boolean, istTodayStr: string): EngineerStatus {
-  if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'reached' || rawStatus === 'completed' || rawStatus === 'on_leave') {
-    return rawStatus
-  }
+// No activity at all (app open / check-in / location ping) for this long → the engineer
+// reads as Unavailable regardless of any stale workflow/punch state.
+const OFFLINE_MS = 30 * 60 * 60 * 1000
+// "Reached project" only holds while the engineer is actually near the project site;
+// beyond this they read as Available (they've evidently moved on / weren't there).
+const AT_PROJECT_KM = 2
+
+// Great-circle distance in km (Haversine).
+function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371
+  const dLat = (bLat - aLat) * Math.PI / 180
+  const dLng = (bLng - aLng) * Math.PI / 180
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
+
+// Stored punch_category (e.g. 'travel_recoverable', 'site_nfpfs_installation') → the
+// top-level activity token shown as the Live Map badge.
+function topPunchToken(cat: string | null | undefined): Extract<EngineerStatus, 'hq' | 'business_dev' | 'travel' | 'site_visit' | 'others'> | null {
+  if (!cat) return null
+  if (cat === 'hq') return 'hq'
+  if (cat === 'business_dev') return 'business_dev'
+  if (cat.startsWith('travel')) return 'travel'
+  if (cat.startsWith('site')) return 'site_visit'
+  if (cat === 'others') return 'others'
+  return null
+}
+
+// Badge precedence (per product decision 2026-09-19):
+//   1. Offline > 30h  → Unavailable (overrides everything).
+//   2. Active job workflow → On the way / Travelling / Completed / On leave; and
+//      Reached → stays "Reached" only while near the project site (≤2km), else Available.
+//   3. Punched in today with a category → HQ / Business Dev / Travel / Site Visit / Others.
+//   4. Else → Available (present/explicitly-available today) or Unavailable.
+function resolveDisplayStatus(params: {
+  rawStatus: string | null
+  statusUpdatedAt: string | null
+  presentToday: boolean
+  istTodayStr: string
+  offline: boolean
+  reachedAtProject: boolean
+  punchToken: EngineerStatus | null
+}): EngineerStatus {
+  const { rawStatus, statusUpdatedAt, presentToday, istTodayStr, offline, reachedAtProject, punchToken } = params
+  if (offline) return 'unavailable'
+  if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'completed' || rawStatus === 'on_leave') return rawStatus
+  if (rawStatus === 'reached') return reachedAtProject ? 'reached' : 'available'
+  if (punchToken) return punchToken
   const setAvailableToday = rawStatus === 'available' && statusUpdatedAt != null && getISTDateStr(new Date(statusUpdatedAt)) === istTodayStr
   return presentToday || setAvailableToday ? 'available' : 'unavailable'
 }
@@ -48,6 +87,9 @@ export interface FieldEngineerOverview {
   // own marker).
   previousSeen: { placeName: string | null; at: string; lat: number; lng: number } | null
   nextAssigned: { customerName: string; scheduledDate: string | null; woNumber: string } | null
+  // Every open, scheduled notification the engineer has, earliest first — the Live Map
+  // lists them all (with Today/Tomorrow/date prefixes) rather than only the nearest.
+  nextNotifications: { woNumber: string; scheduledDate: string | null; customerName: string }[]
   openWorkOrders: number
   completedToday: number
   // Customer of an open work order scheduled for today, if any — overrides the
@@ -104,15 +146,17 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         .in('engineer_id', engineerIds)
         .order('checked_in_at', { ascending: false })
         .limit(500),
-      // Who marked attendance Present today (IST) — gates whether the default
-      // "available" status reads as Available vs Unavailable.
+      // Today's attendance rows (IST): drives "present → Available" and the punch
+      // category badge (HQ / Travel / Site Visit / …) for engineers who punched in.
       admin.from('attendance')
-        .select('engineer_id')
+        .select('engineer_id, status, marked_at, punch_category')
         .eq('attendance_date', istTodayStr)
-        .eq('status', 'present')
         .in('engineer_id', engineerIds),
     ])
-    const presentTodayIds = new Set((presentRows || []).map(r => r.engineer_id))
+    const presentTodayIds = new Set((presentRows || []).filter(r => r.status === 'present').map(r => r.engineer_id))
+    // Top-level punch category per engineer for today (only when actually punched in).
+    const punchTokenByEng: Record<string, EngineerStatus | null> = {}
+    ;(presentRows || []).forEach(r => { if (r.marked_at) punchTokenByEng[r.engineer_id] = topPunchToken(r.punch_category) })
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id))]
     const { data: customers } = customerIds.length
@@ -127,14 +171,20 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
     // the customer's own name.
     const statusWoIds = [...new Set(profiles.map(p => p.engineer_status_work_order_id).filter(Boolean))] as string[]
     const { data: statusWotRowsRaw } = statusWoIds.length
-      ? await admin.from('work_order_transformers').select('work_order_id, transformers(customer_sites(site_name))').in('work_order_id', statusWoIds)
+      ? await admin.from('work_order_transformers').select('work_order_id, transformers(customer_sites(site_name, latitude, longitude))').in('work_order_id', statusWoIds)
       : { data: [] }
-    type StatusWotRow = { work_order_id: string; transformers: { customer_sites: { site_name: string } | null } | null }
+    type StatusWotRow = { work_order_id: string; transformers: { customer_sites: { site_name: string; latitude: number | null; longitude: number | null } | null } | null }
     const statusWotRows = (statusWotRowsRaw as unknown as StatusWotRow[]) || []
     const siteNameByWo: Record<string, string> = {}
+    // Project site coordinates for the status work order — used to check whether a
+    // "Reached" engineer is actually still at the project (≤2km) or has moved on.
+    const siteCoordsByWo: Record<string, { lat: number; lng: number }> = {}
     statusWotRows.forEach(r => {
-      const siteName = r.transformers?.customer_sites?.site_name
-      if (siteName && !siteNameByWo[r.work_order_id]) siteNameByWo[r.work_order_id] = siteName
+      const site = r.transformers?.customer_sites
+      if (site?.site_name && !siteNameByWo[r.work_order_id]) siteNameByWo[r.work_order_id] = site.site_name
+      if (site?.latitude != null && site?.longitude != null && !siteCoordsByWo[r.work_order_id]) {
+        siteCoordsByWo[r.work_order_id] = { lat: site.latitude, lng: site.longitude }
+      }
     })
 
     // Checkins per engineer, most recent first (checkins query is already ordered
@@ -207,12 +257,32 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         ? { placeName: earlierCheckin.placeName, at: earlierCheckin.checkedInAt, lat: earlierCheckin.lat!, lng: earlierCheckin.lng! }
         : null
 
+      // No activity at all for >30h → Unavailable (overrides workflow/punch state).
+      const offline = !lastSeen || Date.now() - new Date(lastSeen.at).getTime() > OFFLINE_MS
+
+      // While "reached", the engineer only counts as at the project if their last known
+      // location is within 2km of the project site. If the site has no coordinates on
+      // file, or we have no GPS fix for the engineer, we can't disprove it — keep Reached.
+      let reachedAtProject = true
+      if (p.engineer_status === 'reached') {
+        const siteCoords = p.engineer_status_work_order_id ? siteCoordsByWo[p.engineer_status_work_order_id] : null
+        if (siteCoords && lastSeen?.lat != null && lastSeen?.lng != null) {
+          reachedAtProject = distanceKm(lastSeen.lat, lastSeen.lng, siteCoords.lat, siteCoords.lng) <= AT_PROJECT_KM
+        }
+      }
+
+      // Every open, scheduled notification (earliest first) — the Live Map lists them all.
+      const nextNotifications = theirWOs
+        .filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment' && w.scheduled_date)
+        .sort((a, b) => (a.scheduled_date! < b.scheduled_date! ? -1 : 1))
+        .map(w => ({ woNumber: w.wo_number, scheduledDate: w.scheduled_date, customerName: custMap[w.customer_id] || '' }))
+
       return {
         id: p.id,
         name: `${p.first_name} ${p.last_name}`,
         employee_id: p.employee_id,
         phone: p.phone,
-        status: resolveDisplayStatus(p.engineer_status, p.engineer_status_updated_at, presentTodayIds.has(p.id), istTodayStr),
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday: presentTodayIds.has(p.id), istTodayStr, offline, reachedAtProject, punchToken: punchTokenByEng[p.id] ?? null }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
@@ -220,6 +290,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         lastSeen,
         previousSeen,
         nextAssigned: upcoming ? { customerName: custMap[upcoming.customer_id] || '', scheduledDate: upcoming.scheduled_date, woNumber: upcoming.wo_number } : null,
+        nextNotifications,
         openWorkOrders: theirWOs.filter(w => w.status !== 'completed').length,
         completedToday: theirWOs.filter(w => w.status === 'completed' && w.updated_at && new Date(w.updated_at).toLocaleDateString('en-CA') === todayStr).length,
         scheduledTodayCustomer: scheduledToday ? (custMap[scheduledToday.customer_id] || null) : null,
@@ -330,7 +401,10 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
         grade: p.grade,
         role: p.role,
         managerName,
-        status: resolveDisplayStatus(p.engineer_status, p.engineer_status_updated_at, presentToday, istTodayStr),
+        // This list (Field Engineers table / pickers) keeps the simpler status derivation
+        // — the 30h-offline / project-proximity / punch-category refinements are the Live
+        // Map's concern, where the extra signals are fetched.
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday, istTodayStr, offline: false, reachedAtProject: true, punchToken: null }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
