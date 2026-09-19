@@ -146,17 +146,22 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         .in('engineer_id', engineerIds)
         .order('checked_in_at', { ascending: false })
         .limit(500),
-      // Today's attendance rows (IST): drives "present → Available" and the punch
-      // category badge (HQ / Travel / Site Visit / …) for engineers who punched in.
+      // Today's attendance rows (IST): drives "present → Available", the punch category
+      // badge (HQ / Travel / Site Visit / …), and whether they've punched out (end_day_at).
       admin.from('attendance')
-        .select('engineer_id, status, marked_at, punch_category')
+        .select('engineer_id, status, marked_at, end_day_at, punch_category')
         .eq('attendance_date', istTodayStr)
         .in('engineer_id', engineerIds),
     ])
     const presentTodayIds = new Set((presentRows || []).filter(r => r.status === 'present').map(r => r.engineer_id))
+    // Engineers who have punched out for the day — a "Reached" badge then reverts to Available.
+    const punchedOutTodayIds = new Set((presentRows || []).filter(r => r.end_day_at).map(r => r.engineer_id))
     // Top-level punch category per engineer for today (only when actually punched in).
     const punchTokenByEng: Record<string, EngineerStatus | null> = {}
     ;(presentRows || []).forEach(r => { if (r.marked_at) punchTokenByEng[r.engineer_id] = topPunchToken(r.punch_category) })
+    // IST hour right now — the 2km "left the site" check only kicks in after 6 PM.
+    const nowIstHour = new Date(Date.now() + 5.5 * 60 * 60 * 1000).getUTCHours()
+    const afterSixPmIst = nowIstHour >= 18
 
     const customerIds = [...new Set((wos || []).map(w => w.customer_id))]
     const { data: customers } = customerIds.length
@@ -260,14 +265,21 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
       // No activity at all for >30h → Unavailable (overrides workflow/punch state).
       const offline = !lastSeen || Date.now() - new Date(lastSeen.at).getTime() > OFFLINE_MS
 
-      // While "reached", the engineer only counts as at the project if their last known
-      // location is within 2km of the project site. If the site has no coordinates on
-      // file, or we have no GPS fix for the engineer, we can't disprove it — keep Reached.
+      // "Reached project" reverts to Available once the engineer is clearly done there:
+      //   - they've punched out for the day, OR
+      //   - it's past 6 PM AND their last location is >2km from the project site
+      //     (during the day, moving around / brief trips shouldn't flip it).
+      // If the site has no coordinates on file, or there's no GPS fix, we can't disprove
+      // the 2km case — so only punch-out flips it then.
       let reachedAtProject = true
       if (p.engineer_status === 'reached') {
-        const siteCoords = p.engineer_status_work_order_id ? siteCoordsByWo[p.engineer_status_work_order_id] : null
-        if (siteCoords && lastSeen?.lat != null && lastSeen?.lng != null) {
-          reachedAtProject = distanceKm(lastSeen.lat, lastSeen.lng, siteCoords.lat, siteCoords.lng) <= AT_PROJECT_KM
+        if (punchedOutTodayIds.has(p.id)) {
+          reachedAtProject = false
+        } else if (afterSixPmIst) {
+          const siteCoords = p.engineer_status_work_order_id ? siteCoordsByWo[p.engineer_status_work_order_id] : null
+          if (siteCoords && lastSeen?.lat != null && lastSeen?.lng != null) {
+            reachedAtProject = distanceKm(lastSeen.lat, lastSeen.lng, siteCoords.lat, siteCoords.lng) <= AT_PROJECT_KM
+          }
         }
       }
 
