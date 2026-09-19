@@ -53,8 +53,9 @@ function resolveDisplayStatus(params: {
   offline: boolean
   reachedAtProject: boolean
   punchToken: EngineerStatus | null
+  seenWithin24h: boolean
 }): EngineerStatus {
-  const { rawStatus, statusUpdatedAt, presentToday, istTodayStr, offline, reachedAtProject, punchToken } = params
+  const { rawStatus, statusUpdatedAt, presentToday, istTodayStr, offline, reachedAtProject, punchToken, seenWithin24h } = params
   if (offline) return 'unavailable'
   // Movement statuses (on the way / travelling / reached / completed) reflect a live,
   // same-day activity — a status set on a previous day (e.g. "Reached project" left over
@@ -68,7 +69,11 @@ function resolveDisplayStatus(params: {
   }
   if (punchToken) return punchToken
   const setAvailableToday = rawStatus === 'available' && statusSetToday
-  return presentToday || setAvailableToday ? 'available' : 'unavailable'
+  // Anyone whose location was seen within the last 24h is treated as Available — an
+  // engineer who's clearly online (recent ping) but hasn't explicitly marked attendance
+  // shouldn't read Unavailable. Beyond 24h (and up to the 30h offline cut) we fall back
+  // to whether they marked present / set available today.
+  return presentToday || setAvailableToday || seenWithin24h ? 'available' : 'unavailable'
 }
 
 export interface FieldEngineerOverview {
@@ -302,7 +307,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         name: `${p.first_name} ${p.last_name}`,
         employee_id: p.employee_id,
         phone: p.phone,
-        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday: presentTodayIds.has(p.id), istTodayStr, offline, reachedAtProject, punchToken: punchTokenByEng[p.id] ?? null }),
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday: presentTodayIds.has(p.id), istTodayStr, offline, reachedAtProject, punchToken: punchTokenByEng[p.id] ?? null, seenWithin24h: lastSeen?.fresh ?? false }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
@@ -424,7 +429,7 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
         // This list (Field Engineers table / pickers) keeps the simpler status derivation
         // — the 30h-offline / project-proximity / punch-category refinements are the Live
         // Map's concern, where the extra signals are fetched.
-        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday, istTodayStr, offline: false, reachedAtProject: true, punchToken: null }),
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday, istTodayStr, offline: false, reachedAtProject: true, punchToken: null, seenWithin24h: false }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
