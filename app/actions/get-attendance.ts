@@ -253,12 +253,20 @@ export interface AttendancePeriodStats {
   singlePunch: number
 }
 export type AttendanceStatKey = 'present' | 'absent' | 'lateIn' | 'shortHours' | 'singlePunch'
+export interface AttendanceTodayDetail {
+  name: string
+  punchIn: string | null       // marked_at ISO (punch-in time)
+  punchOut: string | null      // end_day_at ISO (punch-out time)
+  location: string | null      // punch-in place name
+  punchCategory: string | null // raw category token (hq / site_visit / travel …)
+  scheduledToday: string[]     // "<wo_number> · <customer>" for jobs scheduled today
+}
 export interface AttendanceStats {
   today: AttendancePeriodStats
   thisWeek: AttendancePeriodStats
   thisMonth: AttendancePeriodStats
-  // Per-category engineer names for TODAY, so the KPI cards can pop up who's in each.
-  todayLists: Record<AttendanceStatKey, string[]>
+  // Per-category engineer detail for TODAY, so each KPI card can pop up who's in it.
+  todayLists: Record<AttendanceStatKey, AttendanceTodayDetail[]>
 }
 
 // Org-wide attendance counts for three fixed IST periods (today / this week Mon-today /
@@ -312,9 +320,41 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const holidayByDate: Record<string, string> = {}
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
-    const emptyLists = (): Record<AttendanceStatKey, string[]> => ({ present: [], absent: [], lateIn: [], shortHours: [], singlePunch: [] })
+    // Today's scheduled notifications per engineer, for the KPI-card popup detail.
+    const schedTodayByEng: Record<string, string[]> = {}
+    {
+      const { data: todayWos } = await admin.from('work_orders')
+        .select('engineer_id, wo_number, customer_id, status')
+        .in('engineer_id', statEngineerIds)
+        .eq('scheduled_date', todayStr)
+      const todayList = (todayWos || []).filter(w => w.status !== 'completed' && w.status !== 'needs_reassignment')
+      const custIds = [...new Set(todayList.map(w => w.customer_id).filter(Boolean))] as string[]
+      const custName: Record<string, string> = {}
+      if (custIds.length) {
+        const { data: cs } = await admin.from('customers').select('id, name').in('id', custIds)
+        ;(cs || []).forEach(c => { custName[c.id as string] = c.name as string })
+      }
+      for (const w of todayList) {
+        const label = `${w.wo_number}${w.customer_id && custName[w.customer_id] ? ` · ${custName[w.customer_id]}` : ''}`
+        ;(schedTodayByEng[w.engineer_id as string] ||= []).push(label)
+      }
+    }
 
-    function tally(from: string, to: string, lists?: Record<AttendanceStatKey, string[]>): AttendancePeriodStats {
+    const detailFor = (eng: { id: string; name: string }): AttendanceTodayDetail => {
+      const row = rowByKey[`${eng.id}:${todayStr}`] ?? null
+      return {
+        name: eng.name,
+        punchIn: row?.marked_at ?? null,
+        punchOut: row?.end_day_at ?? null,
+        location: row?.place_name ?? null,
+        punchCategory: row?.punch_category ?? null,
+        scheduledToday: schedTodayByEng[eng.id] || [],
+      }
+    }
+
+    const emptyLists = (): Record<AttendanceStatKey, AttendanceTodayDetail[]> => ({ present: [], absent: [], lateIn: [], shortHours: [], singlePunch: [] })
+
+    function tally(from: string, to: string, lists?: Record<AttendanceStatKey, AttendanceTodayDetail[]>): AttendancePeriodStats {
       const acc: AttendancePeriodStats = { present: 0, absent: 0, lateIn: 0, shortHours: 0, singlePunch: 0 }
       for (let dt = new Date(`${from}T00:00:00Z`); dt <= new Date(`${to}T00:00:00Z`); dt.setUTCDate(dt.getUTCDate() + 1)) {
         const dateStr = dt.toISOString().slice(0, 10)
@@ -325,19 +365,19 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
             hasScheduledNotification: scheduledByEng[eng.id]?.has(dateStr) ?? false,
             onApprovedLeave: leaveByEng[eng.id]?.has(dateStr) ?? false,
           })
-          if (s.kind === 'present') { acc.present++; lists?.present.push(eng.name) }
+          if (s.kind === 'present') { acc.present++; lists?.present.push(detailFor(eng)) }
           // A "Punched in Late" day (kind 'leave' + latePending) is provisional today —
           // the engineer DID punch in, and the grid shows it as orange "Punched in Late",
           // not red "Absent". Counting it as Absent made the KPI disagree with the grid.
           // It's still reflected in the Late In count via its lateIn flag below.
-          else if (s.kind === 'leave' && !s.latePending) { acc.absent++; lists?.absent.push(eng.name) }
+          else if (s.kind === 'leave' && !s.latePending) { acc.absent++; lists?.absent.push(detailFor(eng)) }
           // Causes are counted whether the day ended up Present (approved amendment) or
           // Absent — the card reflects how many days carried each cause. earlyOut now
           // holds the Short Hours (< 6h gross) cause.
           if (s.kind === 'present' || s.kind === 'leave') {
-            if (s.lateIn) { acc.lateIn++; lists?.lateIn.push(eng.name) }
-            if (s.earlyOut) { acc.shortHours++; lists?.shortHours.push(eng.name) }
-            if (s.singlePunch) { acc.singlePunch++; lists?.singlePunch.push(eng.name) }
+            if (s.lateIn) { acc.lateIn++; lists?.lateIn.push(detailFor(eng)) }
+            if (s.earlyOut) { acc.shortHours++; lists?.shortHours.push(detailFor(eng)) }
+            if (s.singlePunch) { acc.singlePunch++; lists?.singlePunch.push(detailFor(eng)) }
           }
         }
       }

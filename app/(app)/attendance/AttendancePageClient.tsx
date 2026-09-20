@@ -298,7 +298,8 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
     { key: 'singlePunch', label: 'Single Punch', color: '#5B21B6', bg: '#F5F3FF', border: '#DDD6FE' },
   ]
   const openCol = cols.find(c => c.key === open)
-  const names = open ? stats.todayLists[open] : []
+  const details = open ? stats.todayLists[open] : []
+  const lbl = { fontWeight: 600 as const, color: 'var(--tx)' }
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
@@ -324,17 +325,31 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: openCol.bg }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: openCol.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>{openCol.label} · Today</div>
-                <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>{names.length} field engineer{names.length === 1 ? '' : 's'}</div>
+                <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>{details.length} field engineer{details.length === 1 ? '' : 's'}</div>
               </div>
               <button onClick={() => setOpen(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--txm)', lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ overflowY: 'auto', padding: names.length ? '6px 0' : '24px 18px' }}>
-              {names.length === 0 ? (
+            <div style={{ overflowY: 'auto', padding: details.length ? '4px 0' : '24px 18px' }}>
+              {details.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--txm)', textAlign: 'center' }}>No field engineers in this category today.</div>
               ) : (
-                names.map((n, i) => (
-                  <div key={i} style={{ padding: '9px 18px', fontSize: 13, color: 'var(--tx)', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none' }}>{n}</div>
-                ))
+                details.map((e, i) => {
+                  const catLabel = categoryMeta(e.punchCategory as Parameters<typeof categoryMeta>[0])?.label ?? null
+                  const worked = e.punchIn && e.punchOut ? formatWorkedDuration(e.punchIn, e.punchOut) : e.punchIn ? 'In progress' : null
+                  return (
+                    <div key={i} style={{ padding: '12px 18px', borderTop: i > 0 ? '1px solid #F1E7EB' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>{e.name}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 14px', fontSize: 11.5, color: 'var(--txm)' }}>
+                        <div><span style={lbl}>Punch in:</span> {e.punchIn ? formatTime(e.punchIn) : '—'}</div>
+                        <div><span style={lbl}>Punch out:</span> {e.punchOut ? formatTime(e.punchOut) : '—'}</div>
+                        <div><span style={lbl}>Working hrs:</span> {worked ?? '—'}</div>
+                        <div><span style={lbl}>Punch status:</span> {catLabel ?? '—'}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><span style={lbl}>Location:</span> {e.location || '—'}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><span style={lbl}>Scheduled today:</span> {e.scheduledToday.length ? e.scheduledToday.join('; ') : 'None'}</div>
+                      </div>
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>
