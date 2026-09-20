@@ -162,7 +162,9 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
+  // Default to the open/active view (everything except Completed). 'all' shows every
+  // status incl. Completed; any specific status shows only that one.
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'open')
   const [jobFilter, setJobFilter] = useState(searchParams.get('job') || '')
   const [engFilter, setEngFilter] = useState(searchParams.get('engineer') || '')
   const [dateFilter, setDateFilter] = useState('')
@@ -210,9 +212,10 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     // whose expense approval is still pending/rejected (an admin still needs to act on
     // those). Explicitly picking a status from the dropdown overrides the hide.
     const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
-    const matchStatus = statusFilter
-      ? wo.status === statusFilter
-      : (wo.status !== 'completed' || feUnapproved)
+    const matchStatus =
+      statusFilter === 'all' ? true
+      : statusFilter === 'open' ? (wo.status !== 'completed' || feUnapproved)
+      : wo.status === statusFilter
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
     const matchDate = !dateFilter || wo.scheduled_date === dateFilter
@@ -304,7 +307,8 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search WO ID, serial no, customer…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All statuses</option>
+            <option value="open">Open (active)</option>
+            <option value="all">All statuses</option>
             <option value="unassigned">Unassigned</option>
             <option value="assigned">Assigned</option>
             <option value="in_progress">In Progress</option>

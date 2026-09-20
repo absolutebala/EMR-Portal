@@ -372,7 +372,12 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
 // Builds the visit summary PDF + Word doc at closure time (not form-submit time) —
 // pulls the job/customer/form structure plus whatever the engineer has saved so far
 // in form_submissions, since the closure screen itself only has the day's outcome fields.
-async function buildVisitDocs(
+type DocParams = Parameters<typeof generateVisitPdf>[0]
+
+// Gathers everything a report generator needs for one submitted form (work order,
+// customer, serials, the form's section/field/table structure) into the shared
+// docParams shape. Used by both submit-time upload and on-demand download.
+async function assembleDocParams(
   admin: AdminClient,
   workOrderId: string,
   formId: string,
@@ -381,16 +386,14 @@ async function buildVisitDocs(
   clientName: string | null,
   engineerSignature: string | null,
   clientSignature: string | null
-): Promise<{ pdfUrl: string | null; wordUrl: string | null }> {
+): Promise<{ docParams: DocParams; formName: string } | null> {
   const woResult = await withTimeout(
     admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single(),
     8000
   )
   const wo = woResult?.data
-  if (!wo) return { pdfUrl: null, wordUrl: null }
+  if (!wo) return null
 
-  // Renders the specific submitted form (formId + formData), so a notification with
-  // multiple forms produces one report per form rather than one ambiguous visit doc.
   const dataResult = await withTimeout(
     Promise.all([
       admin.from('customers').select('name').eq('id', wo.customer_id).single(),
@@ -398,19 +401,16 @@ async function buildVisitDocs(
     ]),
     8000
   )
-  if (!dataResult) return { pdfUrl: null, wordUrl: null }
+  if (!dataResult) return null
   const [{ data: customer }, { data: wotRows }] = dataResult
 
   type WotRow = { transformers: { serial_number: string } | null }
   const serialNumbers = ((wotRows as unknown as WotRow[]) || []).map(r => r.transformers?.serial_number).filter(Boolean).join(', ')
 
-  let formName = ''
-  {
-    const formRes = await withTimeout(admin.from('forms').select('name').eq('id', formId).single(), 8000)
-    formName = formRes?.data?.name || ''
-  }
+  const formRes = await withTimeout(admin.from('forms').select('name').eq('id', formId).single(), 8000)
+  const formName = formRes?.data?.name || ''
 
-  let sections: { title: string; fields: { id: string; label: string; field_type: string; repeatable?: boolean }[]; tables: { statusType: string; col1Label: string | null; col2Label: string | null; rows: { id: string; row_label: string; sno_label: string | null }[] }[] }[] = []
+  let sections: DocParams['sections'] = []
   {
     const secsResult = await withTimeout(
       admin.from('form_sections')
@@ -439,7 +439,7 @@ async function buildVisitDocs(
     }))
   }
 
-  const docParams = {
+  const docParams: DocParams = {
     formName,
     woNumber: wo.wo_number,
     jobType: wo.job_type,
@@ -447,41 +447,62 @@ async function buildVisitDocs(
     serialNumbers,
     engineerName,
     clientName,
-    visitType: 'final' as const,
+    visitType: 'final',
     sections,
     fieldValues: formData.fields || {},
     rowValues: (formData.table_rows || {}) as Record<string, { status: string; remarks: string }>,
     engineerSignature,
     clientSignature,
   }
-  const stamp = Date.now()
+  return { docParams, formName }
+}
 
-  // Several forms have a bespoke paper template that the download must reproduce
-  // exactly; each maps to a dedicated generator selected by form name. Everything else
-  // uses the generic structured renderer.
+// Picks the bespoke generator for a form by name and renders the requested format.
+// Several forms have a bespoke paper template the report must reproduce; the MOM paper
+// template covers every OLTC/overhauling "MOM" report ("OLTC Service MOM", "Overhauling
+// MOM Report", plain "MOM Report") but NOT the NIFPS "…MOM Report" forms. Everything
+// else uses the generic structured renderer.
+async function renderReportBuffer(docParams: DocParams, formName: string, format: 'pdf' | 'word'): Promise<Buffer> {
   const n = formName.toLowerCase()
-  // The MOM paper template covers every "MOM" service report on the OLTC/overhauling
-  // side — "OLTC Service MOM", "Overhauling MOM Report", and the plain "MOM Report" —
-  // but NOT the NIFPS "…MOM Report" forms, which have their own layouts.
   const isMom = /mom/.test(n) && !/nifps/.test(n)
-  const pickPdf =
-    isMom ? generateOltcMomPdf
-    : /incident/.test(n) ? generateIncidentPdf
-    : /work completion/.test(n) ? generateNifpsWcrPdf
-    : /testing and commissioning/.test(n) ? generateNifpsTccPdf
-    : /smart breather/.test(n) ? generateSmartBreatherPdf
-    : generateVisitPdf
-  const pickWord =
+  if (format === 'pdf') {
+    const gen =
+      isMom ? generateOltcMomPdf
+      : /incident/.test(n) ? generateIncidentPdf
+      : /work completion/.test(n) ? generateNifpsWcrPdf
+      : /testing and commissioning/.test(n) ? generateNifpsTccPdf
+      : /smart breather/.test(n) ? generateSmartBreatherPdf
+      : generateVisitPdf
+    return gen(docParams)
+  }
+  const gen =
     isMom ? generateOltcMomWord
     : /incident/.test(n) ? generateIncidentWord
     : /work completion/.test(n) ? generateNifpsWcrWord
     : /testing and commissioning/.test(n) ? generateNifpsTccWord
     : /smart breather/.test(n) ? generateSmartBreatherWord
     : generateVisitWord
+  return gen(docParams)
+}
+
+async function buildVisitDocs(
+  admin: AdminClient,
+  workOrderId: string,
+  formId: string,
+  formData: { fields?: Record<string, string>; table_rows?: Record<string, unknown> },
+  engineerName: string,
+  clientName: string | null,
+  engineerSignature: string | null,
+  clientSignature: string | null
+): Promise<{ pdfUrl: string | null; wordUrl: string | null }> {
+  const assembled = await assembleDocParams(admin, workOrderId, formId, formData, engineerName, clientName, engineerSignature, clientSignature)
+  if (!assembled) return { pdfUrl: null, wordUrl: null }
+  const { docParams, formName } = assembled
+  const stamp = Date.now()
 
   let pdfUrl: string | null = null
   try {
-    const pdfBuffer = await pickPdf(docParams)
+    const pdfBuffer = await renderReportBuffer(docParams, formName, 'pdf')
     const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
     pdfUrl = await withTimeout(uploadAsset(path, pdfBuffer, 'application/pdf'), 12000)
   } catch (e) {
@@ -490,7 +511,7 @@ async function buildVisitDocs(
 
   let wordUrl: string | null = null
   try {
-    const wordBuffer = await pickWord(docParams)
+    const wordBuffer = await renderReportBuffer(docParams, formName, 'word')
     const path = `visit-docs/${workOrderId}-${stamp}.docx`
     wordUrl = await withTimeout(uploadAsset(path, wordBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 12000)
   } catch (e) {
@@ -498,6 +519,52 @@ async function buildVisitDocs(
   }
 
   return { pdfUrl, wordUrl }
+}
+
+// On-demand: renders one submission's report to a buffer in the requested format using
+// the CURRENT template (no reliance on files stored at submit time). Powers the desktop
+// "Download as Word / PDF" buttons so both always work and always reflect the latest
+// layout. Resolves engineer/customer names + signatures the same way submit does.
+export async function renderSubmissionReportCore(
+  admin: AdminClient,
+  submissionId: string,
+  format: 'pdf' | 'word'
+): Promise<{ buffer: Buffer; filename: string; contentType: string } | { error: string }> {
+  try {
+    const { data: sub } = await admin
+      .from('form_submissions')
+      .select('work_order_id, form_id, submitted_by, form_data')
+      .eq('id', submissionId)
+      .single()
+    if (!sub) return { error: 'Submission not found' }
+
+    const formData = (sub.form_data || {}) as { fields?: Record<string, string>; table_rows?: Record<string, unknown> }
+
+    const { data: secs } = await admin.from('form_sections').select('form_fields(id, label, field_type)').eq('form_id', sub.form_id)
+    type SectionEmbed = { form_fields: { id: string; label: string; field_type: string }[] }
+    const allFields = ((secs as unknown as SectionEmbed[]) || []).flatMap(s => s.form_fields || [])
+    const engineerField = allFields.find(f => f.field_type === 'signature' && ENGINEER_SIGNATURE_LABEL.test(f.label))
+    const customerField = allFields.find(f => f.field_type === 'signature' && CUSTOMER_SIGNATURE_LABEL.test(f.label))
+    const fields = formData.fields || {}
+    const engineerSignature = engineerField ? fields[engineerField.id] ?? null : null
+    const clientSignature = customerField ? fields[customerField.id] ?? null : null
+
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', sub.submitted_by).single()
+    const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+    const workOrder = await fetchSingleWorkOrder(admin, sub.work_order_id)
+    const clientName = workOrder?.customer_contact || workOrder?.customer_name || ''
+
+    const assembled = await assembleDocParams(admin, sub.work_order_id, sub.form_id, formData, actorName, clientName, engineerSignature, clientSignature)
+    if (!assembled) return { error: 'Could not assemble report' }
+    const { docParams, formName } = assembled
+    const buffer = await renderReportBuffer(docParams, formName, format)
+    const ext = format === 'pdf' ? 'pdf' : 'docx'
+    const contentType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    const filename = `${docParams.woNumber} - ${formName || 'Report'}.${ext}`
+    return { buffer, filename, contentType }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 // Re-renders the PDF/Word report for every existing submission of a given form, using

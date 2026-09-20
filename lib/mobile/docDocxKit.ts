@@ -39,7 +39,7 @@ export function wLetterhead(pillText?: string): Table {
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: NO_BORDERS,
     rows: [new TableRow({ children: [
-      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 150, height: 43 }, type: 'png' })] })] }),
+      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 230, height: 66 }, type: 'png' })] })] }),
       new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: pillText ? [new TextRun({ text: `  ${pillText}  `, bold: true, color: 'FFFFFF', size: 20, shading: { type: ShadingType.CLEAR, fill: COLORS.red.replace('#', ''), color: 'auto' } })] : [] })] }),
     ] })],
   })

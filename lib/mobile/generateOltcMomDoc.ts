@@ -122,7 +122,7 @@ export function generateOltcMomPdf(params: VisitPdfParams): Promise<Buffer> {
 
     // ── Letterhead ──
     let y = doc.y
-    const logoH = 30
+    const logoH = 48
     const logoW = logoH * (1409 / 407)
     try { doc.image(EMR_LOGO_BUFFER, x0, y, { height: logoH }) } catch { /* ignore */ }
     // Red pill, right-aligned
@@ -313,7 +313,7 @@ export async function generateOltcMomWord(params: VisitPdfParams): Promise<Buffe
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE } },
     rows: [new TableRow({ children: [
-      new TableCell({ borders: NOB, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 150, height: 43 }, type: 'png' })] })] }),
+      new TableCell({ borders: NOB, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 230, height: 66 }, type: 'png' })] })] }),
       new TableCell({ borders: NOB, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: '  EMR Tap Changers Private Limited  ', bold: true, color: 'FFFFFF', size: 20, shading: { type: ShadingType.CLEAR, fill: 'D5271F', color: 'auto' } })] })] }),
     ] })],
   }))

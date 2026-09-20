@@ -26,6 +26,7 @@ export interface WorkOrderClosureInfo {
 }
 
 export interface WorkOrderSubmittedForm {
+  id: string
   formName: string
   submittedAt: string | null
   submittedByName: string
@@ -404,7 +405,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     const submittedForms: WorkOrderSubmittedForm[] = []
     {
       const { data: subs } = await admin.from('form_submissions')
-        .select('form_id, form_data, submitted_at, submitted_by, pdf_url, word_url')
+        .select('id, form_id, form_data, submitted_at, submitted_by, pdf_url, word_url')
         .eq('work_order_id', id)
         .order('submitted_at', { ascending: true })
 
@@ -453,6 +454,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
         for (const sub of subs) {
           const formData = sub.form_data as { fields?: Record<string, string>; table_rows?: Record<string, { status: string; remarks: string }> }
           submittedForms.push({
+            id: sub.id,
             formName: formNameMap[sub.form_id] || 'Form',
             submittedAt: sub.submitted_at,
             submittedByName: sub.submitted_by ? (submitterNameMap[sub.submitted_by] || 'Engineer') : 'Engineer',

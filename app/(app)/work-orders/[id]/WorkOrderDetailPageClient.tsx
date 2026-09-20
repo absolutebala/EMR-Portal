@@ -279,6 +279,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [activity, setActivity] = useState<WorkOrderActivity[]>([])
   const [submittedForms, setSubmittedForms] = useState<WorkOrderSubmittedForm[]>([])
   const [viewingForm, setViewingForm] = useState<WorkOrderSubmittedForm | null>(null)
+  // Submitted forms render collapsed; the manager expands the ones they want to read.
+  const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set())
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [visits, setVisits] = useState<WorkOrderVisit[]>([])
   const [loading, setLoading] = useState(true)
@@ -876,26 +878,33 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                   )}
 
                   {submittedForms.length > 0 && (
-                    <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {submittedForms.map((sf, i) => (
-                        <div key={i}>
-                          <div style={cardLabel}>
-                            Submitted form — {sf.formName} by {sf.submittedByName}
-                            {sf.submittedAt && (
-                              <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'var(--txm)' }}>
-                                {' · '}{new Date(sf.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {submittedForms.map(sf => {
+                        const open = expandedForms.has(sf.id)
+                        return (
+                          <div key={sf.id} style={{ border: '1px solid var(--gm)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                            <button
+                              onClick={() => setExpandedForms(prev => { const n = new Set(prev); if (n.has(sf.id)) n.delete(sf.id); else n.add(sf.id); return n })}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', textAlign: 'left' }}
+                            >
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+                                {sf.formName}
+                                <span style={{ fontWeight: 400, color: 'var(--txm)', fontSize: 12 }}> · {sf.submittedByName}{sf.submittedAt ? ` · ${new Date(sf.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
                               </span>
+                              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: 'var(--txm)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><polyline points="6 9 12 15 18 9" /></svg>
+                            </button>
+                            {open && (
+                              <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--gm)' }}>
+                                <div style={{ display: 'flex', gap: 10, margin: '12px 0' }}>
+                                  <a href={`/api/reports/download?submission=${sf.id}&format=pdf`} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', fontSize: 12, fontWeight: 600, textDecoration: 'none', fontFamily: 'Poppins,sans-serif' }}>Download as PDF</a>
+                                  <a href={`/api/reports/download?submission=${sf.id}&format=word`} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--m)', background: 'var(--mp)', color: 'var(--m)', fontSize: 12, fontWeight: 600, textDecoration: 'none', fontFamily: 'Poppins,sans-serif' }}>Download as Word</a>
+                                </div>
+                                {renderFormSections(sf)}
+                              </div>
                             )}
                           </div>
-                          {(sf.pdfUrl || sf.wordUrl) && (
-                            <div style={{ display: 'flex', gap: 14, margin: '2px 0 8px' }}>
-                              {sf.pdfUrl && <a href={downloadHref(sf.pdfUrl, `${wo.wo_number} - ${sf.formName}.pdf`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download PDF</a>}
-                              {sf.wordUrl && <a href={downloadHref(sf.wordUrl, `${wo.wo_number} - ${sf.formName}.docx`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download Word</a>}
-                            </div>
-                          )}
-                          {renderFormSections(sf)}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
 

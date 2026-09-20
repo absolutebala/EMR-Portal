@@ -38,7 +38,7 @@ export class PdfBuilder {
   // ── Letterheads ──
   logoLeftWithPill(pillText?: string) {
     const y = this.y
-    const logoH = 30
+    const logoH = 48
     try { this.doc.image(EMR_LOGO_BUFFER, this.x0, y, { height: logoH }) } catch { /* ignore */ }
     if (pillText) {
       this.doc.font('Helvetica-Bold').fontSize(10)
@@ -54,7 +54,7 @@ export class PdfBuilder {
 
   logoRight() {
     const y = this.y
-    const logoH = 30
+    const logoH = 48
     const logoW = logoH * LOGO_ASPECT
     try { this.doc.image(EMR_LOGO_BUFFER, this.x0 + this.W - logoW, y, { height: logoH }) } catch { /* ignore */ }
     this.y = y + logoH + 6
