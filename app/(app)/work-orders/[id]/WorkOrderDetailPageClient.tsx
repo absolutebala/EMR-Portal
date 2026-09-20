@@ -25,6 +25,13 @@ import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 import { getDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
 
+// Routes a stored CloudFront report through our /api/download proxy so it downloads
+// cleanly (forced attachment) under a short, precise filename instead of the raw
+// UUID-timestamp S3 key.
+function downloadHref(url: string, name: string): string {
+  return `/api/download?u=${encodeURIComponent(url)}&n=${encodeURIComponent(name)}`
+}
+
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
@@ -849,12 +856,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                 )
                               })()}
                               {v.pdfUrl && (
-                                <a href={v.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                                <a href={downloadHref(v.pdfUrl, `${wo.wo_number} - Visit Report.pdf`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
                                   Download visit PDF →
                                 </a>
                               )}
                               {v.wordUrl && (
-                                <a href={v.wordUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
+                                <a href={downloadHref(v.wordUrl, `${wo.wo_number} - Visit Report.docx`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
                                   Download visit Word doc →
                                 </a>
                               )}
@@ -882,8 +889,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                           </div>
                           {(sf.pdfUrl || sf.wordUrl) && (
                             <div style={{ display: 'flex', gap: 14, margin: '2px 0 8px' }}>
-                              {sf.pdfUrl && <a href={sf.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download PDF</a>}
-                              {sf.wordUrl && <a href={sf.wordUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download Word</a>}
+                              {sf.pdfUrl && <a href={downloadHref(sf.pdfUrl, `${wo.wo_number} - ${sf.formName}.pdf`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download PDF</a>}
+                              {sf.wordUrl && <a href={downloadHref(sf.wordUrl, `${wo.wo_number} - ${sf.formName}.docx`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 600 }}>Download Word</a>}
                             </div>
                           )}
                           {renderFormSections(sf)}
