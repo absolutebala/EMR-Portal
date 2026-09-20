@@ -320,7 +320,11 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
             onApprovedLeave: leaveByEng[eng.id]?.has(dateStr) ?? false,
           })
           if (s.kind === 'present') acc.present++
-          else if (s.kind === 'leave') acc.absent++
+          // A "Punched in Late" day (kind 'leave' + latePending) is provisional today —
+          // the engineer DID punch in, and the grid shows it as orange "Punched in Late",
+          // not red "Absent". Counting it as Absent made the KPI disagree with the grid.
+          // It's still reflected in the Late In count via its lateIn flag below.
+          else if (s.kind === 'leave' && !s.latePending) acc.absent++
           // Causes are counted whether the day ended up Present (approved amendment) or
           // Absent — the card reflects how many days carried each cause. earlyOut now
           // holds the Short Hours (< 6h gross) cause.

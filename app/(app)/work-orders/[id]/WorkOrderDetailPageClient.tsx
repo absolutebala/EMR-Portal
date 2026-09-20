@@ -25,13 +25,6 @@ import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 import { getDepartments } from '@/app/actions/departments'
 import type { Department } from '@/lib/departments'
 
-// Routes a stored CloudFront report through our /api/download proxy so it downloads
-// cleanly (forced attachment) under a short, precise filename instead of the raw
-// UUID-timestamp S3 key.
-function downloadHref(url: string, name: string): string {
-  return `/api/download?u=${encodeURIComponent(url)}&n=${encodeURIComponent(name)}`
-}
-
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
   amc: 'AMC',
@@ -857,18 +850,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                                   </button>
                                 )
                               })()}
-                              {v.pdfUrl && (
-                                <a href={downloadHref(v.pdfUrl, `${wo.wo_number} - Visit Report.pdf`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
-                                  Download visit PDF →
-                                </a>
-                              )}
-                              {v.wordUrl && (
-                                <a href={downloadHref(v.wordUrl, `${wo.wo_number} - Visit Report.docx`)} style={{ fontSize: 11, color: 'var(--m)', fontWeight: 500 }}>
-                                  Download visit Word doc →
-                                </a>
-                              )}
-                              {!submittedForms.some(f => f.submittedByName === v.engineerName) && !v.pdfUrl && !v.wordUrl && (
-                                <span style={{ fontSize: 11, color: 'var(--txm)' }}>No form data available</span>
+                              {/* The full, proper report is each submitted form's own PDF/Word
+                                  (see the Submitted forms section below). The old visit-level
+                                  doc was just a near-empty summary, so it's no longer offered
+                                  here — "View form" opens the actual submission. */}
+                              {!submittedForms.some(f => f.submittedByName === v.engineerName) && (
+                                <span style={{ fontSize: 11, color: 'var(--txm)' }}>No form submitted for this visit</span>
                               )}
                             </div>
                           </div>
