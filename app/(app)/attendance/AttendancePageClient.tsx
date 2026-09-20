@@ -299,7 +299,7 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   ]
   const openCol = cols.find(c => c.key === open)
   const details = open ? stats.todayLists[open] : []
-  const lbl = { fontWeight: 600 as const, color: 'var(--tx)' }
+  const lbl = { fontWeight: 700 as const, opacity: 0.75 }
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
@@ -334,12 +334,20 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
                 <div style={{ fontSize: 12, color: 'var(--txm)', textAlign: 'center' }}>No field engineers in this category today.</div>
               ) : (
                 details.map((e, i) => {
-                  const catLabel = categoryMeta(e.punchCategory as Parameters<typeof categoryMeta>[0])?.label ?? null
+                  const meta = categoryMeta(e.punchCategory as Parameters<typeof categoryMeta>[0])
+                  const catLabel = meta?.label ?? null
+                  // Tint the row by punch-in category (matching the grid's category colours);
+                  // engineers with no category (absent / not punched) get a neutral tint.
+                  const rowBg = meta?.bg ?? '#F3F4F6'
+                  const rowTx = meta?.tx ?? '#374151'
                   const worked = e.punchIn && e.punchOut ? formatWorkedDuration(e.punchIn, e.punchOut) : e.punchIn ? 'In progress' : null
                   return (
-                    <div key={i} style={{ padding: '12px 18px', borderTop: i > 0 ? '1px solid #F1E7EB' : 'none' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>{e.name}</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 14px', fontSize: 11.5, color: 'var(--txm)' }}>
+                    <div key={i} style={{ margin: '6px 12px', padding: '10px 14px', borderRadius: 10, background: rowBg, color: rowTx }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span>{e.name}</span>
+                        {catLabel && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.55)', border: `1px solid ${meta?.ac ?? 'transparent'}` }}>{catLabel}</span>}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 14px', fontSize: 11.5 }}>
                         <div><span style={lbl}>Punch in:</span> {e.punchIn ? formatTime(e.punchIn) : '—'}</div>
                         <div><span style={lbl}>Punch out:</span> {e.punchOut ? formatTime(e.punchOut) : '—'}</div>
                         <div><span style={lbl}>Working hrs:</span> {worked ?? '—'}</div>
