@@ -120,7 +120,9 @@ export async function getDashboardData(): Promise<DashboardData> {
   // through a wrapper function (TS2589) — the `.in()` call itself stays fully
   // type-checked at each real call site, this just conditionally applies it.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scopeWo = (q: any): any => (departmentScope ? q.in('department_id', departmentScope) : q)
+  // Include notifications with no department (NULL) too — a plain `.in()` drops NULLs,
+  // hiding unscoped-but-validly-assigned work from department-scoped managers.
+  const scopeWo = (q: any): any => (departmentScope ? q.or(`department_id.in.(${departmentScope.join(',')}),department_id.is.null`) : q)
 
   const [
     { engineers },

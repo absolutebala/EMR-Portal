@@ -87,7 +87,10 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
     let query = admin.from('work_orders').select('*').order('created_at', { ascending: false })
     if (customerId) query = query.eq('customer_id', customerId)
     if (engineerId) query = query.eq('engineer_id', engineerId)
-    if (departmentScope) query = query.in('department_id', departmentScope)
+    // A Service Manager sees their departments' notifications PLUS any notification with
+    // no department (department_id IS NULL) — an unscoped item must not be invisible to
+    // every manager. A plain `.in()` would drop NULLs, hiding validly-assigned work.
+    if (departmentScope) query = query.or(`department_id.in.(${departmentScope.join(',')}),department_id.is.null`)
     const { data: wos, error } = await query
 
     if (error) return { workOrders: [], error: error.message }
