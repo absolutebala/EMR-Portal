@@ -460,15 +460,19 @@ async function buildVisitDocs(
   // exactly; each maps to a dedicated generator selected by form name. Everything else
   // uses the generic structured renderer.
   const n = formName.toLowerCase()
+  // The MOM paper template covers every "MOM" service report on the OLTC/overhauling
+  // side — "OLTC Service MOM", "Overhauling MOM Report", and the plain "MOM Report" —
+  // but NOT the NIFPS "…MOM Report" forms, which have their own layouts.
+  const isMom = /mom/.test(n) && !/nifps/.test(n)
   const pickPdf =
-    (/oltc/.test(n) && /mom/.test(n)) || /overhauling mom/.test(n) ? generateOltcMomPdf
+    isMom ? generateOltcMomPdf
     : /incident/.test(n) ? generateIncidentPdf
     : /work completion/.test(n) ? generateNifpsWcrPdf
     : /testing and commissioning/.test(n) ? generateNifpsTccPdf
     : /smart breather/.test(n) ? generateSmartBreatherPdf
     : generateVisitPdf
   const pickWord =
-    (/oltc/.test(n) && /mom/.test(n)) || /overhauling mom/.test(n) ? generateOltcMomWord
+    isMom ? generateOltcMomWord
     : /incident/.test(n) ? generateIncidentWord
     : /work completion/.test(n) ? generateNifpsWcrWord
     : /testing and commissioning/.test(n) ? generateNifpsTccWord
