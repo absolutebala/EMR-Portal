@@ -252,10 +252,13 @@ export interface AttendancePeriodStats {
   shortHours: number
   singlePunch: number
 }
+export type AttendanceStatKey = 'present' | 'absent' | 'lateIn' | 'shortHours' | 'singlePunch'
 export interface AttendanceStats {
   today: AttendancePeriodStats
   thisWeek: AttendancePeriodStats
   thisMonth: AttendancePeriodStats
+  // Per-category engineer names for TODAY, so the KPI cards can pop up who's in each.
+  todayLists: Record<AttendanceStatKey, string[]>
 }
 
 // Org-wide attendance counts for three fixed IST periods (today / this week Mon-today /
@@ -283,7 +286,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const fetchFrom = weekStart < monthStart ? weekStart : monthStart
 
     const [{ data: profiles, error: profErr }, { data: attRows }, { data: holidays }] = await Promise.all([
-      admin.from('profiles').select('id, created_at').eq('role', 'Field Engineer'),
+      admin.from('profiles').select('id, first_name, last_name, created_at').eq('role', 'Field Engineer'),
       admin.from('attendance')
         .select('engineer_id, attendance_date, status, day_off, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name, punch_category, visit_customer_name, visit_site_address, visit_purpose')
         .gte('attendance_date', fetchFrom).lte('attendance_date', todayStr),
@@ -293,6 +296,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
 
     const engineers = (profiles || []).map(p => ({
       id: p.id as string,
+      name: `${p.first_name} ${p.last_name}`.trim(),
       createdAtDate: p.created_at ? getISTDateStr(new Date(p.created_at as string)) : null,
     }))
     // Sunday-off and approved-leave signals so a Sunday counts as neither Present nor
@@ -308,7 +312,9 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const holidayByDate: Record<string, string> = {}
     ;(holidays || []).forEach(h => { holidayByDate[h.holiday_date] = h.name })
 
-    function tally(from: string, to: string): AttendancePeriodStats {
+    const emptyLists = (): Record<AttendanceStatKey, string[]> => ({ present: [], absent: [], lateIn: [], shortHours: [], singlePunch: [] })
+
+    function tally(from: string, to: string, lists?: Record<AttendanceStatKey, string[]>): AttendancePeriodStats {
       const acc: AttendancePeriodStats = { present: 0, absent: 0, lateIn: 0, shortHours: 0, singlePunch: 0 }
       for (let dt = new Date(`${from}T00:00:00Z`); dt <= new Date(`${to}T00:00:00Z`); dt.setUTCDate(dt.getUTCDate() + 1)) {
         const dateStr = dt.toISOString().slice(0, 10)
@@ -319,30 +325,32 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
             hasScheduledNotification: scheduledByEng[eng.id]?.has(dateStr) ?? false,
             onApprovedLeave: leaveByEng[eng.id]?.has(dateStr) ?? false,
           })
-          if (s.kind === 'present') acc.present++
+          if (s.kind === 'present') { acc.present++; lists?.present.push(eng.name) }
           // A "Punched in Late" day (kind 'leave' + latePending) is provisional today —
           // the engineer DID punch in, and the grid shows it as orange "Punched in Late",
           // not red "Absent". Counting it as Absent made the KPI disagree with the grid.
           // It's still reflected in the Late In count via its lateIn flag below.
-          else if (s.kind === 'leave' && !s.latePending) acc.absent++
+          else if (s.kind === 'leave' && !s.latePending) { acc.absent++; lists?.absent.push(eng.name) }
           // Causes are counted whether the day ended up Present (approved amendment) or
           // Absent — the card reflects how many days carried each cause. earlyOut now
           // holds the Short Hours (< 6h gross) cause.
           if (s.kind === 'present' || s.kind === 'leave') {
-            if (s.lateIn) acc.lateIn++
-            if (s.earlyOut) acc.shortHours++
-            if (s.singlePunch) acc.singlePunch++
+            if (s.lateIn) { acc.lateIn++; lists?.lateIn.push(eng.name) }
+            if (s.earlyOut) { acc.shortHours++; lists?.shortHours.push(eng.name) }
+            if (s.singlePunch) { acc.singlePunch++; lists?.singlePunch.push(eng.name) }
           }
         }
       }
       return acc
     }
 
+    const todayLists = emptyLists()
     return {
       stats: {
-        today: tally(todayStr, todayStr),
+        today: tally(todayStr, todayStr, todayLists),
         thisWeek: tally(weekStart, todayStr),
         thisMonth: tally(monthStart, todayStr),
+        todayLists,
       },
       error: null,
     }

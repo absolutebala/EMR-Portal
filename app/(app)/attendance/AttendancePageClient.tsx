@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
-import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats } from '@/app/actions/get-attendance'
+import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats, type AttendanceStatKey } from '@/app/actions/get-attendance'
 import { categoryMeta } from '@/lib/punchCategory'
 import { approveRejectAttendanceAmendment, getPendingLeaveRequests, approveRejectLeaveRequest } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus, LeaveRequestItem } from '@/lib/mobile/core/attendance'
@@ -288,26 +288,59 @@ interface Props {
 // cards. Only today's counts are shown — week/month totals conflated different days and
 // read as confusing next to the single-day grid below.
 function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
+  const [open, setOpen] = useState<AttendanceStatKey | null>(null)
   if (!stats) return null
-  const cols: { key: 'present' | 'absent' | 'lateIn' | 'shortHours' | 'singlePunch'; label: string; color: string; bg: string; border: string }[] = [
+  const cols: { key: AttendanceStatKey; label: string; color: string; bg: string; border: string }[] = [
     { key: 'present', label: 'Present', color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
     { key: 'absent', label: 'Absent', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
     { key: 'lateIn', label: 'Late In', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
     { key: 'shortHours', label: 'Short Hours', color: '#9A3412', bg: '#FFF7ED', border: '#FED7AA' },
     { key: 'singlePunch', label: 'Single Punch', color: '#5B21B6', bg: '#F5F3FF', border: '#DDD6FE' },
   ]
+  const openCol = cols.find(c => c.key === open)
+  const names = open ? stats.todayLists[open] : []
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
-      {cols.map(c => (
-        <div key={c.key} style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>{c.label}</div>
-            <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>Today</div>
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+        {cols.map(c => (
+          <button
+            key={c.key}
+            onClick={() => setOpen(c.key)}
+            title={`Show which engineers are ${c.label} today`}
+            style={{ border: `1px solid ${c.border}`, background: c.bg, borderRadius: 10, padding: '12px 16px', fontFamily: 'Poppins,sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, cursor: 'pointer', textAlign: 'left' }}
+          >
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>{c.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3 }}>Today · tap to view</div>
+            </div>
+            <span style={{ fontSize: 26, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{stats.today[c.key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {openCol && (
+        <div onClick={() => setOpen(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: 'min(420px, 100%)', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'Poppins,sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: openCol.bg }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: openCol.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>{openCol.label} · Today</div>
+                <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 2 }}>{names.length} field engineer{names.length === 1 ? '' : 's'}</div>
+              </div>
+              <button onClick={() => setOpen(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--txm)', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: names.length ? '6px 0' : '24px 18px' }}>
+              {names.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--txm)', textAlign: 'center' }}>No field engineers in this category today.</div>
+              ) : (
+                names.map((n, i) => (
+                  <div key={i} style={{ padding: '9px 18px', fontSize: 13, color: 'var(--tx)', borderTop: i > 0 ? '1px solid #F5F3F5' : 'none' }}>{n}</div>
+                ))
+              )}
+            </div>
           </div>
-          <span style={{ fontSize: 26, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{stats.today[c.key]}</span>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   )
 }
 
