@@ -50,6 +50,21 @@ function pickChecked(by: Record<string, string>, labels: string[]): string {
   return on.join(', ')
 }
 
+// The "OLTC - Service Details" body comes from one of two shapes: the OLTC Service MOM
+// stores it as a free-text field ("Service Details", newline-separated points); the
+// Overhauling MOM stores it as a table of predefined numbered rows. Either way we
+// return an ordered list of lines to render as numbered rows.
+function serviceDetailItems(params: VisitPdfParams, by: Record<string, string>): string[] {
+  const free = by['Service Details']
+  if (free && free.trim()) return free.split('\n').map(s => s.trim()).filter(Boolean)
+  const sec = params.sections.find(s => /service details/i.test(s.title))
+  const lines: string[] = []
+  const intro = by['OLTC Sl. No.']
+  if (intro) lines.push(`EMR Engineer visited the site regarding inspection and rectification of OLTC Sl. No. ${intro}.`)
+  if (sec) for (const t of sec.tables) for (const r of t.rows) lines.push(r.row_label)
+  return lines
+}
+
 // Lines for the OLTC-Details / Transformer-Details boxes: every text field as
 // "Label: value" and every ticked checkbox as "✓ Label", so no submitted data is lost
 // even though the original template only printed a subset.
@@ -217,7 +232,7 @@ export function generateOltcMomPdf(params: VisitPdfParams): Promise<Buffer> {
     }
 
     grayHeader('OLTC - Service Details:')
-    numberedRows(by['Service Details'] || '')
+    numberedRows(serviceDetailItems(params, by).join('\n'))
     y += 6
     if (by['Comments']) {
       grayHeader('Customer Comments, Appreciation & Feedback:')
@@ -359,7 +374,7 @@ export async function generateOltcMomWord(params: VisitPdfParams): Promise<Buffe
   const textTable = (value: string) => new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [wcell([new TextRun({ text: value || '', size: 18 })])] })] })
 
   children.push(grayHeaderTable('OLTC - Service Details:'))
-  children.push(numberedTable(by['Service Details'] || ''))
+  children.push(numberedTable(serviceDetailItems(params, by).join('\n')))
   children.push(new Paragraph({ text: '' }))
   if (by['Comments']) {
     children.push(grayHeaderTable('Customer Comments, Appreciation & Feedback:'))

@@ -4,6 +4,10 @@ import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { generateVisitPdf } from '@/lib/mobile/generateVisitPdf'
 import { generateVisitWord } from '@/lib/mobile/generateVisitWord'
 import { generateOltcMomPdf, generateOltcMomWord } from '@/lib/mobile/generateOltcMomDoc'
+import { generateIncidentPdf, generateIncidentWord } from '@/lib/mobile/generateIncidentDoc'
+import { generateNifpsWcrPdf, generateNifpsWcrWord } from '@/lib/mobile/generateNifpsWcrDoc'
+import { generateNifpsTccPdf, generateNifpsTccWord } from '@/lib/mobile/generateNifpsTccDoc'
+import { generateSmartBreatherPdf, generateSmartBreatherWord } from '@/lib/mobile/generateSmartBreatherDoc'
 import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
   type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
@@ -452,14 +456,28 @@ async function buildVisitDocs(
   }
   const stamp = Date.now()
 
-  // The OLTC Service MOM report has a bespoke paper template (EMR Tap Changers
-  // letterhead, framed detail grid, CUSTOMER/EMR sign-off table) — render it with the
-  // dedicated generator; every other form uses the generic structured renderer.
-  const isOltcMom = /oltc/i.test(formName) && /mom/i.test(formName)
+  // Several forms have a bespoke paper template that the download must reproduce
+  // exactly; each maps to a dedicated generator selected by form name. Everything else
+  // uses the generic structured renderer.
+  const n = formName.toLowerCase()
+  const pickPdf =
+    (/oltc/.test(n) && /mom/.test(n)) || /overhauling mom/.test(n) ? generateOltcMomPdf
+    : /incident/.test(n) ? generateIncidentPdf
+    : /work completion/.test(n) ? generateNifpsWcrPdf
+    : /testing and commissioning/.test(n) ? generateNifpsTccPdf
+    : /smart breather/.test(n) ? generateSmartBreatherPdf
+    : generateVisitPdf
+  const pickWord =
+    (/oltc/.test(n) && /mom/.test(n)) || /overhauling mom/.test(n) ? generateOltcMomWord
+    : /incident/.test(n) ? generateIncidentWord
+    : /work completion/.test(n) ? generateNifpsWcrWord
+    : /testing and commissioning/.test(n) ? generateNifpsTccWord
+    : /smart breather/.test(n) ? generateSmartBreatherWord
+    : generateVisitWord
 
   let pdfUrl: string | null = null
   try {
-    const pdfBuffer = isOltcMom ? await generateOltcMomPdf(docParams) : await generateVisitPdf(docParams)
+    const pdfBuffer = await pickPdf(docParams)
     const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
     pdfUrl = await withTimeout(uploadAsset(path, pdfBuffer, 'application/pdf'), 12000)
   } catch (e) {
@@ -468,7 +486,7 @@ async function buildVisitDocs(
 
   let wordUrl: string | null = null
   try {
-    const wordBuffer = isOltcMom ? await generateOltcMomWord(docParams) : await generateVisitWord(docParams)
+    const wordBuffer = await pickWord(docParams)
     const path = `visit-docs/${workOrderId}-${stamp}.docx`
     wordUrl = await withTimeout(uploadAsset(path, wordBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 12000)
   } catch (e) {
@@ -476,6 +494,52 @@ async function buildVisitDocs(
   }
 
   return { pdfUrl, wordUrl }
+}
+
+// Re-renders the PDF/Word report for every existing submission of a given form, using
+// the current generators, and rewrites pdf_url/word_url on each row. Used by the admin
+// "Regenerate reports" action so template changes reach already-submitted forms (whose
+// files were generated at submit time and are otherwise frozen).
+export async function regenerateFormReportsCore(admin: AdminClient, formId: string): Promise<{ error: string | null; regenerated: number; total: number }> {
+  try {
+    const { data: subs, error } = await admin
+      .from('form_submissions')
+      .select('id, work_order_id, submitted_by, form_data')
+      .eq('form_id', formId)
+    if (error) return { error: error.message, regenerated: 0, total: 0 }
+    const list = (subs || []) as { id: string; work_order_id: string; submitted_by: string; form_data: unknown }[]
+
+    // Resolve the signature fields once from the form definition.
+    const { data: secs } = await admin.from('form_sections').select('form_fields(id, label, field_type)').eq('form_id', formId)
+    type SectionEmbed = { form_fields: { id: string; label: string; field_type: string }[] }
+    const allFields = ((secs as unknown as SectionEmbed[]) || []).flatMap(s => s.form_fields || [])
+    const engineerField = allFields.find(f => f.field_type === 'signature' && ENGINEER_SIGNATURE_LABEL.test(f.label))
+    const customerField = allFields.find(f => f.field_type === 'signature' && CUSTOMER_SIGNATURE_LABEL.test(f.label))
+
+    let regenerated = 0
+    for (const s of list) {
+      try {
+        const formData = (s.form_data || {}) as { fields?: Record<string, string>; table_rows?: Record<string, unknown> }
+        const fields = formData.fields || {}
+        const engineerSignature = engineerField ? fields[engineerField.id] ?? null : null
+        const clientSignature = customerField ? fields[customerField.id] ?? null : null
+        const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', s.submitted_by).single()
+        const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
+        const workOrder = await fetchSingleWorkOrder(admin, s.work_order_id)
+        const clientName = workOrder?.customer_contact || workOrder?.customer_name || ''
+        const { pdfUrl, wordUrl } = await buildVisitDocs(admin, s.work_order_id, formId, formData, actorName, clientName, engineerSignature, clientSignature)
+        if (pdfUrl || wordUrl) {
+          await admin.from('form_submissions').update({ pdf_url: pdfUrl, word_url: wordUrl }).eq('id', s.id)
+          regenerated++
+        }
+      } catch (e) {
+        console.error('regenerateFormReports: submission failed', s.id, e instanceof Error ? e.message : e)
+      }
+    }
+    return { error: null, regenerated, total: list.length }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e), regenerated: 0, total: 0 }
+  }
 }
 
 export async function submitDailyClosureCore(admin: AdminClient, userId: string, params: {

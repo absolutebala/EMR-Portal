@@ -9,6 +9,7 @@ import { JobTypeBadge, FormStatusBadge } from '@/components/ui/Badge'
 import { duplicateForm } from '@/app/actions/duplicate-form'
 import { toggleFormStatus } from '@/app/actions/toggle-form-status'
 import { deleteForm } from '@/app/actions/assign-form'
+import { regenerateFormReports } from '@/app/actions/regenerate-form-reports'
 import type { Form } from '@/lib/types'
 
 function formatDate(d: string) {
@@ -40,6 +41,7 @@ export default function FormsPageClient({ forms, userName, userRole, permissions
   const [publishConflict, setPublishConflict] = useState<{ form: Form; conflictName: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Form | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
 
   const filtered = forms.filter(f => {
     const q = search.toLowerCase()
@@ -47,6 +49,18 @@ export default function FormsPageClient({ forms, userName, userRole, permissions
     const matchJob = !jobFilter || f.job_type === jobFilter
     return matchSearch && matchJob
   })
+
+  async function regenerateReports(form: Form) {
+    if (!confirm(`Re-render the PDF/Word report for every past submission of "${form.name}" using the current template? This can take a moment.`)) return
+    setRegenerating(form.id)
+    try {
+      const { error, regenerated, total } = await regenerateFormReports(form.id)
+      if (error) alert(`Regenerate failed: ${error}`)
+      else alert(`Regenerated ${regenerated} of ${total} submitted report${total === 1 ? '' : 's'} for "${form.name}".`)
+    } finally {
+      setRegenerating(null)
+    }
+  }
 
   async function toggleStatus(form: Form, forceSwap = false) {
     const { error, conflict } = await toggleFormStatus(form.id, form.status, form.job_type, forceSwap)
@@ -149,6 +163,13 @@ export default function FormsPageClient({ forms, userName, userRole, permissions
                   </button>
                   <button onClick={() => toggleStatus(f)} style={{ padding: '5px 10px', fontSize: 11, border: `1px solid ${f.status === 'active' ? '#FCD34D' : 'var(--gm)'}`, borderRadius: 6, background: f.status === 'active' ? '#FEF3C7' : '#fff', color: f.status === 'active' ? '#92400E' : 'var(--tx)', cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
                     {f.status === 'active' ? 'Unpublish' : 'Publish'}
+                  </button>
+                  <button
+                    onClick={() => regenerateReports(f)}
+                    disabled={regenerating === f.id}
+                    title="Re-render all past submissions of this form with the current PDF/Word template"
+                    style={{ padding: '5px 10px', fontSize: 11, border: '1px solid var(--gm)', borderRadius: 6, background: '#fff', color: 'var(--tx)', cursor: regenerating === f.id ? 'default' : 'pointer', fontFamily: 'Poppins,sans-serif', opacity: regenerating === f.id ? 0.6 : 1 }}>
+                    {regenerating === f.id ? 'Regenerating…' : 'Regenerate reports'}
                   </button>
                   <button
                     onClick={() => setDeleteTarget(f)}
