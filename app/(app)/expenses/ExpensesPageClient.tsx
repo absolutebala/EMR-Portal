@@ -165,7 +165,8 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
           </div>
         ) : (
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['Engineer', 'Project', 'Type', 'Date', 'Amount', 'Receipt', 'Status', 'Actions'].map(h => (
@@ -252,6 +253,7 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

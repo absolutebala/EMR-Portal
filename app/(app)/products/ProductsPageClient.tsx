@@ -93,7 +93,8 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
               {products.length === 0 ? 'No products yet. Click "Add Product" to build the catalog.' : 'No products match your search.'}
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Actions'].map(h => (
@@ -116,6 +117,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

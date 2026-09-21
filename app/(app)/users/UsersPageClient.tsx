@@ -160,7 +160,8 @@ export default function UsersPageClient({ users, userName, userRole, permissions
           {filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No users found</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['User', 'Employee ID', 'Role', 'Email', 'Phone', 'Last login', 'Status', 'Actions'].map(h => (
@@ -268,6 +269,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

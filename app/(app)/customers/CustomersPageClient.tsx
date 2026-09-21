@@ -112,7 +112,8 @@ export default function CustomersPageClient({ customers, userName, userRole, per
           {filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>No customers found</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => (
@@ -180,6 +181,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
