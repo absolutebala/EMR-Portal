@@ -48,9 +48,13 @@ input:focus, select:focus, textarea:focus {
   outline: none;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: rgba(125,29,63,.2); border-radius: 4px; }
+/* Scrollbar — wide enough to see and grab with a mouse (a 4px bar reads as "no
+   scrollbar" to mouse users), themed maroon. Firefox uses scrollbar-width/color. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(125,29,63,.35); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(125,29,63,.55); }
+* { scrollbar-width: thin; scrollbar-color: rgba(125,29,63,.4) transparent; }
 
 /* Toggle switch */
 .toggle-sw {
