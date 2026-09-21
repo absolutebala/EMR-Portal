@@ -31,3 +31,28 @@ export async function adminResetPassword(email: string, extraProfileFields: Reco
 
   return { error: null, tempPassword }
 }
+
+// Set a permanent password the user chose themselves (Permanent: true, no
+// FORCE_CHANGE_PASSWORD challenge on next login) — unlike adminResetPassword's temporary
+// value. Used by the mobile OTP self-service reset (lib/mobile/core/passwordReset.ts):
+// the engineer has already proven ownership of their number via the OTP, so they log in
+// straight away with the new password. Clears must_change_password too.
+export async function adminSetPermanentPassword(email: string, password: string): Promise<{ error: string | null }> {
+  const admin = adminClient()
+  const { data: profile } = await admin.from('profiles').select('id').eq('email', email).maybeSingle()
+  if (!profile) return { error: 'User not found.' }
+
+  try {
+    await cognitoClient.send(new AdminSetUserPasswordCommand({
+      UserPoolId: COGNITO_USER_POOL_ID,
+      Username: email,
+      Password: password,
+      Permanent: true,
+    }))
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : 'Could not set the password.' }
+  }
+
+  await admin.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+  return { error: null }
+}

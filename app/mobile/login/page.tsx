@@ -138,6 +138,9 @@ export default function MobileLoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <a href="/mobile/forgot-password" style={{ color: '#7D1D3F', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Forgot password?</a>
+          </div>
         </div>
       </div>
 

@@ -97,6 +97,10 @@ export default function LoginScreen() {
         <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
         </Pressable>
+
+        <Pressable onPress={() => router.push('/forgot-password')} hitSlop={8} style={styles.forgotLink}>
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.footer}>
@@ -133,6 +137,8 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  forgotLink: { alignItems: 'center', paddingVertical: 6 },
+  forgotText: { color: '#7D1D3F', fontSize: 13, fontWeight: '600' },
   footer: { textAlign: 'center', marginTop: 20, fontSize: 11, color: 'rgba(255,255,255,0.65)' },
   footerLink: { color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
 });
