@@ -148,6 +148,10 @@ export default function DashboardScreen() {
   // still punch in if they worked, which overwrites the holiday/day-off for their record.
   const canPunchIn = !!attendanceStatus
     && (attendanceStatus.kind === 'pending' || attendanceStatus.kind === 'holiday' || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow));
+  // A 'leave' + no-show state means the attendance cutoff has already passed, so punching
+  // in now is late — the modal collects an amendment reason inline instead of forcing a
+  // separate trip to the Attendance tab.
+  const punchInIsLate = attendanceStatus?.kind === 'leave' && !!attendanceStatus?.noShow;
 
   useEffect(() => {
     if (!canPunchIn || punchInGpsRequestedRef.current) return;
@@ -165,8 +169,11 @@ export default function DashboardScreen() {
         latitude: punchInCoordsRef.current?.lat ?? null,
         longitude: punchInCoordsRef.current?.lng ?? null,
         placeName: punchInPlaceNameRef.current || null,
-        reason: null,
-        ...payload,
+        reason: payload.lateReason ?? null,
+        category: payload.category,
+        visitCustomerName: payload.visitCustomerName,
+        visitSiteAddress: payload.visitSiteAddress,
+        visitPurpose: payload.visitPurpose,
       });
       if (result.error) { setPunchInError(result.error); return; }
       setShowPunchIn(false);
@@ -274,7 +281,7 @@ export default function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D1D3F" />}
     >
       <AppUpdatePopup prompt={data?.updatePrompt ?? null} />
-      <PunchInModal visible={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={markAttendance.isPending} error={punchInError} />
+      <PunchInModal visible={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={markAttendance.isPending} error={punchInError} isLate={punchInIsLate} />
       <PunchInModal
         visible={showChangeStatus}
         onCancel={() => setShowChangeStatus(false)}

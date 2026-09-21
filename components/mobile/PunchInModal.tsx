@@ -8,12 +8,13 @@ export interface PunchInPayload {
   visitCustomerName: string | null
   visitSiteAddress: string | null
   visitPurpose: string | null
+  lateReason?: string | null
 }
 
 // Punch-in flow (PWA): pick a top-level category; Travel / Site Visit then pick a
 // sub-type; every category except HQ then fills the mandatory visit details before the
 // actual GPS check-in the parent runs. HQ confirms straight away.
-export default function PunchInModal({ open, onCancel, onConfirm, submitting, error, title, subtitle }: {
+export default function PunchInModal({ open, onCancel, onConfirm, submitting, error, title, subtitle, isLate }: {
   open: boolean
   onCancel: () => void
   onConfirm: (p: PunchInPayload) => void
@@ -21,6 +22,7 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
   error: string
   title?: string
   subtitle?: string
+  isLate?: boolean
 }) {
   const [step, setStep] = useState<'top' | 'sub' | 'details' | 'confirm'>('top')
   const [top, setTop] = useState<TopCategory | null>(null)
@@ -28,9 +30,12 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
   const [customer, setCustomer] = useState('')
   const [site, setSite] = useState('')
   const [purpose, setPurpose] = useState('')
+  const [lateReason, setLateReason] = useState('')
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (open) { setStep('top'); setTop(null); setCategory(null); setCustomer(''); setSite(''); setPurpose('') } }, [open])
+  useEffect(() => { if (open) { setStep('top'); setTop(null); setCategory(null); setCustomer(''); setSite(''); setPurpose(''); setLateReason('') } }, [open])
+
+  const lateReasonValue = () => (isLate ? (lateReason.trim() || null) : null)
 
   if (!open) return null
 
@@ -115,8 +120,14 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
               </div>
             )}
             <div style={{ fontSize: 13, color: '#4B5563', margin: '8px 0 4px' }}>Confirm your status as {meta?.label ?? 'HQ'}.</div>
+            {isLate && (
+              <>
+                <label style={lbl}>You&apos;re punching in late — reason (optional)</label>
+                <textarea style={{ ...input, minHeight: 56, resize: 'vertical' }} value={lateReason} onChange={e => setLateReason(e.target.value)} placeholder="Sent to your manager for approval" />
+              </>
+            )}
             {!!error && <div style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</div>}
-            <button className="mtap" onClick={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null })}
+            <button className="mtap" onClick={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })}
               disabled={submitting}
               style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
               {submitting ? 'Submitting…' : 'Submit'}
@@ -139,8 +150,14 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
             <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={site} onChange={e => setSite(e.target.value)} placeholder="Substation / plant address" />
             <label style={lbl}>Purpose of Visit <span style={{ color: '#DC2626' }}>*</span></label>
             <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="Why is this visit happening?" />
+            {isLate && (
+              <>
+                <label style={lbl}>You&apos;re punching in late — reason (optional)</label>
+                <textarea style={{ ...input, minHeight: 56, resize: 'vertical' }} value={lateReason} onChange={e => setLateReason(e.target.value)} placeholder="Sent to your manager for approval" />
+              </>
+            )}
             {!!error && <div style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</div>}
-            <button className="mtap" onClick={() => category && detailsValid && onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim() })}
+            <button className="mtap" onClick={() => category && detailsValid && onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim(), lateReason: lateReasonValue() })}
               disabled={!detailsValid || submitting}
               style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: (!detailsValid || submitting) ? 'not-allowed' : 'pointer', opacity: (!detailsValid || submitting) ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
               {submitting ? 'Punching in…' : 'Continue'}

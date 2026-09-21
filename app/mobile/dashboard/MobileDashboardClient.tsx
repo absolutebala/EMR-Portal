@@ -231,6 +231,9 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   const canPunchIn = attendanceStatus.kind === 'pending'
     || attendanceStatus.kind === 'holiday'
     || (attendanceStatus.kind === 'leave' && attendanceStatus.noShow)
+  // A 'leave' + no-show state means the attendance cutoff has passed, so punching in now
+  // is late — collect the amendment reason inline instead of a separate Attendance-tab trip.
+  const punchInIsLate = attendanceStatus.kind === 'leave' && !!attendanceStatus.noShow
 
   useEffect(() => {
     if (!canPunchIn || punchInGpsRequestedRef.current) return
@@ -276,8 +279,11 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
       latitude: punchInCoordsRef.current?.lat ?? null,
       longitude: punchInCoordsRef.current?.lng ?? null,
       placeName: punchInPlaceNameRef.current || null,
-      reason: null,
-      ...payload,
+      reason: payload.lateReason ?? null,
+      category: payload.category,
+      visitCustomerName: payload.visitCustomerName,
+      visitSiteAddress: payload.visitSiteAddress,
+      visitPurpose: payload.visitPurpose,
     })
     setPunchingIn(false)
     if (result.error) { setPunchInError(result.error); return }
@@ -414,7 +420,7 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
-      <PunchInModal open={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={punchingIn} error={punchInError} />
+      <PunchInModal open={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={punchingIn} error={punchInError} isLate={punchInIsLate} />
       <PunchInModal
         open={showChangeStatus}
         onCancel={() => setShowChangeStatus(false)}

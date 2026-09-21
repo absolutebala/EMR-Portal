@@ -491,6 +491,9 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     }
 
     const lateIn = isPastAttendanceCutoff(now)
+    // A late punch-in can carry its amendment reason inline (no separate trip to the
+    // Attendance tab): store the reason and send it for manager approval right away.
+    const lateReason = lateIn ? (params.reason?.trim() || null) : null
 
     const { data: existing } = await admin.from('attendance').select('marked_at')
       .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
@@ -508,8 +511,8 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
         latitude: params.latitude,
         longitude: params.longitude,
         place_name: params.placeName,
-        reason: null,
-        approval_status: null,
+        reason: lateReason,
+        approval_status: lateReason ? 'pending' : null,
         approved_by: null,
         approved_at: null,
         late_in: lateIn,
@@ -531,7 +534,19 @@ export async function markAttendanceCore(admin: AdminClient, userId: string, par
     if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.', needsApproval: false }
     if (result.error) return { error: result.error.message, needsApproval: false }
 
-    return { error: null, needsApproval: false }
+    if (lateReason && result.data?.id) {
+      notifyUsers(admin, [
+        { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },
+      ], {
+        type: 'attendance_amendment_pending',
+        title: 'Late punch-in needs approval',
+        body: `An engineer punched in late on ${todayStr} and gave a reason for approval.`,
+        entityType: 'attendance', entityId: result.data.id,
+        linkPath: '/attendance',
+      }).catch(() => {})
+    }
+
+    return { error: null, needsApproval: !!lateReason }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e), needsApproval: false }
   }

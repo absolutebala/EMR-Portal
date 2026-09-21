@@ -7,12 +7,13 @@ export interface PunchInPayload {
   visitCustomerName: string | null;
   visitSiteAddress: string | null;
   visitPurpose: string | null;
+  lateReason?: string | null;
 }
 
 // Punch-in flow: pick a top-level category; Travel / Site Visit then pick a sub-type;
 // every category except HQ then fills the mandatory visit details before the actual GPS
 // check-in the parent runs. HQ confirms straight away.
-export default function PunchInModal({ visible, onCancel, onConfirm, submitting, error, title, subtitle }: {
+export default function PunchInModal({ visible, onCancel, onConfirm, submitting, error, title, subtitle, isLate }: {
   visible: boolean;
   onCancel: () => void;
   onConfirm: (p: PunchInPayload) => void;
@@ -20,6 +21,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   error: string;
   title?: string;
   subtitle?: string;
+  isLate?: boolean;
 }) {
   const [step, setStep] = useState<'top' | 'sub' | 'details' | 'confirm'>('top');
   const [top, setTop] = useState<TopCategory | null>(null);
@@ -27,11 +29,14 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   const [customer, setCustomer] = useState('');
   const [site, setSite] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [lateReason, setLateReason] = useState('');
 
   // Reset whenever the modal is (re)opened.
   useEffect(() => {
-    if (visible) { setStep('top'); setTop(null); setCategory(null); setCustomer(''); setSite(''); setPurpose(''); }
+    if (visible) { setStep('top'); setTop(null); setCategory(null); setCustomer(''); setSite(''); setPurpose(''); setLateReason(''); }
   }, [visible]);
+
+  const lateReasonValue = () => (isLate ? (lateReason.trim() || null) : null);
 
   function pickTop(id: TopCategory) {
     const opt = TOP_OPTIONS.find(o => o.id === id)!;
@@ -55,7 +60,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
 
   function submitDetails() {
     if (!category || !detailsValid) return;
-    onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim() });
+    onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim(), lateReason: lateReasonValue() });
   }
 
   return (
@@ -118,8 +123,14 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
                   </View>
                 )}
                 <Text style={styles.confirmText}>Confirm your status as {meta?.label ?? 'HQ'}.</Text>
+                {isLate && (
+                  <>
+                    <Text style={styles.label}>You're punching in late — reason (optional)</Text>
+                    <TextInput style={styles.input} value={lateReason} onChangeText={setLateReason} placeholder="Sent to your manager for approval" placeholderTextColor="#9CA3AF" multiline />
+                  </>
+                )}
                 {!!error && <Text style={styles.err}>{error}</Text>}
-                <Pressable style={[styles.continue, submitting && styles.continueOff]} onPress={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null })} disabled={submitting}>
+                <Pressable style={[styles.continue, submitting && styles.continueOff]} onPress={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })} disabled={submitting}>
                   {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueText}>Submit</Text>}
                 </Pressable>
               </>
