@@ -734,6 +734,35 @@ export async function markDayOffCore(admin: AdminClient, userId: string, params:
   }
 }
 
+// Lets an engineer undo their own Day Off for today (e.g. tapped by accident) — as long
+// as it isn't already manager-approved and they haven't since punched in. Deletes the
+// row so the day returns to a clean state and they can punch in normally.
+export async function cancelDayOffCore(admin: AdminClient, userId: string, params: {
+  attendanceDate?: string
+}): Promise<{ error: string | null }> {
+  try {
+    const todayStr = getISTDateStr()
+    const targetDateStr = params.attendanceDate ?? todayStr
+    if (targetDateStr !== todayStr) return { error: 'You can only change today’s day off.' }
+
+    const { data: existing } = await admin.from('attendance')
+      .select('id, day_off, approval_status, marked_at')
+      .eq('engineer_id', userId).eq('attendance_date', todayStr).maybeSingle()
+
+    if (!existing || !existing.day_off || existing.marked_at) return { error: null } // nothing to cancel
+    if (existing.approval_status === 'approved') {
+      return { error: 'Your day off is already approved — ask your manager to change it.' }
+    }
+
+    const result = await withTimeout(admin.from('attendance').delete().eq('id', existing.id), 8000)
+    if (!result) return { error: 'Saving is taking longer than expected — please check your connection and try again.' }
+    if (result.error) return { error: result.error.message }
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 // Explicit amendment request by the engineer — the ONLY place the Service Manager is
 // notified. Covers today's Absent day (late in / short hours / single punch) and a past
 // Absent day (no-show) within the current IST month. Sets the row to pending with the

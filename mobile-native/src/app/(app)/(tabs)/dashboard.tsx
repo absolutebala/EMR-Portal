@@ -1,9 +1,9 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl, Alert } from 'react-native';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, useUpdatePunchCategory, reverseGeocode } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, useCancelDayOff, useUpdatePunchCategory, reverseGeocode } from '@/lib/hooks';
 import { categoryMeta } from '@/lib/punchCategory';
 import AppVersionFooter from '@/components/AppVersionFooter';
 import { useAuth } from '@/lib/AuthContext';
@@ -108,6 +108,7 @@ export default function DashboardScreen() {
   const markEndDay = useMarkEndDay();
   const markAttendance = useMarkAttendance();
   const markDayOff = useMarkDayOff();
+  const cancelDayOff = useCancelDayOff();
   const updatePunchCategory = useUpdatePunchCategory();
   const [endDayError, setEndDayError] = useState('');
   const [punchInError, setPunchInError] = useState('');
@@ -192,10 +193,31 @@ export default function DashboardScreen() {
     }
   }
 
-  async function handleDayOff() {
+  function handleDayOff() {
+    Alert.alert(
+      'Mark today as Day Off?',
+      'This needs manager approval and will stop you from punching in unless you cancel it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Day Off', style: 'destructive', onPress: async () => {
+            setPunchInError('');
+            try {
+              const result = await markDayOff.mutateAsync({});
+              if (result.error) setPunchInError(result.error);
+            } catch (e) {
+              setPunchInError(apiErrorMessage(e));
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleCancelDayOff() {
     setPunchInError('');
     try {
-      const result = await markDayOff.mutateAsync({});
+      const result = await cancelDayOff.mutateAsync({});
       if (result.error) setPunchInError(result.error);
     } catch (e) {
       setPunchInError(apiErrorMessage(e));
@@ -355,6 +377,24 @@ export default function DashboardScreen() {
                   </Pressable>
                 )}
               </View>
+              {!!punchInError && <Text style={styles.endDayError}>{punchInError}</Text>}
+            </View>
+          );
+        }
+
+        // A self-applied Day Off that's still pending (or was rejected) can be undone
+        // here so an accidental tap doesn't lock the engineer out of punching in.
+        if (status.kind === 'day_off' && (status.pendingApproval || status.rejected)) {
+          return (
+            <View style={[styles.attendanceCard, styles.attendanceCardColumn, { backgroundColor: cfg.bg }]}>
+              <View>
+                <Text style={[styles.attendanceEyebrow, { color: cfg.color }]}>ATTENDANCE</Text>
+                <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                {cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
+              </View>
+              <Pressable style={[styles.dayOffButton, { marginTop: 12 }, cancelDayOff.isPending && styles.attendanceBtnDisabled]} onPress={handleCancelDayOff} disabled={cancelDayOff.isPending}>
+                {cancelDayOff.isPending ? <ActivityIndicator color="#5B21B6" size="small" /> : <Text style={styles.dayOffButtonText}>Cancel day off & punch in instead</Text>}
+              </Pressable>
               {!!punchInError && <Text style={styles.endDayError}>{punchInError}</Text>}
             </View>
           );

@@ -8,7 +8,7 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
-import { markEndDay, markAttendance, markDayOff, updatePunchCategory } from '@/app/actions/attendance'
+import { markEndDay, markAttendance, markDayOff, cancelDayOff, updatePunchCategory } from '@/app/actions/attendance'
 import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
 import { categoryMeta } from '@/lib/punchCategory'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
@@ -286,9 +286,19 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   }
 
   async function handleDayOff() {
+    if (!window.confirm('Mark today as a Day Off? This needs manager approval and will stop you from punching in unless you cancel it.')) return
     setPunchInError('')
     setMarkingDayOff(true)
     const result = await markDayOff({})
+    setMarkingDayOff(false)
+    if (result.error) { setPunchInError(result.error); return }
+    router.refresh()
+  }
+
+  async function handleCancelDayOff() {
+    setPunchInError('')
+    setMarkingDayOff(true)
+    const result = await cancelDayOff({})
     setMarkingDayOff(false)
     if (result.error) { setPunchInError(result.error); return }
     router.refresh()
@@ -822,6 +832,23 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                     {markingDayOff ? 'Saving…' : 'Day Off'}
                   </button>
                 </div>
+                {!!punchInError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{punchInError}</div>}
+              </div>
+            )
+          }
+
+          // A self-applied Day Off that's still pending (or was rejected) can be undone
+          // right here, so an accidental tap doesn't lock the engineer out of punching in.
+          if (status.kind === 'day_off' && (status.pendingApproval || status.rejected)) {
+            return (
+              <div style={{ marginBottom: 12, padding: '13px 14px', borderRadius: 12, background: cfg.bg }}>
+                <div style={{ fontSize: 9, fontWeight: 600, color: cfg.color, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, opacity: 0.75 }}>Attendance</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                {cfg.sub && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>}
+                <button className="mtap" onClick={handleCancelDayOff} disabled={markingDayOff}
+                  style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 8, border: '1.5px solid #5B21B6', background: '#fff', color: '#5B21B6', fontSize: 12, fontWeight: 700, cursor: markingDayOff ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: markingDayOff ? 0.6 : 1 }}>
+                  {markingDayOff ? 'Saving…' : 'Cancel day off & punch in instead'}
+                </button>
                 {!!punchInError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{punchInError}</div>}
               </div>
             )

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from './api';
+import { apiGet, apiPost, apiDelete } from './api';
 import { getCurrentPositionWithFallback } from './gps';
 import {
   CHECKIN_MUTATION_KEY, CLOSURE_MUTATION_KEY, SUBMIT_FORM_MUTATION_KEY, WORK_ORDER_FORM_QUERY_KEY,
@@ -299,6 +299,19 @@ export function useMarkDayOff() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (variables: MarkDayOffVariables) => apiPost<MarkDayOffResponse>('/api/mobile/v1/attendance/day-off', variables),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-status'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// Undo an engineer's own (unapproved) Day Off for today.
+export function useCancelDayOff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: MarkDayOffVariables) => apiDelete<{ error: string | null }>('/api/mobile/v1/attendance/day-off', variables),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
       qc.invalidateQueries({ queryKey: ['attendance-status'] });

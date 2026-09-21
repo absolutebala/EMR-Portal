@@ -69,3 +69,7 @@ export function apiGet<T>(path: string): Promise<T> {
 export function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, { method: 'POST', body: body != null ? JSON.stringify(body) : undefined });
 }
+
+export function apiDelete<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: 'DELETE', body: body != null ? JSON.stringify(body) : undefined });
+}

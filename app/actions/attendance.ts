@@ -3,7 +3,7 @@
 import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/mobile/core/shared'
 import {
-  getMyAttendanceStatusCore, markAttendanceCore, updatePunchCategoryCore, markEndDayCore, markDayOffCore, getAttendanceCalendarCore,
+  getMyAttendanceStatusCore, markAttendanceCore, updatePunchCategoryCore, markEndDayCore, markDayOffCore, cancelDayOffCore, getAttendanceCalendarCore,
   getPendingAmendmentsCore, approveRejectAmendmentCore, requestAttendanceAmendmentCore,
   applyForLeaveCore, getMyLeaveRequestsCore, getPendingLeaveRequestsCore, approveRejectLeaveCore,
   type AttendanceEffectiveStatus, type AttendanceCalendarDay, type PendingAmendment, type PunchCategory, type LeaveRequestItem,
@@ -62,6 +62,12 @@ export async function markDayOff(params: { attendanceDate?: string }): Promise<{
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated', needsApproval: false }
   return markDayOffCore(adminClient(), user.id, params ?? {})
+}
+
+export async function cancelDayOff(params: { attendanceDate?: string }): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return cancelDayOffCore(adminClient(), user.id, params ?? {})
 }
 
 export async function requestAttendanceAmendment(params: { attendanceDate: string; reason: string }): Promise<{ error: string | null }> {
