@@ -29,6 +29,7 @@ interface SettingsShape {
   whatsapp_campaign_pending: string
   whatsapp_campaign_expense_reminder: string
   whatsapp_campaign_dispatched_customer: string
+  whatsapp_campaign_password_otp: string
   sms_gateway: string
   sms_api_key: string
   sms_sender_id: string
@@ -243,6 +244,11 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
             <textarea style={{ ...fi2, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }} value={settings.sms_otp_template} onChange={e => set('sms_otp_template', e.target.value)} placeholder="Your EMR Field Service password reset OTP is {otp}. Valid 10 minutes. Do not share it with anyone." />
             <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Must match your DLT-approved template exactly, with <code>{'{otp}'}</code> where the code goes.</p>
           </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={fl2}>WhatsApp OTP campaign (fallback)</label>
+            <input style={fi2} value={settings.whatsapp_campaign_password_otp} onChange={e => set('whatsapp_campaign_password_otp', e.target.value)} placeholder="Combirds WhatsApp campaign name (1 param = the code)" />
+            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Used only when the SMS fields above aren&apos;t all filled in. Reuses the Combirds API key above. The campaign must be Live with a single template param for the 6-digit code.</p>
+          </div>
 
           <div style={{ marginTop: 18, marginBottom: 4 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>WhatsApp campaign mapping</div>
@@ -275,6 +281,7 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
               whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
               whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
               whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
+              whatsapp_campaign_password_otp: settings.whatsapp_campaign_password_otp || null,
               sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null,
               sms_template_id: settings.sms_template_id || null, sms_type: settings.sms_type || null, sms_otp_template: settings.sms_otp_template || null,
             })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>

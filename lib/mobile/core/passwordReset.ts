@@ -1,6 +1,6 @@
 import { createHash, randomInt, timingSafeEqual } from 'crypto'
 import type { AdminClient } from './shared'
-import { sendPasswordResetSms } from '@/lib/messaging/sms'
+import { sendPasswordResetOtp } from '@/lib/messaging/otp'
 import { adminSetPermanentPassword } from '@/lib/cognito/admin-reset-password'
 
 // Field-engineer self-service password reset by SMS OTP. Flow:
@@ -48,18 +48,18 @@ export function validatePasswordPolicy(pw: string): string | null {
 // Resolve the single Field Engineer whose registered phone ends in the same 10 digits as
 // the typed identifier. Returns null when zero or more than one match (ambiguous → treat
 // as "no account" so we never text the wrong person).
-async function findEngineerByPhone(admin: AdminClient, identifier: string): Promise<{ id: string; email: string; phone: string } | null> {
+async function findEngineerByPhone(admin: AdminClient, identifier: string): Promise<{ id: string; email: string; phone: string; name: string } | null> {
   const target = last10(identifier)
   if (target.length !== 10) return null
   const { data } = await admin.from('profiles')
-    .select('id, email, phone')
+    .select('id, email, phone, first_name, last_name')
     .eq('role', 'Field Engineer')
     .not('phone', 'is', null)
-  const rows = (data ?? []) as { id: string; email: string | null; phone: string | null }[]
+  const rows = (data ?? []) as { id: string; email: string | null; phone: string | null; first_name: string | null; last_name: string | null }[]
   const matches = rows.filter(r => r.phone && last10(r.phone) === target && r.email)
   if (matches.length !== 1) return null
   const m = matches[0]
-  return { id: m.id, email: m.email as string, phone: m.phone as string }
+  return { id: m.id, email: m.email as string, phone: m.phone as string, name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || 'Engineer' }
 }
 
 export async function requestPasswordResetOtpCore(
@@ -89,7 +89,7 @@ export async function requestPasswordResetOtpCore(
       expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
     })
 
-    await sendPasswordResetSms(admin, eng.phone, otp).catch(() => false)
+    await sendPasswordResetOtp(admin, { phone: eng.phone, otp, name: eng.name }).catch(() => false)
     return { ok: true }
   } catch (e) {
     console.error('requestPasswordResetOtpCore failed', e instanceof Error ? e.message : e)
