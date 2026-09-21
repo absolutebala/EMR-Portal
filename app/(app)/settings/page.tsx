@@ -33,9 +33,12 @@ export default async function SettingsPage() {
     whatsapp_campaign_pending: data?.whatsapp_campaign_pending || '',
     whatsapp_campaign_expense_reminder: data?.whatsapp_campaign_expense_reminder || '',
     whatsapp_campaign_dispatched_customer: data?.whatsapp_campaign_dispatched_customer || '',
-    sms_gateway: data?.sms_gateway || 'twilio',
+    sms_gateway: data?.sms_gateway || 'combirds',
     sms_api_key: data?.sms_api_key || '',
     sms_sender_id: data?.sms_sender_id || '',
+    sms_template_id: data?.sms_template_id || '',
+    sms_type: data?.sms_type || '',
+    sms_otp_template: data?.sms_otp_template || '',
     logo_url: data?.logo_url || '',
     play_store_url: data?.play_store_url || '',
   }

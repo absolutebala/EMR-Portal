@@ -32,6 +32,9 @@ interface SettingsShape {
   sms_gateway: string
   sms_api_key: string
   sms_sender_id: string
+  sms_template_id: string
+  sms_type: string
+  sms_otp_template: string
   logo_url: string
   play_store_url: string
 }
@@ -222,9 +225,23 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
           <p style={ps}>Configure channels for customer and engineer notifications.</p>
           <div style={grid2}>
             <div><label style={fl2}>Combirds API key</label><input style={fi2} value={settings.whatsapp_api_key} onChange={e => set('whatsapp_api_key', e.target.value)} placeholder="API key from your Combirds dashboard" /></div>
-            <div><label style={fl2}>SMS gateway</label><select style={fi2} value={settings.sms_gateway} onChange={e => set('sms_gateway', e.target.value)}><option value="twilio">Twilio</option><option value="msg91">MSG91</option><option value="textlocal">TextLocal</option></select></div>
-            <div><label style={fl2}>SMS API key</label><input style={fi2} value={settings.sms_api_key} onChange={e => set('sms_api_key', e.target.value)} placeholder="SMS gateway API key (not yet active)" /></div>
-            <div><label style={fl2}>Sender ID</label><input style={fi2} value={settings.sms_sender_id} onChange={e => set('sms_sender_id', e.target.value)} placeholder="e.g. EMRGLB" /></div>
+            <div><label style={fl2}>SMS gateway</label><select style={fi2} value={settings.sms_gateway} onChange={e => set('sms_gateway', e.target.value)}><option value="combirds">Combirds</option><option value="twilio">Twilio</option><option value="msg91">MSG91</option><option value="textlocal">TextLocal</option></select></div>
+          </div>
+
+          <div style={{ marginTop: 18, marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>SMS OTP — field engineer password reset (Combirds)</div>
+            <p style={ps}>Powers the mobile &quot;Forgot password?&quot; flow. All values must be DLT-approved in your Combirds SMS portal. The template text is sent exactly as entered — put the literal token <code>{'{otp}'}</code> where the 6-digit code should appear. Leave any field blank to disable OTP SMS (the code is still generated but not texted).</p>
+          </div>
+          <div style={grid2}>
+            <div><label style={fl2}>SMS API key (x-api-key)</label><input style={fi2} value={settings.sms_api_key} onChange={e => set('sms_api_key', e.target.value)} placeholder="Combirds SMS API key" /></div>
+            <div><label style={fl2}>Sender ID</label><input style={fi2} value={settings.sms_sender_id} onChange={e => set('sms_sender_id', e.target.value)} placeholder="DLT sender header, e.g. EMRGLB" /></div>
+            <div><label style={fl2}>DLT template ID</label><input style={fi2} value={settings.sms_template_id} onChange={e => set('sms_template_id', e.target.value)} placeholder="e.g. 1707161719949940074" /></div>
+            <div><label style={fl2}>SMS type</label><input style={fi2} value={settings.sms_type} onChange={e => set('sms_type', e.target.value)} placeholder="Combirds billing-approved smsType" /></div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={fl2}>OTP message template</label>
+            <textarea style={{ ...fi2, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }} value={settings.sms_otp_template} onChange={e => set('sms_otp_template', e.target.value)} placeholder="Your EMR Field Service password reset OTP is {otp}. Valid 10 minutes. Do not share it with anyone." />
+            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Must match your DLT-approved template exactly, with <code>{'{otp}'}</code> where the code goes.</p>
           </div>
 
           <div style={{ marginTop: 18, marginBottom: 4 }}>
@@ -259,6 +276,7 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
               whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
               whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
               sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null,
+              sms_template_id: settings.sms_template_id || null, sms_type: settings.sms_type || null, sms_otp_template: settings.sms_otp_template || null,
             })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>
               {saving === 'notifications' ? 'Saving…' : 'Save notification settings'}
             </button>
