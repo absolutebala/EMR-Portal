@@ -387,6 +387,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   }, [canApprove])
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [nameQuery, setNameQuery] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [anchorDate, setAnchorDate] = useState(new Date())
@@ -640,6 +641,12 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     return { engineers: engList, dates: dateList, cellByEngDate: cells }
   }, [rows])
 
+  // Name search filters only the on-screen grid rows (exports still cover everyone).
+  const visibleEngineers = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase()
+    return q ? engineers.filter(e => e.name.toLowerCase().includes(q)) : engineers
+  }, [engineers, nameQuery])
+
   // The week runs Sun→Sat, so today (mid/late week) lands at the far right and gets
   // clipped by the horizontal scroll. Auto-scroll so today is fully visible with the
   // next day showing — only when today falls inside the current range.
@@ -731,6 +738,15 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
               {exporting ? 'Exporting…' : `Export Attendance`}
             </button>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <svg width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24" style={{ position: 'absolute', left: 10, pointerEvents: 'none' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input
+                value={nameQuery}
+                onChange={e => setNameQuery(e.target.value)}
+                placeholder="Search engineer…"
+                style={{ padding: '8px 12px 8px 30px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', width: 180 }}
+              />
+            </div>
           </div>
         </div>
 
@@ -797,12 +813,15 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                   </tr>
                 </thead>
                 <tbody>
-                  {engineers.map((eng, ei) => (
+                  {visibleEngineers.length === 0 && (
+                    <tr><td colSpan={dates.length + 1} style={{ padding: '20px 14px', fontSize: 12, color: 'var(--txm)', textAlign: 'center' }}>No field engineers match &quot;{nameQuery.trim()}&quot;.</td></tr>
+                  )}
+                  {visibleEngineers.map((eng, ei) => (
                     <tr key={eng.id}>
                       <td style={{
                         position: 'sticky', left: 0, zIndex: 1, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)',
                         background: '#fff', borderRight: '1px solid var(--gm)',
-                        borderBottom: ei < engineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
+                        borderBottom: ei < visibleEngineers.length - 1 ? '1px solid var(--gm)' : 'none', whiteSpace: 'nowrap', verticalAlign: 'top',
                       }}>
                         {eng.name}
                       </td>
