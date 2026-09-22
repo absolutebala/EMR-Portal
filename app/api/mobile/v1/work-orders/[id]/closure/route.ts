@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json()
   const {
     outcome, summary, pendingReason, materialsRequired, revisitDate,
-    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite,
+    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite, createProductFollowUp,
   } = body as {
     outcome: 'completed' | 'pending'
     summary: string
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     clientPhone?: string | null
     engineerPhone?: string | null
     offSite?: boolean
+    createProductFollowUp?: boolean
   }
   // Completion is a plain action now (sign-off lives on the forms); only a pending
   // closure requires the engineer's signature.
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const result = await submitDailyClosureCore(adminClient(), user.id, {
     workOrderId: id, outcome, summary, pendingReason, materialsRequired, revisitDate,
-    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite,
+    needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite, createProductFollowUp,
   })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)

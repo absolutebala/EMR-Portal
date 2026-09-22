@@ -344,6 +344,10 @@ export interface MobileWorkOrderDetail {
   // (the primary engineer with no carve-outs against them, or an additional
   // engineer assigned without a specific serial).
   myAssignedSerials: string[] | null
+  // True when the notification still has open (pending/approved) product-request items —
+  // drives the "create a follow-up notification for the pending products?" prompt shown
+  // on completion.
+  hasOpenProductRequest: boolean
 }
 
 export interface MobileFormRow {

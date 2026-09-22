@@ -10,6 +10,7 @@ import type { MobileWorkOrderWithCustomer } from '@/lib/mobile/core/shared'
 
 interface Props {
   workOrder: MobileWorkOrderWithCustomer
+  hasOpenProductRequest?: boolean
 }
 
 // "Product Request" is a special reason: picking it abandons the normal pending-
@@ -32,7 +33,7 @@ const inputStyle: React.CSSProperties = {
   background: '#fff', boxSizing: 'border-box',
 }
 
-export default function ClosureView({ workOrder }: Props) {
+export default function ClosureView({ workOrder, hasOpenProductRequest }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // Reached from the dashboard's "still checked in" prompt when the engineer confirms
@@ -60,6 +61,12 @@ export default function ClosureView({ workOrder }: Props) {
   // "Mark Completed" is a plain action now — sign-off (both signatures) is captured
   // on the forms, so completing just flips the notification to completed.
   function handleCompleteSubmit() {
+    // This notification still has open product-request items — offer to spin off a new
+    // (unassigned) notification carrying the pending products, for a Service Manager.
+    let createProductFollowUp = false
+    if (hasOpenProductRequest) {
+      createProductFollowUp = window.confirm('This notification still has an open product request. Create a new notification for the pending products? A Service Manager will assign an engineer to it.')
+    }
     setSubmitting(true)
     setError('')
     startBackgroundClosure({
@@ -74,6 +81,7 @@ export default function ClosureView({ workOrder }: Props) {
       clientName: '',
       clientSignature: '',
       offSite,
+      createProductFollowUp,
     })
     router.push(`/mobile/work-orders/${workOrder.id}`)
   }

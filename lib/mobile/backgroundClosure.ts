@@ -16,6 +16,7 @@ interface ClosurePayload {
   clientPhone?: string | null
   engineerPhone?: string | null
   offSite?: boolean
+  createProductFollowUp?: boolean
 }
 
 const keyFor = (workOrderId: string) => `emr-closure-sync:${workOrderId}`

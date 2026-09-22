@@ -25,7 +25,7 @@ function todayDatePrefix(): string {
 // Mirrors nextTicketNumber() in app/actions/create-work-order.ts — highest existing N for
 // today's YYYYMMDD prefix, +1 (robust to a failed prior attempt). Duplicated rather than
 // imported: that lives in a 'use server' file which can't be pulled into a REST route.
-async function nextTicketNumber(admin: AdminClient): Promise<string> {
+export async function nextTicketNumber(admin: AdminClient): Promise<string> {
   const prefix = todayDatePrefix()
   const { data } = await admin.from('work_orders').select('ticket_number').like('ticket_number', `${prefix}-%`)
   let max = 0

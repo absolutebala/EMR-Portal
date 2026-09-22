@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
 import { getMobileWorkOrderBasic } from '@/app/actions/mobile-actions'
+import { adminClient } from '@/lib/mobile/core/shared'
 import ClosureView from './ClosureView'
 
 interface Props {
@@ -26,5 +27,16 @@ export default async function MobileClosurePage({ params }: Props) {
     )
   }
 
-  return <ClosureView workOrder={workOrder} />
+  // Whether this notification still has open product-request items — drives the
+  // "create a follow-up notification?" prompt when the engineer marks it completed.
+  let hasOpenProductRequest = false
+  const admin = adminClient()
+  const { data: reqs } = await admin.from('product_requests').select('id').eq('work_order_id', id)
+  const reqIds = (reqs || []).map(r => r.id)
+  if (reqIds.length) {
+    const { data: openItems } = await admin.from('product_request_items').select('id').in('request_id', reqIds).in('status', ['pending', 'approved']).limit(1)
+    hasOpenProductRequest = !!openItems?.length
+  }
+
+  return <ClosureView workOrder={workOrder} hasOpenProductRequest={hasOpenProductRequest} />
 }

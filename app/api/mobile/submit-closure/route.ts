@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json()
-    const { workOrderId, outcome, summary, pendingReason, materialsRequired, revisitDate, needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite } = body as {
+    const { workOrderId, outcome, summary, pendingReason, materialsRequired, revisitDate, needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite, createProductFollowUp } = body as {
       workOrderId: string
       outcome: 'completed' | 'pending'
       summary: string
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       clientPhone?: string | null
       engineerPhone?: string | null
       offSite?: boolean
+      createProductFollowUp?: boolean
     }
 
     if (!workOrderId || !outcome) {
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const result = await submitDailyClosureCore(adminClient(), user.id, {
       workOrderId, outcome, summary, pendingReason, materialsRequired, revisitDate,
-      needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite,
+      needsReassignment, engineerSignature, clientName, clientSignature, clientPhone, engineerPhone, offSite, createProductFollowUp,
     })
     if (result.error) return NextResponse.json({ error: result.error }, { status: 500 })
 

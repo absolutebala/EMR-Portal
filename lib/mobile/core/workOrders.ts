@@ -14,6 +14,7 @@ import {
   touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity, reverseGeocodeCore,
 } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
+import { nextTicketNumber } from './create-notification'
 
 // "Engineer signature" and "Customer signature" are the fixed, standard field labels
 // every form built in the Form Builder includes (confirmed with the user) — used to
@@ -229,6 +230,19 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
       handoverEngineerHasFormSubmission = !!handoverSubmission?.length
     }
 
+    // Whether this notification still has open (pending/approved, not dispatched/rejected)
+    // product-request items — drives the "create a follow-up notification?" prompt shown
+    // when the engineer marks the job completed.
+    let hasOpenProductRequest = false
+    {
+      const { data: reqs } = await admin.from('product_requests').select('id').eq('work_order_id', woId)
+      const reqIds = (reqs || []).map(r => r.id)
+      if (reqIds.length) {
+        const { data: openItems } = await admin.from('product_request_items').select('id').in('request_id', reqIds).in('status', ['pending', 'approved']).limit(1)
+        hasOpenProductRequest = !!openItems?.length
+      }
+    }
+
     return {
       detail: {
         workOrder,
@@ -241,6 +255,7 @@ export async function getMobileWorkOrderDetailCore(admin: AdminClient, userId: s
         availableForms,
         previousVisits: previous || [],
         myAssignedSerials,
+        hasOpenProductRequest,
       },
       error: null,
     }
@@ -634,7 +649,13 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
   // not there to get one), everything else (engineer signature, PDF/Word, activity log)
   // still happens as normal, plus a flagged entry for the manager's Dashboard card.
   offSite?: boolean
-}): Promise<{ error: string | null }> {
+  // On completing a notification that still has an open product request, the engineer is
+  // asked whether to spin off a follow-up notification for the pending products. When
+  // true (and there really are pending items), a new UNASSIGNED notification is created —
+  // same customer/transformer/department — with the pending product items copied onto it,
+  // for a Service Manager to assign.
+  createProductFollowUp?: boolean
+}): Promise<{ error: string | null; followUpWoNumber?: string }> {
   try {
     // A follow-up date is always required for a pending visit now — it's the only
     // signal for "when should someone check this again", since the notification no
@@ -647,7 +668,7 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
 
     // Fetched once, reused below for the primary-engineer status gate, the
     // customer-facing WhatsApp send, and the off-site/needs-reassignment activity log.
-    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id').eq('id', params.workOrderId).maybeSingle()
+    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id, job_type, department_id').eq('id', params.workOrderId).maybeSingle()
 
     const actorResult = await withTimeout(
       admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).single(),
@@ -741,6 +762,61 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       }).eq('id', userId).then(() => {}, () => {})
     }
 
+    // Spin off a follow-up notification for still-open product-request items, if the
+    // engineer opted in on completion. Best-effort — never blocks the completion itself.
+    let followUpWoNumber: string | undefined
+    if (params.outcome === 'completed' && params.createProductFollowUp) {
+      try {
+        const { data: reqs } = await admin.from('product_requests').select('id').eq('work_order_id', params.workOrderId)
+        const reqIds = (reqs || []).map(r => r.id)
+        if (reqIds.length) {
+          const { data: items } = await admin.from('product_request_items').select('product_id, quantity, status').in('request_id', reqIds)
+          const openItems = (items || []).filter(it => it.status === 'pending' || it.status === 'approved')
+          if (openItems.length) {
+            const { data: wtRows } = await admin.from('work_order_transformers').select('transformer_id').eq('work_order_id', params.workOrderId)
+            const transformerIds = (wtRows || []).map(r => r.transformer_id)
+
+            let followWo: { id: string; wo_number: string } | null = null
+            for (let attempt = 0; attempt < 5 && !followWo; attempt++) {
+              const tn = await nextTicketNumber(admin)
+              const { data, error } = await admin.from('work_orders').insert({
+                wo_number: tn, ticket_number: tn,
+                job_type: wo?.job_type,
+                customer_id: wo?.customer_id || null,
+                department_id: wo?.department_id || null,
+                engineer_id: null,            // unassigned — a Service Manager assigns it
+                status: 'unassigned',
+                notes: `Follow-up for pending products from ${wo?.wo_number || 'a completed notification'}.`,
+                created_by: userId,
+              }).select('id, wo_number').single()
+              if (data) { followWo = data; break }
+              if (error?.code !== '23505') break // only retry the ticket# collision race
+            }
+
+            if (followWo) {
+              followUpWoNumber = followWo.wo_number
+              if (transformerIds.length) {
+                await admin.from('work_order_transformers').insert(transformerIds.map(tid => ({ work_order_id: followWo!.id, transformer_id: tid }))).then(() => {}, () => {})
+              }
+              const { data: newReq } = await admin.from('product_requests').insert({ work_order_id: followWo.id, engineer_id: null }).select('id').single()
+              if (newReq) {
+                await admin.from('product_request_items').insert(
+                  openItems.map(it => ({ request_id: newReq.id, product_id: it.product_id, quantity: it.quantity, status: 'pending' }))
+                ).then(() => {}, () => {})
+              }
+              logActivity(admin, params.workOrderId, userId, `Created follow-up notification ${followWo.wo_number} for pending products`).catch(() => {})
+              notifyUsers(admin, [{ role: 'Super Admin' }, { role: 'Head of Service' }, { role: 'Service Manager' }], {
+                type: 'work_order_pending_approval',
+                title: `New notification to assign: ${followWo.wo_number}`,
+                body: `${engineerName} completed ${wo?.wo_number || 'a notification'} with pending products — a follow-up notification was created for assignment.`,
+                entityType: 'work_order', entityId: followWo.id, linkPath: `/work-orders/${followWo.id}`,
+              }).catch(() => {})
+            }
+          }
+        }
+      } catch { /* best-effort */ }
+    }
+
     if (wo?.customer_id) {
       const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
       if (customer) {
@@ -797,7 +873,7 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       }
     }
 
-    return { error: null }
+    return { error: null, followUpWoNumber }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
   }
