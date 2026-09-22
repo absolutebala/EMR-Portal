@@ -69,9 +69,13 @@ export function wKvLine(label: string, value: string): Paragraph {
 }
 
 export function wTable(headers: string[], rows: string[][], widths?: number[]): Table {
+  // Always give the table a fixed column grid — a percentage-only table lets Word autofit
+  // collapse columns to ~1 char wide (text then wraps vertically). Default to equal columns.
+  const columnWidths = widths ?? headers.map(() => Math.round(8700 / headers.length))
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    columnWidths: widths,
+    layout: TableLayoutType.FIXED,
+    columnWidths,
     rows: [
       new TableRow({ tableHeader: true, children: headers.map((h, i) => wCell([new TextRun({ text: h, bold: true, size: 17, color: '1C0D14' })], { fill: 'E8E8ED', width: widths ? undefined : Math.round(100 / headers.length) })) }),
       ...rows.map(r => new TableRow({ children: r.map(c => wCell([new TextRun({ text: c || '', size: 17 })])) })),
@@ -89,7 +93,7 @@ export function wCheckboxGroup(items: { label: string; checked: boolean }[]): Pa
 
 export function wNumberedRows(items: string[]): Table {
   const list = items.length ? items : ['']
-  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: list.map((item, i) => new TableRow({ children: [wCell([new TextRun({ text: `${i + 1}. `, bold: true, size: 18 }), new TextRun({ text: item, size: 18 })])] })) })
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [8700], rows: list.map((item, i) => new TableRow({ children: [wCell([new TextRun({ text: `${i + 1}. `, bold: true, size: 18 }), new TextRun({ text: item, size: 18 })])] })) })
 }
 
 export function wSignoffTwoParty(left: { title: string; headerFill: string; rows: [string, string][]; sig: string | null }, right: { title: string; headerFill: string; rows: [string, string][]; sig: string | null }): Table {
@@ -110,7 +114,7 @@ export function wSignoffTwoParty(left: { title: string; headerFill: string; rows
     rows.push(new TableRow({ children: [wLV(ll, lv), wLV(rl, rv)] }))
   }
   rows.push(new TableRow({ children: [sigCell(left.sig), sigCell(right.sig)] }))
-  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows })
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [4350, 4350], rows })
 }
 
 export function wSignoffStacked(blocks: { title: string; rows: [string, string][]; sig: string | null }[]): Child[] {

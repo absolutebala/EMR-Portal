@@ -358,6 +358,8 @@ export async function generateOltcMomWord(params: VisitPdfParams): Promise<Buffe
       : new Paragraph({ children: [new TextRun({ text: `${ln.label}:`, bold: true, size: 18 }), new TextRun({ text: ` ${ln.value}`, size: 18 })] })
   children.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    columnWidths: [4350, 4350],
     rows: [
       new TableRow({ children: [wcell([new TextRun({ text: 'OLTC Details:', bold: true, size: 18 })], { fill: 'E8E8ED', width: 50 }), wcell([new TextRun({ text: 'Transformer Details:', bold: true, size: 18 })], { fill: 'E8E8ED', width: 50 })] }),
       new TableRow({ children: [
@@ -369,13 +371,13 @@ export async function generateOltcMomWord(params: VisitPdfParams): Promise<Buffe
   children.push(new Paragraph({ text: '' }))
 
   // Full-width gray-header sections
-  const grayHeaderTable = (title: string) => new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [wcell([new TextRun({ text: title, bold: true, size: 18 })], { fill: 'E8E8ED' })] })] })
+  const grayHeaderTable = (title: string) => new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [8700], rows: [new TableRow({ children: [wcell([new TextRun({ text: title, bold: true, size: 18 })], { fill: 'E8E8ED' })] })] })
   const numberedTable = (value: string) => {
     const items = (value || '').split('\n').map(s => s.trim()).filter(Boolean)
     const list = items.length ? items : ['']
-    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: list.map((item, i) => new TableRow({ children: [wcell([new TextRun({ text: `${i + 1}. `, bold: true, size: 18 }), new TextRun({ text: item, size: 18 })])] })) })
+    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [8700], rows: list.map((item, i) => new TableRow({ children: [wcell([new TextRun({ text: `${i + 1}. `, bold: true, size: 18 }), new TextRun({ text: item, size: 18 })])] })) })
   }
-  const textTable = (value: string) => new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [wcell([new TextRun({ text: value || '', size: 18 })])] })] })
+  const textTable = (value: string) => new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [8700], rows: [new TableRow({ children: [wcell([new TextRun({ text: value || '', size: 18 })])] })] })
 
   children.push(grayHeaderTable('OLTC - Service Details:'))
   children.push(numberedTable(serviceDetailItems(params, by).join('\n')))
@@ -398,6 +400,8 @@ export async function generateOltcMomWord(params: VisitPdfParams): Promise<Buffe
   }
   children.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    columnWidths: [4350, 4350],
     rows: [
       new TableRow({ children: [wcell([new TextRun({ text: 'CUSTOMER', bold: true, color: 'FFFFFF', size: 22 })], { fill: '2F6FE0', align: AlignmentType.CENTER, width: 50 }), wcell([new TextRun({ text: 'EMR', bold: true, color: 'FFFFFF', size: 22 })], { fill: 'D5271F', align: AlignmentType.CENTER, width: 50 })] }),
       new TableRow({ children: [lv('Name:', fmtVal(by['Customer Name'] || params.clientName || '')), lv('Name:', fmtVal(by['Field Engineer Name'] || params.engineerName || ''))] }),

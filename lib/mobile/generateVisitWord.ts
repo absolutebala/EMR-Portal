@@ -1,6 +1,6 @@
 import {
   Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun,
-  Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
+  Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, TableLayoutType,
 } from 'docx'
 
 interface VisitWordTable {
@@ -88,6 +88,8 @@ function cell(text: string, opts: { header?: boolean; bold?: boolean; width?: nu
 function keyValueTable(pairs: [string, string][]): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    columnWidths: [2610, 6090],
     rows: pairs.map(([k, v]) => new TableRow({ children: [cell(k, { bold: true, width: 30 }), cell(v, { width: 70 })] })),
   })
 }
@@ -170,6 +172,8 @@ export async function generateVisitWord(params: VisitWordParams): Promise<Buffer
 
       children.push(new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        columnWidths: cols.map(c => Math.round((c.width / 100) * 8700)),
         rows: [
           new TableRow({ tableHeader: true, children: header }),
           ...rows.map(r => new TableRow({ children: cols.map(c => cell(c.render(r), { width: c.width })) })),

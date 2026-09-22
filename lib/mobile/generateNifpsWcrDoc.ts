@@ -1,6 +1,6 @@
 import {
   Document, Packer, Paragraph, TextRun, AlignmentType,
-  Table, TableRow, TableCell, WidthType, ShadingType, VerticalAlign,
+  Table, TableRow, TableCell, WidthType, ShadingType, VerticalAlign, TableLayoutType,
 } from 'docx'
 import { PdfBuilder } from './docPdfKit'
 import {
@@ -144,6 +144,8 @@ function wGridCell(label: string, value: string, opts: { fill?: string; width?: 
 function wGridRow(cells: { width: number; label: string; value?: string; fill?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType] }[]): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    columnWidths: cells.map(c => Math.round((c.width / 100) * 8700)),
     rows: [new TableRow({ children: cells.map(c => wGridCell(c.label, c.value || '', { fill: c.fill, width: c.width, align: c.align })) })],
   })
 }
