@@ -40,6 +40,9 @@ export default async function SettingsPage() {
     sms_template_id: data?.sms_template_id || '',
     sms_type: data?.sms_type || '',
     sms_otp_template: data?.sms_otp_template || '',
+    notification_channel: data?.notification_channel || 'whatsapp',
+    sms_notification_type: data?.sms_notification_type || '',
+    sms_notification_templates: (data?.sms_notification_templates as Record<string, { id?: string; text?: string }>) || {},
     logo_url: data?.logo_url || '',
     play_store_url: data?.play_store_url || '',
   }

@@ -1,5 +1,5 @@
 import type { adminClient } from '@/lib/db/admin-client'
-import { sendCombirdsMessage } from './combirds'
+import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 
 // Event -> Combirds "campaign" (a pre-approved WhatsApp Business template) contract.
 // Combirds campaigns are template-based: this app can't create them, it can only
@@ -57,9 +57,25 @@ function formatPhoneForWhatsApp(raw: string): string {
   return `+${stripped}`
 }
 
-// Fire-and-forget WhatsApp send for one app event, to one or more recipients. Never
-// throws. Silently no-ops if the Combirds API key or that event's campaign name isn't
-// configured yet in Settings — WhatsApp is opt-in per event, not a hard requirement.
+// Combirds SMS wants the number with country code and no leading "+" (e.g. 919876543210).
+function formatPhoneForSms(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  return digits.length === 10 ? `91${digits}` : digits
+}
+
+// Substitute {1} {2} … placeholders in a DLT SMS template with the same ordered params
+// the WhatsApp campaign uses (see templateParams). Unmatched placeholders resolve to ''.
+function fillSmsTemplate(text: string, params: string[]): string {
+  return text.replace(/\{(\d+)\}/g, (_, n) => params[Number(n) - 1] ?? '')
+}
+
+// Fire-and-forget notification send for one app event, to one or more recipients. Never
+// throws. The org-wide `notification_channel` setting picks the transport:
+//   'whatsapp' (default) — WhatsApp only, exactly as before.
+//   'sms'                — SMS for events whose DLT template is configured; any event
+//                          without one falls back to WhatsApp.
+//   'both'               — WhatsApp AND SMS (SMS only where its template is configured).
+// Each channel silently no-ops if its own credentials/template for the event aren't set.
 export async function sendWhatsApp(
   admin: ReturnType<typeof adminClient>,
   event: WhatsAppEvent,
@@ -68,27 +84,58 @@ export async function sendWhatsApp(
 ): Promise<void> {
   try {
     const column = CAMPAIGN_COLUMN[event]
-    const selectCols: string = `whatsapp_api_key, ${column}`
+    const selectCols = `whatsapp_api_key, ${column}, notification_channel, sms_api_key, sms_sender_id, sms_notification_type, sms_notification_templates`
     const { data: settings } = await admin.from('settings').select(selectCols).single()
-    const row = settings as Record<string, string | null> | null
-    const apiKey = row?.whatsapp_api_key
-    const campaignName = row?.[column]
-    if (!apiKey || !campaignName) return
+    const row = settings as Record<string, unknown> | null
+    if (!row) return
 
-    await Promise.all(
-      recipients
-        .filter(r => r.phone && r.phone.trim())
-        .map(r =>
-          sendCombirdsMessage({
-            apiKey,
-            campaignName,
-            destination: formatPhoneForWhatsApp(r.phone as string),
-            userName: r.userName,
-            templateParams,
-            source: 'emr-portal',
-          }).catch(() => false)
-        )
-    )
+    const channel = (row.notification_channel as string) || 'whatsapp'
+    const waApiKey = row.whatsapp_api_key as string | null
+    const campaignName = row[column] as string | null
+
+    const smsApiKey = row.sms_api_key as string | null
+    const smsSender = row.sms_sender_id as string | null
+    const smsType = row.sms_notification_type as string | null
+    const templates = (row.sms_notification_templates as Record<string, { id?: string; text?: string }> | null) || {}
+    const t = templates[event] || {}
+    const smsConfigured = !!(smsApiKey && smsSender && smsType && t.id && t.text)
+
+    const sendSms = (channel === 'sms' || channel === 'both') && smsConfigured
+    // WhatsApp fires for 'whatsapp'/'both', or as the fallback when 'sms' is chosen but
+    // this event has no SMS template configured yet.
+    const sendWa = channel === 'whatsapp' || channel === 'both' || (channel === 'sms' && !smsConfigured)
+
+    const targets = recipients.filter(r => r.phone && r.phone.trim())
+    const jobs: Promise<boolean>[] = []
+
+    if (sendWa && waApiKey && campaignName) {
+      for (const r of targets) {
+        jobs.push(sendCombirdsMessage({
+          apiKey: waApiKey,
+          campaignName,
+          destination: formatPhoneForWhatsApp(r.phone as string),
+          userName: r.userName,
+          templateParams,
+          source: 'emr-portal',
+        }).catch(() => false))
+      }
+    }
+
+    if (sendSms) {
+      const message = fillSmsTemplate(t.text as string, templateParams)
+      for (const r of targets) {
+        jobs.push(sendCombirdsSms({
+          apiKey: smsApiKey as string,
+          senderId: smsSender as string,
+          templateId: t.id as string,
+          smsType: smsType as string,
+          message,
+          destination: formatPhoneForSms(r.phone as string),
+        }).catch(() => false))
+      }
+    }
+
+    await Promise.all(jobs)
   } catch {
     // best-effort only
   }

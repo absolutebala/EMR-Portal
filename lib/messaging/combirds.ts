@@ -12,6 +12,49 @@ export interface CombirdsSendParams {
   source?: string
 }
 
+// Raw transport for Combirds' SMS API (https://api.combirds.com), a separate product
+// from the WhatsApp Campaign API above. The `message` must match a DLT-approved template
+// exactly; senderId/templateId/smsType must all be DLT/billing-approved. Never throws.
+const COMBIRDS_SMS_ENDPOINT = 'https://api.combirds.com/api/v1/sms/send'
+
+export interface CombirdsSmsParams {
+  apiKey: string
+  senderId: string
+  templateId: string
+  smsType: string
+  message: string
+  destination: string
+}
+
+export async function sendCombirdsSms(params: CombirdsSmsParams): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  try {
+    const res = await fetch(COMBIRDS_SMS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': params.apiKey },
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: params.message,
+        senderId: params.senderId,
+        number: [params.destination],
+        templateId: params.templateId,
+        smsType: params.smsType,
+      }),
+    })
+    if (!res.ok) {
+      console.error('sendCombirdsSms: non-200', res.status, await res.text().catch(() => ''))
+      return false
+    }
+    return true
+  } catch (e) {
+    console.error('sendCombirdsSms: failed', e instanceof Error ? e.message : e)
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function sendCombirdsMessage(params: CombirdsSendParams): Promise<boolean> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)

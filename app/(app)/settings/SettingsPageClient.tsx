@@ -36,6 +36,9 @@ interface SettingsShape {
   sms_template_id: string
   sms_type: string
   sms_otp_template: string
+  notification_channel: string
+  sms_notification_type: string
+  sms_notification_templates: Record<string, { id?: string; text?: string }>
   logo_url: string
   play_store_url: string
 }
@@ -199,8 +202,31 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
   }
 
   function set(k: string, v: string) { setSettings(s => ({ ...s, [k]: v })) }
+  // Update one field (id | text) of one event's SMS notification template (JSON column).
+  function setSmsTemplate(event: string, field: 'id' | 'text', v: string) {
+    setSettings(s => ({
+      ...s,
+      sms_notification_templates: {
+        ...s.sms_notification_templates,
+        [event]: { ...(s.sms_notification_templates[event] || {}), [field]: v },
+      },
+    }))
+  }
 
-  async function save(section: string, fields: Record<string, string | null>) {
+  const saveBtnStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }
+  // Reusable "Save this section" row; each card saves only its own fields.
+  function SaveRow({ section, label, fields }: { section: string; label?: string; fields: () => Record<string, unknown> }) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+        <button onClick={() => save(section, fields())} disabled={saving === section} style={{ ...saveBtnStyle, opacity: saving === section ? 0.7 : 1 }}>
+          {saving === section ? 'Saving…' : (label || 'Save')}
+        </button>
+        {saved === section && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
+      </div>
+    )
+  }
+
+  async function save(section: string, fields: Record<string, unknown>) {
     if (!settingsId) return
     setSaving(section)
     const { error } = await saveSettings(settingsId, fields)
@@ -220,45 +246,42 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
       <Topbar title="Settings" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px', maxWidth: 800 }}>
 
-        {/* Notifications */}
+        {/* Messaging accounts (Combirds) */}
         <div style={ss}>
-          <h3 style={h3s}>Notifications</h3>
-          <p style={ps}>Configure channels for customer and engineer notifications.</p>
+          <h3 style={h3s}>Messaging accounts (Combirds)</h3>
+          <p style={ps}>The Combirds credentials shared by all notifications and the password-reset OTP.</p>
           <div style={grid2}>
-            <div><label style={fl2}>Combirds API key</label><input style={fi2} value={settings.whatsapp_api_key} onChange={e => set('whatsapp_api_key', e.target.value)} placeholder="API key from your Combirds dashboard" /></div>
-            <div><label style={fl2}>SMS gateway</label><select style={fi2} value={settings.sms_gateway} onChange={e => set('sms_gateway', e.target.value)}><option value="combirds">Combirds</option><option value="twilio">Twilio</option><option value="msg91">MSG91</option><option value="textlocal">TextLocal</option></select></div>
-          </div>
-
-          <div style={{ marginTop: 18, marginBottom: 4 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>SMS OTP — field engineer password reset (Combirds)</div>
-            <p style={ps}>Powers the mobile &quot;Forgot password?&quot; flow. All values must be DLT-approved in your Combirds SMS portal. The template text is sent exactly as entered — put the literal token <code>{'{otp}'}</code> where the 6-digit code should appear. Leave any field blank to disable OTP SMS (the code is still generated but not texted).</p>
-          </div>
-          <div style={grid2}>
+            <div><label style={fl2}>WhatsApp API key</label><input style={fi2} value={settings.whatsapp_api_key} onChange={e => set('whatsapp_api_key', e.target.value)} placeholder="Combirds WhatsApp API key" /></div>
             <div><label style={fl2}>SMS API key (x-api-key)</label><input style={fi2} value={settings.sms_api_key} onChange={e => set('sms_api_key', e.target.value)} placeholder="Combirds SMS API key" /></div>
-            <div><label style={fl2}>Sender ID</label><input style={fi2} value={settings.sms_sender_id} onChange={e => set('sms_sender_id', e.target.value)} placeholder="DLT sender header, e.g. EMRGLB" /></div>
-            <div><label style={fl2}>DLT template ID</label><input style={fi2} value={settings.sms_template_id} onChange={e => set('sms_template_id', e.target.value)} placeholder="e.g. 1707161719949940074" /></div>
-            <div><label style={fl2}>SMS type</label><input style={fi2} value={settings.sms_type} onChange={e => set('sms_type', e.target.value)} placeholder="Combirds billing-approved smsType" /></div>
+            <div><label style={fl2}>SMS Sender ID</label><input style={fi2} value={settings.sms_sender_id} onChange={e => set('sms_sender_id', e.target.value)} placeholder="DLT sender header, e.g. EMRGLB" /></div>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <label style={fl2}>OTP message template</label>
-            <textarea style={{ ...fi2, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }} value={settings.sms_otp_template} onChange={e => set('sms_otp_template', e.target.value)} placeholder="Your EMR Field Service password reset OTP is {otp}. Valid 10 minutes. Do not share it with anyone." />
-            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Must match your DLT-approved template exactly, with <code>{'{otp}'}</code> where the code goes.</p>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label style={fl2}>WhatsApp OTP campaign (fallback)</label>
-            <input style={fi2} value={settings.whatsapp_campaign_password_otp} onChange={e => set('whatsapp_campaign_password_otp', e.target.value)} placeholder="Combirds WhatsApp campaign name (1 param = the code)" />
-            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Used only when the SMS fields above aren&apos;t all filled in. Reuses the Combirds API key above. The campaign must be Live with a single template param for the 6-digit code.</p>
-          </div>
+          <SaveRow section="accounts" fields={() => ({ whatsapp_api_key: settings.whatsapp_api_key || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null })} />
+        </div>
 
-          <div style={{ marginTop: 18, marginBottom: 4 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>WhatsApp campaign mapping</div>
-            <p style={ps}>Each campaign must already exist and be set to &quot;Live&quot; in your Combirds dashboard, built to accept the listed params in that exact order. Leave blank to skip that notification.</p>
+        {/* Notification channel */}
+        <div style={ss}>
+          <h3 style={h3s}>Notification channel</h3>
+          <p style={ps}>How customer &amp; engineer notifications are delivered. On SMS, any event without a DLT template below falls back to WhatsApp.</p>
+          <div style={{ maxWidth: 300 }}>
+            <label style={fl2}>Send notifications via</label>
+            <select style={fi2} value={settings.notification_channel} onChange={e => set('notification_channel', e.target.value)}>
+              <option value="whatsapp">WhatsApp only</option>
+              <option value="sms">SMS (fall back to WhatsApp)</option>
+              <option value="both">Both WhatsApp &amp; SMS</option>
+            </select>
           </div>
+          <SaveRow section="channel" fields={() => ({ notification_channel: settings.notification_channel || 'whatsapp' })} />
+        </div>
+
+        {/* WhatsApp campaigns */}
+        <div style={ss}>
+          <h3 style={h3s}>WhatsApp campaigns</h3>
+          <p style={ps}>Each campaign must exist and be &quot;Live&quot; in your Combirds dashboard, built to accept the listed params in that exact order. Leave blank to skip that notification.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {CAMPAIGN_FIELDS.map(f => (
               <div key={f.key}>
                 <label style={fl2}>{f.label}</label>
-                <input style={fi2} value={settings[f.key]} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
+                <input style={fi2} value={settings[f.key] as string} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
                 <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
                 <pre style={{
                   fontSize: 10, lineHeight: 1.5, color: 'var(--tx)', background: 'var(--gl)',
@@ -268,27 +291,65 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
               </div>
             ))}
           </div>
+          <SaveRow section="whatsapp" label="Save WhatsApp campaigns" fields={() => ({
+            whatsapp_campaign_assigned_engineer: settings.whatsapp_campaign_assigned_engineer || null,
+            whatsapp_campaign_assigned_customer: settings.whatsapp_campaign_assigned_customer || null,
+            whatsapp_campaign_on_the_way: settings.whatsapp_campaign_on_the_way || null,
+            whatsapp_campaign_product_request: settings.whatsapp_campaign_product_request || null,
+            whatsapp_campaign_escalation: settings.whatsapp_campaign_escalation || null,
+            whatsapp_campaign_completed: settings.whatsapp_campaign_completed || null,
+            whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
+            whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
+            whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
+          })} />
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-            <button onClick={() => save('notifications', {
-              whatsapp_api_key: settings.whatsapp_api_key || null,
-              whatsapp_campaign_assigned_engineer: settings.whatsapp_campaign_assigned_engineer || null,
-              whatsapp_campaign_assigned_customer: settings.whatsapp_campaign_assigned_customer || null,
-              whatsapp_campaign_on_the_way: settings.whatsapp_campaign_on_the_way || null,
-              whatsapp_campaign_product_request: settings.whatsapp_campaign_product_request || null,
-              whatsapp_campaign_escalation: settings.whatsapp_campaign_escalation || null,
-              whatsapp_campaign_completed: settings.whatsapp_campaign_completed || null,
-              whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
-              whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
-              whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
-              whatsapp_campaign_password_otp: settings.whatsapp_campaign_password_otp || null,
-              sms_gateway: settings.sms_gateway || null, sms_api_key: settings.sms_api_key || null, sms_sender_id: settings.sms_sender_id || null,
-              sms_template_id: settings.sms_template_id || null, sms_type: settings.sms_type || null, sms_otp_template: settings.sms_otp_template || null,
-            })} disabled={saving === 'notifications'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: saving === 'notifications' ? .7 : 1 }}>
-              {saving === 'notifications' ? 'Saving…' : 'Save notification settings'}
-            </button>
-            {saved === 'notifications' && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Saved</span>}
+        {/* SMS notification templates */}
+        <div style={ss}>
+          <h3 style={h3s}>SMS notification templates</h3>
+          <p style={ps}>DLT-approved SMS for each event (used when the channel above is SMS or Both). Reuses the SMS API key &amp; Sender ID above. In the message text, put <code>{'{1}'}</code> <code>{'{2}'}</code> … where each param goes — the same order as the WhatsApp campaign. Leave an event blank to fall back to WhatsApp for it.</p>
+          <div style={{ maxWidth: 300, marginBottom: 16 }}>
+            <label style={fl2}>SMS type (all notification SMS)</label>
+            <input style={fi2} value={settings.sms_notification_type} onChange={e => set('sms_notification_type', e.target.value)} placeholder="Combirds billing-approved smsType" />
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {CAMPAIGN_FIELDS.map(f => {
+              const ev = (f.key as string).replace('whatsapp_campaign_', '')
+              const tpl = settings.sms_notification_templates[ev] || {}
+              return (
+                <div key={ev}>
+                  <label style={fl2}>{f.label}</label>
+                  <input style={{ ...fi2, maxWidth: 320, marginBottom: 6 }} value={tpl.id || ''} onChange={e => setSmsTemplate(ev, 'id', e.target.value)} placeholder="DLT template ID" />
+                  <textarea style={{ ...fi2, minHeight: 52, resize: 'vertical', fontFamily: 'inherit' }} value={tpl.text || ''} onChange={e => setSmsTemplate(ev, 'text', e.target.value)} placeholder="SMS text using {1} {2} … for the params below" />
+                  <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
+                </div>
+              )
+            })}
+          </div>
+          <SaveRow section="sms_notify" label="Save SMS templates" fields={() => ({ sms_notification_type: settings.sms_notification_type || null, sms_notification_templates: settings.sms_notification_templates || {} })} />
+        </div>
+
+        {/* Password reset OTP */}
+        <div style={ss}>
+          <h3 style={h3s}>Password reset OTP</h3>
+          <p style={ps}>Powers the mobile &quot;Forgot password?&quot; flow. SMS is used when all its fields are filled; otherwise the WhatsApp OTP campaign is used. Reuses the SMS API key &amp; Sender ID above.</p>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 8 }}>SMS</div>
+          <div style={grid2}>
+            <div><label style={fl2}>DLT template ID</label><input style={fi2} value={settings.sms_template_id} onChange={e => set('sms_template_id', e.target.value)} placeholder="e.g. 1707161719949940074" /></div>
+            <div><label style={fl2}>SMS type</label><input style={fi2} value={settings.sms_type} onChange={e => set('sms_type', e.target.value)} placeholder="Combirds billing-approved smsType" /></div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={fl2}>OTP message template</label>
+            <textarea style={{ ...fi2, minHeight: 60, resize: 'vertical', fontFamily: 'inherit' }} value={settings.sms_otp_template} onChange={e => set('sms_otp_template', e.target.value)} placeholder="Your EMR Field Service password reset OTP is {otp}. Valid 10 minutes. Do not share it with anyone." />
+            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Must match your DLT-approved template exactly, with <code>{'{otp}'}</code> where the code goes.</p>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', margin: '16px 0 8px' }}>WhatsApp</div>
+          <div>
+            <label style={fl2}>WhatsApp OTP campaign</label>
+            <input style={fi2} value={settings.whatsapp_campaign_password_otp} onChange={e => set('whatsapp_campaign_password_otp', e.target.value)} placeholder="Combirds WhatsApp campaign name (1 param = the code)" />
+            <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Live campaign with a single template param for the 6-digit code.</p>
+          </div>
+          <SaveRow section="otp" label="Save OTP settings" fields={() => ({ sms_template_id: settings.sms_template_id || null, sms_type: settings.sms_type || null, sms_otp_template: settings.sms_otp_template || null, whatsapp_campaign_password_otp: settings.whatsapp_campaign_password_otp || null })} />
         </div>
 
         {/* App update prompt (mobile) */}

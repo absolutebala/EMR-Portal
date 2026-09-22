@@ -108,6 +108,9 @@ export interface AppSettings {
   sms_template_id: string | null
   sms_type: string | null
   sms_otp_template: string | null
+  notification_channel: string | null
+  sms_notification_type: string | null
+  sms_notification_templates: Record<string, { id?: string; text?: string }> | null
   // Google Play link the mobile "Update now" button opens; last update-prompt the admin
   // sent + when (drives the in-app popup — see sendAppUpdatePrompt).
   play_store_url: string | null

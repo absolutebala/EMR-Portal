@@ -5,7 +5,7 @@ import { uploadAsset } from '@/lib/storage/s3'
 
 export async function saveSettings(
   settingsId: string,
-  fields: Record<string, string | null>
+  fields: Record<string, unknown>
 ): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
