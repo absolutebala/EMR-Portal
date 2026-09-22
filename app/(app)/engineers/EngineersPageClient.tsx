@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
@@ -65,9 +65,44 @@ interface Props {
   managers?: Profile[]
 }
 
+// How each sortable column pulls a comparable value from a row. Columns not listed here
+// (Actions) aren't sortable.
+const SORT_KEYS: Record<string, (e: FieldEngineerOverview) => string | number> = {
+  'Engineer': e => (e.name || '').toLowerCase(),
+  'Employee ID': e => (e.employee_id || '').toLowerCase(),
+  'Status': e => e.status || '',
+  'Last Seen': e => (e.lastSeen?.at ? new Date(e.lastSeen.at).getTime() : 0),
+  'Next assigned project': e => (e.nextAssigned?.scheduledDate ? new Date(e.nextAssigned.scheduledDate).getTime() : 0),
+  'Open': e => e.openWorkOrders ?? 0,
+  'Completed': e => e.completedToday ?? 0,
+}
+
 export default function EngineersPageClient({ engineers, userName, userRole, permissions = {}, editableProfiles = [], managers = [] }: Props) {
   const router = useRouter()
-  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(engineers)
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let list = q ? engineers.filter(e => (e.name || '').toLowerCase().includes(q) || (e.employee_id || '').toLowerCase().includes(q)) : engineers.slice()
+    if (sort && SORT_KEYS[sort.col]) {
+      const get = SORT_KEYS[sort.col]
+      list = list.slice().sort((a, b) => {
+        const va = get(a), vb = get(b)
+        const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
+        return sort.dir === 'asc' ? c : -c
+      })
+    }
+    return list
+  }, [engineers, query, sort])
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
+
+  function toggleSort(col: string) {
+    if (!SORT_KEYS[col]) return
+    setPage(1)
+    setSort(s => (s?.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }))
+  }
 
   // Field engineers ARE users, so managing them here reuses the Users add/edit modal
   // and the delete-user action (which removes them from the Users list too). Gated on
@@ -106,11 +141,22 @@ export default function EngineersPageClient({ engineers, userName, userRole, per
       <div style={{ flex: 1, padding: '22px 24px' }}>
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>Field engineers</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 7, height: 7, background: '#10B981', borderRadius: '50%' }} />
-              <span style={{ fontSize: 11, color: 'var(--txm)' }}>Updated on page load</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <svg width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24" style={{ position: 'absolute', left: 10, pointerEvents: 'none' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input
+                  value={query}
+                  onChange={e => { setQuery(e.target.value); setPage(1) }}
+                  placeholder="Search name or ID…"
+                  style={{ padding: '7px 12px 7px 30px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', background: '#fff', outline: 'none', fontFamily: 'Poppins,sans-serif', width: 200 }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 7, height: 7, background: '#10B981', borderRadius: '50%' }} />
+                <span style={{ fontSize: 11, color: 'var(--txm)' }}>Updated on page load</span>
+              </div>
             </div>
           </div>
           {engineers.length === 0 ? (
@@ -120,9 +166,15 @@ export default function EngineersPageClient({ engineers, userName, userRole, per
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr>
-                    {['Engineer', 'Employee ID', 'Status', 'Last Seen', 'Next assigned project', 'Open', 'Completed', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
+                    {['Engineer', 'Employee ID', 'Status', 'Last Seen', 'Next assigned project', 'Open', 'Completed', 'Actions'].map(h => {
+                      const sortable = !!SORT_KEYS[h]
+                      const active = sort?.col === h
+                      return (
+                        <th key={h} onClick={() => toggleSort(h)} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: active ? 'var(--m)' : 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap', cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                          {h}{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : sortable ? <span style={{ opacity: 0.3 }}> ⇅</span> : null}
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>
