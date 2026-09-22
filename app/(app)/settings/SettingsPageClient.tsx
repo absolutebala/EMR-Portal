@@ -273,25 +273,39 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
           <SaveRow section="channel" fields={() => ({ notification_channel: settings.notification_channel || 'whatsapp' })} />
         </div>
 
-        {/* WhatsApp campaigns */}
+        {/* Notification messages — WhatsApp + SMS per event, together */}
         <div style={ss}>
-          <h3 style={h3s}>WhatsApp campaigns</h3>
-          <p style={ps}>Each campaign must exist and be &quot;Live&quot; in your Combirds dashboard, built to accept the listed params in that exact order. Leave blank to skip that notification.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {CAMPAIGN_FIELDS.map(f => (
-              <div key={f.key}>
-                <label style={fl2}>{f.label}</label>
-                <input style={fi2} value={settings[f.key] as string} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
-                <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
-                <pre style={{
-                  fontSize: 10, lineHeight: 1.5, color: 'var(--tx)', background: 'var(--gl)',
-                  border: '1px solid var(--gm)', borderRadius: 6, padding: '8px 10px', margin: '4px 0 0',
-                  whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, monospace',
-                }}>{f.example}</pre>
-              </div>
-            ))}
+          <h3 style={h3s}>Notification messages</h3>
+          <p style={ps}>Set the WhatsApp campaign and/or the SMS template for each event in one place. Which one actually sends is decided by the Notification channel above (on SMS, an event with no SMS template falls back to WhatsApp). WhatsApp campaigns must be &quot;Live&quot; in Combirds; SMS text must match your DLT-approved template, with <code>{'{1}'}</code> <code>{'{2}'}</code> … in the listed param order. Leave a channel blank to skip it for that event.</p>
+          <div style={{ maxWidth: 300, marginBottom: 16 }}>
+            <label style={fl2}>SMS type (all notification SMS)</label>
+            <input style={fi2} value={settings.sms_notification_type} onChange={e => set('sms_notification_type', e.target.value)} placeholder="Combirds billing-approved smsType" />
           </div>
-          <SaveRow section="whatsapp" label="Save WhatsApp campaigns" fields={() => ({
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {CAMPAIGN_FIELDS.map(f => {
+              const ev = (f.key as string).replace('whatsapp_campaign_', '')
+              const tpl = settings.sms_notification_templates[ev] || {}
+              return (
+                <div key={ev} style={{ border: '1px solid var(--gm)', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 2 }}>{f.label}</div>
+                  <p style={{ fontSize: 10, color: 'var(--txm)', margin: '0 0 10px' }}>Params: {f.params}</p>
+
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--m)', marginBottom: 4 }}>WhatsApp</div>
+                  <input style={fi2} value={settings[f.key] as string} onChange={e => set(f.key, e.target.value)} placeholder="Combirds campaign name" />
+                  <pre style={{
+                    fontSize: 10, lineHeight: 1.5, color: 'var(--tx)', background: 'var(--gl)',
+                    border: '1px solid var(--gm)', borderRadius: 6, padding: '8px 10px', margin: '4px 0 0',
+                    whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, monospace',
+                  }}>{f.example}</pre>
+
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--m)', margin: '12px 0 4px' }}>SMS</div>
+                  <input style={{ ...fi2, maxWidth: 320, marginBottom: 6 }} value={tpl.id || ''} onChange={e => setSmsTemplate(ev, 'id', e.target.value)} placeholder="DLT template ID" />
+                  <textarea style={{ ...fi2, minHeight: 52, resize: 'vertical', fontFamily: 'inherit' }} value={tpl.text || ''} onChange={e => setSmsTemplate(ev, 'text', e.target.value)} placeholder="SMS text using {1} {2} … in the param order above" />
+                </div>
+              )
+            })}
+          </div>
+          <SaveRow section="messages" label="Save notification messages" fields={() => ({
             whatsapp_campaign_assigned_engineer: settings.whatsapp_campaign_assigned_engineer || null,
             whatsapp_campaign_assigned_customer: settings.whatsapp_campaign_assigned_customer || null,
             whatsapp_campaign_on_the_way: settings.whatsapp_campaign_on_the_way || null,
@@ -301,32 +315,9 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
             whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
             whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
             whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
+            sms_notification_type: settings.sms_notification_type || null,
+            sms_notification_templates: settings.sms_notification_templates || {},
           })} />
-        </div>
-
-        {/* SMS notification templates */}
-        <div style={ss}>
-          <h3 style={h3s}>SMS notification templates</h3>
-          <p style={ps}>DLT-approved SMS for each event (used when the channel above is SMS or Both). Reuses the SMS API key &amp; Sender ID above. In the message text, put <code>{'{1}'}</code> <code>{'{2}'}</code> … where each param goes — the same order as the WhatsApp campaign. Leave an event blank to fall back to WhatsApp for it.</p>
-          <div style={{ maxWidth: 300, marginBottom: 16 }}>
-            <label style={fl2}>SMS type (all notification SMS)</label>
-            <input style={fi2} value={settings.sms_notification_type} onChange={e => set('sms_notification_type', e.target.value)} placeholder="Combirds billing-approved smsType" />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {CAMPAIGN_FIELDS.map(f => {
-              const ev = (f.key as string).replace('whatsapp_campaign_', '')
-              const tpl = settings.sms_notification_templates[ev] || {}
-              return (
-                <div key={ev}>
-                  <label style={fl2}>{f.label}</label>
-                  <input style={{ ...fi2, maxWidth: 320, marginBottom: 6 }} value={tpl.id || ''} onChange={e => setSmsTemplate(ev, 'id', e.target.value)} placeholder="DLT template ID" />
-                  <textarea style={{ ...fi2, minHeight: 52, resize: 'vertical', fontFamily: 'inherit' }} value={tpl.text || ''} onChange={e => setSmsTemplate(ev, 'text', e.target.value)} placeholder="SMS text using {1} {2} … for the params below" />
-                  <p style={{ fontSize: 10, color: 'var(--txm)', margin: '4px 0 0' }}>Params: {f.params}</p>
-                </div>
-              )
-            })}
-          </div>
-          <SaveRow section="sms_notify" label="Save SMS templates" fields={() => ({ sms_notification_type: settings.sms_notification_type || null, sms_notification_templates: settings.sms_notification_templates || {} })} />
         </div>
 
         {/* Password reset OTP */}
