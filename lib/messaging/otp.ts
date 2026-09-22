@@ -7,12 +7,15 @@ import type { adminClient } from '@/lib/db/admin-client'
 import { sendPasswordResetSms } from './sms'
 import { sendCombirdsMessage } from './combirds'
 
-// Combirds WhatsApp wants the number with country code and no leading "+", e.g.
-// "919876543210" (matches formatPhoneForWhatsApp in whatsapp.ts).
+// Match whatsapp.ts's formatPhoneForWhatsApp exactly (the proven-working format for the
+// Combirds WhatsApp Campaign API): E.164 with a leading "+", defaulting to +91 for bare
+// 10-digit Indian numbers.
 function formatForWhatsApp(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length === 10) return `91${digits}`
-  return digits
+  const stripped = raw.replace(/[\s\-()]/g, '')
+  if (stripped.startsWith('+')) return stripped
+  if (/^\d{10}$/.test(stripped)) return `+91${stripped}`
+  if (/^91\d{10}$/.test(stripped)) return `+${stripped}`
+  return `+${stripped}`
 }
 
 export async function sendPasswordResetOtp(
