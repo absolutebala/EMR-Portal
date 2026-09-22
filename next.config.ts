@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
   // Required for a minimal Docker image (AWS ECS deploy) — bundles a self-contained
   // server into .next/standalone instead of needing the full node_modules tree at runtime.
   output: 'standalone',
+  // pdfkit reads its built-in AFM font metrics (Helvetica.afm, …) at runtime via a
+  // dynamic __dirname-relative fs read. Bundling it breaks that path, and the standalone
+  // tracer misses the .afm files — both cause "ENOENT … pdfkit/js/data/Helvetica.afm"
+  // when generating report PDFs. Keep pdfkit a native require, and force-copy its font
+  // data into the standalone output for every route.
+  serverExternalPackages: ['pdfkit'],
+  outputFileTracingIncludes: {
+    '/**': ['./node_modules/pdfkit/js/data/**/*'],
+  },
   // A stray package-lock.json in this machine's home directory (a parent of this repo)
   // makes Next.js misdetect the workspace root, which silently nests the standalone
   // output one directory deeper (.next/standalone/emr-portal/server.js instead of

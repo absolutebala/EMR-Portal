@@ -1,6 +1,6 @@
 import {
   Paragraph, TextRun, AlignmentType, ImageRun, Table, TableRow, TableCell,
-  WidthType, BorderStyle, ShadingType, VerticalAlign,
+  WidthType, BorderStyle, ShadingType, VerticalAlign, TableLayoutType,
 } from 'docx'
 import { COLORS, EMR_LOGO_BUFFER, dataUrlToBuffer } from './docShared'
 
@@ -37,10 +37,14 @@ export function wLV(label: string, value: string, opts: { align?: Align; fill?: 
 export function wLetterhead(pillText?: string): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    // Fixed column grid so Word doesn't autofit the text cell to ~1 char wide (which
+    // wrapped the company name vertically, one letter per line).
+    layout: TableLayoutType.FIXED,
+    columnWidths: [4350, 4350],
     borders: NO_BORDERS,
     rows: [new TableRow({ children: [
-      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 230, height: 66 }, type: 'png' })] })] }),
-      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: pillText ? [new TextRun({ text: `  ${pillText}  `, bold: true, color: 'FFFFFF', size: 20, shading: { type: ShadingType.CLEAR, fill: COLORS.red.replace('#', ''), color: 'auto' } })] : [] })] }),
+      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 4350, type: WidthType.DXA }, children: [new Paragraph({ children: [new ImageRun({ data: EMR_LOGO_BUFFER, transformation: { width: 230, height: 66 }, type: 'png' })] })] }),
+      new TableCell({ borders: { top: NOB, bottom: NOB, left: NOB, right: NOB }, verticalAlign: VerticalAlign.CENTER, width: { size: 4350, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: pillText ? [new TextRun({ text: `  ${pillText}  `, bold: true, color: 'FFFFFF', size: 20, shading: { type: ShadingType.CLEAR, fill: COLORS.red.replace('#', ''), color: 'auto' } })] : [] })] }),
     ] })],
   })
 }

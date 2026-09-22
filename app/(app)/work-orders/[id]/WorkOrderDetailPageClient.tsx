@@ -383,7 +383,6 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const isFullAccess = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service' || Object.keys(permissions).length === 0
   const canEdit = isFullAccess || permissions['Notifications — Create / Edit'] === true
   const canDelete = isFullAccess || permissions['Notifications — Delete'] === true
-  const canViewMom = isFullAccess || permissions['MoM — View / Download'] === true
   const canApprove = currentUser.role === 'Super Admin' || currentUser.role === 'Head of Service' || currentUser.role === 'Service Manager'
 
   async function handleApproval(decision: 'approved' | 'rejected') {
@@ -719,27 +718,6 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 </div>
               ) : (
                 <>
-                  {isComplete && canViewMom && (
-                    <div style={{ ...card, background: '#F0FDF4', border: '1px solid #A7F3D0' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46', marginBottom: 8 }}>MoM — Minutes of Meeting</div>
-                      {[
-                        'MoM generated automatically on job completion',
-                        `MoM PDF sent to SAP against Serial Number ${wo.serial_numbers?.join(', ') || '—'}`,
-                        'SAP updated — engineer visits, activities, timestamps, status',
-                      ].map((text, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 11, color: '#065F46' }}>
-                          <svg width="16" height="16" fill="none" stroke="#059669" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                          {text}
-                        </div>
-                      ))}
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <button style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: 11, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>Download MoM PDF</button>
-                        <button style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 11, fontFamily: 'Poppins,sans-serif' }}>View in SAP</button>
-                      </div>
-                    </div>
-                  )}
-
-
                   {visits.length > 0 && (
                     <div style={card}>
                       <div style={cardLabel}>Visit history</div>
