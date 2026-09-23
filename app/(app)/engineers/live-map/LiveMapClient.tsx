@@ -19,6 +19,32 @@ const LeafletMap = dynamic(() => import('./LeafletMap'), {
 
 const REFRESH_MS = 60_000
 
+// "Nearby" radius for the location search — available engineers within this many km of
+// the searched place are listed and the map is framed to fit them.
+const NEARBY_RADIUS_KM = 150
+
+// Great-circle distance in km between two lat/lng points.
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const R = 6371
+  const dLat = toRad(bLat - aLat)
+  const dLng = toRad(bLng - aLng)
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
+
+// Geocode a free-text place (city/area) to coordinates via OpenStreetMap's Nominatim —
+// biased to India, one best match. Returns null when nothing is found.
+async function geocodePlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(query)}`, {
+    headers: { 'Accept-Language': 'en' },
+  })
+  if (!res.ok) return null
+  const data = (await res.json()) as { lat: string; lon: string; display_name: string }[]
+  if (!data.length) return null
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name }
+}
+
 // Same small status config duplicated per-page elsewhere in this app (dashboard/page.tsx,
 // EngineersPageClient.tsx) — kept local rather than shared, matching that convention.
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -91,6 +117,41 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // Location search: geocode a place, then list/frame available engineers near it.
+  const [locQuery, setLocQuery] = useState('')
+  const [geoLoading, setGeoLoading] = useState(false)
+  const [geoError, setGeoError] = useState('')
+  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null)
+
+  async function handleLocationSearch() {
+    const q = locQuery.trim()
+    if (!q) return
+    setGeoLoading(true); setGeoError('')
+    try {
+      const loc = await geocodePlace(q)
+      if (!loc) { setGeoError('No place found for that search.'); setSearchedLocation(null) }
+      else { setSearchedLocation(loc); setSelectedId(null) }
+    } catch {
+      setGeoError('Location search failed. Check your connection and try again.')
+    } finally {
+      setGeoLoading(false)
+    }
+  }
+
+  function clearLocationSearch() {
+    setSearchedLocation(null); setLocQuery(''); setGeoError('')
+  }
+
+  // Available engineers with a fresh (mapped) position within the radius of the searched
+  // place, nearest first — shown in the sidebar and used to frame the map.
+  const nearbyAvailable = useMemo(() => {
+    if (!searchedLocation) return []
+    return engineers
+      .filter(e => e.status === 'available' && e.lastSeen?.fresh && e.lastSeen.lat != null && e.lastSeen.lng != null)
+      .map(e => ({ engineer: e, distanceKm: haversineKm(searchedLocation.lat, searchedLocation.lng, e.lastSeen!.lat!, e.lastSeen!.lng!) }))
+      .filter(x => x.distanceKm <= NEARBY_RADIUS_KM)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+  }, [engineers, searchedLocation])
 
   // "Live" here means "refreshes on its own" — the underlying data is each engineer's
   // last-known position (updated passively when their app is open), not a continuous
@@ -150,7 +211,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
               the sticky Topbar (z-index 50) and its notification dropdown then render on
               top of the map instead of being covered by it. */}
           <div style={{ position: 'relative', zIndex: 0, flex: 1, minWidth: 0, minHeight: 0, borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
-            <LeafletMap engineers={engineers} selectedId={selectedId} />
+            <LeafletMap engineers={engineers} selectedId={selectedId} searchedLocation={searchedLocation} radiusKm={NEARBY_RADIUS_KM} nearbyIds={nearbyAvailable.map(x => x.engineer.id)} />
           </div>
 
           {/* Field engineers box — separate card, internal scroll. */}
@@ -166,8 +227,53 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                 placeholder="Search engineer…"
                 style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', fontSize: 12, border: '1px solid var(--gm)', borderRadius: 6, outline: 'none' }}
               />
+              {/* Location search: find available engineers near a city/place. */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input
+                  type="text"
+                  value={locQuery}
+                  onChange={ev => setLocQuery(ev.target.value)}
+                  onKeyDown={ev => { if (ev.key === 'Enter') handleLocationSearch() }}
+                  placeholder="Search location (city / area)…"
+                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '6px 10px', fontSize: 12, border: '1px solid var(--gm)', borderRadius: 6, outline: 'none' }}
+                />
+                <button
+                  onClick={handleLocationSearch}
+                  disabled={geoLoading || !locQuery.trim()}
+                  style={{ padding: '6px 10px', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 6, background: 'var(--m)', color: '#fff', cursor: geoLoading || !locQuery.trim() ? 'default' : 'pointer', opacity: geoLoading || !locQuery.trim() ? 0.6 : 1, fontFamily: 'Poppins,sans-serif', flexShrink: 0 }}
+                >
+                  {geoLoading ? '…' : 'Go'}
+                </button>
+              </div>
+              {geoError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 5 }}>{geoError}</div>}
+              {searchedLocation && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 10, color: 'var(--txm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={searchedLocation.label}>📍 {searchedLocation.label}</span>
+                  <button onClick={clearLocationSearch} style={{ background: 'none', border: 'none', color: 'var(--m)', fontSize: 10, fontWeight: 600, cursor: 'pointer', flexShrink: 0, padding: 0 }}>Clear</button>
+                </div>
+              )}
             </div>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {searchedLocation ? (
+                <>
+                  <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', background: 'var(--gl)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                    Available within {NEARBY_RADIUS_KM} km ({nearbyAvailable.length})
+                  </div>
+                  {nearbyAvailable.length === 0 ? (
+                    <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>No available engineers within {NEARBY_RADIUS_KM} km of this location.</div>
+                  ) : nearbyAvailable.map(({ engineer: e, distanceKm }) => (
+                    <div key={e.id} onClick={() => setSelectedId(e.id)} style={{ padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: 'pointer', background: selectedId === e.id ? 'var(--mp)' : 'transparent' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, background: '#D1FAE5', color: '#065F46', borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{distanceKm < 1 ? '<1 km' : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.lastSeen?.placeName || 'Location unavailable'}</div>
+                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>Last seen {formatRelativeTime(e.lastSeen!.at)}</div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
               {groupedByState.map(([state, group]) => (
                 <div key={state}>
                   <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', background: 'var(--gl)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
@@ -224,6 +330,8 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
               ))}
               {filteredEngineers.length === 0 && (
                 <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>No engineers match “{search}”.</div>
+              )}
+                </>
               )}
             </div>
           </div>

@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet'
-import type { LatLngBoundsExpression } from 'leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, Circle, useMap } from 'react-leaflet'
+import type { LatLngBoundsExpression, LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { FieldEngineerOverview } from '@/app/actions/get-engineers'
 
@@ -49,6 +49,22 @@ const TECHNICIAN_ICON = L.divIcon({
   iconSize: [32, 32],
   iconAnchor: [16, 32],
   popupAnchor: [0, -30],
+})
+
+// A blue teardrop for the searched location, visually distinct from the maroon engineer
+// pins so the admin can tell the place-of-interest apart from the technicians.
+const SEARCH_LOCATION_ICON = L.divIcon({
+  className: 'search-location-marker',
+  html: `
+    <div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:#2563EB;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
+      <div style="transform:rotate(45deg);display:flex;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="#fff"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+      </div>
+    </div>
+  `,
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+  popupAnchor: [0, -28],
 })
 
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
@@ -126,12 +142,36 @@ function FlyToSelected({ target }: { target: [number, number] | null }) {
   return null
 }
 
+// Frame the map to a searched location: fit the searched point + the nearby available
+// engineers so the admin sees them together; if none are nearby, just centre on the
+// place at city zoom. Re-runs only when the search (or its result set) actually changes.
+function FitToSearch({ location, points }: { location: { lat: number; lng: number } | null; points: [number, number][] }) {
+  const map = useMap()
+  const lastKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (!location) { lastKey.current = null; return }
+    const key = `${location.lat},${location.lng},${points.length}`
+    if (key === lastKey.current) return
+    lastKey.current = key
+    if (points.length) {
+      const all: LatLngExpression[] = [[location.lat, location.lng], ...points]
+      map.fitBounds(L.latLngBounds(all), { padding: [50, 50], maxZoom: 13 })
+    } else {
+      map.flyTo([location.lat, location.lng], 11, { duration: 0.6 })
+    }
+  }, [map, location, points])
+  return null
+}
+
 interface Props {
   engineers: FieldEngineerOverview[]
   selectedId: string | null
+  searchedLocation?: { lat: number; lng: number; label: string } | null
+  radiusKm?: number
+  nearbyIds?: string[]
 }
 
-export default function LeafletMap({ engineers, selectedId }: Props) {
+export default function LeafletMap({ engineers, selectedId, searchedLocation, radiusKm = 150, nearbyIds = [] }: Props) {
   const rawPoints = engineers.flatMap(e => {
     const ls = e.lastSeen
     if (!ls || ls.lat == null || ls.lng == null) return []
@@ -143,6 +183,9 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
   })
   const points = jitterOverlapping(rawPoints)
   const selected = points.find(p => p.engineer.id === selectedId)
+
+  const nearbySet = new Set(nearbyIds)
+  const nearbyPoints = points.filter(p => nearbySet.has(p.engineer.id)).map(p => [p.lat, p.lng] as [number, number])
 
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   useEffect(() => {
@@ -161,6 +204,21 @@ export default function LeafletMap({ engineers, selectedId }: Props) {
       />
       <FitIndia />
       <FlyToSelected target={selected ? [selected.lat, selected.lng] : null} />
+      <FitToSearch location={searchedLocation ?? null} points={nearbyPoints} />
+      {searchedLocation && (
+        <>
+          <Circle center={[searchedLocation.lat, searchedLocation.lng]} radius={radiusKm * 1000} pathOptions={{ color: '#2563EB', weight: 1, fillColor: '#2563EB', fillOpacity: 0.06 }} />
+          <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={SEARCH_LOCATION_ICON}>
+            <Popup>
+              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>Searched location</div>
+                <div style={{ fontSize: 11, color: '#7A6870' }}>{searchedLocation.label}</div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>Available engineers within {radiusKm} km: {nearbyIds.length}</div>
+              </div>
+            </Popup>
+          </Marker>
+        </>
+      )}
       {points.map(p => {
         const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
         return (
