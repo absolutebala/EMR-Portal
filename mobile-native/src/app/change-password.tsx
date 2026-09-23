@@ -35,6 +35,7 @@ export default function ChangePasswordScreen() {
   const { session, email } = useLocalSearchParams<{ session: string; email: string }>();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [phone, setPhone] = useState('');
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,8 @@ export default function ChangePasswordScreen() {
   const allMet = Object.values(checks).every(Boolean);
   const matches = confirm.length > 0 && password === confirm;
   const mismatch = confirm.length > 0 && password !== confirm;
-  const canSubmit = allMet && matches && !loading;
+  const phoneValid = phone.replace(/\D/g, '').length >= 10;
+  const canSubmit = allMet && matches && phoneValid && !loading;
 
   async function handleSubmit() {
     if (!session || !email) {
@@ -63,6 +65,10 @@ export default function ChangePasswordScreen() {
     }
     if (password !== confirm) {
       setError("The two passwords don't match.");
+      return;
+    }
+    if (!phoneValid) {
+      setError('Enter a valid 10-digit mobile number.');
       return;
     }
     setLoading(true);
@@ -82,7 +88,7 @@ export default function ChangePasswordScreen() {
     // Step 2 — finish account setup (clears must_change_password server-side). Must
     // succeed before navigating in, otherwise (app)/_layout.tsx signs the user straight
     // back out. Retryable on its own since the password is already set by now.
-    const { error: finishError } = await finishPasswordSetup();
+    const { error: finishError } = await finishPasswordSetup(phone.trim());
     if (finishError) {
       setLoading(false);
       setError(finishError);
@@ -148,6 +154,18 @@ export default function ChangePasswordScreen() {
         </View>
         {mismatch && <Text style={styles.hintError}>The two passwords don&apos;t match.</Text>}
 
+        <Text style={styles.phoneLabel}>Your mobile number</Text>
+        <TextInput
+          style={styles.phoneInput}
+          placeholder="10-digit mobile number"
+          placeholderTextColor="#9CA3AF"
+          keyboardType="phone-pad"
+          maxLength={15}
+          value={phone}
+          onChangeText={t => setPhone(t.replace(/[^\d+\-\s]/g, ''))}
+        />
+        <Text style={styles.phoneHint}>Required — used to send you a password-reset code if you ever forget it.</Text>
+
         <Pressable style={[styles.button, !canSubmit && styles.buttonDisabled]} onPress={handleSubmit} disabled={!canSubmit}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save and continue</Text>}
         </Pressable>
@@ -174,6 +192,9 @@ const styles = StyleSheet.create({
   checkMet: { color: '#047857' },
   checkUnmet: { color: '#9CA3AF' },
   hintError: { color: '#DC2626', fontSize: 12, marginTop: -4 },
+  phoneLabel: { fontSize: 13, fontWeight: '600', color: '#111827', marginTop: 4 },
+  phoneInput: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#111827' },
+  phoneHint: { fontSize: 11, color: '#9CA3AF', marginTop: -4 },
   button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },

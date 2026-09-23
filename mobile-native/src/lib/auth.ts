@@ -1,6 +1,6 @@
 import * as cognito from './cognito';
 import { setSession, clearSession, fromAuthResult } from './sessionStore';
-import { apiPost } from './api';
+import { apiPost, ApiError } from './api';
 
 export type LoginResult =
   | { status: 'ok' }
@@ -46,12 +46,15 @@ export async function completeNewPassword(email: string, session: string, newPas
 // step: the Cognito temp-password challenge is single-use, so re-running the whole
 // thing after a network blip would fail — but the session is already valid here, so
 // retrying only the flag-clear is safe.
-export async function finishPasswordSetup(): Promise<{ error: string | null }> {
+export async function finishPasswordSetup(phone?: string): Promise<{ error: string | null }> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await apiPost('/api/mobile/v1/auth/complete-password-change');
+      await apiPost('/api/mobile/v1/auth/complete-password-change', { phone });
       return { error: null };
-    } catch {
+    } catch (e) {
+      // A 400 is a validation error (e.g. missing/invalid phone) — surface it immediately
+      // rather than retrying/masking it as a generic network failure.
+      if (e instanceof ApiError && e.status === 400) return { error: e.message };
       if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
     }
   }

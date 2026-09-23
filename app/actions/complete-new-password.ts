@@ -19,9 +19,18 @@ const MOBILE_ONLY_MESSAGE = 'This mobile app is only for Field Engineers. Please
 // separate "already authenticated, just update the password" flow. Cognito never
 // issues real tokens for a temp-password user until this challenge is answered, so
 // there is no "already signed in, now let them change it" state to handle anymore.
-export async function completeNewPassword(newPassword: string, options?: { requireRole?: string }): Promise<{ error: string | null }> {
+export async function completeNewPassword(newPassword: string, options?: { requireRole?: string; phone?: string | null }): Promise<{ error: string | null }> {
   const challenge = await getChallengeCookie()
   if (!challenge) return { error: 'Your session has expired. Please sign in again.' }
+
+  // Field engineers must have a mobile number on file (for password-reset OTPs). It's
+  // collected on this first-login screen and required unless already present.
+  const phoneDigits = (options?.phone ?? '').replace(/\D/g, '')
+  // Only field engineers (the mobile app path passes requireRole) must supply a phone —
+  // desktop admins setting their password go through this same action without it.
+  if (options?.requireRole === 'Field Engineer' && phoneDigits.length < 10) {
+    return { error: 'Enter a valid 10-digit mobile number.' }
+  }
 
   try {
     const result = await cognitoClient.send(new RespondToAuthChallengeCommand({
@@ -53,9 +62,16 @@ export async function completeNewPassword(newPassword: string, options?: { requi
     // set at invite time for new users, or by the Migrate-User Lambda's first-login
     // trigger for accounts migrated from Supabase (see proxy.ts's resolveProfileUser
     // for the read side of this same mapping).
+    const profileUpdate: { must_change_password: boolean; invite_pending: boolean; last_login_at: string; phone?: string } = {
+      must_change_password: false,
+      invite_pending: false,
+      last_login_at: new Date().toISOString(),
+    }
+    if (phoneDigits.length >= 10) profileUpdate.phone = (options?.phone ?? '').trim()
+
     await adminClient()
       .from('profiles')
-      .update({ must_change_password: false, invite_pending: false, last_login_at: new Date().toISOString() })
+      .update(profileUpdate)
       .eq('cognito_sub', payload.sub)
 
     return { error: null }

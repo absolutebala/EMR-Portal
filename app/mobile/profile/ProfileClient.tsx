@@ -51,11 +51,14 @@ export default function ProfileClient({ profile: initialProfile, error: loadErro
     }
   }
 
+  const phoneValid = phone.replace(/\D/g, '').length >= 10
+
   async function handleSave() {
+    if (!phoneValid) { setError('Please add a valid 10-digit mobile number — it’s used to send you a password-reset code.'); return }
     setSaving(true)
     setSaved(false)
     setError('')
-    const { error: saveError } = await updateMyProfile({ first_name: firstName, last_name: lastName, phone: phone || null })
+    const { error: saveError } = await updateMyProfile({ first_name: firstName, last_name: lastName, phone: phone.trim() })
     setSaving(false)
     if (saveError) { setError(saveError); return }
     setSaved(true)
@@ -100,9 +103,14 @@ export default function ProfileClient({ profile: initialProfile, error: loadErro
           <label style={labelStyle}>Last name</label>
           <input style={inputStyle} value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" />
         </div>
+        {!phoneValid && (
+          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', fontSize: 12, lineHeight: 1.5, marginBottom: 16 }}>
+            Please add your mobile number so we can send you a password-reset code if you ever forget your password.
+          </div>
+        )}
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Phone number</label>
-          <input style={inputStyle} value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" />
+          <label style={labelStyle}>Phone number *</label>
+          <input style={{ ...inputStyle, borderColor: phoneValid ? '#E5E0E3' : '#DC2626' }} inputMode="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d+\-\s]/g, ''))} placeholder="10-digit mobile number" />
         </div>
         <div style={{ marginBottom: 20 }}>
           <label style={labelStyle}>Email</label>

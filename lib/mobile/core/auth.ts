@@ -1,11 +1,34 @@
 import type { AdminClient } from './shared'
 
-export async function completePasswordChangeCore(admin: AdminClient, userId: string): Promise<{ error: string | null }> {
+export async function completePasswordChangeCore(
+  admin: AdminClient,
+  userId: string,
+  phone?: string | null,
+): Promise<{ error: string | null }> {
+  // Every field engineer must have a mobile number on file (it's how password-reset OTPs
+  // reach them). We capture it on this first-login screen: require a valid 10-digit number
+  // unless the profile already has one saved.
+  const { data: existing } = await admin.from('profiles').select('phone').eq('id', userId).maybeSingle()
+  const alreadyHasPhone = !!(existing?.phone && existing.phone.replace(/\D/g, '').length >= 10)
+  const cleaned = (phone ?? '').trim()
+  const cleanedDigits = cleaned.replace(/\D/g, '')
+
+  if (!alreadyHasPhone) {
+    if (!cleaned) return { error: 'A mobile number is required.' }
+    if (cleanedDigits.length < 10) return { error: 'Enter a valid 10-digit mobile number.' }
+  }
+
   // profiles.must_change_password is the sole source of truth (Cognito has no
   // equivalent to Supabase's user_metadata sync this used to also perform).
+  const update: { must_change_password: boolean; invite_pending: boolean; phone?: string } = {
+    must_change_password: false,
+    invite_pending: false,
+  }
+  if (cleanedDigits.length >= 10) update.phone = cleaned
+
   const { error: profileError } = await admin
     .from('profiles')
-    .update({ must_change_password: false, invite_pending: false })
+    .update(update)
     .eq('id', userId)
   if (profileError) return { error: profileError.message }
   return { error: null }

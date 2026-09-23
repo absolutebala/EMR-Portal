@@ -39,10 +39,16 @@ export default function ProfileScreen() {
     ]);
   }
 
+  const phoneValid = phone.replace(/\D/g, '').length >= 10;
+
   function handleSave() {
     setSaved(false);
+    if (!phoneValid) {
+      Alert.alert('Mobile number required', 'Please add a valid 10-digit mobile number — it’s used to send you a password-reset code if you ever forget your password.');
+      return;
+    }
     updateMutation.mutate(
-      { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || null },
+      { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() },
       { onSuccess: () => setSaved(true) }
     );
   }
@@ -83,9 +89,14 @@ export default function ProfileScreen() {
           <Text style={styles.label}>Last name</Text>
           <TextInput style={styles.input} value={lastName} onChangeText={setLastName} placeholder="Last name" placeholderTextColor="#9CA3AF" />
         </View>
+        {!phoneValid && (
+          <View style={styles.phoneNudge}>
+            <Text style={styles.phoneNudgeText}>Please add your mobile number so we can send you a password-reset code if you ever forget your password.</Text>
+          </View>
+        )}
         <View style={styles.field}>
-          <Text style={styles.label}>Phone number</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone number" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
+          <Text style={styles.label}>Phone number *</Text>
+          <TextInput style={[styles.input, !phoneValid && styles.inputError]} value={phone} onChangeText={t => setPhone(t.replace(/[^\d+\-\s]/g, ''))} placeholder="10-digit mobile number" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" maxLength={15} />
         </View>
         <View style={styles.field}>
           <Text style={styles.label}>Email</Text>
@@ -122,6 +133,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 14, color: '#1C0D14', backgroundColor: '#fff',
   },
+  inputError: { borderColor: '#DC2626' },
+  phoneNudge: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, padding: 12, marginBottom: 16 },
+  phoneNudgeText: { color: '#92400E', fontSize: 12, lineHeight: 17 },
   inputReadOnly: { backgroundColor: '#F5F3F5', justifyContent: 'center' },
   readOnlyText: { fontSize: 14, color: '#7A6870' },
   errorText: { color: '#DC2626', fontSize: 12.5, textAlign: 'center', marginBottom: 12 },

@@ -32,6 +32,7 @@ const REQUIREMENTS: { key: keyof ReturnType<typeof passwordChecks>; label: strin
 export default function MobileChangePasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [phone, setPhone] = useState('')
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -39,7 +40,8 @@ export default function MobileChangePasswordPage() {
   const checks = passwordChecks(password)
   const allMet = Object.values(checks).every(Boolean)
   const mismatch = confirm.length > 0 && password !== confirm
-  const canSubmit = allMet && password === confirm && confirm.length > 0 && !saving
+  const phoneValid = phone.replace(/\D/g, '').length >= 10
+  const canSubmit = allMet && password === confirm && confirm.length > 0 && phoneValid && !saving
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,9 +51,10 @@ export default function MobileChangePasswordPage() {
       return
     }
     if (password !== confirm) { setError("The two passwords don't match."); return }
+    if (!phoneValid) { setError('Enter a valid 10-digit mobile number.'); return }
     setSaving(true)
     setError('')
-    const { error } = await completeNewPassword(password, { requireRole: 'Field Engineer' })
+    const { error } = await completeNewPassword(password, { requireRole: 'Field Engineer', phone: phone.trim() })
     if (error) { setError(error); setSaving(false); return }
     window.location.href = '/mobile/dashboard'
   }
@@ -139,6 +142,23 @@ export default function MobileChangePasswordPage() {
                 <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? 'Hide password' : 'Show password'} style={eyeStyle}>{show ? '🙈' : '👁'}</button>
               </div>
               {mismatch && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>The two passwords don&apos;t match.</div>}
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                Your mobile number
+              </label>
+              <div style={inputWrapStyle}>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/[^\d+\-\s]/g, ''))}
+                  required
+                  placeholder="10-digit mobile number"
+                  style={bareInputStyle}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>Required — used to send you a password-reset code if you ever forget it.</div>
             </div>
             <button
               type="submit"
