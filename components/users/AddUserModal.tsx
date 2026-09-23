@@ -345,14 +345,7 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
                   <div style={{ fontSize: 10, color: 'var(--txm)' }}>Notifications, engineers, forms, SAP</div>
                 </div>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', border: '1.5px solid var(--gm)', background: 'var(--gl)', borderRadius: 8, cursor: 'not-allowed', opacity: .55 }}>
-                <input type="checkbox" disabled style={{ width: 15, height: 15, cursor: 'not-allowed' }}/>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txm)' }}>Sales</div>
-                  <div style={{ fontSize: 10, color: 'var(--txm)' }}>Leads, accounts, pipeline</div>
-                </div>
-                <span style={{ fontSize: 8, fontWeight: 600, background: 'var(--gm)', color: 'var(--txm)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>Coming soon</span>
-              </label>
+              {/* Sales module hidden for now — will be re-enabled when the Sales module ships. */}
             </div>
           </div>
         </div>

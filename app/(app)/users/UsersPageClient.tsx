@@ -16,8 +16,12 @@ import { buildCredentialsText } from '@/lib/credentialsText'
 import type { Profile } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED', '#DC2626', '#1E3A5F']
-function av(name: string, i: number) {
+function av(name: string, i: number, avatarUrl?: string | null) {
   const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+  if (avatarUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={avatarUrl} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+  }
   return (
     <div style={{ width: 32, height: 32, borderRadius: '50%', background: COLORS[i % COLORS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
       {initials}
@@ -176,7 +180,7 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {av(`${u.first_name} ${u.last_name}`, i)}
+                        {av(`${u.first_name} ${u.last_name}`, i, u.avatar_url)}
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{u.first_name} {u.last_name}</div>
                         </div>
@@ -230,6 +234,11 @@ export default function UsersPageClient({ users, userName, userRole, permissions
                                 <><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg> Copy password</>
                               )}
                             </button>
+            {can('Users — Create / Edit') && (
+                              <button onClick={() => { setEditUser(u); setShowAdd(true) }} title="Edit" style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                                <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z" /></svg>
+                              </button>
+                            )}
                             {/* A profile carried over from the Supabase->AWS migration whose
                                 owner never logged in has no Cognito identity yet — copying a
                                 password will fail ("User does not exist") until they do. Always

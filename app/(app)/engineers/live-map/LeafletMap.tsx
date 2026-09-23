@@ -40,15 +40,15 @@ function formatRelativeTime(at: string): string {
 const TECHNICIAN_ICON = L.divIcon({
   className: 'technician-marker',
   html: `
-    <div style="width:32px;height:32px;border-radius:50% 50% 50% 0;background:#7D1D3F;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
+    <div style="width:16px;height:16px;border-radius:50% 50% 50% 0;background:#7D1D3F;transform:rotate(-45deg);border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
       <div style="transform:rotate(45deg);display:flex;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        <svg viewBox="0 0 24 24" width="8" height="8" fill="#fff"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
       </div>
     </div>
   `,
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -30],
+  iconSize: [16, 16],
+  iconAnchor: [8, 16],
+  popupAnchor: [0, -14],
 })
 
 // A blue teardrop for the searched location, visually distinct from the maroon engineer
@@ -187,6 +187,12 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
   const nearbySet = new Set(nearbyIds)
   const nearbyPoints = points.filter(p => nearbySet.has(p.engineer.id)).map(p => [p.lat, p.lng] as [number, number])
 
+  // When a location is searched, plot ONLY the nearby-available engineers — the same set
+  // shown in the sidebar list — so the map and the list stay consistent (previously the
+  // map kept showing every engineer nationwide, which didn't match the "near this place"
+  // list). With no active search, show everyone as usual.
+  const visiblePoints = searchedLocation ? points.filter(p => nearbySet.has(p.engineer.id)) : points
+
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   useEffect(() => {
     if (!selectedId) return
@@ -219,7 +225,7 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
           </Marker>
         </>
       )}
-      {points.map(p => {
+      {visiblePoints.map(p => {
         const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
         return (
           <Marker
@@ -228,7 +234,9 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
             icon={TECHNICIAN_ICON}
             ref={el => { markerRefs.current[p.engineer.id] = el }}
           >
-            <Tooltip direction="top" offset={[0, -30]} permanent opacity={0.95}>
+            {/* Name shows in the popup on click (and as a hover tooltip) — no permanent
+                label, to keep a busy national map readable. */}
+            <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
               {p.engineer.name}
             </Tooltip>
             <Popup>
