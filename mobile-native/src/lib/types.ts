@@ -103,6 +103,10 @@ export interface MobileWorkOrderDetail {
   // transformers and they're an additional (non-primary) assignee — null when
   // not applicable (primary engineer, or a single-transformer job).
   myAssignedSerials: string[] | null;
+  // True when this notification still has an unfulfilled product request — used to
+  // prompt the engineer, on Mark Completed, whether to spin off a new unassigned
+  // follow-up notification for the pending products.
+  hasOpenProductRequest: boolean;
 }
 
 // ── Endpoint response shapes ────────────────────────────────────────────────────
@@ -472,6 +476,7 @@ export interface ClosureVariables {
   clientPhone?: string | null;
   engineerPhone?: string | null;
   offSite?: boolean;
+  createProductFollowUp?: boolean;
 }
 
 // ── Dynamic job form ────────────────────────────────────────────────────────────

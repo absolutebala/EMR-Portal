@@ -9,6 +9,7 @@ import SignaturePad from './SignaturePad'
 import PhotoField from './PhotoField'
 import BottomNav from './BottomNav'
 import { safeSetItem } from '@/lib/mobile/offlineStorage'
+import { validateForm } from '@/lib/formValidation'
 
 type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
@@ -68,6 +69,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
   const [savedOffline, setSavedOffline] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [incompleteIds, setIncompleteIds] = useState<Set<string>>(new Set())
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const draftKey = `emr-draft-${workOrder.id}`
   const pendingKey = 'emr-pending-submissions'
@@ -146,6 +148,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
   const setField = useCallback((id: string, value: string) => {
     setFieldValues(prev => ({ ...prev, [id]: value }))
     setIncompleteIds(prev => (prev.has(id) && value.trim() ? (() => { const n = new Set(prev); n.delete(id); return n })() : prev))
+    setFieldErrors(prev => (prev[id] ? (() => { const n = { ...prev }; delete n[id]; return n })() : prev))
   }, [])
 
   const setRowStatus = useCallback((rowId: string, status: string) => {
@@ -188,6 +191,14 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
 
     // No fields are mandatory — engineers can submit a form with any subset filled in.
     setIncompleteIds(new Set())
+
+    // Format-validate whatever IS filled (numbers/dates/email) and block on malformed values.
+    const errs = validateForm(form.sections, fieldValues)
+    setFieldErrors(errs)
+    if (Object.keys(errs).length) {
+      setSubmitError('Please fix the highlighted fields before submitting.')
+      return
+    }
 
     setSubmitting(true)
 
@@ -424,6 +435,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
                       onChange={setField}
                       bordered={fi > 0}
                       isIncomplete={incompleteIds.has(field.id)}
+                      error={fieldErrors[field.id]}
                       language={language}
                     />
                   ))}
@@ -626,14 +638,16 @@ function renderTable(
 // Memoized so typing into one field (or drawing a signature) doesn't re-render every
 // other field/table row in a large form — previously the whole form re-rendered on
 // every keystroke since nothing below FormFillView was isolated.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, language }: {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, error, language }: {
   field: MobileFormField
   value: string
   onChange: (id: string, value: string) => void
   bordered: boolean
   isIncomplete: boolean
+  error?: string
   language: Language
 }) {
+  const invalid = isIncomplete || !!error
   return (
     <div style={{ padding: '14px 14px', borderTop: bordered ? '1px solid #F5F3F5' : 'none', background: isIncomplete ? '#FEF2F2' : 'transparent', boxShadow: isIncomplete ? 'inset 3px 0 0 #DC2626' : 'none' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
@@ -685,7 +699,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           readOnly={field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
           rows={3}
-          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${invalid ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', resize: 'vertical', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
         />
       ) : field.field_type === 'checkbox' ? (
         <div style={{ display: 'flex', gap: 10, padding: '4px 0' }}>
@@ -722,8 +736,11 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           onChange={e => onChange(field.id, e.target.value)}
           readOnly={field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
-          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${isIncomplete ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${invalid ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
         />
+      )}
+      {error && (
+        <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4, fontWeight: 500 }}>{error}</div>
       )}
       {field.help_text && (
         <div style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>{field.help_text}</div>

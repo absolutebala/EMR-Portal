@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndic
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import RNSignaturePad from '@/components/RNSignaturePad';
-import { useSubmitClosure } from '@/lib/hooks';
+import { useSubmitClosure, useWorkOrderDetail } from '@/lib/hooks';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 
 // "Product Request" is a special reason: picking it abandons the normal pending-
@@ -32,6 +32,8 @@ export default function ClosureScreen() {
   const router = useRouter();
   const offSite = offsite === '1';
   const submitClosure = useSubmitClosure();
+  const { data: detail } = useWorkOrderDetail(id);
+  const hasOpenProductRequest = !!detail?.detail?.hasOpenProductRequest;
 
   const [outcome, setOutcome] = useState<'completed' | 'pending' | null>(offSite ? 'completed' : null);
   const [summary, setSummary] = useState('');
@@ -48,8 +50,26 @@ export default function ClosureScreen() {
   const isProductRequest = outcome === 'pending' && pendingReason === 'Product Request';
 
   // "Mark Completed" is a plain action now — sign-off (both signatures) is captured
-  // on the forms, so completing just flips the notification to completed.
-  async function handleCompleteSubmit() {
+  // on the forms, so completing just flips the notification to completed. When the
+  // notification still has an open product request, first ask whether to spin off a
+  // new unassigned follow-up notification for the pending products.
+  function handleCompleteSubmit() {
+    if (hasOpenProductRequest) {
+      Alert.alert(
+        'Open product request',
+        'This notification still has an open product request. Create a new notification for the pending products? A Service Manager will assign an engineer to it.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'No', onPress: () => void doCompleteSubmit(false) },
+          { text: 'Yes, create', onPress: () => void doCompleteSubmit(true) },
+        ],
+      );
+      return;
+    }
+    void doCompleteSubmit(false);
+  }
+
+  async function doCompleteSubmit(createProductFollowUp: boolean) {
     setError('');
     const variables = {
       workOrderId: id,
@@ -63,6 +83,7 @@ export default function ClosureScreen() {
       clientName: '',
       clientSignature: '',
       offSite,
+      createProductFollowUp,
     };
     if (!(await isOnline())) {
       submitClosure.mutate(variables);

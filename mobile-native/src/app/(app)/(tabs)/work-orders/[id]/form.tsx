@@ -7,6 +7,7 @@ import { getPrefillValue } from '@/lib/formPrefill';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS } from '@/lib/constants';
 import FormFieldRow from '@/components/form/FormFieldRow';
+import { validateForm } from '@/lib/formValidation';
 import TableSection from '@/components/form/TableSection';
 import type { FieldValues, RowValues } from '@/lib/types';
 
@@ -20,6 +21,7 @@ export default function JobFormScreen() {
   const [fieldValues, setFieldValues] = useState<FieldValues>({});
   const [rowValues, setRowValues] = useState<RowValues>({});
   const [incompleteIds, setIncompleteIds] = useState<Set<string>>(new Set());
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
@@ -100,6 +102,13 @@ export default function JobFormScreen() {
       next.delete(fieldId);
       return next;
     });
+    // Clear a field's validation error as soon as the engineer edits it.
+    setFieldErrors(prev => {
+      if (!prev[fieldId]) return prev;
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
   }, []);
 
   const setRowStatus = useCallback((rowId: string, status: string) => {
@@ -128,6 +137,14 @@ export default function JobFormScreen() {
 
     // No fields are mandatory — engineers can submit a form with any subset filled in.
     setIncompleteIds(new Set());
+
+    // …but a value that IS filled must be well-formed for its type (number/date/email).
+    const errs = validateForm(form.sections, fieldValues);
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      setSubmitError('Please fix the highlighted fields before submitting.');
+      return;
+    }
 
     const variables = { workOrderId: id, formId: form.id, formData: { fields: fieldValues, table_rows: rowValues } };
 
@@ -238,6 +255,7 @@ export default function JobFormScreen() {
                         onChange={setField}
                         bordered={fi > 0}
                         isIncomplete={incompleteIds.has(field.id)}
+                        error={fieldErrors[field.id]}
                       />
                     ))}
                     {section.tables.map((table, ti) => (

@@ -10,11 +10,12 @@ interface Props {
   onChange: (id: string, value: string) => void;
   bordered: boolean;
   isIncomplete: boolean;
+  error?: string;
 }
 
 // RN port of FormFillView.tsx's memoized FormFieldRow — memoized so typing into one
 // field doesn't re-render every other field/row in a large form.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete }: Props) {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, error }: Props) {
   // A prefill_from_job field only becomes a permanent, non-editable static display
   // when it's ALSO read_only_on_mobile. A prefill field that's still editable must
   // actually render as editable, or a failed auto-fill lookup (e.g. no rating/
@@ -77,7 +78,7 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         })()
       ) : field.field_type === 'long_text' ? (
         <TextInput
-          style={[styles.textarea, field.read_only_on_mobile && styles.readOnlyBg]}
+          style={[styles.textarea, field.read_only_on_mobile && styles.readOnlyBg, !!error && styles.inputError]}
           value={value}
           onChangeText={v => onChange(field.id, v)}
           editable={!field.read_only_on_mobile}
@@ -107,16 +108,17 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         <RNPhotoField value={value} onChange={v => onChange(field.id, v)} readOnly={field.read_only_on_mobile} />
       ) : (
         <TextInput
-          style={[styles.input, field.read_only_on_mobile && styles.readOnlyBg]}
+          style={[styles.input, field.read_only_on_mobile && styles.readOnlyBg, !!error && styles.inputError]}
           value={value}
           onChangeText={v => onChange(field.id, v)}
           editable={!field.read_only_on_mobile}
           placeholder={field.placeholder || (field.field_type === 'date' ? 'YYYY-MM-DD' : '')}
           placeholderTextColor="#9CA3AF"
-          keyboardType={field.field_type === 'number' ? 'numeric' : 'default'}
+          keyboardType={field.field_type === 'number' ? 'numeric' : field.field_type === 'date' ? 'numbers-and-punctuation' : 'default'}
         />
       )}
 
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
       {!!field.help_text && <Text style={styles.helpText}>{field.help_text}</Text>}
     </View>
   );
@@ -143,6 +145,8 @@ const styles = StyleSheet.create({
     color: '#1C0D14', backgroundColor: '#fff',
   },
   readOnlyBg: { backgroundColor: '#F5F3F5' },
+  inputError: { borderColor: '#DC2626' },
+  errorText: { fontSize: 11, color: '#DC2626', marginTop: 4, fontWeight: '500' },
   yesNoRow: { flexDirection: 'row', gap: 10 },
   yesNoBtn: { flex: 1, borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: '#fff' },
   yesNoBtnOn: { borderColor: '#7D1D3F', backgroundColor: '#7D1D3F' },
