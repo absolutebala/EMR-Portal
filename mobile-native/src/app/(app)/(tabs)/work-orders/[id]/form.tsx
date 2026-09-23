@@ -7,9 +7,9 @@ import { getPrefillValue } from '@/lib/formPrefill';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS } from '@/lib/constants';
 import FormFieldRow from '@/components/form/FormFieldRow';
-import { validateForm } from '@/lib/formValidation';
+import { validateForm, validateFieldValue } from '@/lib/formValidation';
 import TableSection from '@/components/form/TableSection';
-import type { FieldValues, RowValues } from '@/lib/types';
+import type { FieldValues, RowValues, MobileFormField } from '@/lib/types';
 
 export default function JobFormScreen() {
   const { id, view, formId } = useLocalSearchParams<{ id: string; view?: string; formId?: string }>();
@@ -107,6 +107,20 @@ export default function JobFormScreen() {
       if (!prev[fieldId]) return prev;
       const next = { ...prev };
       delete next[fieldId];
+      return next;
+    });
+  }, []);
+
+  // Validate a single field the moment it loses focus (engineer moves to the next field/
+  // section) — show the red outline immediately rather than waiting for the submit tap.
+  // Format-only: an empty value is always cleared (fields aren't mandatory).
+  const handleBlur = useCallback((field: MobileFormField, value: string) => {
+    const err = validateFieldValue(field, value);
+    setFieldErrors(prev => {
+      if (err) return { ...prev, [field.id]: err };
+      if (!prev[field.id]) return prev;
+      const next = { ...prev };
+      delete next[field.id];
       return next;
     });
   }, []);
@@ -253,6 +267,7 @@ export default function JobFormScreen() {
                         field={field}
                         value={fieldValues[field.id] || ''}
                         onChange={setField}
+                        onBlur={handleBlur}
                         bordered={fi > 0}
                         isIncomplete={incompleteIds.has(field.id)}
                         error={fieldErrors[field.id]}

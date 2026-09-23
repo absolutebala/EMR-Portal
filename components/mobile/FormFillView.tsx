@@ -9,7 +9,7 @@ import SignaturePad from './SignaturePad'
 import PhotoField from './PhotoField'
 import BottomNav from './BottomNav'
 import { safeSetItem } from '@/lib/mobile/offlineStorage'
-import { validateForm } from '@/lib/formValidation'
+import { validateForm, validateFieldValue } from '@/lib/formValidation'
 
 type FieldValues = Record<string, string>
 type RowValues = Record<string, { status: string; remarks: string }>
@@ -45,9 +45,22 @@ function getPrefillValue(label: string, sectionTitle: string, wo: MobileWorkOrde
   return ''
 }
 
-function todayIsoDate(): string {
+// Form date fields are stored/displayed as DD/MM/YYYY. The native <input type="date">
+// works in ISO, so convert on the way in/out; both helpers tolerate the legacy ISO value
+// still present in older submissions.
+function todayDMY(): string {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+function dmyToIso(v: string): string {
+  const s = (v || '').trim()
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ''
+}
+function isoToDmy(v: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((v || '').trim())
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : v
 }
 
 // Shows the Hindi text when the toggle is set to Hindi and a translation exists,
@@ -104,7 +117,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
             if (v) loadedFields = { ...loadedFields, [f.id]: v }
           }
           if (f.field_type === 'date' && !loadedFields[f.id]) {
-            loadedFields = { ...loadedFields, [f.id]: todayIsoDate() }
+            loadedFields = { ...loadedFields, [f.id]: todayDMY() }
           }
         }
       }
@@ -149,6 +162,17 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
     setFieldValues(prev => ({ ...prev, [id]: value }))
     setIncompleteIds(prev => (prev.has(id) && value.trim() ? (() => { const n = new Set(prev); n.delete(id); return n })() : prev))
     setFieldErrors(prev => (prev[id] ? (() => { const n = { ...prev }; delete n[id]; return n })() : prev))
+  }, [])
+
+  // Validate a single field on blur (leaving the field) so a bad number/date/email lights
+  // up red immediately instead of only at submit. Format-only — blank stays allowed.
+  const validateField = useCallback((field: MobileFormField, value: string) => {
+    const err = validateFieldValue(field, value)
+    setFieldErrors(prev => {
+      if (err) return { ...prev, [field.id]: err }
+      if (!prev[field.id]) return prev
+      const n = { ...prev }; delete n[field.id]; return n
+    })
   }, [])
 
   const setRowStatus = useCallback((rowId: string, status: string) => {
@@ -436,6 +460,7 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
                       bordered={fi > 0}
                       isIncomplete={incompleteIds.has(field.id)}
                       error={fieldErrors[field.id]}
+                      onBlur={validateField}
                       language={language}
                     />
                   ))}
@@ -638,10 +663,11 @@ function renderTable(
 // Memoized so typing into one field (or drawing a signature) doesn't re-render every
 // other field/table row in a large form — previously the whole form re-rendered on
 // every keystroke since nothing below FormFillView was isolated.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, error, language }: {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, onBlur, bordered, isIncomplete, error, language }: {
   field: MobileFormField
   value: string
   onChange: (id: string, value: string) => void
+  onBlur?: (field: MobileFormField, value: string) => void
   bordered: boolean
   isIncomplete: boolean
   error?: string
@@ -729,11 +755,23 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           onChange={dataUrl => onChange(field.id, dataUrl)}
           readOnly={field.read_only_on_mobile}
         />
+      ) : field.field_type === 'date' ? (
+        // Native calendar picker; stored/displayed as DD/MM/YYYY (the control itself needs
+        // ISO, so we convert on the way in and out).
+        <input
+          type="date"
+          value={dmyToIso(value)}
+          onChange={e => onChange(field.id, e.target.value ? isoToDmy(e.target.value) : '')}
+          readOnly={field.read_only_on_mobile}
+          style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${invalid ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}
+        />
       ) : (
         <input
-          type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
+          type={field.field_type === 'number' ? 'number' : 'text'}
+          inputMode={field.field_type === 'number' ? 'decimal' : undefined}
           value={value}
           onChange={e => onChange(field.id, e.target.value)}
+          onBlur={() => onBlur?.(field, value)}
           readOnly={field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
           style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${invalid ? '#DC2626' : '#E5E0E3'}`, borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', background: field.read_only_on_mobile ? '#F5F3F5' : '#fff' }}

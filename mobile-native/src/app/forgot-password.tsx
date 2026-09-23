@@ -32,11 +32,16 @@ export default function ForgotPasswordScreen() {
     if (phone.replace(/\D/g, '').length < 10) { setError('Enter your registered 10-digit mobile number'); return; }
     setLoading(true); setError(null);
     try {
-      await apiPost('/api/mobile/v1/auth/forgot-password/request', { identifier: phone.trim() });
+      const res = await apiPost<{ found?: boolean }>('/api/mobile/v1/auth/forgot-password/request', { identifier: phone.trim() });
+      // Number isn't tied to a Field Engineer account — tell the user rather than silently
+      // advancing (anti-enumeration intentionally dropped per product decision).
+      if (res?.found === false) {
+        setError("This number isn't registered. Please check the number or contact your manager.");
+        return;
+      }
       setStep('reset');
     } catch {
-      // The request endpoint is best-effort and never reveals account existence; advance
-      // regardless so the flow can't be used to enumerate numbers.
+      // Network/server error — advance so they can still enter a code / resend.
       setStep('reset');
     } finally {
       setLoading(false);

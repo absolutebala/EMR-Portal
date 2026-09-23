@@ -11,7 +11,18 @@ interface ValidatableField {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// A date is valid if it's DD/MM/YYYY (current format, entered via the picker) or the
+// legacy YYYY-MM-DD, and the calendar date actually exists (e.g. rejects 31/02/2026).
+function isValidDate(v: string): boolean {
+  let d: number, mo: number, y: number
+  let m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v)
+  if (m) { d = +m[1]; mo = +m[2]; y = +m[3] }
+  else { m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if (!m) return false; y = +m[1]; mo = +m[2]; d = +m[3] }
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false
+  const dt = new Date(y, mo - 1, d)
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d
+}
 
 export function validateFieldValue(field: ValidatableField, raw: string): string | null {
   const v = (raw ?? '').trim()
@@ -19,7 +30,7 @@ export function validateFieldValue(field: ValidatableField, raw: string): string
   if (field.field_type === 'number') {
     if (!/^-?\d+(\.\d+)?$/.test(v)) return 'Enter a valid number'
   } else if (field.field_type === 'date') {
-    if (!DATE_RE.test(v) || Number.isNaN(Date.parse(v))) return 'Use date format YYYY-MM-DD'
+    if (!isValidDate(v)) return 'Use date format DD/MM/YYYY'
   } else if (/e-?mail/i.test(field.label || '')) {
     if (!EMAIL_RE.test(v)) return 'Enter a valid email address'
   }

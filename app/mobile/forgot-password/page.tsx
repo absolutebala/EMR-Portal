@@ -55,11 +55,19 @@ export default function MobileForgotPasswordPage() {
     if (phone.replace(/\D/g, '').length < 10) { setError('Enter your registered 10-digit mobile number'); return }
     setLoading(true); setError('')
     try {
-      await fetch('/api/mobile/v1/auth/forgot-password/request', {
+      const res = await fetch('/api/mobile/v1/auth/forgot-password/request', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: phone.trim() }),
       })
-    } catch { /* best-effort; advance regardless */ }
+      const body = await res.json().catch(() => ({})) as { found?: boolean }
+      // Number isn't tied to a Field Engineer account — tell the user instead of
+      // silently advancing (anti-enumeration intentionally dropped per product decision).
+      if (body.found === false) {
+        setError("This number isn't registered. Please check the number or contact your manager.")
+        setLoading(false)
+        return
+      }
+    } catch { /* network error — advance so they can still enter a code / resend */ }
     setLoading(false)
     setStep('reset')
   }

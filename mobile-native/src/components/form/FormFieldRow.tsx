@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { MobileFormField } from '@/lib/types';
 import RNSignaturePad from '@/components/RNSignaturePad';
 import RNPhotoField from '@/components/RNPhotoField';
@@ -8,14 +9,31 @@ interface Props {
   field: MobileFormField;
   value: string;
   onChange: (id: string, value: string) => void;
+  onBlur?: (field: MobileFormField, value: string) => void;
   bordered: boolean;
   isIncomplete: boolean;
   error?: string;
 }
 
+// Dates are entered via a native picker and stored/displayed as DD/MM/YYYY. Parse both
+// DD/MM/YYYY (current) and legacy YYYY-MM-DD (older submissions) so an existing value
+// still opens the picker on the right day.
+function parseStoredDate(v: string): Date | null {
+  const s = (v || '').trim();
+  let m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+  if (m) { const d = new Date(+m[3], +m[2] - 1, +m[1]); return Number.isNaN(d.getTime()) ? null : d; }
+  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3]); return Number.isNaN(d.getTime()) ? null : d; }
+  return null;
+}
+function formatDDMMYYYY(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
 // RN port of FormFillView.tsx's memoized FormFieldRow — memoized so typing into one
 // field doesn't re-render every other field/row in a large form.
-const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, bordered, isIncomplete, error }: Props) {
+const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, onBlur, bordered, isIncomplete, error }: Props) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
   // A prefill_from_job field only becomes a permanent, non-editable static display
   // when it's ALSO read_only_on_mobile. A prefill field that's still editable must
   // actually render as editable, or a failed auto-fill lookup (e.g. no rating/
@@ -81,12 +99,35 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
           style={[styles.textarea, field.read_only_on_mobile && styles.readOnlyBg, !!error && styles.inputError]}
           value={value}
           onChangeText={v => onChange(field.id, v)}
+          onBlur={() => onBlur?.(field, value)}
           editable={!field.read_only_on_mobile}
           placeholder={field.placeholder || ''}
           placeholderTextColor="#9CA3AF"
           multiline
           numberOfLines={3}
         />
+      ) : field.field_type === 'date' ? (
+        <>
+          <Pressable
+            onPress={() => { if (!field.read_only_on_mobile) setShowDatePicker(true); }}
+            style={[styles.input, styles.dateInput, field.read_only_on_mobile && styles.readOnlyBg, !!error && styles.inputError]}
+          >
+            <Text style={value ? styles.dateText : styles.datePlaceholder}>
+              {value ? (parseStoredDate(value) ? formatDDMMYYYY(parseStoredDate(value)!) : value) : 'DD/MM/YYYY'}
+            </Text>
+            <Text style={styles.dateIcon}>📅</Text>
+          </Pressable>
+          {showDatePicker && (
+            <DateTimePicker
+              value={parseStoredDate(value) || new Date()}
+              mode="date"
+              onChange={(e: DateTimePickerEvent, d?: Date) => {
+                setShowDatePicker(false);
+                if (e.type === 'set' && d) onChange(field.id, formatDDMMYYYY(d));
+              }}
+            />
+          )}
+        </>
       ) : field.field_type === 'checkbox' ? (
         <View style={styles.yesNoRow}>
           {(['true', 'false'] as const).map(v => {
@@ -110,11 +151,12 @@ const FormFieldRow = memo(function FormFieldRow({ field, value, onChange, border
         <TextInput
           style={[styles.input, field.read_only_on_mobile && styles.readOnlyBg, !!error && styles.inputError]}
           value={value}
-          onChangeText={v => onChange(field.id, v)}
+          onChangeText={v => onChange(field.id, field.field_type === 'number' ? v.replace(/[^0-9.\-]/g, '') : v)}
+          onBlur={() => onBlur?.(field, value)}
           editable={!field.read_only_on_mobile}
-          placeholder={field.placeholder || (field.field_type === 'date' ? 'YYYY-MM-DD' : '')}
+          placeholder={field.placeholder || ''}
           placeholderTextColor="#9CA3AF"
-          keyboardType={field.field_type === 'number' ? 'numeric' : field.field_type === 'date' ? 'numbers-and-punctuation' : 'default'}
+          keyboardType={field.field_type === 'number' ? 'numeric' : 'default'}
         />
       )}
 
@@ -145,6 +187,10 @@ const styles = StyleSheet.create({
     color: '#1C0D14', backgroundColor: '#fff',
   },
   readOnlyBg: { backgroundColor: '#F5F3F5' },
+  dateInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dateText: { fontSize: 14, color: '#1C0D14' },
+  datePlaceholder: { fontSize: 14, color: '#9CA3AF' },
+  dateIcon: { fontSize: 15 },
   inputError: { borderColor: '#DC2626' },
   errorText: { fontSize: 11, color: '#DC2626', marginTop: 4, fontWeight: '500' },
   yesNoRow: { flexDirection: 'row', gap: 10 },

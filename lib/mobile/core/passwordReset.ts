@@ -65,12 +65,16 @@ async function findEngineerByPhone(admin: AdminClient, identifier: string): Prom
 export async function requestPasswordResetOtpCore(
   admin: AdminClient,
   params: { identifier: string }
-): Promise<{ ok: true }> {
+): Promise<{ found: boolean }> {
   try {
     const eng = await findEngineerByPhone(admin, params.identifier ?? '')
-    if (!eng) return { ok: true } // anti-enumeration: pretend success
+    // Per product decision, the login screen now tells the user when a number isn't
+    // registered (anti-enumeration deliberately dropped for a clearer field-engineer UX).
+    if (!eng) return { found: false }
 
     // Rate limit: no send within the cooldown, and no more than N in the last hour.
+    // Still report found:true so the client advances to the code screen (the earlier
+    // code, if any, is still valid) rather than looking like the number is unknown.
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const { data: recent } = await admin.from('password_reset_otps')
       .select('created_at')
@@ -78,8 +82,8 @@ export async function requestPasswordResetOtpCore(
       .gte('created_at', hourAgo)
       .order('created_at', { ascending: false })
     const recentRows = (recent ?? []) as { created_at: string }[]
-    if (recentRows.length >= MAX_SENDS_PER_HOUR) return { ok: true }
-    if (recentRows[0] && Date.now() - new Date(recentRows[0].created_at).getTime() < RESEND_COOLDOWN_MS) return { ok: true }
+    if (recentRows.length >= MAX_SENDS_PER_HOUR) return { found: true }
+    if (recentRows[0] && Date.now() - new Date(recentRows[0].created_at).getTime() < RESEND_COOLDOWN_MS) return { found: true }
 
     const otp = String(randomInt(0, 1_000_000)).padStart(6, '0')
     await admin.from('password_reset_otps').insert({
@@ -90,10 +94,12 @@ export async function requestPasswordResetOtpCore(
     })
 
     await sendPasswordResetOtp(admin, { phone: eng.phone, otp, name: eng.name }).catch(() => false)
-    return { ok: true }
+    return { found: true }
   } catch (e) {
     console.error('requestPasswordResetOtpCore failed', e instanceof Error ? e.message : e)
-    return { ok: true }
+    // On an unexpected server error, don't falsely claim the number is unknown — let the
+    // client proceed to the code screen (they can retry / resend).
+    return { found: true }
   }
 }
 
