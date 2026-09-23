@@ -43,7 +43,12 @@ export async function sendPasswordResetOtp(
       campaignName: waCampaign,
       destination: formatForWhatsApp(params.phone),
       userName: params.name,
+      // The OTP goes in the body variable {{1}} AND the copy-code button parameter — the
+      // WhatsApp Authentication template requires both (Combirds represents the copy-code
+      // button as a url-subtype button at index 0). Without the button param the send is
+      // rejected with "Button at index 0 … Required parameter is missing".
       templateParams: [params.otp],
+      buttons: [{ type: 'button', sub_type: 'url', index: 0, parameters: [{ type: 'text', text: params.otp }] }],
       source: 'emr-portal',
     }).catch(() => false)
   }

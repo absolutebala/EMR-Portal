@@ -3,12 +3,24 @@
 // must never break the business action that triggered it (mirrors lib/notifications.ts).
 const COMBIRDS_ENDPOINT = 'https://backend.api-wa.co/campaign/combirds/api/v2'
 
+// A WhatsApp button component parameter (per Combirds Campaign API v2). Needed for
+// Authentication templates whose copy-code button must receive the OTP separately from
+// the body variable — without it WhatsApp rejects the send ("Button at index 0 … Required
+// parameter is missing").
+export interface CombirdsButtonParam {
+  type: string
+  sub_type: string
+  index: number
+  parameters: { type: string; text: string }[]
+}
+
 export interface CombirdsSendParams {
   apiKey: string
   campaignName: string
   destination: string
   userName: string
   templateParams?: string[]
+  buttons?: CombirdsButtonParam[]
   source?: string
 }
 
@@ -69,6 +81,7 @@ export async function sendCombirdsMessage(params: CombirdsSendParams): Promise<b
         destination: params.destination,
         userName: params.userName,
         ...(params.templateParams ? { templateParams: params.templateParams } : {}),
+        ...(params.buttons ? { buttons: params.buttons } : {}),
         ...(params.source ? { source: params.source } : {}),
       }),
     })
