@@ -55,13 +55,17 @@ const STATUS_NEXT: Record<string, { label: string; value: string; color: string 
   // A visit that can't be finished in a day stays In Progress with a follow-up date
   // (set from the mobile closure flow) — there's no manual "Mark Pending" from here
   // anymore, since that flow also requires capturing the follow-up date/reassignment.
-  in_progress: [{ label: 'Mark Completed', value: 'completed', color: 'var(--green)' }],
+  // Completion is driven from the mobile app (the field engineer marks the visit
+  // completed) — there's no manual "Mark Completed" from the web anymore.
+  in_progress: [],
   // Kept only as an escape hatch for any legacy row still sitting in this status.
   pending: [{ label: 'Mark In Progress', value: 'in_progress', color: 'var(--amber)' }],
   // No direct transition button — the exit path is the existing "Reassign engineer"
   // action, which already flips status back to 'assigned' automatically.
   needs_reassignment: [],
-  completed: [],
+  // Once the FE has completed it on mobile, the Service Manager reviews and closes it.
+  completed: [{ label: 'Close Notification', value: 'closed', color: 'var(--green)' }],
+  closed: [],
 }
 
 function statusBadge(status: string) {
@@ -72,6 +76,7 @@ function statusBadge(status: string) {
     pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
     completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
     needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
+    closed: { bg: '#E5E7EB', color: '#374151', label: 'Closed' },
   }
   const c = cfg[status] || cfg.unassigned
   return <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: c.bg, color: c.color }}>{c.label}</span>

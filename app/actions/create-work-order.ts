@@ -201,7 +201,7 @@ export async function updateWorkOrderStatus(id: string, status: string): Promise
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
-    const label: Record<string, string> = { in_progress: 'In Progress', pending: 'Pending', completed: 'Completed' }
+    const label: Record<string, string> = { in_progress: 'In Progress', pending: 'Pending', completed: 'Completed', closed: 'Closed' }
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Status updated to ${label[status] || status}`, actor_name: actorName })
     await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
 

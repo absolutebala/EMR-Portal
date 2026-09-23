@@ -48,6 +48,7 @@ function StatusBadge({ status, scheduledDate }: { status: string; scheduledDate:
     pending: { bg: '#FEE2E2', color: '#DC2626', label: 'Pending' },
     completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
     needs_reassignment: { bg: '#FED7AA', color: '#9A3412', label: 'Need Reassign' },
+    closed: { bg: '#E5E7EB', color: '#374151', label: 'Closed' },
   }
   const c = cfg[status] || cfg.unassigned
   return (
@@ -151,6 +152,8 @@ function PagedAlertCard<T>({ title, empty, items, render }: { title: string; emp
 interface Props {
   workOrders: WorkOrder[]
   engineers: { id: string; first_name: string; last_name: string }[]
+  serviceManagers: { id: string; first_name: string; last_name: string }[]
+  currentUserId: string
   alerts: WorkOrderAlerts
   userName: string
   userRole: string
@@ -158,7 +161,7 @@ interface Props {
   permissions?: Record<string, boolean>
 }
 
-export default function WorkOrdersPageClient({ workOrders, engineers, alerts, userName, userRole, departments, permissions = {} }: Props) {
+export default function WorkOrdersPageClient({ workOrders, engineers, serviceManagers, currentUserId, alerts, userName, userRole, departments, permissions = {} }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
@@ -167,7 +170,11 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'open')
   const [jobFilter, setJobFilter] = useState(searchParams.get('job') || '')
   const [engFilter, setEngFilter] = useState(searchParams.get('engineer') || '')
-  const [dateFilter, setDateFilter] = useState('')
+  // Service Manager (creator) filter — replaces the old scheduled-date filter. Defaults to
+  // the logged-in user when they are one of the listed Service Managers, else 'All'.
+  const [smFilter, setSmFilter] = useState(
+    searchParams.get('sm') ?? (serviceManagers.some(m => m.id === currentUserId) ? currentUserId : '')
+  )
   const [warrantyFilter, setWarrantyFilter] = useState(searchParams.get('warranty') || '')
   const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('department') || '')
   const [showNew, setShowNew] = useState(false)
@@ -214,15 +221,15 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
     const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
     const matchStatus =
       statusFilter === 'all' ? true
-      : statusFilter === 'open' ? (wo.status !== 'completed' || feUnapproved)
+      : statusFilter === 'open' ? ((wo.status !== 'completed' && wo.status !== 'closed') || feUnapproved)
       : wo.status === statusFilter
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
-    const matchDate = !dateFilter || wo.scheduled_date === dateFilter
+    const matchSm = !smFilter || wo.created_by === smFilter
     const matchWarranty = !warrantyFilter || (wo.warranty_tiers || []).includes(warrantyFilter as WarrantyStatus)
     const matchDepartment = !departmentFilter || (departmentFilter === NO_DEPARTMENT_ID ? !wo.department_id : wo.department_id === departmentFilter)
-    return matchSearch && matchStatus && matchJob && matchEng && matchDate && matchWarranty && matchDepartment
-  }), [workOrders, search, statusFilter, jobFilter, engFilter, dateFilter, warrantyFilter, departmentFilter])
+    return matchSearch && matchStatus && matchJob && matchEng && matchSm && matchWarranty && matchDepartment
+  }), [workOrders, search, statusFilter, jobFilter, engFilter, smFilter, warrantyFilter, departmentFilter])
 
   // Default sort: soonest/most-overdue first (Days Left ascending → -8, -7, 0, 1, 2…).
   const [sortKey, setSortKey] = useState<SortKey>('daysLeft')
@@ -314,6 +321,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             <option value="in_progress">In Progress</option>
             <option value="needs_reassignment">Need Reassign</option>
             <option value="completed">Completed</option>
+            <option value="closed">Closed</option>
           </select>
           <select value={jobFilter} onChange={e => setJobFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
             <option value="">All job types</option>
@@ -334,8 +342,10 @@ export default function WorkOrdersPageClient({ workOrders, engineers, alerts, us
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             <option value={NO_DEPARTMENT_ID}>No Department</option>
           </select>
-          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
-            style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: dateFilter ? 'var(--tx)' : 'var(--txm)' }} />
+          <select value={smFilter} onChange={e => setSmFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
+            <option value="">All service managers</option>
+            {serviceManagers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+          </select>
           {canEdit && (
             <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
