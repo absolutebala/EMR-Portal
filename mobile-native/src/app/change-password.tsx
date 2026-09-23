@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { completeNewPassword, finishPasswordSetup } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -124,7 +125,7 @@ export default function ChangePasswordScreen() {
             onChangeText={setPassword}
           />
           <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}>
-            <Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text>
+            <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" />
           </Pressable>
         </View>
 
@@ -149,7 +150,7 @@ export default function ChangePasswordScreen() {
             onChangeText={setConfirm}
           />
           <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}>
-            <Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text>
+            <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" />
           </Pressable>
         </View>
         {mismatch && <Text style={styles.hintError}>The two passwords don&apos;t match.</Text>}

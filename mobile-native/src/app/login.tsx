@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { login } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
 import AppVersionFooter from '@/components/AppVersionFooter';
@@ -90,7 +91,7 @@ export default function LoginScreen() {
             accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             style={styles.passwordToggle}
           >
-            <Text style={styles.passwordToggleText}>{showPassword ? '🙈' : '👁'}</Text>
+            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" />
           </Pressable>
         </View>
 

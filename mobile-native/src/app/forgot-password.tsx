@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiPost } from '@/lib/api';
@@ -116,7 +117,7 @@ export default function ForgotPasswordScreen() {
                   onChangeText={setPassword}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8} accessibilityLabel={showPw ? 'Hide password' : 'Show password'} style={styles.passwordToggle}>
-                  <Text style={styles.passwordToggleText}>{showPw ? '🙈' : '👁'}</Text>
+                  <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" />
                 </Pressable>
               </View>
               <View style={styles.passwordRow}>
@@ -129,7 +130,7 @@ export default function ForgotPasswordScreen() {
                   onChangeText={setConfirm}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8} accessibilityLabel={showPw ? 'Hide password' : 'Show password'} style={styles.passwordToggle}>
-                  <Text style={styles.passwordToggleText}>{showPw ? '🙈' : '👁'}</Text>
+                  <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" />
                 </Pressable>
               </View>
               <Text style={styles.hint}>Min 8 chars with uppercase, lowercase, number and symbol.</Text>

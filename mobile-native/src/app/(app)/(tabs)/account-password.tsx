@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useChangeMyPassword } from '@/lib/hooks';
@@ -86,14 +87,14 @@ export default function AccountPasswordScreen() {
           <Text style={styles.label}>Current password</Text>
           <View style={styles.passwordRow}>
             <TextInput style={styles.passwordInput} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry={!show} placeholder="Current password" placeholderTextColor="#9CA3AF" />
-            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" /></Pressable>
           </View>
         </View>
         <View style={styles.field}>
           <Text style={styles.label}>New password</Text>
           <View style={styles.passwordRow}>
             <TextInput style={styles.passwordInput} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!show} placeholder="At least 8 characters" placeholderTextColor="#9CA3AF" />
-            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" /></Pressable>
           </View>
           {newPassword.length > 0 && (
             <View style={styles.checklist}>
@@ -107,7 +108,7 @@ export default function AccountPasswordScreen() {
           <Text style={styles.label}>Confirm new password</Text>
           <View style={[styles.passwordRow, mismatch && styles.rowError]}>
             <TextInput style={styles.passwordInput} value={confirm} onChangeText={setConfirm} secureTextEntry={!show} placeholder="Re-enter new password" placeholderTextColor="#9CA3AF" />
-            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Text style={styles.toggleText}>{show ? '🙈' : '👁'}</Text></Pressable>
+            <Pressable onPress={() => setShow(v => !v)} hitSlop={8} accessibilityLabel={show ? 'Hide password' : 'Show password'} style={styles.toggle}><Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A6870" /></Pressable>
           </View>
           {mismatch && <Text style={styles.hintError}>The two passwords don&apos;t match.</Text>}
         </View>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MobileHeader from '@/components/mobile/MobileHeader'
+import SitePhotosButton from '@/components/mobile/SitePhotosButton'
 import BottomNav from '@/components/mobile/BottomNav'
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
@@ -207,6 +208,11 @@ export default function JobDetailClient({ detail }: Props) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Site Photos — available for every notification regardless of status. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 16px 0' }}>
+        <SitePhotosButton workOrderId={wo.id} />
       </div>
 
       {/* Action panel */}

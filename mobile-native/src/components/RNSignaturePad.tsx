@@ -11,15 +11,14 @@ interface Props {
 
 // RN equivalent of components/mobile/SignaturePad.tsx — same {value, onChange,
 // readOnly} contract (base64 PNG data-URL string), so the backend's stored field
-// value format doesn't change. Unlike the web version, this does NOT hand-roll a
-// rotated-canvas coordinate transform — react-native-signature-canvas's `rotated`
-// prop already renders a landscape drawing surface on a portrait screen internally
-// (it wraps a WebView running signature_pad, not a raw <canvas>).
+// value format doesn't change. The signature is drawn in the natural portrait
+// orientation of the canvas area; the library's `rotated` prop is deliberately NOT
+// used — it rendered a landscape surface but exported the PNG rotated 90° (the bug
+// this fixes).
 //
 // The library's own in-WebView "Save"/"Clear" footer buttons are hidden (via
-// webStyle) and not used — in `rotated` mode that footer renders outside the
-// visible viewport (a known library quirk), making it unreachable. Real RN buttons
-// below drive the same ref methods (readSignature()/clearSignature()) instead.
+// webStyle) and not used — real RN buttons below drive the same ref methods
+// (readSignature()/clearSignature()) instead.
 export default function RNSignaturePad({ label, value, onChange, readOnly }: Props) {
   const [open, setOpen] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
@@ -70,7 +69,6 @@ export default function RNSignaturePad({ label, value, onChange, readOnly }: Pro
               onBegin={() => setHasStroke(true)}
               onClear={() => setHasStroke(false)}
               descriptionText=""
-              rotated
               trimWhitespace
               imageType="image/png"
               webStyle=".m-signature-pad--footer { display: none; margin: 0; } .m-signature-pad--body { border: none; }"

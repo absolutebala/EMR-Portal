@@ -6,6 +6,7 @@ import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
 import * as Clipboard from 'expo-clipboard';
+import RNSitePhotos from '@/components/RNSitePhotos';
 
 function formatDate(d: string | null) {
   if (!d) return '—';
@@ -117,6 +118,10 @@ export default function WorkOrderDetailScreen() {
             </View>
           ))}
         </View>
+      </View>
+
+      <View style={styles.sitePhotosRow}>
+        <RNSitePhotos workOrderId={wo.id} />
       </View>
 
       <View style={styles.actionPanel}>
@@ -372,6 +377,7 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 9, color: 'rgba(255,255,255,0.35)', marginTop: 5, textAlign: 'center' },
   stepLabelCurrent: { color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
 
+  sitePhotosRow: { flexDirection: 'row', justifyContent: 'flex-end', marginHorizontal: 16, marginTop: 12 },
   actionPanel: { backgroundColor: '#fff', margin: 16, marginBottom: 0, borderRadius: 12, padding: 14 },
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '600' },

@@ -20,6 +20,7 @@ import { deleteWorkOrder } from '@/app/actions/delete-work-order'
 import { approveNotificationExpenses, rejectNotificationExpenses } from '@/app/actions/notification-approval'
 import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
+import SitePhotosCard from '@/components/work-orders/SitePhotosCard'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
 import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
 import { getDepartments } from '@/app/actions/departments'
@@ -905,6 +906,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       ))}
                     </div>
                   )}
+
+                  <SitePhotosCard workOrderId={wo.id} />
 
                   <div style={card}>
                     <div style={cardLabel}>Activity timeline</div>

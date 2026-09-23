@@ -50,3 +50,23 @@ export async function pickPhotoFromLibrary(): Promise<CapturedPhoto | null> {
   if (result.canceled || !result.assets?.length) return null;
   return compress(result.assets[0].uri);
 }
+
+// Multi-select from the gallery — used by Site Photos, where an engineer often adds
+// several photos of a site at once. Compresses each; skips any that fail to process.
+export async function pickPhotosFromLibrary(): Promise<CapturedPhoto[]> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') return [];
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: 'images',
+    quality: 1,
+    allowsMultipleSelection: true,
+  });
+  if (result.canceled || !result.assets?.length) return [];
+  const out: CapturedPhoto[] = [];
+  for (const a of result.assets) {
+    const c = await compress(a.uri);
+    if (c) out.push(c);
+  }
+  return out;
+}
