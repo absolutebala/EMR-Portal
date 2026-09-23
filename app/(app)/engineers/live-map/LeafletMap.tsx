@@ -219,7 +219,7 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
               <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>Searched location</div>
                 <div style={{ fontSize: 11, color: '#7A6870' }}>{searchedLocation.label}</div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>Available engineers within {radiusKm} km: {nearbyIds.length}</div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>Reachable engineers here: {nearbyIds.length}</div>
               </div>
             </Popup>
           </Marker>

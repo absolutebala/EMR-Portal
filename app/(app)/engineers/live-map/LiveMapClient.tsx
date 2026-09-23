@@ -33,16 +33,28 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
-// Geocode a free-text place (city/area) to coordinates via OpenStreetMap's Nominatim —
-// biased to India, one best match. Returns null when nothing is found.
-async function geocodePlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(query)}`, {
+// Geocode a free-text place (city/area/state) to coordinates via OpenStreetMap's
+// Nominatim — biased to India, one best match. `stateName` is set only when the match is
+// a whole state/region (addresstype 'state'): a radius from a state's centroid misses most
+// of it, so callers list every engineer whose last-seen state matches instead.
+async function geocodePlace(query: string): Promise<{ lat: number; lng: number; label: string; stateName: string | null } | null> {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&countrycodes=in&q=${encodeURIComponent(query)}`, {
     headers: { 'Accept-Language': 'en' },
   })
   if (!res.ok) return null
-  const data = (await res.json()) as { lat: string; lon: string; display_name: string }[]
+  const data = (await res.json()) as { lat: string; lon: string; display_name: string; addresstype?: string; address?: { state?: string } }[]
   if (!data.length) return null
-  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name }
+  const m = data[0]
+  const isState = m.addresstype === 'state'
+  const stateName = isState ? (m.address?.state || m.display_name.split(',')[0].trim()) : null
+  return { lat: parseFloat(m.lat), lng: parseFloat(m.lon), label: m.display_name, stateName }
+}
+
+// Engineers we consider "reachable" for a location search: anyone who isn't explicitly
+// Unavailable or On Leave (Available, plus on-job states like On the way / Reached / Site
+// Visit / HQ). Excludes only the two "can't take work" statuses.
+function isReachable(status: string): boolean {
+  return status !== 'unavailable' && status !== 'on_leave'
 }
 
 // Same small status config duplicated per-page elsewhere in this app (dashboard/page.tsx,
@@ -121,7 +133,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   const [locQuery, setLocQuery] = useState('')
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState('')
-  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null)
+  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; label: string; stateName: string | null } | null>(null)
 
   async function handleLocationSearch() {
     const q = locQuery.trim()
@@ -142,14 +154,29 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
     setSearchedLocation(null); setLocQuery(''); setGeoError('')
   }
 
-  // Available engineers with a fresh (mapped) position within the radius of the searched
-  // place, nearest first — shown in the sidebar and used to frame the map.
+  // Reachable engineers for the searched location, shown in the sidebar and used to frame
+  // the map. Two modes:
+  //  • state search → everyone whose last-seen state matches (a radius from a state
+  //    centroid would miss most of it); distance is shown when a fresh position exists.
+  //  • city/area search → reachable engineers with a fresh (mapped) position within the
+  //    radius, nearest first.
   const nearbyAvailable = useMemo(() => {
     if (!searchedLocation) return []
-    return engineers
-      .filter(e => e.status === 'available' && e.lastSeen?.fresh && e.lastSeen.lat != null && e.lastSeen.lng != null)
-      .map(e => ({ engineer: e, distanceKm: haversineKm(searchedLocation.lat, searchedLocation.lng, e.lastSeen!.lat!, e.lastSeen!.lng!) }))
-      .filter(x => x.distanceKm <= NEARBY_RADIUS_KM)
+    const reachable = engineers.filter(e => isReachable(e.status))
+    const distTo = (e: FieldEngineerOverview) =>
+      e.lastSeen?.fresh && e.lastSeen.lat != null && e.lastSeen.lng != null
+        ? haversineKm(searchedLocation.lat, searchedLocation.lng, e.lastSeen.lat, e.lastSeen.lng)
+        : null
+    if (searchedLocation.stateName) {
+      const target = searchedLocation.stateName.toLowerCase()
+      return reachable
+        .filter(e => deriveState(e.lastSeen?.placeName ?? null).toLowerCase() === target)
+        .map(e => ({ engineer: e, distanceKm: distTo(e) }))
+        .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || a.engineer.name.localeCompare(b.engineer.name))
+    }
+    return reachable
+      .map(e => ({ engineer: e, distanceKm: distTo(e) }))
+      .filter((x): x is { engineer: FieldEngineerOverview; distanceKm: number } => x.distanceKm != null && x.distanceKm <= NEARBY_RADIUS_KM)
       .sort((a, b) => a.distanceKm - b.distanceKm)
   }, [engineers, searchedLocation])
 
@@ -257,20 +284,27 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
               {searchedLocation ? (
                 <>
                   <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--txm)', background: 'var(--gl)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
-                    Available within {NEARBY_RADIUS_KM} km ({nearbyAvailable.length})
+                    {searchedLocation.stateName ? `In ${searchedLocation.stateName}` : `Within ${NEARBY_RADIUS_KM} km`} ({nearbyAvailable.length})
                   </div>
                   {nearbyAvailable.length === 0 ? (
-                    <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>No available engineers within {NEARBY_RADIUS_KM} km of this location.</div>
-                  ) : nearbyAvailable.map(({ engineer: e, distanceKm }) => (
+                    <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>
+                      {searchedLocation.stateName ? `No reachable engineers in ${searchedLocation.stateName}.` : `No reachable engineers within ${NEARBY_RADIUS_KM} km of this location.`}
+                    </div>
+                  ) : nearbyAvailable.map(({ engineer: e, distanceKm }) => {
+                    const statusCfg = STATUS_CFG[e.status] || STATUS_CFG.available
+                    return (
                     <div key={e.id} onClick={() => setSelectedId(e.id)} style={{ padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: 'pointer', background: selectedId === e.id ? 'var(--mp)' : 'transparent' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                        <span style={{ fontSize: 9, fontWeight: 600, background: '#D1FAE5', color: '#065F46', borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{distanceKm < 1 ? '<1 km' : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`}</span>
+                        {distanceKm != null
+                          ? <span style={{ fontSize: 9, fontWeight: 600, background: '#D1FAE5', color: '#065F46', borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{distanceKm < 1 ? '<1 km' : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`}</span>
+                          : <span style={{ fontSize: 9, fontWeight: 600, background: statusCfg.bg, color: statusCfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{statusCfg.label}</span>}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.lastSeen?.placeName || 'Location unavailable'}</div>
-                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>Last seen {formatRelativeTime(e.lastSeen!.at)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>{e.lastSeen ? `Last seen ${formatRelativeTime(e.lastSeen.at)}${!e.lastSeen.fresh ? ' · not on map' : ''}` : 'No location on file'}</div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </>
               ) : (
                 <>
