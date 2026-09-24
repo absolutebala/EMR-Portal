@@ -1,9 +1,9 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useMarkDayOff, useCancelDayOff, useUpdatePunchCategory, reverseGeocode } from '@/lib/hooks';
+import { useDashboard, useAlerts, useDepartmentCounts, useMarkEndDay, useMarkAttendance, useCancelDayOff, useUpdatePunchCategory, reverseGeocode } from '@/lib/hooks';
 import { categoryMeta } from '@/lib/punchCategory';
 import AppVersionFooter from '@/components/AppVersionFooter';
 import { useAuth } from '@/lib/AuthContext';
@@ -107,7 +107,6 @@ export default function DashboardScreen() {
 
   const markEndDay = useMarkEndDay();
   const markAttendance = useMarkAttendance();
-  const markDayOff = useMarkDayOff();
   const cancelDayOff = useCancelDayOff();
   const updatePunchCategory = useUpdatePunchCategory();
   const [endDayError, setEndDayError] = useState('');
@@ -198,27 +197,6 @@ export default function DashboardScreen() {
     } catch (e) {
       setChangeStatusError(apiErrorMessage(e));
     }
-  }
-
-  function handleDayOff() {
-    Alert.alert(
-      'Mark today as Day Off?',
-      'This needs manager approval and will stop you from punching in unless you cancel it.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Day Off', style: 'destructive', onPress: async () => {
-            setPunchInError('');
-            try {
-              const result = await markDayOff.mutateAsync({});
-              if (result.error) setPunchInError(result.error);
-            } catch (e) {
-              setPunchInError(apiErrorMessage(e));
-            }
-          },
-        },
-      ],
-    );
   }
 
   async function handleCancelDayOff() {
@@ -365,8 +343,9 @@ export default function DashboardScreen() {
           );
         }
 
-        // Markable day (before punch-in): punch in or take a day off right here, no
-        // trip to the Attendance tab.
+        // Markable day (before punch-in): punch in right here, no trip to the Attendance
+        // tab. There's no "Day Off" — engineers either apply for leave or simply don't
+        // punch in.
         if (canPunchIn) {
           return (
             <View style={[styles.attendanceCard, { backgroundColor: cfg.bg, flexDirection: 'column', alignItems: 'stretch' }]}>
@@ -374,15 +353,9 @@ export default function DashboardScreen() {
               <Text style={[styles.attendanceLabel, { color: cfg.color }]}>{cfg.label}</Text>
               {cfg.sub && <Text style={[styles.attendanceSub, { color: cfg.color }]}>{cfg.sub}</Text>}
               <View style={styles.attendanceActions}>
-                <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={() => { setPunchInError(''); setShowPunchIn(true); }} disabled={markAttendance.isPending || markDayOff.isPending}>
+                <Pressable style={[styles.punchInButton, markAttendance.isPending && styles.attendanceBtnDisabled]} onPress={() => { setPunchInError(''); setShowPunchIn(true); }} disabled={markAttendance.isPending}>
                   {markAttendance.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.punchInButtonText}>Punch In</Text>}
                 </Pressable>
-                {/* On a holiday the day is already off, so only Punch In is offered. */}
-                {status.kind !== 'holiday' && (
-                  <Pressable style={[styles.dayOffButton, markDayOff.isPending && styles.attendanceBtnDisabled]} onPress={handleDayOff} disabled={markAttendance.isPending || markDayOff.isPending}>
-                    {markDayOff.isPending ? <ActivityIndicator color="#5B21B6" size="small" /> : <Text style={styles.dayOffButtonText}>Day Off</Text>}
-                  </Pressable>
-                )}
               </View>
               {!!punchInError && <Text style={styles.endDayError}>{punchInError}</Text>}
             </View>

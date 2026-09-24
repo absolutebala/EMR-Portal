@@ -8,7 +8,7 @@ import JobCard from '@/components/mobile/JobCard'
 import PushSubscribe from '@/components/mobile/PushSubscribe'
 import AccountMenu from '@/components/mobile/AccountMenu'
 import { rescheduleFollowUp, recordLastSeen, setEngineerStatus, checkOpenVisitFollowUp, checkNotStartedFollowUp, logLocationPingIssue, reverseGeocode } from '@/app/actions/mobile-actions'
-import { markEndDay, markAttendance, markDayOff, cancelDayOff, updatePunchCategory } from '@/app/actions/attendance'
+import { markEndDay, markAttendance, cancelDayOff, updatePunchCategory } from '@/app/actions/attendance'
 import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
 import { categoryMeta } from '@/lib/punchCategory'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
@@ -288,16 +288,6 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
     setPunchingIn(false)
     if (result.error) { setPunchInError(result.error); return }
     setShowPunchIn(false)
-    router.refresh()
-  }
-
-  async function handleDayOff() {
-    if (!window.confirm('Mark today as a Day Off? This needs manager approval and will stop you from punching in unless you cancel it.')) return
-    setPunchInError('')
-    setMarkingDayOff(true)
-    const result = await markDayOff({})
-    setMarkingDayOff(false)
-    if (result.error) { setPunchInError(result.error); return }
     router.refresh()
   }
 
@@ -821,7 +811,8 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
             )
           }
 
-          // Markable day (before punch-in): punch in or take a day off right here.
+          // Markable day (before punch-in): punch in right here. There's no "Day Off" —
+          // engineers either apply for leave or simply don't punch in.
           if (canPunchIn) {
             return (
               <div style={{ marginBottom: 12, padding: '13px 14px', borderRadius: 12, background: cfg.bg }}>
@@ -829,13 +820,9 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
                 <div style={{ fontSize: 14, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
                 {cfg.sub && <div style={{ fontSize: 10, color: cfg.color, opacity: 0.8, marginTop: 1 }}>{cfg.sub}</div>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                  <button className="mtap" onClick={() => { setPunchInError(''); setShowPunchIn(true) }} disabled={punchingIn || markingDayOff}
-                    style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: punchingIn ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn || markingDayOff ? 0.6 : 1 }}>
+                  <button className="mtap" onClick={() => { setPunchInError(''); setShowPunchIn(true) }} disabled={punchingIn}
+                    style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: punchingIn ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn ? 0.6 : 1 }}>
                     {punchingIn ? 'Punching in…' : 'Punch In'}
-                  </button>
-                  <button className="mtap" onClick={handleDayOff} disabled={punchingIn || markingDayOff}
-                    style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1.5px solid #5B21B6', background: '#fff', color: '#5B21B6', fontSize: 13, fontWeight: 700, cursor: markingDayOff ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif', opacity: punchingIn || markingDayOff ? 0.6 : 1 }}>
-                    {markingDayOff ? 'Saving…' : 'Day Off'}
                   </button>
                 </div>
                 {!!punchInError && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 8 }}>{punchInError}</div>}
