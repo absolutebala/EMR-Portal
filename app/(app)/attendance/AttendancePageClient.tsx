@@ -714,7 +714,8 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         {/* Single controls bar: period tabs + range navigation on the left, actions
             (amendments / export) pushed to the right so the row's width is used up
             instead of leaving a dead zone. */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14, marginBottom: 16, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+          {/* Row 1: period tabs + range navigation. */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
@@ -745,8 +746,12 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                 {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
               </div>
             )}
-            {/* Actions — amendments, exports and search — grouped on the left, next to
-                the period tabs / range navigation. */}
+          </div>
+
+          {/* Row 2: actions (amendments / leave / exports / search) on the left, colour
+              toggle pushed to the extreme right. */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             {canApprove && amendments.length > 0 && (
               <button
                 onClick={() => setShowAmendmentsModal(true)}
@@ -801,6 +806,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
             <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
             {gridDark ? 'Bold colours' : 'Soft colours'}
           </button>
+          </div>
         </div>
 
         {error && (
