@@ -18,27 +18,31 @@ export interface CategoryMeta {
   tx: string
   tag: string
   needsDetails: boolean
+  // Bold "dark theme" cell colour (the reference-chart palette) + a readable text colour
+  // on top of it. Used when the attendance grid's colour theme is set to Dark.
+  vivid: string
+  vividTx: string
 }
 
 // key -> colour + label. bg is the light cell tint, ac the accent (badge / border), tx
-// the dark text. Chart number in the comment.
+// the dark text, vivid the bold cell fill (reference chart). Chart number in the comment.
 export const PUNCH_CATEGORIES: CategoryMeta[] = [
-  { id: 'hq',                          label: 'HQ',                             bg: '#FBEDE2', ac: '#E0A97E', tx: '#9A5B2E', tag: 'HQ',       needsDetails: false }, // 1 peach
-  { id: 'business_dev',                label: 'Business Development',           bg: '#E1E6F5', ac: '#3A4FA0', tx: '#1E2A6B', tag: 'BizDev',   needsDetails: true },  // 3 navy
-  { id: 'others',                      label: 'Others',                         bg: '#F6F6F7', ac: '#C2C8CF', tx: '#4B5563', tag: 'Other',    needsDetails: true },  // 13 white
-  { id: 'travel_recoverable',          label: 'Travel — Recoverable',           bg: '#FBE3F1', ac: '#DB2FA8', tx: '#9D174D', tag: 'Trv·Rec',  needsDetails: true },  // 5 magenta
-  { id: 'travel_non_recoverable',      label: 'Travel — Non-Recoverable',       bg: '#FEF9CC', ac: '#CA9A04', tx: '#866A00', tag: 'Trv·NR',   needsDetails: true },  // 9 yellow
-  { id: 'travel_nfpfs_installation',   label: 'Travel — NFPFS Installation',    bg: '#F0E2DB', ac: '#B6634A', tx: '#7A3B28', tag: 'Trv·Inst', needsDetails: true },  // 12 brown
-  { id: 'travel_nfpfs_commissioning',  label: 'Travel — NFPFS Commissioning',   bg: '#EBE2F6', ac: '#6A2C91', tx: '#4C1D82', tag: 'Trv·Com',  needsDetails: true },  // 7 purple
-  { id: 'site_recoverable',            label: 'Site Visit — Recoverable',       bg: '#DFF3E2', ac: '#4CA557', tx: '#1E6B34', tag: 'Site·Rec', needsDetails: true },  // 6 green
-  { id: 'site_non_recoverable',        label: 'Site Visit — Non-Recoverable',   bg: '#DCEEFB', ac: '#56ACE4', tx: '#1E5A8A', tag: 'Site·NR',  needsDetails: true },  // 10 sky
-  { id: 'site_nfpfs_installation',     label: 'Site Visit — NFPFS Installation',bg: '#FCEFD6', ac: '#F0AD3C', tx: '#8A5A00', tag: 'Site·Inst',needsDetails: true },  // 11 amber
-  { id: 'site_nfpfs_commissioning',    label: 'Site Visit — NFPFS Commissioning',bg: '#EDF6D9', ac: '#8FBF3F', tx: '#4D6B10', tag: 'Site·Com', needsDetails: true }, // 8 lime
-  // legacy v1 (historical rows only) — keep their original colours
-  { id: 'travel_r',  label: 'Travel (R)',  bg: '#FCE7F0', ac: '#DB2777', tx: '#9D174D', tag: 'T(R)',  needsDetails: true },
-  { id: 'travel_nr', label: 'Travel (NR)', bg: '#FEF6C7', ac: '#CA8A04', tx: '#854D0E', tag: 'T(NR)', needsDetails: true },
-  { id: 'site_r',    label: 'Site (R)',    bg: '#DCFCE7', ac: '#16A34A', tx: '#166534', tag: 'S(R)',  needsDetails: true },
-  { id: 'site_nr',   label: 'Site (NR)',   bg: '#DBEAFE', ac: '#2563EB', tx: '#1E40AF', tag: 'S(NR)', needsDetails: true },
+  { id: 'hq',                          label: 'HQ',                             bg: '#FBEDE2', ac: '#E0A97E', tx: '#9A5B2E', tag: 'HQ',       needsDetails: false, vivid: '#FCE4D6', vividTx: '#5A2E1A' }, // 1 peach
+  { id: 'business_dev',                label: 'Business Development',           bg: '#E1E6F5', ac: '#3A4FA0', tx: '#1E2A6B', tag: 'BizDev',   needsDetails: true,  vivid: '#002060', vividTx: '#FFFFFF' }, // 3 navy
+  { id: 'others',                      label: 'Others',                         bg: '#F6F6F7', ac: '#C2C8CF', tx: '#4B5563', tag: 'Other',    needsDetails: true,  vivid: '#FFFFFF', vividTx: '#1F2937' }, // 13 white
+  { id: 'travel_recoverable',          label: 'Travel — Recoverable',           bg: '#FBE3F1', ac: '#DB2FA8', tx: '#9D174D', tag: 'Trv·Rec',  needsDetails: true,  vivid: '#FF33CC', vividTx: '#FFFFFF' }, // 5 magenta
+  { id: 'travel_non_recoverable',      label: 'Travel — Non-Recoverable',       bg: '#FEF9CC', ac: '#CA9A04', tx: '#866A00', tag: 'Trv·NR',   needsDetails: true,  vivid: '#FFFF00', vividTx: '#1F2937' }, // 9 yellow
+  { id: 'travel_nfpfs_installation',   label: 'Travel — NFPFS Installation',    bg: '#F0E2DB', ac: '#B6634A', tx: '#7A3B28', tag: 'Trv·Inst', needsDetails: true,  vivid: '#C0504D', vividTx: '#FFFFFF' }, // 12 brown
+  { id: 'travel_nfpfs_commissioning',  label: 'Travel — NFPFS Commissioning',   bg: '#EBE2F6', ac: '#6A2C91', tx: '#4C1D82', tag: 'Trv·Com',  needsDetails: true,  vivid: '#7030A0', vividTx: '#FFFFFF' }, // 7 purple
+  { id: 'site_recoverable',            label: 'Site Visit — Recoverable',       bg: '#DFF3E2', ac: '#4CA557', tx: '#1E6B34', tag: 'Site·Rec', needsDetails: true,  vivid: '#00B050', vividTx: '#FFFFFF' }, // 6 green
+  { id: 'site_non_recoverable',        label: 'Site Visit — Non-Recoverable',   bg: '#DCEEFB', ac: '#56ACE4', tx: '#1E5A8A', tag: 'Site·NR',  needsDetails: true,  vivid: '#00B0F0', vividTx: '#1F2937' }, // 10 sky
+  { id: 'site_nfpfs_installation',     label: 'Site Visit — NFPFS Installation',bg: '#FCEFD6', ac: '#F0AD3C', tx: '#8A5A00', tag: 'Site·Inst',needsDetails: true,  vivid: '#FFC000', vividTx: '#1F2937' }, // 11 orange
+  { id: 'site_nfpfs_commissioning',    label: 'Site Visit — NFPFS Commissioning',bg: '#EDF6D9', ac: '#8FBF3F', tx: '#4D6B10', tag: 'Site·Com', needsDetails: true, vivid: '#92D050', vividTx: '#1F2937' }, // 8 lime
+  // legacy v1 (historical rows only) — bold colours mirror their v2 equivalents
+  { id: 'travel_r',  label: 'Travel (R)',  bg: '#FCE7F0', ac: '#DB2777', tx: '#9D174D', tag: 'T(R)',  needsDetails: true, vivid: '#FF33CC', vividTx: '#FFFFFF' },
+  { id: 'travel_nr', label: 'Travel (NR)', bg: '#FEF6C7', ac: '#CA8A04', tx: '#854D0E', tag: 'T(NR)', needsDetails: true, vivid: '#FFFF00', vividTx: '#1F2937' },
+  { id: 'site_r',    label: 'Site (R)',    bg: '#DCFCE7', ac: '#16A34A', tx: '#166534', tag: 'S(R)',  needsDetails: true, vivid: '#00B050', vividTx: '#FFFFFF' },
+  { id: 'site_nr',   label: 'Site (NR)',   bg: '#DBEAFE', ac: '#2563EB', tx: '#1E40AF', tag: 'S(NR)', needsDetails: true, vivid: '#00B0F0', vividTx: '#1F2937' },
 ]
 
 export function categoryMeta(c: PunchCategory | null | undefined): CategoryMeta | null {

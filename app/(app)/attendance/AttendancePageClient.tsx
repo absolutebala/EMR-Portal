@@ -28,6 +28,22 @@ const ATTENDANCE_CFG: Record<AttendanceEffectiveStatus['kind'], { bg: string; co
   not_applicable: { bg: '#F3F4F6', color: '#B0A8AC' },
 }
 
+// Bold "dark theme" full-cell fills for non-category attendance statuses, mirroring the
+// reference chart (red Personal Leave, grey Holiday, etc.). Category cells use the vivid
+// colour on CategoryMeta. Used only when the grid colour theme is set to Dark.
+const STATUS_VIVID: Partial<Record<AttendanceEffectiveStatus['kind'], string>> = {
+  present: '#00B050', leave: '#FF0000', holiday: '#D9D9D9',
+  day_off: '#B4A7D6', off: '#D9D9D9', pending: '#FFC000',
+}
+
+// Readable text on a solid fill: near-black on light colours, white on dark ones.
+function readableOn(hex: string): string {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return '#1F2937'
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1F2937' : '#FFFFFF'
+}
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })
 }
@@ -143,9 +159,10 @@ interface AttendanceCellProps {
   canApprove: boolean
   actingOn: string | null
   onDecision: (id: string, decision: 'approved' | 'rejected') => void
+  dark: boolean
 }
 
-function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCellProps) {
+function AttendanceCell({ row, canApprove, actingOn, onDecision, dark }: AttendanceCellProps) {
   const s = row.attendance
   // A Present day with a Late In/Early Out/Single Punch flag still pending or
   // rejected gets the same amber/red treatment as a Leave amendment — plain
@@ -172,8 +189,21 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
   const showPendingActions = canApprove && (s.kind === 'leave' || s.kind === 'present' || s.kind === 'day_off') && s.pendingApproval && !!row.attendanceId
   const cat = categoryMeta(row.punchCategory)
 
+  // Dark theme: fill the whole cell with the bold reference-chart colour (category vivid,
+  // or the status vivid for Leave/Holiday/etc.) and flip text to a readable colour. Light
+  // theme keeps the original soft category tint (and no fill for non-category statuses).
+  const statusVivid = s.kind === 'leave' && s.latePending ? '#ED7D31'
+    : s.kind === 'present' && s.rejected ? '#FF0000'
+    : s.kind === 'present' && s.pendingApproval ? '#FFC000'
+    : STATUS_VIVID[s.kind]
+  const outerBg = dark ? (cat ? cat.vivid : statusVivid) : (cat ? cat.bg : undefined)
+  const mainTx = cat ? (dark ? cat.vividTx : cat.tx) : (dark && outerBg ? readableOn(outerBg) : 'var(--tx)')
+  const subTx = dark && outerBg
+    ? (readableOn(outerBg) === '#FFFFFF' ? 'rgba(255,255,255,0.82)' : 'rgba(0,0,0,0.6)')
+    : 'var(--txm)'
+
   return (
-    <div style={cat ? { background: cat.bg, border: `1px solid ${cat.ac}55`, borderRadius: 8, padding: 8, margin: -2 } : undefined}>
+    <div style={outerBg ? { background: outerBg, border: `1px solid ${dark ? 'rgba(0,0,0,0.18)' : `${cat!.ac}55`}`, borderRadius: 8, padding: 8, margin: -2 } : undefined}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {cat && (
           <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, background: cat.ac, color: '#fff', borderRadius: 20, padding: '3px 9px' }}>{cat.label}</span>
@@ -203,31 +233,31 @@ function AttendanceCell({ row, canApprove, actingOn, onDecision }: AttendanceCel
         )}
       </div>
       {cat && row.visitCustomerName && (
-        <div style={{ fontSize: 10, color: cat.tx, marginTop: 4 }}>Customer: {row.visitCustomerName}</div>
+        <div style={{ fontSize: 10, color: mainTx, marginTop: 4 }}>Customer: {row.visitCustomerName}</div>
       )}
       {cat && row.visitSiteAddress && (
-        <div style={{ fontSize: 10, color: cat.tx, marginTop: 2 }}>Site: {row.visitSiteAddress}</div>
+        <div style={{ fontSize: 10, color: mainTx, marginTop: 2 }}>Site: {row.visitSiteAddress}</div>
       )}
       {timeLabel && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: subTx, marginTop: 4 }}>
           {timeLabel}{row.placeName ? ` — ${row.placeName}` : ''}
         </div>
       )}
       {s.kind === 'leave' && s.pendingApproval && s.markedAt && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: subTx, marginTop: 4 }}>
           Requested: {formatDateTime(s.markedAt)}{row.placeName ? ` — ${row.placeName}` : ''}
         </div>
       )}
       {hasReason && (s.kind === 'present' || s.kind === 'leave') && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>Reason: {s.reason}</div>
+        <div style={{ fontSize: 10, color: subTx, marginTop: 2 }}>Reason: {s.reason}</div>
       )}
       {hasDecision && (s.kind === 'present' || s.kind === 'leave') && (s.approvedByName || s.approvedAt) && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+        <div style={{ fontSize: 10, color: subTx, marginTop: 2 }}>
           {decisionLabel}{s.approvedByName ? ` by ${s.approvedByName}` : ''}{s.approvedAt ? ` on ${formatDateTime(s.approvedAt)}` : ''}
         </div>
       )}
       {row.endDayAt && (
-        <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 2 }}>
+        <div style={{ fontSize: 10, color: subTx, marginTop: 2 }}>
           Punched out: {formatTime(row.endDayAt)}{row.endDayPlaceName ? ` — ${row.endDayPlaceName}` : ''}
         </div>
       )}
@@ -390,6 +420,14 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   const [nameQuery, setNameQuery] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
+  // Grid colour theme (light soft tints vs the bold reference-chart palette). Remembered
+  // per browser; read after mount to avoid an SSR hydration mismatch.
+  const [gridDark, setGridDark] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (typeof window !== 'undefined' && localStorage.getItem('attendanceGridTheme') === 'dark') setGridDark(true) }, [])
+  function toggleGridTheme() {
+    setGridDark(d => { const n = !d; try { localStorage.setItem('attendanceGridTheme', n ? 'dark' : 'light') } catch { /* ignore */ } return n })
+  }
   const [anchorDate, setAnchorDate] = useState(new Date())
   const todayForInputs = toDateStr(new Date())
   const [customFrom, setCustomFrom] = useState(todayForInputs)
@@ -678,6 +716,15 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
               <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
             </div>
+            {/* Grid colour theme toggle — light soft tints vs the bold reference palette. */}
+            <button
+              onClick={toggleGridTheme}
+              title="Switch grid colour theme"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 20, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
+            >
+              <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
+              {gridDark ? 'Bold colours' : 'Soft colours'}
+            </button>
 
             {viewMode !== 'custom' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -837,7 +884,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                           }}>
                             {row && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <AttendanceCell row={row} canApprove={canApprove} actingOn={actingOn} onDecision={handleDecision} />
+                                <AttendanceCell row={row} canApprove={canApprove} actingOn={actingOn} onDecision={handleDecision} dark={gridDark} />
                                 {row.jobs.length > 0 ? (
                                   row.jobs.map(job => <JobCard key={job.workOrderId} job={job} />)
                                 ) : (
