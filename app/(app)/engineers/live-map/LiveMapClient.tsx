@@ -290,15 +290,15 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
                     <div style={{ padding: '14px', fontSize: 12, color: 'var(--txm)' }}>
                       {searchedLocation.stateName ? `No reachable engineers in ${searchedLocation.stateName}.` : `No reachable engineers within ${NEARBY_RADIUS_KM} km of this location.`}
                     </div>
-                  ) : nearbyAvailable.map(({ engineer: e, distanceKm }) => {
+                  ) : nearbyAvailable.map(({ engineer: e }) => {
                     const statusCfg = STATUS_CFG[e.status] || STATUS_CFG.available
                     return (
                     <div key={e.id} onClick={() => setSelectedId(e.id)} style={{ padding: '10px 14px', borderBottom: '1px solid var(--gl)', cursor: 'pointer', background: selectedId === e.id ? 'var(--mp)' : 'transparent' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                        {distanceKm != null
-                          ? <span style={{ fontSize: 9, fontWeight: 600, background: '#D1FAE5', color: '#065F46', borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{distanceKm < 1 ? '<1 km' : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`}</span>
-                          : <span style={{ fontSize: 9, fontWeight: 600, background: statusCfg.bg, color: statusCfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{statusCfg.label}</span>}
+                        {/* Show the engineer's punch-in status (as in the statewide list),
+                            not the distance — the status is what the admin actually needs. */}
+                        <span style={{ fontSize: 9, fontWeight: 600, background: statusCfg.bg, color: statusCfg.color, borderRadius: 20, padding: '2px 7px', flexShrink: 0 }}>{statusCfg.label}</span>
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.lastSeen?.placeName || 'Location unavailable'}</div>
                       <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 1 }}>{e.lastSeen ? `Last seen ${formatRelativeTime(e.lastSeen.at)}${!e.lastSeen.fresh ? ' · not on map' : ''}` : 'No location on file'}</div>

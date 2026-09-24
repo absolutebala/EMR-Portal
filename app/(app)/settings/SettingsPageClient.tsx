@@ -277,9 +277,12 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
         <div style={ss}>
           <h3 style={h3s}>Notification messages</h3>
           <p style={ps}>Set the WhatsApp campaign and/or the SMS template for each event in one place. Which one actually sends is decided by the Notification channel above (on SMS, an event with no SMS template falls back to WhatsApp). WhatsApp campaigns must be &quot;Live&quot; in Combirds; SMS text must match your DLT-approved template, with <code>{'{1}'}</code> <code>{'{2}'}</code> … in the listed param order. Leave a channel blank to skip it for that event.</p>
-          <div style={{ maxWidth: 300, marginBottom: 16 }}>
+          <div style={{ maxWidth: 300, marginBottom: 6 }}>
             <label style={fl2}>SMS type (all notification SMS)</label>
             <input style={fi2} value={settings.sms_notification_type} onChange={e => set('sms_notification_type', e.target.value)} placeholder="Combirds billing-approved smsType" />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <SaveRow section="sms_type" fields={() => ({ sms_notification_type: settings.sms_notification_type || null })} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {CAMPAIGN_FIELDS.map(f => {
@@ -301,23 +304,17 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--m)', margin: '12px 0 4px' }}>SMS</div>
                   <input style={{ ...fi2, maxWidth: 320, marginBottom: 6 }} value={tpl.id || ''} onChange={e => setSmsTemplate(ev, 'id', e.target.value)} placeholder="DLT template ID" />
                   <textarea style={{ ...fi2, minHeight: 52, resize: 'vertical', fontFamily: 'inherit' }} value={tpl.text || ''} onChange={e => setSmsTemplate(ev, 'text', e.target.value)} placeholder="SMS text using {1} {2} … in the param order above" />
+
+                  {/* Each event saves on its own — the WhatsApp campaign name + its SMS
+                      template (the full sms_notification_templates object, which already
+                      holds every event's current edit, so other events aren't clobbered). */}
+                  <div style={{ marginTop: 10 }}>
+                    <SaveRow section={`msg_${ev}`} fields={() => ({ [f.key]: settings[f.key] || null, sms_notification_templates: settings.sms_notification_templates || {} })} />
+                  </div>
                 </div>
               )
             })}
           </div>
-          <SaveRow section="messages" label="Save notification messages" fields={() => ({
-            whatsapp_campaign_assigned_engineer: settings.whatsapp_campaign_assigned_engineer || null,
-            whatsapp_campaign_assigned_customer: settings.whatsapp_campaign_assigned_customer || null,
-            whatsapp_campaign_on_the_way: settings.whatsapp_campaign_on_the_way || null,
-            whatsapp_campaign_product_request: settings.whatsapp_campaign_product_request || null,
-            whatsapp_campaign_escalation: settings.whatsapp_campaign_escalation || null,
-            whatsapp_campaign_completed: settings.whatsapp_campaign_completed || null,
-            whatsapp_campaign_pending: settings.whatsapp_campaign_pending || null,
-            whatsapp_campaign_expense_reminder: settings.whatsapp_campaign_expense_reminder || null,
-            whatsapp_campaign_dispatched_customer: settings.whatsapp_campaign_dispatched_customer || null,
-            sms_notification_type: settings.sms_notification_type || null,
-            sms_notification_templates: settings.sms_notification_templates || {},
-          })} />
         </div>
 
         {/* Password reset OTP */}

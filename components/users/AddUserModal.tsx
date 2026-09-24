@@ -335,19 +335,8 @@ export default function AddUserModal({ open, onClose, onSaved, editUser, manager
             </div>
           )}
 
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={fl2}>Module access <span style={{ color: 'var(--m)' }}>*</span></label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', border: '1.5px solid var(--mb)', background: 'var(--mp)', borderRadius: 8, cursor: 'pointer' }}>
-                <input type="checkbox" defaultChecked style={{ width: 15, height: 15, accentColor: 'var(--m)', cursor: 'pointer' }}/>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--m)' }}>Field Management</div>
-                  <div style={{ fontSize: 10, color: 'var(--txm)' }}>Notifications, engineers, forms, SAP</div>
-                </div>
-              </label>
-              {/* Sales module hidden for now — will be re-enabled when the Sales module ships. */}
-            </div>
-          </div>
+          {/* Module access section hidden for now (only Field Management exists) — will
+              return when a second module (e.g. Sales) ships. */}
         </div>
         {!isEdit && (
           <div style={{ background: 'var(--mp)', border: '1px solid var(--mb)', borderRadius: 8, padding: '10px 12px', marginTop: 14, fontSize: 11, color: 'var(--m)', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
