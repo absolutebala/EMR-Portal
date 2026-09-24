@@ -745,19 +745,8 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                 {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
               </div>
             )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* Grid colour theme toggle — soft tints vs the bold reference palette. Also
-                drives the exported Excel cell fills. */}
-            <button
-              onClick={toggleGridTheme}
-              title="Switch grid colour theme (also used for the Excel export)"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 7, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
-            >
-              <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
-              {gridDark ? 'Bold colours' : 'Soft colours'}
-            </button>
+            {/* Actions — amendments, exports and search — grouped on the left, next to
+                the period tabs / range navigation. */}
             {canApprove && amendments.length > 0 && (
               <button
                 onClick={() => setShowAmendmentsModal(true)}
@@ -801,6 +790,17 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               />
             </div>
           </div>
+
+          {/* Grid colour theme toggle — pushed to the extreme right of the toolbar. Also
+              drives the exported Excel cell fills. */}
+          <button
+            onClick={toggleGridTheme}
+            title="Switch grid colour theme (also used for the Excel export)"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 7, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', flexShrink: 0 }}
+          >
+            <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
+            {gridDark ? 'Bold colours' : 'Soft colours'}
+          </button>
         </div>
 
         {error && (
