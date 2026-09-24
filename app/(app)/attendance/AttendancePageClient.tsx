@@ -115,13 +115,18 @@ function isPendingStatus(s: AttendanceEffectiveStatus): boolean {
 }
 
 // Grid-matching fill + border for an engineer/date box, or null for an empty
-// (not-applicable) cell which stays borderless like the on-screen grid.
-function exportCellStyle(r: AttendanceOverviewRow | null): { fill: string; border: string } | null {
+// (not-applicable) cell which stays borderless like the on-screen grid. `dark` uses the
+// bold reference-chart palette (mirrors the on-screen Soft/Bold grid toggle).
+function exportCellStyle(r: AttendanceOverviewRow | null, dark: boolean): { fill: string; border: string } | null {
   if (!r || r.attendance.kind === 'not_applicable') return null
   if (isPendingStatus(r.attendance)) return { fill: 'FFFFE0B2', border: 'FFF59E0B' } // distinct pending orange
   const cat = r.attendance.kind === 'present' ? categoryMeta(r.punchCategory) : null
-  if (cat) return { fill: toArgb(cat.bg), border: toArgb(cat.ac) }
+  if (cat) return dark ? { fill: toArgb(cat.vivid), border: toArgb(cat.vivid) } : { fill: toArgb(cat.bg), border: toArgb(cat.ac) }
   const cfg = ATTENDANCE_CFG[r.attendance.kind]
+  if (dark) {
+    const v = STATUS_VIVID[r.attendance.kind]
+    if (v) return { fill: toArgb(v), border: toArgb(v) }
+  }
   return { fill: toArgb(cfg.bg), border: toArgb(cfg.color) }
 }
 
@@ -599,7 +604,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         // Each engineer/date box takes the grid colour + a matching border; empty
         // (not-applicable) cells stay unfilled and borderless like the on-screen grid.
         cells.forEach((r, i) => {
-          const style = exportCellStyle(r)
+          const style = exportCellStyle(r, gridDark)
           const col = i + 2
           for (let rr = startRow; rr <= endRow; rr++) {
             const c = ws.getCell(rr, col)
@@ -716,15 +721,6 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
               <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
             </div>
-            {/* Grid colour theme toggle — light soft tints vs the bold reference palette. */}
-            <button
-              onClick={toggleGridTheme}
-              title="Switch grid colour theme"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 20, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
-            >
-              <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
-              {gridDark ? 'Bold colours' : 'Soft colours'}
-            </button>
 
             {viewMode !== 'custom' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -752,6 +748,16 @@ export default function AttendancePageClient({ initialRows, initialError, initia
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Grid colour theme toggle — soft tints vs the bold reference palette. Also
+                drives the exported Excel cell fills. */}
+            <button
+              onClick={toggleGridTheme}
+              title="Switch grid colour theme (also used for the Excel export)"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 7, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}
+            >
+              <span style={{ width: 13, height: 13, borderRadius: 3, background: gridDark ? '#002060' : '#E1E6F5', border: '1px solid rgba(0,0,0,0.15)' }} />
+              {gridDark ? 'Bold colours' : 'Soft colours'}
+            </button>
             {canApprove && amendments.length > 0 && (
               <button
                 onClick={() => setShowAmendmentsModal(true)}
