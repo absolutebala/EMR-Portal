@@ -478,7 +478,13 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     setActing(false)
   }
 
-  const nextStatuses = wo ? (STATUS_NEXT[wo.status] || []) : []
+  // Never offer "Close Notification" on an unassigned notification — a completion left
+  // behind after the engineer was removed is stale, so it can't be closed until a
+  // (re)assigned engineer completes it again. (Also guards older rows whose status
+  // stayed 'completed' from before the reassign/unassign reopen logic landed.)
+  const nextStatuses = wo
+    ? (STATUS_NEXT[wo.status] || []).filter(a => !(a.value === 'closed' && !wo.engineer_id))
+    : []
   const isComplete = wo?.status === 'completed'
   // Most recent "completed" closure — visits is already sorted newest-first,
   // so the first match is the actual completion date (work_orders has no
