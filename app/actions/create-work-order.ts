@@ -247,10 +247,13 @@ export async function updateWorkOrder(id: string, payload: {
     let status = current.status
     if (!payload.engineer_id && (current.status === 'assigned' || current.status === 'in_progress')) status = 'unassigned'
     if (payload.engineer_id && current.status === 'unassigned') status = 'assigned'
-    // Reassigning a finished notification to a DIFFERENT engineer reopens it: the newly
-    // assigned engineer must complete it again before the Service Manager gets the
-    // "Close Notification" action back (otherwise a stale completion left Close showing).
-    if (payload.engineer_id && payload.engineer_id !== current.engineer_id && (current.status === 'completed' || current.status === 'closed')) status = 'assigned'
+    // Editing a finished notification so its engineer changes OR is removed reopens it to
+    // In Progress: the Service Manager only gets the "Close Notification" action back once
+    // the (re)assigned engineer marks it completed again (otherwise a stale completion
+    // left Close showing after a reassign / unassign).
+    const finished = current.status === 'completed' || current.status === 'closed'
+    const engineerChanged = (payload.engineer_id || null) !== (current.engineer_id || null)
+    if (finished && engineerChanged) status = 'in_progress'
 
     const { error: updateErr } = await admin.from('work_orders').update({
       wo_number: payload.wo_number,
