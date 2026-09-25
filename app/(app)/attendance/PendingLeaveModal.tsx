@@ -30,6 +30,9 @@ export default function PendingLeaveModal({ requests, actingOn, onDecision, onCl
           </button>
         </div>
         <div style={{ overflowY: 'auto' }}>
+          {requests.length === 0 && (
+            <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 12, color: 'var(--txm)' }}>No pending leave requests right now.</div>
+          )}
           {requests.map((r, i) => (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < requests.length - 1 ? '1px solid var(--gl)' : 'none' }}>
               <div style={{ minWidth: 0 }}>

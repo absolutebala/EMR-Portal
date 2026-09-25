@@ -752,18 +752,27 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               toggle pushed to the extreme right. */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            {canApprove && amendments.length > 0 && (
+            {/* Amendments & Leave are always shown to approvers (even at zero) so there's
+                a constant entry point; the button de-emphasises to grey when nothing is
+                pending but stays clickable — its modal shows an empty state. */}
+            {canApprove && (
               <button
                 onClick={() => setShowAmendmentsModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif',
+                  ...(amendments.length > 0
+                    ? { border: '1px solid #DC2626', background: '#FEE2E2', color: '#991B1B' }
+                    : { border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280' }) }}
               >
                 Pending amendments ({amendments.length})
               </button>
             )}
-            {canApprove && leaveRequests.length > 0 && (
+            {canApprove && (
               <button
                 onClick={() => setShowLeaveModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #7D1D3F', background: '#F9EEF2', color: '#7D1D3F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif',
+                  ...(leaveRequests.length > 0
+                    ? { border: '1px solid #7D1D3F', background: '#F9EEF2', color: '#7D1D3F' }
+                    : { border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280' }) }}
               >
                 Leave requests ({leaveRequests.length})
               </button>

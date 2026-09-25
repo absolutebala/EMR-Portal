@@ -30,6 +30,9 @@ export default function PendingAmendmentsModal({ amendments, actingOn, onDecisio
           </button>
         </div>
         <div style={{ overflowY: 'auto' }}>
+          {amendments.length === 0 && (
+            <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 12, color: 'var(--txm)' }}>No pending amendments right now.</div>
+          )}
           {amendments.map((a, i) => (
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < amendments.length - 1 ? '1px solid var(--gl)' : 'none' }}>
               <div style={{ minWidth: 0 }}>
