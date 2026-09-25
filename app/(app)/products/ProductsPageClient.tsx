@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import BulkUploadProductsModal from '@/components/products/BulkUploadProductsModal'
-import { createProduct, updateProduct, deleteProduct } from '@/app/actions/products'
+import { createProduct, updateProduct, deleteProduct, deleteProductsBulk } from '@/app/actions/products'
 import type { Product } from '@/lib/mobile/core/products'
 
 const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, color: 'var(--tx)', outline: 'none', fontFamily: 'Poppins,sans-serif' }
@@ -39,6 +39,14 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
   const [level1, setLevel1] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNotice, setBulkNotice] = useState('')
+  const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
 
   function openAdd() {
     setEditing(null)
@@ -73,6 +81,26 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     router.refresh()
   }
 
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    if (!ids.length) return
+    if (!confirm(`Delete ${ids.length} selected product${ids.length === 1 ? '' : 's'}? Any that are used in a product request will be skipped.`)) return
+    setBulkBusy(true); setBulkNotice('')
+    const res = await deleteProductsBulk(ids)
+    setBulkBusy(false)
+    if (res.error) { setBulkNotice(res.error); return }
+    const skipped = res.skipped || []
+    const deletedN = res.deletedIds?.length ?? 0
+    let notice = `Deleted ${deletedN} product${deletedN === 1 ? '' : 's'}.`
+    if (skipped.length) {
+      const names = skipped.map(s => products.find(p => p.id === s.id)?.name || 'Unknown').join(', ')
+      notice += ` Skipped ${skipped.length} in use by product requests: ${names}.`
+    }
+    setBulkNotice(notice)
+    setSelected(new Set())
+    router.refresh()
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     let list = products.filter(p => {
@@ -96,6 +124,16 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     setSort(s => (s?.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }))
   }
 
+  const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
+  function toggleSelectAll() {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (allSelected) filtered.forEach(p => n.delete(p.id))
+      else filtered.forEach(p => n.add(p.id))
+      return n
+    })
+  }
+
   return (
     <>
       <Topbar title="Products" userName={userName} userRole={userRole} />
@@ -105,13 +143,21 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, ID, or hierarchy…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
           </div>
-          <button onClick={() => setBulkOpen(true)} style={{ marginLeft: 'auto', background: '#fff', color: 'var(--m)', border: '1px solid var(--m)', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+          {canDelete && selected.size > 0 && (
+            <button onClick={handleBulkDelete} disabled={bulkBusy} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 600, cursor: bulkBusy ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', opacity: bulkBusy ? .7 : 1 }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+              {bulkBusy ? 'Deleting…' : `Delete selected (${selected.size})`}
+            </button>
+          )}
+          <button onClick={() => setBulkOpen(true)} style={{ marginLeft: canDelete && selected.size > 0 ? 0 : 'auto', background: '#fff', color: 'var(--m)', border: '1px solid var(--m)', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
             Bulk Upload
           </button>
           <button onClick={openAdd} style={{ background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
             + Add Product
           </button>
         </div>
+
+        {bulkNotice && <div style={{ background: '#ECFDF5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{bulkNotice}</div>}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {filtered.length === 0 ? (
@@ -123,6 +169,11 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  {canDelete && (
+                    <th style={{ padding: '9px 14px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', width: 34 }}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select all" style={{ cursor: 'pointer' }} />
+                    </th>
+                  )}
                   {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Actions'].map(h => {
                     const sortable = !!SORT_KEYS[h]
                     const active = sort?.col === h
@@ -137,6 +188,11 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--gm)' }}>
+                    {canDelete && (
+                      <td style={{ padding: '10px 14px' }}>
+                        <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: 'pointer' }} />
+                      </td>
+                    )}
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{p.name}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.sap_code || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{p.hierarchy || '—'}</td>
