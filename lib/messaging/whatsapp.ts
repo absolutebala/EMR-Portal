@@ -22,6 +22,9 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          customer can reach the engineer who is on the way directly)
 //   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,
 //                          4) product name
+//   product_requested_customer (0): no params — a fixed reassurance message sent to the
+//                          customer when the engineer submits a material/product request
+//                          after inspecting the site.
 //   escalation         (4): 1) WO number, 2) engineer full name, 3) transformer serial
 //                          number(s), 4) reason (recipient's own name comes from the
 //                          top-level `userName` field, not a templateParam, since it
@@ -38,7 +41,7 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          (or "-" when none was entered) — sent when an admin/Service
 //                          Manager marks a product request item dispatched.
 export type WhatsAppEvent =
-  | 'assigned_engineer' | 'assigned_customer' | 'reassigned_customer' | 'on_the_way' | 'product_request' | 'escalation'
+  | 'assigned_engineer' | 'assigned_customer' | 'reassigned_customer' | 'on_the_way' | 'product_request' | 'product_requested_customer' | 'escalation'
   | 'completed' | 'pending' | 'expense_reminder' | 'dispatched_customer'
 
 const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
@@ -47,6 +50,7 @@ const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   reassigned_customer: 'whatsapp_campaign_reassigned_customer',
   on_the_way: 'whatsapp_campaign_on_the_way',
   product_request: 'whatsapp_campaign_product_request',
+  product_requested_customer: 'whatsapp_campaign_product_requested_customer',
   escalation: 'whatsapp_campaign_escalation',
   completed: 'whatsapp_campaign_completed',
   pending: 'whatsapp_campaign_pending',

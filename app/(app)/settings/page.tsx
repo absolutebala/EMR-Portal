@@ -33,6 +33,7 @@ export default async function SettingsPage() {
     whatsapp_campaign_completed: data?.whatsapp_campaign_completed || '',
     whatsapp_campaign_pending: data?.whatsapp_campaign_pending || '',
     whatsapp_campaign_expense_reminder: data?.whatsapp_campaign_expense_reminder || '',
+    whatsapp_campaign_product_requested_customer: data?.whatsapp_campaign_product_requested_customer || '',
     whatsapp_campaign_dispatched_customer: data?.whatsapp_campaign_dispatched_customer || '',
     whatsapp_campaign_password_otp: data?.whatsapp_campaign_password_otp || '',
     sms_gateway: data?.sms_gateway || 'combirds',

@@ -102,6 +102,7 @@ export interface AppSettings {
   whatsapp_campaign_completed: string | null
   whatsapp_campaign_pending: string | null
   whatsapp_campaign_expense_reminder: string | null
+  whatsapp_campaign_product_requested_customer: string | null
   whatsapp_campaign_dispatched_customer: string | null
   whatsapp_campaign_password_otp: string | null
   sms_gateway: string | null

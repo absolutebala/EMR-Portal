@@ -29,6 +29,7 @@ interface SettingsShape {
   whatsapp_campaign_completed: string
   whatsapp_campaign_pending: string
   whatsapp_campaign_expense_reminder: string
+  whatsapp_campaign_product_requested_customer: string
   whatsapp_campaign_dispatched_customer: string
   whatsapp_campaign_password_otp: string
   sms_gateway: string
@@ -84,6 +85,11 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
     key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign',
     params: '1) Engineer name  2) Notification number  3) Status  4) Product name',
     example: 'Hi {{1}}, your product request for notification *{{2}}* has been {{3}}.\n\nItem: {{4}}\n\nCheck the EMR Portal app for details.',
+  },
+  {
+    key: 'whatsapp_campaign_product_requested_customer', label: 'Material requested — Customer campaign',
+    params: 'No variables',
+    example: 'Our Service Engineer has inspected your site and requested the product/material needed to carry out further rectification work. We are arranging the requested material and will keep you updated on its availability and the next steps. Thank you for your cooperation.',
   },
   {
     key: 'whatsapp_campaign_escalation', label: 'Needs reassignment — Admin campaign',
