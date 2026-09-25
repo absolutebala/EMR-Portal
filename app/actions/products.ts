@@ -100,6 +100,23 @@ export async function submitProductRequest(params: {
   return submitProductRequestCore(adminClient(), user.id, params)
 }
 
+// Admin-only delete of one or more whole product requests. product_request_items cascade
+// (ON DELETE CASCADE on request_id), so a single delete removes the request and its items.
+// Same Super Admin / Head of Service gate as customer deletion.
+export async function deleteProductRequests(ids: string[]): Promise<{ error: string | null; deletedCount?: number }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  const admin = adminClient()
+  const { data: actor } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  if (actor?.role !== 'Super Admin' && actor?.role !== 'Head of Service') {
+    return { error: 'Only Super Admin or Head of Service can delete product requests.' }
+  }
+  if (!ids.length) return { error: null, deletedCount: 0 }
+  const { error } = await admin.from('product_requests').delete().in('id', ids)
+  if (error) return { error: error.message }
+  return { error: null, deletedCount: ids.length }
+}
+
 export async function getMyProductRequests() {
   const user = await getAuthedUser()
   if (!user) return { requests: [], error: 'Not authenticated' }

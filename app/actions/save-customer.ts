@@ -159,3 +159,32 @@ export async function deleteCustomer(
     return { error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// Bulk delete. Non-cascading by design: any selected customer that still has
+// notifications is skipped (and reported back with its blocking count) rather than
+// force-removing notifications in a single sweep. Same Super Admin / Head of Service gate.
+export async function deleteCustomersBulk(
+  ids: string[]
+): Promise<{ error: string | null; deletedIds?: string[]; skipped?: { id: string; count: number }[] }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated.' }
+    const sb = adminClient()
+    const { data: actor } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (actor?.role !== 'Super Admin' && actor?.role !== 'Head of Service') {
+      return { error: 'Only Super Admin or Head of Service can delete customers.' }
+    }
+
+    const deletedIds: string[] = []
+    const skipped: { id: string; count: number }[] = []
+    for (const id of ids) {
+      const { data: refRows } = await sb.from('work_orders').select('id').eq('customer_id', id)
+      if (refRows && refRows.length > 0) { skipped.push({ id, count: refRows.length }); continue }
+      const { error } = await sb.from('customers').delete().eq('id', id)
+      if (!error) deletedIds.push(id)
+    }
+    return { error: null, deletedIds, skipped }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}

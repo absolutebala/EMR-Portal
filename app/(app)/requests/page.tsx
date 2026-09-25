@@ -27,6 +27,7 @@ export default async function RequestsPage() {
       canApprove={can('Product Requests — Approve')}
       canDispatch={can('Product Requests — Dispatch')}
       canDeliver={can('Product Requests — Deliver')}
+      canDelete={userRole === 'Super Admin' || userRole === 'Head of Service'}
     />
   )
 }

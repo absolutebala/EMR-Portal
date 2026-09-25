@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
-import { updateProductRequestItemStatus } from '@/app/actions/products'
+import { updateProductRequestItemStatus, deleteProductRequests } from '@/app/actions/products'
 import type { ProductRequestView, ProductRequestItemView } from '@/lib/mobile/core/products'
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -30,11 +30,30 @@ interface Props {
   canApprove: boolean
   canDispatch: boolean
   canDeliver: boolean
+  canDelete: boolean
 }
 
-export default function RequestsPageClient({ requests, userName, userRole, canApprove, canDispatch, canDeliver }: Props) {
+export default function RequestsPageClient({ requests, userName, userRole, canApprove, canDispatch, canDeliver, canDelete }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNotice, setBulkNotice] = useState('')
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  async function handleDeleteRequests(ids: string[]) {
+    if (!ids.length) return
+    if (!window.confirm(`Delete ${ids.length} product request${ids.length === 1 ? '' : 's'}? This also removes their line items and can't be undone.`)) return
+    setBulkBusy(true); setBulkNotice('')
+    const res = await deleteProductRequests(ids)
+    setBulkBusy(false)
+    if (res.error) { setBulkNotice(res.error); return }
+    setBulkNotice(`Deleted ${res.deletedCount ?? ids.length} product request${(res.deletedCount ?? ids.length) === 1 ? '' : 's'}.`)
+    setSelected(new Set())
+    router.refresh()
+  }
   // Lets the dashboard's Product Requests breakdown card deep-link straight into a
   // tab (e.g. /requests?tab=dispatched) instead of always landing on "All".
   const tabParam = searchParams.get('tab')
@@ -103,7 +122,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
     <>
       <Topbar title="Product Requests" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           {TAB_IDS.map(t => (
             <button
               key={t}
@@ -117,7 +136,15 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
               {t === 'all' ? 'All' : STATUS_CFG[t].label} ({counts[t]})
             </button>
           ))}
+          {canDelete && selected.size > 0 && (
+            <button onClick={() => handleDeleteRequests([...selected])} disabled={bulkBusy}
+              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 20, border: 'none', background: '#DC2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: bulkBusy ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif', opacity: bulkBusy ? .7 : 1 }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+              {bulkBusy ? 'Deleting…' : `Delete selected (${selected.size})`}
+            </button>
+          )}
         </div>
+        {bulkNotice && <div style={{ background: '#ECFDF5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{bulkNotice}</div>}
 
         {filteredRequests.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13, background: '#fff', borderRadius: 10, border: '1px solid var(--gm)' }}>
@@ -127,18 +154,22 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
           filteredRequests.map(req => (
             <div key={req.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: 16, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{req.woNumber}</div>
-                  <div style={{ fontSize: 11, color: 'var(--txm)' }}>
-                    Requested by {req.engineerName || 'Engineer'} · {formatDate(req.createdAt)}
-                  </div>
-                  {(req.docketUrl || req.docketNumber) && (
-                    <div style={{ fontSize: 11, color: 'var(--m)', marginTop: 3, fontWeight: 600 }}>
-                      📄 Docket{req.docketNumber ? ` ${req.docketNumber}` : ''}
-                      {req.docketUrl && <> · <a href={req.docketUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--m)', textDecoration: 'underline' }}>View</a></>}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  {canDelete && <input type="checkbox" checked={selected.has(req.id)} onChange={() => toggleSelect(req.id)} style={{ marginTop: 3, cursor: 'pointer' }} />}
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{req.woNumber}</div>
+                    <div style={{ fontSize: 11, color: 'var(--txm)' }}>
+                      Requested by {req.engineerName || 'Engineer'} · {formatDate(req.createdAt)}
                     </div>
-                  )}
+                    {(req.docketUrl || req.docketNumber) && (
+                      <div style={{ fontSize: 11, color: 'var(--m)', marginTop: 3, fontWeight: 600 }}>
+                        📄 Docket{req.docketNumber ? ` ${req.docketNumber}` : ''}
+                        {req.docketUrl && <> · <a href={req.docketUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--m)', textDecoration: 'underline' }}>View</a></>}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {req.damagePhotoUrls.length > 0 && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     {req.damagePhotoUrls.map((url, i) => (
@@ -148,6 +179,13 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
                     ))}
                   </div>
                 )}
+                {canDelete && (
+                  <button onClick={() => handleDeleteRequests([req.id])} title="Delete request" disabled={bulkBusy}
+                    style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: bulkBusy ? 'not-allowed' : 'pointer' }}>
+                    <svg width="13" height="13" fill="none" stroke="#DC2626" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                  </button>
+                )}
+                </div>
               </div>
 
               {req.items.map(item => (

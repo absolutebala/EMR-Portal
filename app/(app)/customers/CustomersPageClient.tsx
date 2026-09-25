@@ -10,7 +10,7 @@ import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomers
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
-import { deleteCustomer, type BlockingNotification } from '@/app/actions/save-customer'
+import { deleteCustomer, deleteCustomersBulk, type BlockingNotification } from '@/app/actions/save-customer'
 import type { Customer } from '@/lib/types'
 
 const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED']
@@ -36,8 +36,15 @@ export default function CustomersPageClient({ customers, userName, userRole, per
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNotice, setBulkNotice] = useState('')
   const router = useRouter()
   const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
 
   // Same permission-gate semantics as the Users page: full-access roles always pass,
   // a role with no permissions map recorded falls open, otherwise the specific key
@@ -77,8 +84,39 @@ export default function CustomersPageClient({ customers, userName, userRole, per
     router.refresh()
   }
 
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    if (!ids.length) return
+    if (!window.confirm(`Delete ${ids.length} selected customer${ids.length === 1 ? '' : 's'}? Any that still have notifications will be skipped.`)) return
+    setBulkBusy(true); setBulkNotice(''); setDeleteError('')
+    const res = await deleteCustomersBulk(ids)
+    setBulkBusy(false)
+    if (res.error) { setDeleteError(res.error); return }
+    const skipped = res.skipped || []
+    const deletedN = res.deletedIds?.length ?? 0
+    let notice = `Deleted ${deletedN} customer${deletedN === 1 ? '' : 's'}.`
+    if (skipped.length) {
+      const names = skipped.map(s => customers.find(c => c.id === s.id)?.name || 'Unknown').join(', ')
+      notice += ` Skipped ${skipped.length} still linked to notifications: ${names}.`
+    }
+    setBulkNotice(notice)
+    setSelected(new Set())
+    router.refresh()
+  }
+
   function getInitials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  }
+
+  // Select-all applies to the customers currently visible on this page.
+  const pageAllSelected = pageItems.length > 0 && pageItems.every(c => selected.has(c.id))
+  function toggleSelectPage() {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (pageAllSelected) pageItems.forEach(c => n.delete(c.id))
+      else pageItems.forEach(c => n.add(c.id))
+      return n
+    })
   }
 
   return (
@@ -91,6 +129,12 @@ export default function CustomersPageClient({ customers, userName, userRole, per
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers..." style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: 220 }} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {canDelete && selected.size > 0 && (
+              <button onClick={handleBulkDelete} disabled={bulkBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: bulkBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: bulkBusy ? .7 : 1 }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                {bulkBusy ? 'Deleting…' : `Delete selected (${selected.size})`}
+              </button>
+            )}
             {canEdit && (
               <button onClick={() => setShowUpload(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -107,6 +151,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
         </div>
 
         {deleteError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{deleteError}</div>}
+        {bulkNotice && <div style={{ background: '#ECFDF5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{bulkNotice}</div>}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {filtered.length === 0 ? (
@@ -116,6 +161,11 @@ export default function CustomersPageClient({ customers, userName, userRole, per
             <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  {canDelete && (
+                    <th style={{ padding: '9px 14px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', width: 34 }}>
+                      <input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} title="Select all on this page" style={{ cursor: 'pointer' }} />
+                    </th>
+                  )}
                   {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
@@ -126,6 +176,11 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                   <tr key={c.id} style={{ borderBottom: '1px solid var(--gm)', cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}>
+                    {canDelete && (
+                      <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} style={{ cursor: 'pointer' }} />
+                      </td>
+                    )}
                     <td style={{ padding: '10px 14px' }} onClick={() => router.push(`/customers/${c.id}`)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: COLORS[i % COLORS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
