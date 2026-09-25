@@ -14,6 +14,10 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //   assigned_customer (3): 1) engineer full name, 2) scheduled date ("DD MMM YYYY" or
 //                          "Not scheduled"), 3) engineer phone number (so the customer
 //                          can reach the engineer directly)
+//   reassigned_customer (3): same 3 params as assigned_customer — sent to the customer
+//                          instead of assigned_customer when the engineer on an existing
+//                          notification is changed, so the wording can say a *different*
+//                          engineer is now attending.
 //   on_the_way        (4): 1) customer contact person, 2) engineer full name,
 //                          3) WO number, 4) start-by time ("HH:mm" or "")
 //   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,
@@ -34,12 +38,13 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          (or "-" when none was entered) — sent when an admin/Service
 //                          Manager marks a product request item dispatched.
 export type WhatsAppEvent =
-  | 'assigned_engineer' | 'assigned_customer' | 'on_the_way' | 'product_request' | 'escalation'
+  | 'assigned_engineer' | 'assigned_customer' | 'reassigned_customer' | 'on_the_way' | 'product_request' | 'escalation'
   | 'completed' | 'pending' | 'expense_reminder' | 'dispatched_customer'
 
 const CAMPAIGN_COLUMN: Record<WhatsAppEvent, string> = {
   assigned_engineer: 'whatsapp_campaign_assigned_engineer',
   assigned_customer: 'whatsapp_campaign_assigned_customer',
+  reassigned_customer: 'whatsapp_campaign_reassigned_customer',
   on_the_way: 'whatsapp_campaign_on_the_way',
   product_request: 'whatsapp_campaign_product_request',
   escalation: 'whatsapp_campaign_escalation',

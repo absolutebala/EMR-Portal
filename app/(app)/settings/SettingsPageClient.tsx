@@ -22,6 +22,7 @@ interface SettingsShape {
   whatsapp_api_key: string
   whatsapp_campaign_assigned_engineer: string
   whatsapp_campaign_assigned_customer: string
+  whatsapp_campaign_reassigned_customer: string
   whatsapp_campaign_on_the_way: string
   whatsapp_campaign_product_request: string
   whatsapp_campaign_escalation: string
@@ -55,9 +56,14 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
     example: 'Hi {{1}}, a new notification *{{2}}* has been assigned to you.\n\nCustomer: {{3}}\nTransformer S/N: {{4}}\nScheduled: {{5}}\n\nOpen the EMR Portal app for full details.',
   },
   {
-    key: 'whatsapp_campaign_assigned_customer', label: 'Assigned / reassigned — Customer campaign',
+    key: 'whatsapp_campaign_assigned_customer', label: 'Assigned (first time) — Customer campaign',
     params: '1) Engineer name  2) Scheduled date  3) Engineer phone number',
     example: 'Hello Sir, our Service Engineer {{1}} will visit the site on {{2}}. You can reach the engineer directly at {{3}}.',
+  },
+  {
+    key: 'whatsapp_campaign_reassigned_customer', label: 'Reassigned (engineer changed) — Customer campaign',
+    params: '1) Engineer name  2) Visit date  3) Engineer phone number',
+    example: 'Hi Sir, Please note that a different engineer has been assigned to your site visit. Our Service Engineer, {{1}}, will now attend your site on {{2}}. For coordination regarding the visit, please contact the engineer directly at {{3}}. Thank you for your understanding and cooperation.',
   },
   {
     key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign',

@@ -95,6 +95,7 @@ export interface AppSettings {
   whatsapp_api_key: string | null
   whatsapp_campaign_assigned_engineer: string | null
   whatsapp_campaign_assigned_customer: string | null
+  whatsapp_campaign_reassigned_customer: string | null
   whatsapp_campaign_on_the_way: string | null
   whatsapp_campaign_product_request: string | null
   whatsapp_campaign_escalation: string | null

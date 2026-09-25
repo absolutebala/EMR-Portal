@@ -320,7 +320,11 @@ export async function updateWorkOrder(id: string, payload: {
       sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
         [eng?.first_name || 'Engineer', payload.wo_number, customer?.name || '', serials, scheduledLabel]).catch(() => {})
       if (customer) {
-        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+        // A first-time assignment tells the customer their engineer; a reassignment
+        // (there was already an engineer) uses a distinct template that says a
+        // *different* engineer is now attending. Same 3 params either way.
+        const customerEvent = current.engineer_id ? 'reassigned_customer' : 'assigned_customer'
+        sendWhatsApp(admin, customerEvent, [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
           [engName, scheduledLabel, eng?.phone || '']).catch(() => {})
       }
 

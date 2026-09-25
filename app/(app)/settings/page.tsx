@@ -26,6 +26,7 @@ export default async function SettingsPage() {
     whatsapp_api_key: data?.whatsapp_api_key || '',
     whatsapp_campaign_assigned_engineer: data?.whatsapp_campaign_assigned_engineer || '',
     whatsapp_campaign_assigned_customer: data?.whatsapp_campaign_assigned_customer || '',
+    whatsapp_campaign_reassigned_customer: data?.whatsapp_campaign_reassigned_customer || '',
     whatsapp_campaign_on_the_way: data?.whatsapp_campaign_on_the_way || '',
     whatsapp_campaign_product_request: data?.whatsapp_campaign_product_request || '',
     whatsapp_campaign_escalation: data?.whatsapp_campaign_escalation || '',
