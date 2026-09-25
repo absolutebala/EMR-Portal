@@ -57,11 +57,14 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   }
 
   const detailsValid = !!customer.trim() && !!site.trim() && !!purpose.trim();
+  // A late punch-in must carry a reason — it's what generates the manager approval
+  // request, so it can't be skipped.
+  const lateReasonValid = !isLate || !!lateReason.trim();
   const meta = categoryMeta(category);
   const topNeedsSub = !!top && !!TOP_OPTIONS.find(o => o.id === top)?.needsSub;
 
   function submitDetails() {
-    if (!category || !detailsValid) return;
+    if (!category || !detailsValid || !lateReasonValid) return;
     onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim(), lateReason: lateReasonValue() });
   }
 
@@ -127,12 +130,12 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
                 <Text style={styles.confirmText}>Confirm your status as {meta?.label ?? 'HQ'}.</Text>
                 {isLate && (
                   <>
-                    <Text style={styles.label}>You&apos;re punching in late — reason (optional)</Text>
+                    <Text style={styles.label}>You&apos;re punching in late — reason <Text style={styles.req}>*</Text></Text>
                     <TextInput style={styles.input} value={lateReason} onChangeText={setLateReason} placeholder="Sent to your manager for approval" placeholderTextColor="#9CA3AF" multiline />
                   </>
                 )}
                 {!!error && <Text style={styles.err}>{error}</Text>}
-                <Pressable style={[styles.continue, submitting && styles.continueOff]} onPress={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })} disabled={submitting}>
+                <Pressable style={[styles.continue, (submitting || !lateReasonValid) && styles.continueOff]} onPress={() => category && lateReasonValid && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })} disabled={submitting || !lateReasonValid}>
                   {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueText}>Submit</Text>}
                 </Pressable>
               </>
@@ -153,8 +156,14 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
                 <TextInput style={[styles.input, styles.multiline]} value={site} onChangeText={setSite} placeholder="Substation / plant address" placeholderTextColor="#9CA3AF" multiline />
                 <Text style={styles.label}>Purpose of Visit <Text style={styles.req}>*</Text></Text>
                 <TextInput style={[styles.input, styles.multiline]} value={purpose} onChangeText={setPurpose} placeholder="Why is this visit happening?" placeholderTextColor="#9CA3AF" multiline />
+                {isLate && (
+                  <>
+                    <Text style={styles.label}>You&apos;re punching in late — reason <Text style={styles.req}>*</Text></Text>
+                    <TextInput style={[styles.input, styles.multiline]} value={lateReason} onChangeText={setLateReason} placeholder="Sent to your manager for approval" placeholderTextColor="#9CA3AF" multiline />
+                  </>
+                )}
                 {!!error && <Text style={styles.err}>{error}</Text>}
-                <Pressable style={[styles.continue, (!detailsValid || submitting) && styles.continueOff]} onPress={submitDetails} disabled={!detailsValid || submitting}>
+                <Pressable style={[styles.continue, (!detailsValid || !lateReasonValid || submitting) && styles.continueOff]} onPress={submitDetails} disabled={!detailsValid || !lateReasonValid || submitting}>
                   {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueText}>Continue</Text>}
                 </Pressable>
               </>

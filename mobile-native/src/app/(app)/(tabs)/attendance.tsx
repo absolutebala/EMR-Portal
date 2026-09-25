@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput, LayoutAnimation } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Stack, useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
@@ -16,6 +17,18 @@ import type { AttendanceEffectiveStatus, AttendanceCalendarDay, AttendanceCalend
 
 function toDateStr(d: Date): string {
   return d.toLocaleDateString('en-CA');
+}
+
+// Leave From/To are stored as YYYY-MM-DD (what the API wants) but shown DD/MM/YYYY.
+function ymdToDate(s: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date();
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function ymdToDisplay(s: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'DD/MM/YYYY';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 function mondayOf(d: Date): Date {
@@ -216,6 +229,8 @@ export default function AttendanceScreen() {
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [leaveFrom, setLeaveFrom] = useState(todayIso);
   const [leaveTo, setLeaveTo] = useState(todayIso);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveError, setLeaveError] = useState('');
 
@@ -469,11 +484,42 @@ export default function AttendanceScreen() {
             <View style={styles.leaveDatesRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.leaveLabel}>From</Text>
-                <TextInput style={styles.leaveInput} value={leaveFrom} onChangeText={setLeaveFrom} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
+                <Pressable style={[styles.leaveInput, styles.leaveDateField]} onPress={() => setShowFromPicker(true)}>
+                  <Text style={styles.leaveDateText}>{ymdToDisplay(leaveFrom)}</Text>
+                  <Text style={styles.leaveDateIcon}>📅</Text>
+                </Pressable>
+                {showFromPicker && (
+                  <DateTimePicker
+                    value={ymdToDate(leaveFrom)}
+                    mode="date"
+                    onChange={(e: DateTimePickerEvent, d?: Date) => {
+                      setShowFromPicker(false);
+                      if (e.type === 'set' && d) {
+                        const v = toDateStr(d);
+                        setLeaveFrom(v);
+                        if (leaveTo < v) setLeaveTo(v);
+                      }
+                    }}
+                  />
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.leaveLabel}>To</Text>
-                <TextInput style={styles.leaveInput} value={leaveTo} onChangeText={setLeaveTo} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
+                <Pressable style={[styles.leaveInput, styles.leaveDateField]} onPress={() => setShowToPicker(true)}>
+                  <Text style={styles.leaveDateText}>{ymdToDisplay(leaveTo)}</Text>
+                  <Text style={styles.leaveDateIcon}>📅</Text>
+                </Pressable>
+                {showToPicker && (
+                  <DateTimePicker
+                    value={ymdToDate(leaveTo)}
+                    mode="date"
+                    minimumDate={ymdToDate(leaveFrom)}
+                    onChange={(e: DateTimePickerEvent, d?: Date) => {
+                      setShowToPicker(false);
+                      if (e.type === 'set' && d) setLeaveTo(toDateStr(d));
+                    }}
+                  />
+                )}
               </View>
             </View>
             <Text style={styles.leaveLabel}>Reason</Text>
@@ -658,6 +704,9 @@ const styles = StyleSheet.create({
   leaveDatesRow: { flexDirection: 'row', gap: 10 },
   leaveLabel: { fontSize: 11, fontWeight: '600', color: '#374151', marginBottom: 5, marginTop: 8 },
   leaveInput: { borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 10, fontSize: 13, color: '#1C0D14', backgroundColor: '#fff' },
+  leaveDateField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  leaveDateText: { fontSize: 13, color: '#1C0D14' },
+  leaveDateIcon: { fontSize: 13 },
   leaveTextarea: { minHeight: 56, textAlignVertical: 'top' },
   leaveList: { marginTop: 12, gap: 8 },
   leaveRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#F1ECEE', paddingTop: 8 },
