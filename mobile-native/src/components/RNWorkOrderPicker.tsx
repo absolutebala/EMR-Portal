@@ -20,7 +20,7 @@ export default function RNWorkOrderPicker({ workOrders, value, onChange, placeho
     <View>
       <Pressable style={styles.input} onPress={() => setOpen(o => !o)}>
         <Text style={selected ? styles.inputText : styles.inputPlaceholder} numberOfLines={1}>
-          {selected ? `${selected.wo_number} — ${selected.site_name || selected.customer_name}` : placeholder}
+          {selected ? `${selected.wo_number}${(selected.site_name || selected.customer_name) ? ` — ${selected.site_name || selected.customer_name}` : ''}` : placeholder}
         </Text>
       </Pressable>
       {open && (
@@ -28,7 +28,7 @@ export default function RNWorkOrderPicker({ workOrders, value, onChange, placeho
           {workOrders.map(wo => (
             <Pressable key={wo.id} style={[styles.item, wo.id === value && styles.itemActive]} onPress={() => { onChange(wo.id); setOpen(false); }}>
               <Text style={[styles.itemText, wo.id === value && styles.itemTextActive]} numberOfLines={1}>
-                {wo.wo_number} — {wo.site_name || wo.customer_name}
+                {wo.wo_number}{(wo.site_name || wo.customer_name) ? ` — ${wo.site_name || wo.customer_name}` : ''}
               </Text>
             </Pressable>
           ))}

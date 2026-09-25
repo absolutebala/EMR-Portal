@@ -907,7 +907,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                     </div>
                   )}
 
-                  <SitePhotosCard workOrderId={wo.id} />
+                  <SitePhotosCard workOrderId={wo.id} canDelete={canApprove} />
 
                   <div style={card}>
                     <div style={cardLabel}>Activity timeline</div>

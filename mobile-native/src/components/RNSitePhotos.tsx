@@ -1,20 +1,23 @@
 import { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Image, ScrollView, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import { capturePhoto, pickPhotosFromLibrary, type CapturedPhoto } from '@/lib/photo';
+import { useAuth } from '@/lib/AuthContext';
 
-interface SitePhoto { id: string; url: string; uploaderName: string | null; createdAt: string }
+interface SitePhoto { id: string; url: string; uploadedBy: string | null; uploaderName: string | null; createdAt: string }
 
 // "Site Photos" for a notification — a button (shown at the top of the job screen) that
 // opens a gallery of previously-added photos and lets the engineer add more (multiple at
 // once, any number of times). Stored server-side (S3) and visible on mobile + web.
 export default function RNSitePhotos({ workOrderId }: { workOrderId: string }) {
+  const { userId } = useAuth();
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<SitePhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +54,28 @@ export default function RNSitePhotos({ workOrderId }: { workOrderId: string }) {
     ]);
   }
 
+  async function doDelete(photoId: string) {
+    setDeletingId(photoId);
+    try {
+      await apiDelete(`/api/mobile/v1/site-photos/${photoId}`);
+      setPhotos(prev => prev.filter(p => p.id !== photoId));
+    } catch {
+      Alert.alert('Delete failed', 'Could not delete the photo. Please try again.');
+    }
+    setDeletingId(null);
+  }
+
+  function confirmDelete(photoId: string) {
+    Alert.alert('Delete photo', 'Delete this photo? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => doDelete(photoId) },
+    ]);
+  }
+
+  // RN is a Field-Engineer-only app (AuthContext blocks other roles), so the only
+  // deletable photos here are the engineer's own. The server enforces the same rule.
+  const canDelete = (p: SitePhoto) => !!userId && p.uploadedBy === userId;
+
   return (
     <>
       <Pressable style={styles.triggerBtn} onPress={openModal}>
@@ -76,9 +101,18 @@ export default function RNSitePhotos({ workOrderId }: { workOrderId: string }) {
               <Text style={styles.muted}>No site photos yet.</Text>
             ) : (
               photos.map(p => (
-                <Pressable key={p.id} style={styles.thumbWrap} onPress={() => setLightbox(p.url)}>
-                  <Image source={{ uri: p.url }} style={styles.thumb} />
-                </Pressable>
+                <View key={p.id} style={styles.thumbWrap}>
+                  <Pressable style={styles.thumbPressable} onPress={() => setLightbox(p.url)}>
+                    <Image source={{ uri: p.url }} style={styles.thumb} />
+                  </Pressable>
+                  {canDelete(p) && (
+                    <Pressable style={styles.deleteBtn} onPress={() => confirmDelete(p.id)} disabled={deletingId === p.id} hitSlop={8}>
+                      {deletingId === p.id
+                        ? <ActivityIndicator color="#fff" size="small" />
+                        : <Ionicons name="trash-outline" size={14} color="#fff" />}
+                    </Pressable>
+                  )}
+                </View>
               ))
             )}
           </ScrollView>
@@ -105,8 +139,10 @@ const styles = StyleSheet.create({
   addBtnDisabled: { opacity: 0.6 },
   addBtnText: { color: '#7D1D3F', fontSize: 14, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 16, paddingTop: 8 },
-  thumbWrap: { width: '31%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6' },
+  thumbWrap: { width: '31%', aspectRatio: 1, borderRadius: 10, borderWidth: 1, borderColor: '#E5E0E3', backgroundColor: '#F8F5F6' },
+  thumbPressable: { width: '100%', height: '100%', borderRadius: 10, overflow: 'hidden' },
   thumb: { width: '100%', height: '100%' },
+  deleteBtn: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   muted: { fontSize: 13, color: '#9CA3AF', padding: 20, textAlign: 'center', width: '100%' },
   lightbox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   lightboxImg: { width: '100%', height: '100%' },

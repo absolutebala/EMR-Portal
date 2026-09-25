@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteUser } from '@/app/actions/delete-user'
 import Topbar from '@/components/layout/Topbar'
@@ -36,11 +36,29 @@ interface Props {
   permissions: Record<string, boolean>
 }
 
+function userStatus(u: Profile): string {
+  const isPending = u.invite_pending || u.must_change_password || !u.last_login_at
+  return isPending ? 'Pending' : u.is_active ? 'Active' : 'Inactive'
+}
+
+// How each sortable column pulls a comparable value from a row. Columns not listed here
+// (Actions) aren't sortable.
+const SORT_KEYS: Record<string, (u: Profile) => string | number> = {
+  'User': u => `${u.first_name} ${u.last_name}`.toLowerCase(),
+  'Employee ID': u => (u.employee_id || '').toLowerCase(),
+  'Role': u => u.role || '',
+  'Email': u => (u.email || '').toLowerCase(),
+  'Phone': u => u.phone || '',
+  'Last login': u => (u.last_login_at ? new Date(u.last_login_at).getTime() : 0),
+  'Status': u => userStatus(u),
+}
+
 export default function UsersPageClient({ users, userName, userRole, permissions }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
@@ -64,19 +82,36 @@ export default function UsersPageClient({ users, userName, userRole, permissions
     return permissions[key] === true
   }
 
-  const filtered = users.filter(u => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.employee_id?.toLowerCase().includes(q) ?? false)
-    const matchRole = !roleFilter || u.role === roleFilter
-    const isPending = u.invite_pending || u.must_change_password || !u.last_login_at
-    const matchStatus = !statusFilter ||
-      (statusFilter === 'Active' ? (u.is_active && !isPending) :
-       statusFilter === 'Inactive' ? !u.is_active :
-       statusFilter === 'Pending' ? isPending : true)
-    return matchSearch && matchRole && matchStatus
-  })
+  const filtered = useMemo(() => {
+    let list = users.filter(u => {
+      const q = search.toLowerCase()
+      const matchSearch = !q || `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.employee_id?.toLowerCase().includes(q) ?? false)
+      const matchRole = !roleFilter || u.role === roleFilter
+      const isPending = u.invite_pending || u.must_change_password || !u.last_login_at
+      const matchStatus = !statusFilter ||
+        (statusFilter === 'Active' ? (u.is_active && !isPending) :
+         statusFilter === 'Inactive' ? !u.is_active :
+         statusFilter === 'Pending' ? isPending : true)
+      return matchSearch && matchRole && matchStatus
+    })
+    if (sort && SORT_KEYS[sort.col]) {
+      const get = SORT_KEYS[sort.col]
+      list = list.slice().sort((a, b) => {
+        const va = get(a), vb = get(b)
+        const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
+        return sort.dir === 'asc' ? c : -c
+      })
+    }
+    return list
+  }, [users, search, roleFilter, statusFilter, sort])
 
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
+
+  function toggleSort(col: string) {
+    if (!SORT_KEYS[col]) return
+    setPage(1)
+    setSort(s => (s?.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }))
+  }
 
   async function handleDelete(userId: string) {
     setDeleting(userId)
@@ -168,9 +203,15 @@ export default function UsersPageClient({ users, userName, userRole, permissions
             <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['User', 'Employee ID', 'Role', 'Email', 'Phone', 'Last login', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
+                  {['User', 'Employee ID', 'Role', 'Email', 'Phone', 'Last login', 'Status', 'Actions'].map(h => {
+                    const sortable = !!SORT_KEYS[h]
+                    const active = sort?.col === h
+                    return (
+                      <th key={h} onClick={() => toggleSort(h)} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: active ? 'var(--m)' : 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap', cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                        {h}{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : sortable ? <span style={{ opacity: 0.3 }}> ⇅</span> : null}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>

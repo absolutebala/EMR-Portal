@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
@@ -17,9 +17,19 @@ interface Props {
   userRole: string
 }
 
+// How each sortable column pulls a comparable value from a row. Columns not listed here
+// (Actions) aren't sortable.
+const SORT_KEYS: Record<string, (p: Product) => string | number> = {
+  'Name': p => (p.name || '').toLowerCase(),
+  'Product ID': p => (p.sap_code || '').toLowerCase(),
+  'Hierarchy': p => (p.hierarchy || '').toLowerCase(),
+  'Level 1': p => (p.level_1 || '').toLowerCase(),
+}
+
 export default function ProductsPageClient({ products, userName, userRole }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -63,12 +73,28 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     router.refresh()
   }
 
-  const filtered = products.filter(p => {
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return true
-    return p.name.toLowerCase().includes(q) || (p.sap_code || '').toLowerCase().includes(q)
-      || (p.hierarchy || '').toLowerCase().includes(q) || (p.level_1 || '').toLowerCase().includes(q)
-  })
+    let list = products.filter(p => {
+      if (!q) return true
+      return p.name.toLowerCase().includes(q) || (p.sap_code || '').toLowerCase().includes(q)
+        || (p.hierarchy || '').toLowerCase().includes(q) || (p.level_1 || '').toLowerCase().includes(q)
+    })
+    if (sort && SORT_KEYS[sort.col]) {
+      const get = SORT_KEYS[sort.col]
+      list = list.slice().sort((a, b) => {
+        const va = get(a), vb = get(b)
+        const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
+        return sort.dir === 'asc' ? c : -c
+      })
+    }
+    return list
+  }, [products, search, sort])
+
+  function toggleSort(col: string) {
+    if (!SORT_KEYS[col]) return
+    setSort(s => (s?.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }))
+  }
 
   return (
     <>
@@ -97,9 +123,15 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
-                  ))}
+                  {['Name', 'Product ID', 'Hierarchy', 'Level 1', 'Actions'].map(h => {
+                    const sortable = !!SORT_KEYS[h]
+                    const active = sort?.col === h
+                    return (
+                      <th key={h} onClick={() => toggleSort(h)} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: active ? 'var(--m)' : 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                        {h}{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : sortable ? <span style={{ opacity: 0.3 }}> ⇅</span> : null}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>

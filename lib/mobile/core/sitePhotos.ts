@@ -78,3 +78,29 @@ export async function addSitePhotosCore(
     return { added: 0, error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// Roles allowed to delete any site photo (in addition to the photo's own uploader).
+const PHOTO_DELETE_ADMIN_ROLES = ['Super Admin', 'Head of Service', 'Service Manager']
+
+export async function deleteSitePhotoCore(admin: AdminClient, userId: string, photoId: string): Promise<{ error: string | null }> {
+  try {
+    const { data: photo } = await admin.from('site_photos').select('uploaded_by, work_order_id').eq('id', photoId).maybeSingle()
+    if (!photo) return { error: 'Photo not found' }
+
+    // Permission: the uploader may delete their own photo; admin roles may delete any.
+    // The S3 object itself is left in place — there's no delete helper in lib/storage/s3.ts,
+    // and orphaned objects behind CloudFront are harmless once the DB row is gone.
+    let allowed = photo.uploaded_by === userId
+    if (!allowed) {
+      const { data: profile } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle()
+      allowed = !!profile && PHOTO_DELETE_ADMIN_ROLES.includes(profile.role)
+    }
+    if (!allowed) return { error: 'You do not have permission to delete this photo' }
+
+    const { error } = await admin.from('site_photos').delete().eq('id', photoId)
+    if (error) return { error: error.message }
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}

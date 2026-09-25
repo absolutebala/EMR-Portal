@@ -11,6 +11,7 @@ interface AuthState {
   loading: boolean;
   mustChangePassword: boolean;
   engineerName: string | null;
+  userId: string | null;
   accessDenied: string | null;
   refreshMe: () => Promise<{ accessDenied: string | null }>;
   signOut: () => Promise<void>;
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [engineerName, setEngineerName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   // GET /api/mobile/v1/auth/me — the RN equivalent of the PWA's server-side
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessDenied(null);
       setMustChangePassword(res.mustChangePassword);
       setEngineerName(res.engineer?.name ?? null);
+      setUserId(res.userId ?? null);
       return { accessDenied: null };
     } catch {
       // best-effort — a transient failure here shouldn't block the app; the next
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setMustChangePassword(false);
         setEngineerName(null);
+        setUserId(null);
       }
     });
 
@@ -82,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, loading, mustChangePassword, engineerName, accessDenied, refreshMe, signOut }}>
+    <AuthContext.Provider value={{ session, loading, mustChangePassword, engineerName, userId, accessDenied, refreshMe, signOut }}>
       {children}
     </AuthContext.Provider>
   );

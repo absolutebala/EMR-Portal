@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { getSitePhotos, addSitePhotos } from '@/app/actions/site-photos'
+import { getSitePhotos, addSitePhotos, deleteSitePhoto } from '@/app/actions/site-photos'
 import { compressImage } from '@/lib/mobile/compressImage'
 import type { SitePhoto } from '@/lib/mobile/core/sitePhotos'
 
@@ -9,13 +9,14 @@ import type { SitePhoto } from '@/lib/mobile/core/sitePhotos'
 // the job screen) that opens a gallery of previously-added photos and lets the engineer
 // add more (multiple at once, any number of times). Photos are stored server-side (S3)
 // and visible on both mobile and the desktop notification detail.
-export default function SitePhotosButton({ workOrderId }: { workOrderId: string }) {
+export default function SitePhotosButton({ workOrderId, currentUserId, isAdmin = false }: { workOrderId: string; currentUserId?: string; isAdmin?: boolean }) {
   const [open, setOpen] = useState(false)
   const [photos, setPhotos] = useState<SitePhoto[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -44,6 +45,21 @@ export default function SitePhotosButton({ workOrderId }: { workOrderId: string 
       setError('Could not upload one or more photos. Please try again.')
     }
     setUploading(false)
+  }
+
+  async function handleDelete(photoId: string) {
+    if (!confirm('Delete this photo? This cannot be undone.')) return
+    setDeletingId(photoId); setError('')
+    const r = await deleteSitePhoto(photoId)
+    setDeletingId(null)
+    if (r.error) { setError(r.error); return }
+    setPhotos(prev => prev.filter(p => p.id !== photoId))
+  }
+
+  // The uploader may delete their own photo; admins may delete any. The server
+  // enforces the same rule regardless of what's shown here.
+  function canDelete(p: SitePhoto) {
+    return isAdmin || (!!currentUserId && p.uploadedBy === currentUserId)
   }
 
   return (
@@ -83,10 +99,22 @@ export default function SitePhotosButton({ workOrderId }: { workOrderId: string 
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   {photos.map(p => (
-                    <button key={p.id} onClick={() => setLightbox(p.url)} style={{ padding: 0, border: '1px solid #E5E0E3', borderRadius: 10, overflow: 'hidden', aspectRatio: '1 / 1', background: '#F8F5F6', cursor: 'pointer' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    </button>
+                    <div key={p.id} style={{ position: 'relative', aspectRatio: '1 / 1' }}>
+                      <button onClick={() => setLightbox(p.url)} style={{ padding: 0, border: '1px solid #E5E0E3', borderRadius: 10, overflow: 'hidden', width: '100%', height: '100%', background: '#F8F5F6', cursor: 'pointer' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      </button>
+                      {canDelete(p) && (
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          disabled={deletingId === p.id}
+                          aria-label="Delete photo"
+                          style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, border: 'none', borderRadius: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', cursor: deletingId === p.id ? 'default' : 'pointer' }}
+                        >
+                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6" /></svg>
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

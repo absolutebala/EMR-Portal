@@ -163,7 +163,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
           <select value={selectedWoId} onChange={e => setSelectedWoId(e.target.value)} style={inputStyle}>
             <option value="">Select a notification…</option>
             {workOrders.map(wo => (
-              <option key={wo.id} value={wo.id}>{wo.wo_number} — {wo.customer_name}</option>
+              <option key={wo.id} value={wo.id}>{wo.wo_number}{wo.customer_name ? ` — ${wo.customer_name}` : ''}</option>
             ))}
           </select>
         </div>

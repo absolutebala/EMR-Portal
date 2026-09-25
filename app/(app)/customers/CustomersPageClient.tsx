@@ -27,8 +27,21 @@ interface Props {
   permissions?: Record<string, boolean>
 }
 
+// How each sortable column pulls a comparable value from a row. Columns not listed here
+// (checkbox, Last service, Actions) aren't sortable.
+const SORT_KEYS: Record<string, (c: CustomerWithCounts) => string | number> = {
+  'Customer': c => (c.name || '').toLowerCase(),
+  'Type': c => c.type || '',
+  'End Customer Type': c => (c.end_customer_type_name || '').toLowerCase(),
+  'Contact': c => (c.contact_person || '').toLowerCase(),
+  'Phone': c => c.phone || '',
+  'Projects': c => c.site_count ?? 0,
+  'Serial numbers': c => c.sn_count ?? 0,
+}
+
 export default function CustomersPageClient({ customers, userName, userRole, permissions = {} }: Props) {
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
@@ -56,12 +69,27 @@ export default function CustomersPageClient({ customers, userName, userRole, per
   }
   const canEdit = can('Customers — Create / Edit')
 
-  const filtered = useMemo(() => customers.filter(c => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return !q || c.name.toLowerCase().includes(q) || c.contact_person.toLowerCase().includes(q) || c.phone.includes(q)
-  }), [customers, search])
+    let list = customers.filter(c => !q || c.name.toLowerCase().includes(q) || c.contact_person.toLowerCase().includes(q) || c.phone.includes(q))
+    if (sort && SORT_KEYS[sort.col]) {
+      const get = SORT_KEYS[sort.col]
+      list = list.slice().sort((a, b) => {
+        const va = get(a), vb = get(b)
+        const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
+        return sort.dir === 'asc' ? c : -c
+      })
+    }
+    return list
+  }, [customers, search, sort])
 
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
+
+  function toggleSort(col: string) {
+    if (!SORT_KEYS[col]) return
+    setPage(1)
+    setSort(s => (s?.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }))
+  }
 
   // When a customer still has notifications, deleteCustomer returns them instead of
   // deleting — this holds them so the modal can list them (as links) and offer to
@@ -166,9 +194,15 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                       <input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} title="Select all on this page" style={{ cursor: 'pointer' }} />
                     </th>
                   )}
-                  {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
+                  {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => {
+                    const sortable = !!SORT_KEYS[h]
+                    const active = sort?.col === h
+                    return (
+                      <th key={h} onClick={() => toggleSort(h)} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: active ? 'var(--m)' : 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap', cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                        {h}{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : sortable ? <span style={{ opacity: 0.3 }}> ⇅</span> : null}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>

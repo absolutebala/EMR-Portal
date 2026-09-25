@@ -13,6 +13,8 @@ import { reverseGeocode } from '@/app/actions/mobile-actions'
 
 interface Props {
   detail: MobileWorkOrderDetail
+  currentUserId: string
+  isAdmin: boolean
 }
 
 function CheckIcon() {
@@ -23,7 +25,7 @@ function CheckIcon() {
   )
 }
 
-export default function JobDetailClient({ detail }: Props) {
+export default function JobDetailClient({ detail, currentUserId, isAdmin }: Props) {
   const router = useRouter()
   const { workOrder: wo } = detail
   const [checkInSync, setCheckInSync] = useState<CheckInSyncStatus | null>(null)
@@ -212,7 +214,7 @@ export default function JobDetailClient({ detail }: Props) {
 
       {/* Site Photos — available for every notification regardless of status. */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 16px 0' }}>
-        <SitePhotosButton workOrderId={wo.id} />
+        <SitePhotosButton workOrderId={wo.id} currentUserId={currentUserId} isAdmin={isAdmin} />
       </div>
 
       {/* Action panel */}

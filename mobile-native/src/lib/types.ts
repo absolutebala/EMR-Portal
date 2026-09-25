@@ -112,6 +112,7 @@ export interface MobileWorkOrderDetail {
 // ── Endpoint response shapes ────────────────────────────────────────────────────
 
 export interface AuthMeResponse {
+  userId: string | null;
   mustChangePassword: boolean;
   engineer: { name: string; avatarUrl: string | null } | null;
   role: string | null;

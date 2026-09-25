@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Image, SafeAreaView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureView, { type SignatureViewRef } from 'react-native-signature-canvas';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 // webStyle) and not used — real RN buttons below drive the same ref methods
 // (readSignature()/clearSignature()) instead.
 export default function RNSignaturePad({ label, value, onChange, readOnly }: Props) {
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
   const ref = useRef<SignatureViewRef>(null);
@@ -74,7 +76,7 @@ export default function RNSignaturePad({ label, value, onChange, readOnly }: Pro
               webStyle=".m-signature-pad--footer { display: none; margin: 0; } .m-signature-pad--body { border: none; }"
             />
           </View>
-          <View style={styles.actionRow}>
+          <View style={[styles.actionRow, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
             <Pressable style={styles.clearButton} onPress={() => ref.current?.clearSignature()}>
               <Text style={styles.clearButtonText}>Clear</Text>
             </Pressable>

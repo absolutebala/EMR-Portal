@@ -2,7 +2,7 @@
 
 import { getAuthedUser } from '@/lib/cognito/server'
 import { adminClient } from '@/lib/db/admin-client'
-import { listSitePhotosCore, addSitePhotosCore, type SitePhoto } from '@/lib/mobile/core/sitePhotos'
+import { listSitePhotosCore, addSitePhotosCore, deleteSitePhotoCore, type SitePhoto } from '@/lib/mobile/core/sitePhotos'
 
 export async function getSitePhotos(workOrderId: string): Promise<{ photos: SitePhoto[]; error: string | null }> {
   const user = await getAuthedUser()
@@ -17,4 +17,10 @@ export async function addSitePhotos(
   const user = await getAuthedUser()
   if (!user) return { added: 0, error: 'Not authenticated' }
   return addSitePhotosCore(adminClient(), user.id, workOrderId, photos)
+}
+
+export async function deleteSitePhoto(photoId: string): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return deleteSitePhotoCore(adminClient(), user.id, photoId)
 }
