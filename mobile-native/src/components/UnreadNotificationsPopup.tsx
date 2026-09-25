@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, type AppStateStatus, Modal, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
+import { translateLinkPath } from '@/lib/pushNotifications';
 import { useAlerts } from '@/lib/hooks';
 import { useAuth } from '@/lib/AuthContext';
 import type { NotificationView } from '@/lib/types';
@@ -72,9 +73,11 @@ export default function UnreadNotificationsPopup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  function handleOk() {
+  // Tapping a notification takes the engineer straight to that item (its linkPath),
+  // rather than a generic OK that dropped them on the dashboard.
+  function openItem(n: NotificationView) {
     setVisible(false);
-    router.push('/(app)/(tabs)/dashboard');
+    router.push(translateLinkPath(n.linkPath) as Href);
   }
 
   const extraCount = Math.max(0, items.length - MAX_LISTED);
@@ -83,23 +86,31 @@ export default function UnreadNotificationsPopup() {
     <Modal visible={visible} animationType="fade" transparent onRequestClose={() => setVisible(false)}>
       <View style={styles.overlay}>
         <SafeAreaView style={styles.card}>
-          <Text style={styles.title}>
-            {items.length} new notification{items.length !== 1 ? 's' : ''}
-          </Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              {items.length} new notification{items.length !== 1 ? 's' : ''}
+            </Text>
+            <Pressable onPress={() => setVisible(false)} hitSlop={12}>
+              <Text style={styles.close}>✕</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.hint}>Tap a notification to open it.</Text>
           <View style={styles.list}>
             {items.slice(0, MAX_LISTED).map(n => (
-              <View key={n.id} style={styles.item}>
-                <Text style={styles.itemTitle} numberOfLines={1}>{n.title}</Text>
-                {!!n.body && <Text style={styles.itemBody} numberOfLines={2}>{n.body}</Text>}
-              </View>
+              <Pressable key={n.id} style={styles.item} onPress={() => openItem(n)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>{n.title}</Text>
+                  {!!n.body && <Text style={styles.itemBody} numberOfLines={2}>{n.body}</Text>}
+                </View>
+                <Text style={styles.chev}>›</Text>
+              </Pressable>
             ))}
             {extraCount > 0 && (
-              <Text style={styles.more}>and {extraCount} more…</Text>
+              <Pressable onPress={() => { setVisible(false); router.push('/(app)/(tabs)/alerts'); }}>
+                <Text style={styles.more}>and {extraCount} more — view all →</Text>
+              </Pressable>
             )}
           </View>
-          <Pressable style={styles.button} onPress={handleOk}>
-            <Text style={styles.buttonText}>OK</Text>
-          </Pressable>
         </SafeAreaView>
       </View>
     </Modal>
@@ -109,12 +120,14 @@ export default function UnreadNotificationsPopup() {
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 16, padding: 20 },
-  title: { fontSize: 16, fontWeight: '700', color: '#1C0D14', marginBottom: 12 },
-  list: { marginBottom: 16 },
-  item: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F5F3F5' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 16, fontWeight: '700', color: '#1C0D14' },
+  close: { fontSize: 16, color: '#9CA3AF', fontWeight: '600', paddingHorizontal: 4 },
+  hint: { fontSize: 11, color: '#9CA3AF', marginTop: 2, marginBottom: 8 },
+  list: { marginBottom: 4 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, borderTopWidth: 1, borderTopColor: '#F5F3F5' },
   itemTitle: { fontSize: 13, fontWeight: '600', color: '#1C0D14' },
   itemBody: { fontSize: 12, color: '#7A6870', marginTop: 2 },
-  more: { fontSize: 12, color: '#7A6870', marginTop: 8, fontStyle: 'italic' },
-  button: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  buttonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  chev: { fontSize: 20, color: '#B9A9B0', fontWeight: '400' },
+  more: { fontSize: 12, color: '#7D1D3F', marginTop: 10, fontWeight: '600' },
 });
