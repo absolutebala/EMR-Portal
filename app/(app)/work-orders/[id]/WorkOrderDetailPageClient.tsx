@@ -485,6 +485,20 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   // dedicated completed_at column).
   const completedAt = visits.find(v => v.outcome === 'completed')?.createdAt ?? null
 
+  // Group the visit history by engineer, preserving newest-first order, so a notification
+  // worked by more than one engineer shows a separate box per engineer (each headed with
+  // the engineer's name) instead of one mixed chronological list.
+  const visitGroups: { name: string; visits: WorkOrderVisit[] }[] = (() => {
+    const byName = new Map<string, { name: string; visits: WorkOrderVisit[] }>()
+    const order: string[] = []
+    for (const v of visits) {
+      const name = v.engineerName || 'Engineer'
+      if (!byName.has(name)) { byName.set(name, { name, visits: [] }); order.push(name) }
+      byName.get(name)!.visits.push(v)
+    }
+    return order.map(n => byName.get(n)!)
+  })()
+
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', padding: '8px 0', borderBottom: '1px solid var(--gl)' }}>
       <span style={{ width: 130, fontSize: 11, color: 'var(--txm)', flexShrink: 0 }}>{label}</span>
@@ -724,10 +738,10 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 </div>
               ) : (
                 <>
-                  {visits.length > 0 && (
-                    <div style={card}>
-                      <div style={cardLabel}>Visit history</div>
-                      {visits.map((v, i) => {
+                  {visitGroups.map(group => (
+                    <div key={group.name} style={card}>
+                      <div style={cardLabel}>Visit history — {group.name}</div>
+                      {group.visits.map((v, i) => {
                         const outcomeCfg = {
                           completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
                           pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
@@ -846,7 +860,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         )
                       })}
                     </div>
-                  )}
+                  ))}
 
                   {submittedForms.length > 0 && (
                     <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
