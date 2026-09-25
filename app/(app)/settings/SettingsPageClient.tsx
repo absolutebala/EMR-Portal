@@ -73,8 +73,8 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
   },
   {
     key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign',
-    params: '1) Customer name  2) Notification number  3) Engineer name  4) Completion date',
-    example: 'Hi {{1}}, your notification *{{2}}* has been completed by {{3}} on {{4}}.\n\nThank you for choosing EMR Global.',
+    params: 'No variables',
+    example: 'The service work at your site has been completed successfully. The required checks have been carried out, and the equipment is now operating normally. Thank you for your support and cooperation.',
   },
   {
     key: 'whatsapp_campaign_pending', label: 'Notification pending (follow-up) — Customer campaign',

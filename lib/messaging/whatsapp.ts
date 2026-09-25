@@ -30,8 +30,8 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          top-level `userName` field, not a templateParam, since it
 //                          varies per recipient in a broadcast and templateParams is
 //                          shared across all of them)
-//   completed          (4): 1) customer contact person, 2) WO number, 3) engineer full
-//                          name, 4) completion date ("DD MMM YYYY")
+//   completed          (0): no params — a fixed message to the customer that the service
+//                          work at their site has been completed successfully.
 //   pending            (4): 1) customer contact person, 2) WO number, 3) engineer full
 //                          name, 4) follow-up/revisit date ("DD MMM YYYY" or "")
 //   expense_reminder    (2): 1) engineer full name, 2) count of expenses awaiting their

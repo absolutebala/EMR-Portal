@@ -822,8 +822,8 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       if (customer) {
         const recipient = { phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }
         if (params.outcome === 'completed') {
-          const completedDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-          sendWhatsApp(admin, 'completed', [recipient], [customer.contact_person, wo.wo_number || '', engineerName, completedDate]).catch(() => {})
+          // Fixed completion message to the customer — no template variables.
+          sendWhatsApp(admin, 'completed', [recipient], []).catch(() => {})
         } else {
           const revisitLabel = params.revisitDate ? new Date(params.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
           sendWhatsApp(admin, 'pending', [recipient], [customer.contact_person, wo.wo_number || '', engineerName, revisitLabel]).catch(() => {})
