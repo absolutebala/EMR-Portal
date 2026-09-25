@@ -18,8 +18,8 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          instead of assigned_customer when the engineer on an existing
 //                          notification is changed, so the wording can say a *different*
 //                          engineer is now attending.
-//   on_the_way        (4): 1) customer contact person, 2) engineer full name,
-//                          3) WO number, 4) start-by time ("HH:mm" or "")
+//   on_the_way        (2): 1) engineer full name, 2) engineer phone number (so the
+//                          customer can reach the engineer who is on the way directly)
 //   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,
 //                          4) product name
 //   escalation         (4): 1) WO number, 2) engineer full name, 3) transformer serial

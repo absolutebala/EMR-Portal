@@ -67,8 +67,8 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
   },
   {
     key: 'whatsapp_campaign_on_the_way', label: 'Engineer "on the way" — Customer campaign',
-    params: '1) Customer name  2) Engineer name  3) Notification number  4) Start-by time',
-    example: 'Hi {{1}}, {{2}} is on the way for your notification *{{3}}*.\n\nExpected by: {{4}}\n\nWe’ll keep you posted.',
+    params: '1) Engineer name  2) Engineer phone number',
+    example: 'Our Service Engineer, {{1}}, is on the way to your site. For coordination, please contact the engineer directly at {{2}}. Thank you.',
   },
   {
     key: 'whatsapp_campaign_completed', label: 'Notification completed — Customer campaign',

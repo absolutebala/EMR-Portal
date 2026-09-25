@@ -532,7 +532,7 @@ export async function setEngineerStatusCore(
     }).eq('id', userId)
     if (error) return { error: error.message }
 
-    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
+    const { data: actor } = await admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     const STATUS_LABEL: Record<EngineerStatusValue, string> = {
       available: 'Available', on_leave: 'On Leave', on_the_way: 'On the way', travelling: 'Travelling', reached: 'Reached project', completed: 'Completed',
@@ -584,8 +584,10 @@ export async function setEngineerStatusCore(
       if (wo?.customer_id) {
         const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
         if (customer) {
+          // Template params: 1) engineer full name, 2) engineer phone (so the customer
+          // can reach the engineer who is on the way directly).
           sendWhatsApp(admin, 'on_the_way', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-            [customer.contact_person, actorName, wo.wo_number || '', startByTime || '']).catch(() => {})
+            [actorName, actor?.phone || '']).catch(() => {})
         }
       }
     }
