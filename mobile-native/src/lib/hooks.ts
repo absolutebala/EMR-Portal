@@ -52,6 +52,11 @@ export function useMyAnalytics(month: string) {
   return useQuery({
     queryKey: ['my-analytics', month],
     queryFn: () => apiGet<MyAnalyticsResponse>(`/api/mobile/v1/user-analytics?month=${month}`),
+    // Always refetch on open — the counts read live work_orders, so a notification an
+    // admin deleted after it was resolved should stop being counted immediately rather
+    // than lingering from a cached value.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

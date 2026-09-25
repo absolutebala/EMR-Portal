@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, View, Text, Pressable, TextInput, StyleSheet, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TOP_OPTIONS, SUB_OPTIONS, combineCategory, categoryMeta, type PunchCategory, type TopCategory, type SubCategory } from '@/lib/punchCategory';
 
 export interface PunchInPayload {
@@ -23,6 +24,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   subtitle?: string;
   isLate?: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'top' | 'sub' | 'details' | 'confirm'>('top');
   const [top, setTop] = useState<TopCategory | null>(null);
   const [category, setCategory] = useState<PunchCategory | null>(null);
@@ -66,7 +68,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(24, insets.bottom + 16) }]}>
           <View style={styles.grabber} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {step === 'top' && (
@@ -125,7 +127,7 @@ export default function PunchInModal({ visible, onCancel, onConfirm, submitting,
                 <Text style={styles.confirmText}>Confirm your status as {meta?.label ?? 'HQ'}.</Text>
                 {isLate && (
                   <>
-                    <Text style={styles.label}>You're punching in late — reason (optional)</Text>
+                    <Text style={styles.label}>You&apos;re punching in late — reason (optional)</Text>
                     <TextInput style={styles.input} value={lateReason} onChangeText={setLateReason} placeholder="Sent to your manager for approval" placeholderTextColor="#9CA3AF" multiline />
                   </>
                 )}

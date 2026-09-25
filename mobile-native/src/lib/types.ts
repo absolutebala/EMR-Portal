@@ -368,6 +368,11 @@ export interface AnalyticsDrilldownRow {
   status: string | null;
   date: string | null;
   amount: number | null;
+  // Attendance-only (present/leave): punch times, minutes worked, punch-in category.
+  punchInAt?: string | null;
+  punchOutAt?: string | null;
+  workingMinutes?: number | null;
+  categoryLabel?: string | null;
 }
 
 export interface MyAnalyticsDrilldownResponse {

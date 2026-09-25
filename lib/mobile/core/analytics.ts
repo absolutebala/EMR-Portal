@@ -1,4 +1,5 @@
 import type { AdminClient } from './shared'
+import { categoryMeta, type PunchCategory } from '@/lib/punchCategory'
 
 export interface EngineerAnalyticsSummary {
   assigned: number
@@ -18,6 +19,12 @@ export interface AnalyticsDrilldownRow {
   status: string | null
   date: string | null
   amount: number | null
+  // Attendance-only (present/leave drill-down): the day's punch times, minutes worked,
+  // and punch-in category label. Null / absent for the work-order and expense metrics.
+  punchInAt?: string | null
+  punchOutAt?: string | null
+  workingMinutes?: number | null
+  categoryLabel?: string | null
 }
 
 // month is 'YYYY-MM'. Returns the first-of-month date and the first-of-next-month
@@ -118,10 +125,17 @@ export async function getEngineerAnalyticsDrilldownCore(admin: AdminClient, engi
       return { rows: (logs || []).map(l => ({ id: l.id, woNumber: woById.get(l.work_order_id) || null, customerName: null, status: l.status, date: l.expense_date, amount: Number(l.amount) })), error: null }
     }
 
-    // present / leave
-    const { data, error } = await admin.from('attendance').select('id, attendance_date, status').eq('engineer_id', engineerId).eq('status', metric === 'present' ? 'present' : 'leave').gte('attendance_date', startDate).lt('attendance_date', endDateExclusive).order('attendance_date')
+    // present / leave — carry the day's punch times, minutes worked and category so the
+    // drill-down can show a proper weekly attendance breakdown, not just the date.
+    const { data, error } = await admin.from('attendance').select('id, attendance_date, status, marked_at, end_day_at, punch_category').eq('engineer_id', engineerId).eq('status', metric === 'present' ? 'present' : 'leave').gte('attendance_date', startDate).lt('attendance_date', endDateExclusive).order('attendance_date')
     if (error) return { rows: [], error: error.message }
-    return { rows: (data || []).map(a => ({ id: a.id, woNumber: null, customerName: null, status: a.status, date: a.attendance_date, amount: null })), error: null }
+    return { rows: (data || []).map(a => {
+      const inAt = a.marked_at ?? null
+      const outAt = a.end_day_at ?? null
+      const workingMinutes = inAt && outAt ? Math.max(0, Math.round((new Date(outAt).getTime() - new Date(inAt).getTime()) / 60000)) : null
+      const categoryLabel = a.punch_category ? (categoryMeta(a.punch_category as PunchCategory)?.label ?? null) : null
+      return { id: a.id, woNumber: null, customerName: null, status: a.status, date: a.attendance_date, amount: null, punchInAt: inAt, punchOutAt: outAt, workingMinutes, categoryLabel }
+    }), error: null }
   } catch (e: unknown) {
     return { rows: [], error: e instanceof Error ? e.message : String(e) }
   }

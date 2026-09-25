@@ -34,6 +34,18 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Punch times / worked-hours formatters for the attendance drill-down.
+function fmtTime(ts: string | null | undefined): string | null {
+  if (!ts) return null;
+  return new Date(ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+}
+function fmtDuration(mins: number | null | undefined): string | null {
+  if (mins == null) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${m}m`;
+}
+
 function metricValue(summary: EngineerAnalyticsSummary, key: AnalyticsMetric): string {
   switch (key) {
     case 'assigned': return String(summary.assigned);
@@ -110,9 +122,21 @@ export default function MyAnalyticsScreen() {
                             <Text style={styles.drilldownAmount}>₹{(row.amount ?? 0).toLocaleString('en-IN')}</Text>
                           </View>
                         )}
-                        {(m.key === 'present' || m.key === 'leave') && (
-                          <Text style={styles.drilldownTitle}>{fmtDate(row.date)}</Text>
-                        )}
+                        {(m.key === 'present' || m.key === 'leave') && (() => {
+                          const inT = fmtTime(row.punchInAt);
+                          const outT = fmtTime(row.punchOutAt);
+                          const dur = fmtDuration(row.workingMinutes);
+                          const head = row.categoryLabel
+                            ? `${fmtDate(row.date)} · ${m.key === 'present' ? 'Present' : 'Leave'} — ${row.categoryLabel}`
+                            : `${fmtDate(row.date)} · ${m.key === 'present' ? 'Present' : 'Leave'}`;
+                          const parts = [inT ? `In ${inT}` : null, outT ? `Out ${outT}` : null, dur].filter(Boolean);
+                          return (
+                            <>
+                              <Text style={styles.drilldownTitle}>{head}</Text>
+                              <Text style={styles.drilldownSub}>{parts.length ? parts.join(' · ') : '—'}</Text>
+                            </>
+                          );
+                        })()}
                       </View>
                     ))
                   )}
