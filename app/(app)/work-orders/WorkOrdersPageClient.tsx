@@ -219,9 +219,13 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
     // whose expense approval is still pending/rejected (an admin still needs to act on
     // those). Explicitly picking a status from the dropdown overrides the hide.
     const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
+    // Open (active) shows everything except finished (completed/closed) work — but keeps
+    // a finished notification visible if it still needs approval OR has no engineer
+    // assigned (an unassigned notification needs someone to pick it up, so it belongs in
+    // the active queue even if a stale completion is still on it).
     const matchStatus =
       statusFilter === 'all' ? true
-      : statusFilter === 'open' ? ((wo.status !== 'completed' && wo.status !== 'closed') || feUnapproved)
+      : statusFilter === 'open' ? ((wo.status !== 'completed' && wo.status !== 'closed') || feUnapproved || !wo.engineer_id)
       : wo.status === statusFilter
     const matchJob = !jobFilter || wo.job_type === jobFilter
     const matchEng = !engFilter || wo.engineer_id === engFilter
