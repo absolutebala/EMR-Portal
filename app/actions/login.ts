@@ -9,7 +9,7 @@ import { adminClient } from '@/lib/db/admin-client'
 
 export type LoginResult =
   | { status: 'ok' }
-  | { status: 'challenge' }
+  | { status: 'challenge'; session: string; email: string }
   | { status: 'error'; error: string }
 
 // Not exported — a 'use server' file's compiler expects every top-level export to be
@@ -40,7 +40,11 @@ export async function login(email: string, password: string, options?: { require
     if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
       if (!result.Session) return { status: 'error', error: 'Could not start password setup. Please try again.' }
       await setChallengeCookie({ session: result.Session, email })
-      return { status: 'challenge' }
+      // Also hand the challenge back to the client so it can carry it forward
+      // explicitly (sessionStorage): installed iOS PWAs don't reliably keep the
+      // just-set httpOnly cookie across the client navigation to the password-set
+      // screen, which made first-login fail with "session has expired".
+      return { status: 'challenge', session: result.Session, email }
     }
 
     const auth = result.AuthenticationResult

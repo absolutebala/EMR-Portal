@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { login } from '@/app/actions/login'
-import { useRouter } from 'next/navigation'
 import { appVersionLabel } from '@/lib/appVersion'
 
 export default function MobileLoginPage() {
@@ -13,7 +12,6 @@ export default function MobileLoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -26,7 +24,11 @@ export default function MobileLoginPage() {
       return
     }
     if (result.status === 'challenge') {
-      router.push('/mobile/change-password')
+      // Carry the Cognito challenge forward explicitly — the httpOnly cookie set
+      // server-side isn't reliably retained by installed iOS PWAs across this
+      // navigation, which was surfacing as "session has expired" on first login.
+      try { sessionStorage.setItem('emr_challenge', JSON.stringify({ session: result.session, email: result.email })) } catch {}
+      window.location.href = '/mobile/change-password'
       return
     }
     // Full page navigation so proxy.ts reads the freshly-set session cookie.

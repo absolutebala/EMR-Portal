@@ -19,8 +19,13 @@ const MOBILE_ONLY_MESSAGE = 'This mobile app is only for Field Engineers. Please
 // separate "already authenticated, just update the password" flow. Cognito never
 // issues real tokens for a temp-password user until this challenge is answered, so
 // there is no "already signed in, now let them change it" state to handle anymore.
-export async function completeNewPassword(newPassword: string, options?: { requireRole?: string; phone?: string | null }): Promise<{ error: string | null }> {
-  const challenge = await getChallengeCookie()
+export async function completeNewPassword(newPassword: string, options?: { requireRole?: string; phone?: string | null; challenge?: { session: string; email: string } }): Promise<{ error: string | null }> {
+  // Prefer the challenge handed in explicitly by the client (mobile carries it in
+  // sessionStorage) and fall back to the cookie (desktop /set-password). Installed iOS
+  // PWAs don't reliably retain the httpOnly challenge cookie across the client
+  // navigation to this screen, so the explicit hand-off is what makes first login work.
+  const passed = options?.challenge
+  const challenge = passed?.session && passed?.email ? passed : await getChallengeCookie()
   if (!challenge) return { error: 'Your session has expired. Please sign in again.' }
 
   // Field engineers must have a mobile number on file (for password-reset OTPs). It's
