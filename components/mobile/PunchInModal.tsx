@@ -36,6 +36,9 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
   useEffect(() => { if (open) { setStep('top'); setTop(null); setCategory(null); setCustomer(''); setSite(''); setPurpose(''); setLateReason('') } }, [open])
 
   const lateReasonValue = () => (isLate ? (lateReason.trim() || null) : null)
+  // A late punch-in must carry a reason — it's what generates the manager amendment
+  // request. Matches the RN app, which also blocks the punch until it's filled.
+  const lateReasonValid = !isLate || !!lateReason.trim()
 
   if (!open) return null
 
@@ -122,14 +125,14 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
             <div style={{ fontSize: 13, color: '#4B5563', margin: '8px 0 4px' }}>Confirm your status as {meta?.label ?? 'HQ'}.</div>
             {isLate && (
               <>
-                <label style={lbl}>You&apos;re punching in late — reason (optional)</label>
+                <label style={lbl}>You&apos;re punching in late — reason <span style={{ color: '#DC2626' }}>*</span></label>
                 <textarea style={{ ...input, minHeight: 56, resize: 'vertical' }} value={lateReason} onChange={e => setLateReason(e.target.value)} placeholder="Sent to your manager for approval" />
               </>
             )}
             {!!error && <div style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</div>}
-            <button className="mtap" onClick={() => category && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })}
-              disabled={submitting}
-              style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
+            <button className="mtap" onClick={() => category && lateReasonValid && onConfirm({ category, visitCustomerName: null, visitSiteAddress: null, visitPurpose: null, lateReason: lateReasonValue() })}
+              disabled={submitting || !lateReasonValid}
+              style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: (submitting || !lateReasonValid) ? 'not-allowed' : 'pointer', opacity: (submitting || !lateReasonValid) ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
               {submitting ? 'Submitting…' : 'Submit'}
             </button>
           </>
@@ -152,14 +155,14 @@ export default function PunchInModal({ open, onCancel, onConfirm, submitting, er
             <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="Why is this visit happening?" />
             {isLate && (
               <>
-                <label style={lbl}>You&apos;re punching in late — reason (optional)</label>
+                <label style={lbl}>You&apos;re punching in late — reason <span style={{ color: '#DC2626' }}>*</span></label>
                 <textarea style={{ ...input, minHeight: 56, resize: 'vertical' }} value={lateReason} onChange={e => setLateReason(e.target.value)} placeholder="Sent to your manager for approval" />
               </>
             )}
             {!!error && <div style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</div>}
-            <button className="mtap" onClick={() => category && detailsValid && onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim(), lateReason: lateReasonValue() })}
-              disabled={!detailsValid || submitting}
-              style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: (!detailsValid || submitting) ? 'not-allowed' : 'pointer', opacity: (!detailsValid || submitting) ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
+            <button className="mtap" onClick={() => category && detailsValid && lateReasonValid && onConfirm({ category, visitCustomerName: customer.trim(), visitSiteAddress: site.trim(), visitPurpose: purpose.trim(), lateReason: lateReasonValue() })}
+              disabled={!detailsValid || !lateReasonValid || submitting}
+              style={{ width: '100%', marginTop: 14, padding: 13, borderRadius: 10, border: 'none', background: '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: (!detailsValid || !lateReasonValid || submitting) ? 'not-allowed' : 'pointer', opacity: (!detailsValid || !lateReasonValid || submitting) ? 0.5 : 1, fontFamily: 'Poppins, sans-serif' }}>
               {submitting ? 'Punching in…' : 'Continue'}
             </button>
           </>
