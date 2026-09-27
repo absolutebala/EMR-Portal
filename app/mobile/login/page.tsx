@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { login } from '@/app/actions/login'
+import { recordPwaLoginEvent } from '@/lib/mobile/pwaLoginEvent'
 import { appVersionLabel } from '@/lib/appVersion'
 
 export default function MobileLoginPage() {
@@ -31,6 +32,11 @@ export default function MobileLoginPage() {
       window.location.href = '/mobile/change-password'
       return
     }
+    // Record this login's device + location for the dashboard's suspicious-login
+    // detection (impossible travel / multiple devices), matching the native app. Awaited
+    // because the hard navigation below would abort an in-flight request; it's fully
+    // best-effort and self-limited to a few seconds, so it never blocks sign-in on error.
+    await recordPwaLoginEvent()
     // Full page navigation so proxy.ts reads the freshly-set session cookie.
     window.location.href = '/mobile/dashboard'
   }
