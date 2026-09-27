@@ -24,6 +24,13 @@ export async function deleteWorkOrder(workOrderId: string): Promise<{ error: str
   }
   if (!allowed) return { error: 'You do not have permission to delete notifications.' }
 
+  // notifications.entity_id / activity_log.entity_id reference a work order by a loose
+  // uuid with no FK (the column is shared across entity types), so they aren't cascaded
+  // on delete — clear them here so no dead references linger on the dashboard's recent
+  // activity feed after the notification is gone.
+  await sb.from('notifications').delete().eq('entity_type', 'work_order').eq('entity_id', workOrderId)
+  await sb.from('activity_log').delete().eq('entity_type', 'work_order').eq('entity_id', workOrderId)
+
   const { error } = await sb.from('work_orders').delete().eq('id', workOrderId)
   if (error) return { error: error.message }
   return { error: null }
