@@ -57,10 +57,6 @@ function formatDateTime(d: string) {
   return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function formatTime(d: string) {
-  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-}
-
 export default async function DashboardPage() {
   const user = await getAuthedUser()
 
