@@ -10,12 +10,13 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
-  const { deviceId, latitude, longitude, placeName } = body as {
-    deviceId?: string | null; latitude?: number | null; longitude?: number | null; placeName?: string | null
+  const { deviceId, deviceName, latitude, longitude, placeName } = body as {
+    deviceId?: string | null; deviceName?: string | null; latitude?: number | null; longitude?: number | null; placeName?: string | null
   }
 
   const result = await recordLoginEventCore(adminClient(), user.id, {
     deviceId: deviceId ?? null,
+    deviceName: deviceName ?? null,
     latitude: typeof latitude === 'number' ? latitude : null,
     longitude: typeof longitude === 'number' ? longitude : null,
     placeName: placeName ?? null,

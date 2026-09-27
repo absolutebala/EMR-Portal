@@ -4,6 +4,7 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
 import { ListCard, ListRow, Badge, BreakdownCard } from '@/components/dashboard/DashboardCards'
 import AssignableList from '@/components/dashboard/AssignableList'
+import SuspiciousLoginsCard from '@/components/dashboard/SuspiciousLoginsCard'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 import { adminClient } from '@/lib/db/admin-client'
 
@@ -200,18 +201,7 @@ export default async function DashboardPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 14 }}>
-          <ListCard title="Suspicious logins" viewAllHref="/engineers" empty="No suspicious logins — all clear.">
-            {suspiciousLogins.slice(0, 6).map(f => {
-              const label = f.kinds.includes('impossible_travel') && f.kinds.includes('multi_device')
-                ? 'Impossible travel · 2 devices'
-                : f.kinds.includes('impossible_travel') ? 'Impossible travel' : '2+ devices'
-              return (
-                <ListRow key={f.engineerId} title={f.engineerName} subtitle={`${f.detail} · ${formatTime(f.at)}`}>
-                  <Badge bg="#FEE2E2" color="#991B1B" label={label} />
-                </ListRow>
-              )
-            })}
-          </ListCard>
+          <SuspiciousLoginsCard flags={suspiciousLogins} />
 
           <ListCard title="Paid Notifications" viewAllHref="/work-orders?job=overhauling" empty="No Overhauling notifications.">
             {overhaulingList.map(wo => {
