@@ -3,6 +3,7 @@
 import { adminClient } from '@/lib/db/admin-client'
 import { getFieldEngineersOverview, type FieldEngineerOverview } from './get-engineers'
 import { getMyDepartmentScope } from './departments'
+import { getSuspiciousLoginsCore, type SuspiciousLoginFlag } from '@/lib/mobile/core/loginEvents'
 
 // Sentinel used in place of a real department UUID for open notifications with no
 // department tag — matches the work-orders list page's '?department=' query param
@@ -95,6 +96,7 @@ export interface DashboardData {
   offSiteUpdates: DashboardOffSiteUpdate[]
   expiredWarrantyList: DashboardExpiredWarranty[]
   overhaulingList: DashboardOverhaulingNotification[]
+  suspiciousLogins: SuspiciousLoginFlag[]
   kpis: DashboardKpis
 }
 
@@ -322,5 +324,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     departmentBreakdown,
   }
 
-  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, kpis }
+  // Suspicious mobile logins (impossible travel / two devices) for the card that
+  // replaced "Field Engineers" on the dashboard. Name map covers both mobile roles.
+  const { data: mobileProfiles } = await admin.from('profiles').select('id, first_name, last_name').in('role', ['Field Engineer', 'Installation Team'])
+  const loginNameById: Record<string, string> = {}
+  for (const p of (mobileProfiles as { id: string; first_name: string; last_name: string }[] | null) || []) {
+    loginNameById[p.id] = `${p.first_name} ${p.last_name}`.trim()
+  }
+  const { flags: suspiciousLogins } = await getSuspiciousLoginsCore(admin, loginNameById)
+
+  return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, suspiciousLogins, kpis }
 }

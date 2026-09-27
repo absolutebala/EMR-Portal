@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Keyboa
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { login } from '@/lib/auth';
+import { recordLoginEvent } from '@/lib/loginEvent';
 import { useAuth } from '@/lib/AuthContext';
 import AppVersionFooter from '@/components/AppVersionFooter';
 
@@ -46,6 +47,9 @@ export default function LoginScreen() {
     // Tokens are set at this point, but this app is Field-Engineer-only — check role
     // (and sign back out if it doesn't match) before navigating in, so a rejected user
     // never sees so much as a flash of the dashboard.
+    // Record this login's device + location for the web dashboard's suspicious-login
+    // detection — fire-and-forget so it never delays or blocks sign-in.
+    recordLoginEvent();
     const { accessDenied } = await refreshMe();
     setLoading(false);
     if (accessDenied) {

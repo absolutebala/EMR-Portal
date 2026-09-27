@@ -2,7 +2,6 @@ import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
-import type { EngineerStatus } from '@/app/actions/get-engineers'
 import { ListCard, ListRow, Badge, BreakdownCard } from '@/components/dashboard/DashboardCards'
 import AssignableList from '@/components/dashboard/AssignableList'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
@@ -40,21 +39,6 @@ const PRODUCT_REQUEST_STATUS_CFG: Record<string, { bg: string; color: string; la
   dispatched: { bg: '#EDE9FE', color: '#5B21B6', label: 'Dispatched' },
 }
 
-const ENGINEER_STATUS_CFG: Record<EngineerStatus, { bg: string; color: string; label: string }> = {
-  available: { bg: '#D1FAE5', color: '#065F46', label: 'Available' },
-  unavailable: { bg: '#F3F4F6', color: '#6B7280', label: 'Unavailable' },
-  on_leave: { bg: '#F1F5F9', color: '#475569', label: 'On Leave' },
-  on_the_way: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On the way' },
-  travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
-  reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
-  completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
-  hq: { bg: '#FBEDE2', color: '#9A5B2E', label: 'HQ' },
-  business_dev: { bg: '#E1E6F5', color: '#1E2A6B', label: 'Business Development' },
-  travel: { bg: '#FBE3F1', color: '#9D174D', label: 'Travel' },
-  site_visit: { bg: '#DCFCE7', color: '#166534', label: 'Site Visit' },
-  others: { bg: '#F6F6F7', color: '#4B5563', label: 'Others' },
-}
-
 const WO_STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   unassigned: { bg: '#F3F4F6', color: '#6B7280', label: 'Unassigned' },
   assigned: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Assigned' },
@@ -86,7 +70,7 @@ export default async function DashboardPage() {
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
   const userRole = profile?.role || 'User'
-  const { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, kpis } = dashboard
+  const { recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, suspiciousLogins, kpis } = dashboard
   const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
   const notificationTotal = kpis.notificationBreakdown.unassigned + kpis.notificationBreakdown.assigned + kpis.notificationBreakdown.in_progress + kpis.notificationBreakdown.needs_reassignment
   const productRequestTotal = kpis.productRequestBreakdown.pending + kpis.productRequestBreakdown.approved + kpis.productRequestBreakdown.dispatched + kpis.productRequestBreakdown.delivered
@@ -216,27 +200,14 @@ export default async function DashboardPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 14 }}>
-          <ListCard title="Field Engineers" viewAllHref="/engineers" empty="No field engineers yet.">
-            {engineers.slice(0, 6).map(e => {
-              const cfg = ENGINEER_STATUS_CFG[e.status]
-              // A job scheduled for today takes priority over the plain "Available"
-              // label — an engineer who hasn't tapped "On the way" yet still has
-              // something lined up, so "Available" would be misleading.
-              const scheduledToday = e.status === 'available' && e.scheduledTodayCustomer
-              const label = scheduledToday
-                ? `Scheduled to ${e.scheduledTodayCustomer}`
-                : (e.status === 'on_the_way' || e.status === 'travelling' || e.status === 'reached' || e.status === 'completed') && e.statusSiteName
-                  ? `${cfg.label} — ${e.statusSiteName}` : cfg.label
-              const badgeBg = scheduledToday ? '#DBEAFE' : cfg.bg
-              const badgeColor = scheduledToday ? '#1D4ED8' : cfg.color
-              const showsStartBy = (e.status === 'on_the_way' || e.status === 'travelling') && e.statusStartBy
+          <ListCard title="Suspicious logins" viewAllHref="/engineers" empty="No suspicious logins — all clear.">
+            {suspiciousLogins.slice(0, 6).map(f => {
+              const label = f.kinds.includes('impossible_travel') && f.kinds.includes('multi_device')
+                ? 'Impossible travel · 2 devices'
+                : f.kinds.includes('impossible_travel') ? 'Impossible travel' : '2+ devices'
               return (
-                <ListRow key={e.id} title={e.name} subtitle={e.lastSeen?.placeName || 'No location yet'}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <Badge bg={badgeBg} color={badgeColor} label={label} />
-                    {showsStartBy && <span style={{ fontSize: 10, color: 'var(--txm)' }}>Starting by {formatTime(e.statusStartBy!)}</span>}
-                    <span style={{ fontSize: 10, color: 'var(--txm)' }}>{e.openWorkOrders} open job{e.openWorkOrders !== 1 ? 's' : ''}</span>
-                  </div>
+                <ListRow key={f.engineerId} title={f.engineerName} subtitle={`${f.detail} · ${formatTime(f.at)}`}>
+                  <Badge bg="#FEE2E2" color="#991B1B" label={label} />
                 </ListRow>
               )
             })}
