@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
 import { ListCard, ListRow, Badge } from '@/components/dashboard/DashboardCards'
+import { geocodeLoginPlace } from '@/app/actions/login-events'
 import type { SuspiciousLoginFlag } from '@/lib/mobile/core/loginEvents'
 
 function formatTime(d: string) {
@@ -19,8 +20,28 @@ function kindLabel(f: SuspiciousLoginFlag) {
 // detail popup listing every device the engineer logged in from — its name, where it
 // last logged in from, and when — so an admin can eyeball whether a "2 devices" flag is
 // a real second phone or just the same person reinstalling.
+const coordKey = (lat: number, lng: number) => `${lat},${lng}`
+
 export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLoginFlag[] }) {
   const [selected, setSelected] = useState<SuspiciousLoginFlag | null>(null)
+  // Coordinate → resolved place label, filled in lazily when a detail popup opens for
+  // logins recorded before the app captured place names itself (older builds send GPS
+  // only). Cached across popups so the same spot is never geocoded twice.
+  const [places, setPlaces] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    for (const d of selected.devices) {
+      if (d.lastPlaceName || d.lastLatitude == null || d.lastLongitude == null) continue
+      const key = coordKey(d.lastLatitude, d.lastLongitude)
+      if (places[key] !== undefined) continue
+      geocodeLoginPlace(d.lastLatitude, d.lastLongitude).then(label => {
+        if (!cancelled && label) setPlaces(prev => ({ ...prev, [key]: label }))
+      })
+    }
+    return () => { cancelled = true }
+  }, [selected, places])
 
   return (
     <>
@@ -43,7 +64,8 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {selected.devices.map((d, i) => {
-                const loc = d.lastPlaceName
+                const resolved = d.lastLatitude != null && d.lastLongitude != null ? places[coordKey(d.lastLatitude, d.lastLongitude)] : undefined
+                const loc = d.lastPlaceName || resolved
                   || (d.lastLatitude != null && d.lastLongitude != null ? `${d.lastLatitude.toFixed(4)}, ${d.lastLongitude.toFixed(4)}` : null)
                 const mapHref = d.lastLatitude != null && d.lastLongitude != null
                   ? `https://www.google.com/maps?q=${d.lastLatitude},${d.lastLongitude}` : null
@@ -59,7 +81,7 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
                         {loc ? (mapHref ? <a href={mapHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--m)', textDecoration: 'none' }}>{loc} ↗</a> : loc) : 'No location captured'}
                       </div>
                       <div>
-                        <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Last seen: </span>
+                        <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Last login: </span>
                         {formatTime(d.lastSeen)}
                       </div>
                       {!d.deviceName && (
