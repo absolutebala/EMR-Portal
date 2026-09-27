@@ -27,9 +27,10 @@ export async function deleteWorkOrder(workOrderId: string): Promise<{ error: str
   // notifications.entity_id / activity_log.entity_id reference a work order by a loose
   // uuid with no FK (the column is shared across entity types), so they aren't cascaded
   // on delete — clear them here so no dead references linger on the dashboard's recent
-  // activity feed after the notification is gone.
+  // activity or off-site-status feeds after the notification is gone. activity_log stores
+  // the work-order id under both 'work_order' and 'off_site_status_update' entity types.
   await sb.from('notifications').delete().eq('entity_type', 'work_order').eq('entity_id', workOrderId)
-  await sb.from('activity_log').delete().eq('entity_type', 'work_order').eq('entity_id', workOrderId)
+  await sb.from('activity_log').delete().in('entity_type', ['work_order', 'off_site_status_update']).eq('entity_id', workOrderId)
 
   const { error } = await sb.from('work_orders').delete().eq('id', workOrderId)
   if (error) return { error: error.message }

@@ -150,9 +150,10 @@ export async function deleteCustomer(
       // Cascade: delete the referencing notifications first (each cascades its own
       // check-ins/closures/forms/etc.), which lifts the RESTRICT on the customer.
       const woIds = blocking.map(b => b.id)
-      // Clear loose (non-FK) entity_id references so no dead links linger post-delete.
+      // Clear loose (non-FK) entity_id references so no dead links linger post-delete
+      // (activity_log holds the work-order id under both entity types below).
       await sb.from('notifications').delete().eq('entity_type', 'work_order').in('entity_id', woIds)
-      await sb.from('activity_log').delete().eq('entity_type', 'work_order').in('entity_id', woIds)
+      await sb.from('activity_log').delete().in('entity_type', ['work_order', 'off_site_status_update']).in('entity_id', woIds)
       const { error: woErr } = await sb.from('work_orders').delete().in('id', woIds)
       if (woErr) return { error: woErr.message }
     }
