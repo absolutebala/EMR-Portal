@@ -17,9 +17,19 @@ import type {
 // pending-submissions queue in the Next.js repo) with a maintained library doing the
 // same job. Reused unmodified by every screen with a write (checkin, closure, and
 // later the form submit, product requests, expenses) — build this once, here.
+// Auto-refresh: every query polls every 45s so open screens stay fresh without the
+// engineer manually reloading. This is naturally scoped to "visible + foreground":
+// - refetchIntervalInBackground defaults to false, and focusManager (wired to AppState
+//   below) reports unfocused when the app is backgrounded, so polling pauses off-screen.
+// - the Tabs navigator unmounts inactive tab screens, so a hidden tab's query has no
+//   observer and doesn't poll either.
+// Two keys deliberately opt out (see below): the offline form cache (must not re-download
+// on a timer) and check-in-drift (keeps its own slower 3-min cadence).
+const AUTO_REFRESH_MS = 45_000;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
+    queries: { retry: 1, staleTime: 30_000, refetchInterval: AUTO_REFRESH_MS },
     mutations: { retry: 2 },
   },
 });
@@ -53,6 +63,9 @@ export const WORK_ORDER_FORM_QUERY_KEY = 'work-order-form';
 queryClient.setQueryDefaults([WORK_ORDER_FORM_QUERY_KEY], {
   gcTime: Infinity,
   staleTime: 5 * 60_000,
+  // Never re-poll the pre-downloaded offline form payload on the global 45s timer —
+  // it's deliberately cached for hours/days ahead of a no-signal site visit.
+  refetchInterval: false,
 });
 
 // Registered once here (not just passed inline to useMutation in each screen) so a
