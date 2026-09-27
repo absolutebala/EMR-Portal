@@ -422,6 +422,9 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   }, [canApprove])
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  // Which export the "Include Installation Team?" popup is confirming (null = closed).
+  const [exportPrompt, setExportPrompt] = useState<null | 'status' | 'attendance'>(null)
+  const [includeInstallation, setIncludeInstallation] = useState(false)
   const [nameQuery, setNameQuery] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
@@ -477,15 +480,18 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   // engineer/date, which the old export (attendance-table-only) never had.
   // One sheet per engineer, rather than everyone on a single tab, so a manager
   // reviewing one engineer's month doesn't have to filter/scroll past everyone else's.
-  function handleExport() {
+  function handleExport(includeInstallation: boolean) {
     setExporting(true)
     setExportError('')
-    if (!rows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
+    // Field Engineers are always included; Installation Team rows are dropped unless the
+    // export popup's "Include Installation Team" box is ticked.
+    const exportRows = includeInstallation ? rows : rows.filter(r => r.role !== 'Installation Team')
+    if (!exportRows.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
     const headers = ['Engineer', 'Date', 'Attendance Status', 'Punched In At', 'Punch In Location', 'Reason', 'Approved By', 'Approved Date', 'Punched Out At', 'Punch Out Location', 'Project Name', 'Job Status']
 
     const byEngineer = new Map<string, { name: string; rows: AttendanceOverviewRow[] }>()
-    for (const row of rows) {
+    for (const row of exportRows) {
       const entry = byEngineer.get(row.engineerId)
       if (entry) entry.rows.push(row)
       else byEngineer.set(row.engineerId, { name: row.engineerName, rows: [row] })
@@ -530,10 +536,13 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   // "Export Status" — the same engineer × date grid shown on screen, as a single sheet.
   // Engineers run down column A; dates across the top; each cell is stacked over five
   // rows: Status, Punch in, Punched out (+ location), Working hours, and the day's job(s).
-  async function handleExportStatus() {
+  async function handleExportStatus(includeInstallation: boolean) {
     setExporting(true)
     setExportError('')
-    if (!engineers.length || !dates.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
+    // Same Installation-Team gate as the per-engineer export above.
+    const installIds = new Set(rows.filter(r => r.role === 'Installation Team').map(r => r.engineerId))
+    const exportEngineers = includeInstallation ? engineers : engineers.filter(e => !installIds.has(e.id))
+    if (!exportEngineers.length || !dates.length) { setExporting(false); setExportError('No attendance data in this range to export.'); return }
 
     try {
       // ExcelJS (dynamically imported so it stays out of the main bundle) — SheetJS
@@ -588,7 +597,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         c.border = { bottom: thin('FF7D1D3F') }
       })
 
-      for (const eng of engineers) {
+      for (const eng of exportEngineers) {
         const cells = dates.map(d => cellFor(eng.id, d))
         const startRow = ws.rowCount + 1
         rowText.forEach((fn, i) => ws.addRow([i === 0 ? eng.name : '', ...cells.map(fn)]))
@@ -778,7 +787,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               </button>
             )}
             <button
-              onClick={handleExportStatus}
+              onClick={() => { setIncludeInstallation(false); setExportError(''); setExportPrompt('status') }}
               disabled={exporting}
               title="Single sheet matching the on-screen view: Engineer, Date, Status, Punch In, Punch Out, Working Hours"
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
@@ -787,7 +796,7 @@ export default function AttendancePageClient({ initialRows, initialError, initia
               {exporting ? 'Exporting…' : 'Export Status'}
             </button>
             <button
-              onClick={handleExport}
+              onClick={() => { setIncludeInstallation(false); setExportError(''); setExportPrompt('attendance') }}
               disabled={exporting}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
             >
@@ -833,6 +842,31 @@ export default function AttendancePageClient({ initialRows, initialError, initia
         )}
         {showLeaveModal && (
           <PendingLeaveModal requests={leaveRequests} actingOn={actingOn} onDecision={handleLeaveDecision} onClose={() => setShowLeaveModal(false)} />
+        )}
+
+        {exportPrompt && (
+          <div onClick={() => !exporting && setExportPrompt(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, width: '100%', maxWidth: 380, fontFamily: 'Poppins,sans-serif' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--tx)', marginBottom: 6 }}>
+                Export {exportPrompt === 'status' ? 'Status' : 'Attendance'}
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--tx)', cursor: 'pointer', margin: '10px 0 16px' }}>
+                <input type="checkbox" checked={includeInstallation} onChange={e => setIncludeInstallation(e.target.checked)} style={{ cursor: 'pointer' }} />
+                Include Installation Team
+              </label>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 16 }}>Field Engineers are always included. Tick to also include Installation Team members.</div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setExportPrompt(null)} disabled={exporting} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+                <button
+                  onClick={async () => { const kind = exportPrompt; const inc = includeInstallation; setExportPrompt(null); if (kind === 'status') await handleExportStatus(inc); else handleExport(inc) }}
+                  disabled={exporting}
+                  style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: exporting ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: exporting ? 0.7 : 1 }}
+                >
+                  {exporting ? 'Exporting…' : 'Export'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden', minWidth: 0 }}>

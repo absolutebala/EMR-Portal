@@ -25,6 +25,8 @@ export interface AttendanceOverviewJob {
 export interface AttendanceOverviewRow {
   engineerId: string
   engineerName: string
+  // The engineer's role — used by the desktop export's "Include Installation Team" toggle.
+  role: string
   date: string
   attendance: AttendanceEffectiveStatus
   // Raw timestamp of whatever attendance row exists for this engineer/date (if
@@ -69,12 +71,12 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
 
     const { data: profiles, error: profErr } = await admin
       .from('profiles')
-      .select('id, first_name, last_name, created_at')
-      .eq('role', 'Field Engineer')
+      .select('id, first_name, last_name, created_at, role')
+      .in('role', ['Field Engineer', 'Installation Team'])
       .order('first_name')
     if (profErr) return { rows: [], error: profErr.message }
 
-    const engineers = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}`, createdAt: p.created_at as string | null }))
+    const engineers = (profiles || []).map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}`, createdAt: p.created_at as string | null, role: (p.role as string) || '' }))
     if (!engineers.length) return { rows: [], error: null }
 
     const todayStr = getISTDateStr()
@@ -224,6 +226,7 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
         rows.push({
           engineerId: eng.id,
           engineerName: eng.name,
+          role: eng.role,
           date: dateStr,
           attendance,
           markedAt: row?.marked_at ?? null,
@@ -294,7 +297,7 @@ export async function getAttendanceStats(): Promise<{ stats: AttendanceStats | n
     const fetchFrom = weekStart < monthStart ? weekStart : monthStart
 
     const [{ data: profiles, error: profErr }, { data: attRows }, { data: holidays }] = await Promise.all([
-      admin.from('profiles').select('id, first_name, last_name, created_at').eq('role', 'Field Engineer'),
+      admin.from('profiles').select('id, first_name, last_name, created_at').in('role', ['Field Engineer', 'Installation Team']),
       admin.from('attendance')
         .select('engineer_id, attendance_date, status, day_off, approval_status, reason, marked_at, place_name, approved_by, approved_at, late_in, early_out, single_punch, short_hours, end_day_at, end_day_place_name, punch_category, visit_customer_name, visit_site_address, visit_purpose')
         .gte('attendance_date', fetchFrom).lte('attendance_date', todayStr),
