@@ -155,7 +155,10 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
   const [rescheduleError, setRescheduleError] = useState('')
 
   const [currentStatus, setCurrentStatus] = useState<EngineerStatusValue>(statusPrompt?.currentStatus || 'available')
-  const [showStatusModal, setShowStatusModal] = useState(!!statusPrompt?.needsPrompt)
+  // Never force the "Set your status" prompt open on load — the RN app dropped that
+  // prompt entirely (work status is set via the punch-in category), so the PWA matches
+  // it: the modal only opens when the user taps the status chip themselves.
+  const [showStatusModal, setShowStatusModal] = useState(false)
   const [statusStep, setStatusStep] = useState<'choose' | 'pick-site'>('choose')
   const [pendingStatus, setPendingStatus] = useState<EngineerStatusValue | null>(null)
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState('')

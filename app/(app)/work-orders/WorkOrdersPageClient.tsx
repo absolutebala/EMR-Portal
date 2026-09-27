@@ -87,6 +87,7 @@ type SortKey = 'daysLeft' | 'paid' | 'status' | 'location' | 'customer' | 'id' |
 // Sortable columns in render order; Actions is not sortable so it's rendered separately.
 const COLUMNS: { key: SortKey; label: string; kind: 'number' | 'string' }[] = [
   { key: 'daysLeft', label: 'Days Left', kind: 'number' },
+  { key: 'created', label: 'Created', kind: 'number' },
   { key: 'paid', label: 'Paid', kind: 'number' },
   { key: 'status', label: 'Status', kind: 'string' },
   { key: 'location', label: 'Location', kind: 'string' },
@@ -97,7 +98,6 @@ const COLUMNS: { key: SortKey; label: string; kind: 'number' | 'string' }[] = [
   { key: 'shipped', label: 'Shipped to', kind: 'string' },
   { key: 'engineer', label: 'Engineer', kind: 'string' },
   { key: 'warranty', label: 'Warranty', kind: 'number' },
-  { key: 'created', label: 'Created', kind: 'number' },
 ]
 
 function sortValue(wo: WorkOrder, key: SortKey): number | string | null {
@@ -411,6 +411,9 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
                           <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: dl.bg, color: dl.color, fontVariantNumeric: 'tabular-nums' }}>{dl.label}</span>
                         </td>
                       ) })()}
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>
+                        {wo.created_at ? new Date(wo.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                         {wo.job_type === 'overhauling'
                           ? <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
@@ -457,9 +460,6 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
                         {wo.has_warranty
                           ? <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#D1FAE5', color: '#065F46' }}>Yes</span>
                           : <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#F1F5F9', color: '#475569' }}>No</span>}
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)', whiteSpace: 'nowrap' }}>
-                        {wo.created_at ? new Date(wo.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', gap: 6 }}>
