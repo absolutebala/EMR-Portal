@@ -77,7 +77,9 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
 
   async function handleDelete(p: Product) {
     if (!confirm(`Remove "${p.name}" from the catalog?`)) return
-    await deleteProduct(p.id)
+    setBulkNotice('')
+    const res = await deleteProduct(p.id)
+    if (res.error) { setBulkNotice(res.error); return }
     router.refresh()
   }
 
@@ -157,7 +159,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
           </button>
         </div>
 
-        {bulkNotice && <div style={{ background: '#ECFDF5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{bulkNotice}</div>}
+        {bulkNotice && <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{bulkNotice}</div>}
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {filtered.length === 0 ? (

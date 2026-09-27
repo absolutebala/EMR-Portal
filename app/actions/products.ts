@@ -73,6 +73,13 @@ export async function deleteProduct(id: string): Promise<{ error: string | null 
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    // products.id is ON DELETE RESTRICT from product_request_items — a product used in
+    // any product request can't be removed. Check up front so the user gets a clear
+    // message instead of a raw "violates foreign key constraint" database error.
+    const { data: refs } = await admin.from('product_request_items').select('id').eq('product_id', id).limit(1)
+    if (refs && refs.length > 0) {
+      return { error: 'This product is used in one or more product requests and can’t be deleted.' }
+    }
     const { error } = await admin.from('products').delete().eq('id', id)
     if (error) return { error: error.message }
     return { error: null }
