@@ -113,12 +113,10 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
               year_of_manufacture: String(r[iYear] || '').trim(),
               warranty_status: warranty,
             }
-            if (!row.name) row._error = 'Missing customer name'
-            else if (!row.contact_person) row._error = 'Missing contact person'
-            else if (!row.phone) row._error = 'Missing phone'
-            else if (!row.serial_number) row._error = 'Missing serial number'
-            else if (pincode && !/^\d{6}$/.test(pincode)) row._error = `Invalid pincode: "${pincode}"`
-            else if (!row.site_address && !row.address) row._error = 'Missing address (or site address)'
+            // No column is mandatory — the only thing that flags a row is a value that's
+            // present but malformed (a pincode that isn't 6 digits). Everything else,
+            // including customer name, contact, phone, serial and address, is optional.
+            if (pincode && !/^\d{6}$/.test(pincode)) row._error = `Invalid pincode: "${pincode}"`
             return row
           })
 
@@ -209,8 +207,8 @@ export default function BulkUploadCustomersModal({ open, onClose, onSaved }: Pro
           )}
 
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--txm)' }}>
-            <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Required columns: </span>
-            Customer Name, Contact Person, Phone, Serial Number, and one of Address / Site Address
+            <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Columns: </span>
+            all optional — fill in whatever you have. Rows are only skipped if a pincode is present but isn&apos;t 6 digits.
           </div>
           <div style={{ marginTop: 4, fontSize: 11, color: 'var(--txm)' }}>
             <span style={{ fontWeight: 600, color: 'var(--tx)' }}>End Customer Type: </span>free text (e.g. OEM, Solar) — new values are added automatically.

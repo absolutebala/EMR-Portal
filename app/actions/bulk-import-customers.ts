@@ -49,16 +49,22 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<Bulk
   }
 
   for (const row of rows) {
-    const { data: existingCust } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
-    if (existingCust) {
-      results.push({ name: row.name, status: 'error', error: `Customer "${row.name}" already exists.` })
-      continue
+    if (row.name) {
+      const { data: existingCust } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
+      if (existingCust) {
+        results.push({ name: row.name, status: 'error', error: `Customer "${row.name}" already exists.` })
+        continue
+      }
     }
 
-    const { data: existingSerial } = await admin.from('transformers').select('id').eq('serial_number', row.serial_number).maybeSingle()
-    if (existingSerial) {
-      results.push({ name: row.name, status: 'error', error: `Serial number "${row.serial_number}" is already in use.` })
-      continue
+    // Serial number is optional now — only guard against duplicates when one is actually
+    // provided, otherwise an empty string would false-match every other serial-less row.
+    if (row.serial_number) {
+      const { data: existingSerial } = await admin.from('transformers').select('id').eq('serial_number', row.serial_number).maybeSingle()
+      if (existingSerial) {
+        results.push({ name: row.name, status: 'error', error: `Serial number "${row.serial_number}" is already in use.` })
+        continue
+      }
     }
 
     const endCustomerTypeId = await resolveEndCustomerTypeId(row.end_customer_type_name)
@@ -92,16 +98,20 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<Bulk
       continue
     }
 
-    const { error: te } = await admin.from('transformers').insert({
-      customer_id: cust.id,
-      site_id: site.id,
-      serial_number: row.serial_number,
-      year_of_manufacture: row.year_of_manufacture || null,
-      warranty_status: row.warranty_status || 'under_warranty',
-    })
-    if (te) {
-      results.push({ name: row.name, status: 'error', error: te.message })
-      continue
+    // Only create a transformer when there's at least a serial to hang it on — a row
+    // with no serial/year/warranty is just a customer + site + contact.
+    if (row.serial_number) {
+      const { error: te } = await admin.from('transformers').insert({
+        customer_id: cust.id,
+        site_id: site.id,
+        serial_number: row.serial_number,
+        year_of_manufacture: row.year_of_manufacture || null,
+        warranty_status: row.warranty_status || 'under_warranty',
+      })
+      if (te) {
+        results.push({ name: row.name, status: 'error', error: te.message })
+        continue
+      }
     }
 
     await admin.from('customer_contacts').insert({
