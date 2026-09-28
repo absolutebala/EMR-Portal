@@ -1,7 +1,10 @@
 import { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert, Linking, Modal } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useWorkOrderDetail, useSubmitCheckIn, reverseGeocode } from '@/lib/hooks';
+import { apiPost } from '@/lib/api';
 import { getCurrentPositionWithFallback } from '@/lib/gps';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/lib/constants';
@@ -25,6 +28,39 @@ export default function WorkOrderDetailScreen() {
   const submitCheckIn = useSubmitCheckIn();
   const [offlineChecking, setOfflineChecking] = useState(false);
   const [showForms, setShowForms] = useState(false);
+
+  const qc = useQueryClient();
+  const [otwBusy, setOtwBusy] = useState(false);
+  const [customerMsg, setCustomerMsg] = useState('');
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<Date>(new Date());
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+
+  async function handleOnTheWay() {
+    setOtwBusy(true); setCustomerMsg('');
+    try {
+      const res = await apiPost<{ error: string | null }>(`/api/mobile/v1/work-orders/${id}/on-the-way`);
+      setCustomerMsg(res.error || 'Customer notified — on the way ✓');
+    } catch (e) {
+      setCustomerMsg(apiErrorMessage(e));
+    } finally { setOtwBusy(false); }
+  }
+  function onRescheduleDateChange(_e: DateTimePickerEvent, d?: Date) {
+    if (d) setRescheduleDate(d);
+  }
+  async function handleReschedule() {
+    setRescheduleBusy(true); setCustomerMsg('');
+    try {
+      const newDate = rescheduleDate.toLocaleDateString('en-CA'); // YYYY-MM-DD, local
+      const res = await apiPost<{ error: string | null }>(`/api/mobile/v1/work-orders/${id}/reschedule`, { newDate });
+      if (res.error) { setCustomerMsg(res.error); return; }
+      setRescheduleOpen(false);
+      setCustomerMsg('Rescheduled — customer notified ✓');
+      qc.invalidateQueries({ queryKey: ['work-order', id] });
+    } catch (e) {
+      setCustomerMsg(apiErrorMessage(e));
+    } finally { setRescheduleBusy(false); }
+  }
 
   // "Offline Check-In": grab GPS on the spot and check in immediately — no photo, no
   // extra screen. GPS comes from the device sensor so it works without a connection;
@@ -120,9 +156,41 @@ export default function WorkOrderDetailScreen() {
         </View>
       </View>
 
+      {!isClosed && (
+        <View style={styles.customerActionRow}>
+          <Pressable style={[styles.customerActionBtn, otwBusy && styles.customerActionBtnOff]} onPress={handleOnTheWay} disabled={otwBusy}>
+            <Text style={styles.customerActionText}>{otwBusy ? 'Sending…' : 'On the Way'}</Text>
+          </Pressable>
+          <Pressable style={styles.customerActionBtn} onPress={() => { setCustomerMsg(''); setRescheduleDate(wo.scheduled_date ? new Date(wo.scheduled_date) : new Date()); setRescheduleOpen(true); }}>
+            <Text style={styles.customerActionText}>Reschedule</Text>
+          </Pressable>
+        </View>
+      )}
+      {!!customerMsg && (
+        <Text style={[styles.customerMsg, customerMsg.includes('✓') ? styles.customerMsgOk : styles.customerMsgErr]}>{customerMsg}</Text>
+      )}
+
       <View style={styles.sitePhotosRow}>
         <RNSitePhotos workOrderId={wo.id} />
       </View>
+
+      <Modal visible={rescheduleOpen} transparent animationType="slide" onRequestClose={() => setRescheduleOpen(false)}>
+        <Pressable style={styles.rsBackdrop} onPress={() => setRescheduleOpen(false)}>
+          <Pressable style={styles.rsCard} onPress={e => e.stopPropagation()}>
+            <Text style={styles.rsTitle}>Reschedule notification</Text>
+            <Text style={styles.rsSub}>Pick a new date — the customer will be notified.</Text>
+            <View style={styles.rsPickerWrap}>
+              <DateTimePicker value={rescheduleDate} mode="date" minimumDate={new Date()} onChange={onRescheduleDateChange} />
+            </View>
+            <Pressable style={[styles.rsBtn, rescheduleBusy && styles.customerActionBtnOff]} onPress={handleReschedule} disabled={rescheduleBusy}>
+              <Text style={styles.rsBtnText}>{rescheduleBusy ? 'Rescheduling…' : 'Reschedule & notify'}</Text>
+            </Pressable>
+            <Pressable style={styles.rsCancel} onPress={() => setRescheduleOpen(false)} disabled={rescheduleBusy}>
+              <Text style={styles.rsCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <View style={styles.actionPanel}>
         <View style={[styles.badge, { backgroundColor: st.bg, alignSelf: 'flex-start', marginBottom: 10 }]}>
@@ -378,6 +446,22 @@ const styles = StyleSheet.create({
   stepLabelCurrent: { color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
 
   sitePhotosRow: { flexDirection: 'row', justifyContent: 'flex-end', marginHorizontal: 16, marginTop: 12 },
+  customerActionRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12 },
+  customerActionBtn: { flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#7D1D3F', borderRadius: 20, paddingVertical: 9, alignItems: 'center' },
+  customerActionBtnOff: { opacity: 0.6 },
+  customerActionText: { color: '#7D1D3F', fontSize: 12.5, fontWeight: '600' },
+  customerMsg: { marginHorizontal: 16, marginTop: 8, fontSize: 11, textAlign: 'right' },
+  customerMsgOk: { color: '#065F46' },
+  customerMsgErr: { color: '#DC2626' },
+  rsBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  rsCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  rsTitle: { fontSize: 16, fontWeight: '700', color: '#1C0D14' },
+  rsSub: { fontSize: 12, color: '#7A6870', marginTop: 3, marginBottom: 10 },
+  rsPickerWrap: { alignItems: 'center', marginBottom: 12 },
+  rsBtn: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  rsBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  rsCancel: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  rsCancelText: { color: '#7A6870', fontSize: 13, fontWeight: '600' },
   actionPanel: { backgroundColor: '#fff', margin: 16, marginBottom: 0, borderRadius: 12, padding: 14 },
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '600' },

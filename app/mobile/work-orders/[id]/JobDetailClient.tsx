@@ -9,7 +9,7 @@ import { JOB_TYPE_LABELS, STATUS_CONFIG } from '@/components/mobile/constants'
 import type { MobileWorkOrderDetail } from '@/lib/mobile/core/shared'
 import { getCheckInSyncStatus, clearCheckInSyncStatus, retryCheckIn, syncPendingCheckins, startBackgroundCheckIn, type CheckInSyncStatus } from '@/lib/mobile/backgroundCheckIn'
 import { getClosureSyncStatus, retryClosure, syncPendingClosures, type ClosureSyncStatus } from '@/lib/mobile/backgroundClosure'
-import { reverseGeocode } from '@/app/actions/mobile-actions'
+import { reverseGeocode, notifyOnTheWay, rescheduleNotification } from '@/app/actions/mobile-actions'
 
 interface Props {
   detail: MobileWorkOrderDetail
@@ -33,6 +33,31 @@ export default function JobDetailClient({ detail, currentUserId, isAdmin }: Prop
   const [offlineChecking, setOfflineChecking] = useState(false)
   const [showForms, setShowForms] = useState(false)
   const [phoneCopied, setPhoneCopied] = useState(false)
+
+  const [otwBusy, setOtwBusy] = useState(false)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [rescheduleDate, setRescheduleDate] = useState(
+    wo.scheduled_date ? new Date(wo.scheduled_date).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA')
+  )
+  const [rescheduleBusy, setRescheduleBusy] = useState(false)
+  const [customerMsg, setCustomerMsg] = useState('')
+
+  async function handleOnTheWay() {
+    setOtwBusy(true); setCustomerMsg('')
+    const { error } = await notifyOnTheWay(wo.id)
+    setOtwBusy(false)
+    setCustomerMsg(error || 'Customer notified — on the way ✓')
+  }
+  async function handleReschedule() {
+    if (!rescheduleDate) return
+    setRescheduleBusy(true); setCustomerMsg('')
+    const { error } = await rescheduleNotification(wo.id, rescheduleDate)
+    setRescheduleBusy(false)
+    if (error) { setCustomerMsg(error); return }
+    setRescheduleOpen(false)
+    setCustomerMsg('Rescheduled — customer notified ✓')
+    router.refresh()
+  }
 
   // Copy the customer phone number to the clipboard and flash a brief "Copied ✓"
   // confirmation on the button for ~1.5s.
@@ -212,10 +237,47 @@ export default function JobDetailClient({ detail, currentUserId, isAdmin }: Prop
         </div>
       </div>
 
-      {/* Site Photos — available for every notification regardless of status. */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 16px 0' }}>
+      {/* Customer actions + Site Photos. On the Way / Reschedule both message the
+          customer; Reschedule also updates the notification's scheduled date. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, justifyContent: 'flex-end', margin: '10px 16px 0' }}>
+        {!isClosed && (
+          <>
+            <button className="mtap" onClick={handleOnTheWay} disabled={otwBusy}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1.5px solid #7D1D3F', color: '#7D1D3F', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: otwBusy ? 'not-allowed' : 'pointer', opacity: otwBusy ? 0.6 : 1, fontFamily: 'Poppins, sans-serif' }}>
+              {otwBusy ? 'Sending…' : 'On the Way'}
+            </button>
+            <button className="mtap" onClick={() => { setCustomerMsg(''); setRescheduleOpen(true) }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1.5px solid #7D1D3F', color: '#7D1D3F', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+              Reschedule
+            </button>
+          </>
+        )}
         <SitePhotosButton workOrderId={wo.id} currentUserId={currentUserId} isAdmin={isAdmin} />
       </div>
+      {customerMsg && (
+        <div style={{ margin: '8px 16px 0', fontSize: 11, color: customerMsg.includes('✓') ? '#065F46' : '#DC2626', textAlign: 'right' }}>{customerMsg}</div>
+      )}
+
+      {rescheduleOpen && (
+        <div onClick={() => setRescheduleOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '18px 18px 24px', fontFamily: 'Poppins, sans-serif' }}>
+            <div style={{ width: 40, height: 4, borderRadius: 4, background: '#E5E0E3', margin: '0 auto 14px' }} />
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1C0D14' }}>Reschedule notification</div>
+            <div style={{ fontSize: 12, color: '#7A6870', margin: '3px 0 14px' }}>Pick a new date — the customer will be notified.</div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>New scheduled date</label>
+            <input type="date" value={rescheduleDate} min={new Date().toLocaleDateString('en-CA')} onChange={e => setRescheduleDate(e.target.value)}
+              style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #E5E0E3', borderRadius: 10, fontSize: 14, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif', boxSizing: 'border-box', marginBottom: 16 }} />
+            <button className="mtap" onClick={handleReschedule} disabled={rescheduleBusy || !rescheduleDate}
+              style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none', background: (rescheduleBusy || !rescheduleDate) ? '#C9A3B5' : '#7D1D3F', color: '#fff', fontSize: 14, fontWeight: 700, cursor: (rescheduleBusy || !rescheduleDate) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+              {rescheduleBusy ? 'Rescheduling…' : 'Reschedule & notify'}
+            </button>
+            <button className="mtap" onClick={() => setRescheduleOpen(false)} disabled={rescheduleBusy}
+              style={{ width: '100%', padding: 12, marginTop: 6, background: 'none', border: 'none', color: '#7A6870', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Action panel */}
       <div style={{ background: '#fff', margin: '10px 16px 0', borderRadius: 12, padding: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>

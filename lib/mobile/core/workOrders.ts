@@ -951,3 +951,72 @@ export async function submitJobFormCore(admin: AdminClient, userId: string, para
     return { error: e instanceof Error ? e.message : String(e), completed: false }
   }
 }
+
+// Shared "DD MMM YYYY" formatting for customer-facing messages, matching the
+// assignment messages' date format.
+function scheduledLabel(d: string | null | undefined): string {
+  return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not scheduled'
+}
+
+// "On the Way" button on the notification detail: tell the customer their engineer is
+// heading over (WhatsApp/SMS with the engineer's name + phone). Message only — does not
+// change any status. Scoped to the assigned engineer.
+export async function notifyOnTheWayCore(admin: AdminClient, userId: string, workOrderId: string): Promise<{ error: string | null }> {
+  try {
+    const { data: wo } = await admin.from('work_orders').select('customer_id, engineer_id').eq('id', workOrderId).maybeSingle()
+    if (!wo) return { error: 'Notification not found' }
+    if (wo.engineer_id !== userId) return { error: 'Not authorized for this notification' }
+    if (!wo.customer_id) return { error: 'This notification has no customer to notify.' }
+
+    const [{ data: actor }, { data: customer }] = await Promise.all([
+      admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).maybeSingle(),
+      admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle(),
+    ])
+    if (!customer) return { error: 'Customer not found' }
+    const engName = actor ? `${actor.first_name} ${actor.last_name}`.trim() : 'Engineer'
+
+    // Template params: 1) engineer full name, 2) engineer phone (so the customer can
+    // reach the engineer who's on the way). Fired for both WhatsApp and SMS per the
+    // global channel setting.
+    await sendWhatsApp(admin, 'on_the_way', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+      [engName, actor?.phone || ''])
+    logActivity(admin, workOrderId, userId, 'Notified customer: on the way').catch(() => {})
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// "Reschedule" button: update the notification's scheduled date and tell the customer
+// the new date (WhatsApp/SMS). Reuses the assignment-confirmation message with the new
+// date. Scoped to the assigned engineer; the desktop/SM path notifies separately.
+export async function rescheduleNotificationCore(admin: AdminClient, userId: string, workOrderId: string, newDate: string): Promise<{ error: string | null }> {
+  try {
+    if (!newDate) return { error: 'Pick a new date.' }
+    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id').eq('id', workOrderId).maybeSingle()
+    if (!wo) return { error: 'Notification not found' }
+    if (wo.engineer_id !== userId) return { error: 'Not authorized for this notification' }
+
+    const { error: upErr } = await admin.from('work_orders')
+      .update({ scheduled_date: newDate, updated_at: new Date().toISOString() }).eq('id', workOrderId)
+    if (upErr) return { error: upErr.message }
+
+    logActivity(admin, workOrderId, userId, `Rescheduled to ${scheduledLabel(newDate)}`).catch(() => {})
+
+    if (wo.customer_id) {
+      const [{ data: actor }, { data: customer }] = await Promise.all([
+        admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).maybeSingle(),
+        admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle(),
+      ])
+      if (customer) {
+        const engName = actor ? `${actor.first_name} ${actor.last_name}`.trim() : 'Engineer'
+        // Reuse the customer-assignment template with the NEW date (per the chosen approach).
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+          [engName, scheduledLabel(newDate), actor?.phone || '']).catch(() => {})
+      }
+    }
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}

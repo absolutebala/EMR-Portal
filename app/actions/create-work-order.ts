@@ -234,7 +234,7 @@ export async function updateWorkOrder(id: string, payload: {
     const admin = adminClient()
 
     // Fetch current WO to detect changes
-    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id').eq('id', id).single()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id, scheduled_date').eq('id', id).single()
     if (!current) return { error: 'Notification not found' }
 
     // Check WO number uniqueness (skip if unchanged)
@@ -298,6 +298,22 @@ export async function updateWorkOrder(id: string, payload: {
       await admin.from('work_order_additional_engineers').insert(
         payload.additional_engineer_ids.map(engineerId => ({ work_order_id: id, engineer_id: engineerId }))
       )
+    }
+
+    // A Service Manager rescheduling (changing the scheduled date) tells the customer the
+    // new date — same as when a field engineer reschedules from the app. Skipped when the
+    // engineer also changed, since that path already messages the customer with the date.
+    const dateChanged = (payload.scheduled_date || null) !== (current.scheduled_date || null)
+    if (dateChanged && !engineerChanged && current.customer_id) {
+      const [{ data: rsCustomer }, { data: rsEng }] = await Promise.all([
+        admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle(),
+        current.engineer_id ? admin.from('profiles').select('first_name, last_name, phone').eq('id', current.engineer_id).maybeSingle() : Promise.resolve({ data: null }),
+      ])
+      if (rsCustomer) {
+        const rsEngName = rsEng ? `${rsEng.first_name} ${rsEng.last_name}` : 'Engineer'
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: rsCustomer.whatsapp_number || rsCustomer.phone, userName: rsCustomer.contact_person }],
+          [rsEngName, formatScheduledDate(payload.scheduled_date), rsEng?.phone || '']).catch(() => {})
+      }
     }
 
     // Activity log

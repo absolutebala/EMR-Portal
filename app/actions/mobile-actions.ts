@@ -17,6 +17,7 @@ import { getNearbyEngineersCore, type NearbyEngineer } from '@/lib/mobile/core/n
 import { markProductReceivedCore, type PendingProductItem } from '@/lib/mobile/core/products'
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
+  notifyOnTheWayCore, rescheduleNotificationCore,
 } from '@/lib/mobile/core/workOrders'
 import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 // NOTE: MobileWorkOrder, MobileWorkOrderWithCustomer, MobileDashboardStats,
@@ -67,6 +68,20 @@ export async function markProductReceived(itemId: string): Promise<{ error: stri
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
   return markProductReceivedCore(adminClient(), user.id, itemId)
+}
+
+// "On the Way" button — notify the customer (WhatsApp/SMS) that the engineer is heading over.
+export async function notifyOnTheWay(workOrderId: string): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return notifyOnTheWayCore(adminClient(), user.id, workOrderId)
+}
+
+// "Reschedule" button — update the notification's scheduled date and notify the customer.
+export async function rescheduleNotification(workOrderId: string, newDate: string): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return rescheduleNotificationCore(adminClient(), user.id, workOrderId, newDate)
 }
 
 // Check-in drift: is the engineer 2km+ from where they checked in while still "Reached"?
