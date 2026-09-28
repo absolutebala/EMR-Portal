@@ -12,7 +12,12 @@ import { markEndDay, markAttendance, cancelDayOff, updatePunchCategory } from '@
 import PunchInModal, { type PunchInPayload } from '@/components/mobile/PunchInModal'
 import { categoryMeta } from '@/lib/punchCategory'
 import { getDepartmentOpenCounts } from '@/app/actions/department-jobs'
-import type { DepartmentOpenCount } from '@/lib/mobile/core/dashboard'
+import PendingProductsCard from '@/components/mobile/PendingProductsCard'
+import AppUpdatePopup from '@/components/mobile/AppUpdatePopup'
+import UnreadNotificationsPopup from '@/components/mobile/UnreadNotificationsPopup'
+import CheckinDriftBanner from '@/components/mobile/CheckinDriftBanner'
+import type { DepartmentOpenCount, AppUpdatePrompt } from '@/lib/mobile/core/dashboard'
+import type { PendingProductItem } from '@/lib/mobile/core/products'
 import type { MobileWorkOrder, MobileDashboardStats, OverdueFollowUp, EngineerStatusPrompt, EngineerStatusValue } from '@/lib/mobile/core/shared'
 import type { AttendanceEffectiveStatus } from '@/lib/mobile/core/attendance'
 
@@ -25,6 +30,8 @@ interface Props {
   overdueFollowUps: OverdueFollowUp[]
   statusPrompt: EngineerStatusPrompt | null
   unreadAlerts: number
+  pendingProducts: PendingProductItem[]
+  updatePrompt: AppUpdatePrompt | null
 }
 
 // Orange while the 10am window is still open and nothing's marked, red once it's
@@ -136,7 +143,7 @@ function getCurrentPositionAsync(): Promise<{ lat: number; lng: number } | null>
   })
 }
 
-export default function MobileDashboardClient({ recentJobs, engineer, attendanceStatus, error, overdueFollowUps, statusPrompt, unreadAlerts }: Props) {
+export default function MobileDashboardClient({ recentJobs, engineer, attendanceStatus, error, overdueFollowUps, statusPrompt, unreadAlerts, pendingProducts, updatePrompt }: Props) {
   const router = useRouter()
   const [queue, setQueue] = useState(overdueFollowUps)
   const [departmentCounts, setDepartmentCounts] = useState<DepartmentOpenCount[]>([])
@@ -413,6 +420,8 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
+      <AppUpdatePopup prompt={updatePrompt} />
+      <UnreadNotificationsPopup />
       <PunchInModal open={showPunchIn} onCancel={() => setShowPunchIn(false)} onConfirm={submitPunchIn} submitting={punchingIn} error={punchInError} isLate={punchInIsLate} />
       <PunchInModal
         open={showChangeStatus}
@@ -683,6 +692,8 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        <CheckinDriftBanner />
+
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '12px 14px', fontSize: 13, marginBottom: 16 }}>
             {error}
@@ -922,6 +933,8 @@ export default function MobileDashboardClient({ recentJobs, engineer, attendance
             )
           })}
         </div>
+
+        <PendingProductsCard items={pendingProducts} />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: '#7A6870', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>

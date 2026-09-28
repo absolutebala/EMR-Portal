@@ -12,7 +12,7 @@ export default async function MobileDashboardPage() {
   if (!user) redirect('/mobile/login')
   await requireMobilePasswordChanged(user.id)
 
-  const [{ stats, recentJobs, engineer, attendanceStatus, error }, { followUps }, { prompt }, { unreadCount }] = await Promise.all([
+  const [{ stats, recentJobs, engineer, attendanceStatus, pendingProducts, updatePrompt, error }, { followUps }, { prompt }, { unreadCount }] = await Promise.all([
     getMobileDashboardData(),
     getOverdueFollowUps(),
     getEngineerStatusPrompt(),
@@ -29,6 +29,8 @@ export default async function MobileDashboardPage() {
       overdueFollowUps={followUps}
       statusPrompt={prompt}
       unreadAlerts={unreadCount}
+      pendingProducts={pendingProducts}
+      updatePrompt={updatePrompt}
     />
   )
 }

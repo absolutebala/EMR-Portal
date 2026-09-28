@@ -5,13 +5,15 @@ import {
   adminClient, reverseGeocodeCore,
   type MobileWorkOrder, type MobileWorkOrderWithCustomer, type MobileDashboardStats,
   type OverdueFollowUp, type EngineerStatusValue, type EngineerStatusPrompt,
-  type NotStartedNotice, type MobileWorkOrderDetail,
+  type NotStartedNotice, type MobileWorkOrderDetail, type CheckinDriftNotice,
 } from '@/lib/mobile/core/shared'
 import {
   getMobileWorkOrdersCore, getMobileDashboardDataCore, getOverdueFollowUpsCore, rescheduleFollowUpCore,
   getMobileJobsListCore, recordLastSeenCore, logLocationPingIssueCore, checkOpenVisitFollowUpCore,
-  getEngineerStatusPromptCore, setEngineerStatusCore, checkNotStartedFollowUpCore,
+  getEngineerStatusPromptCore, setEngineerStatusCore, checkNotStartedFollowUpCore, checkCheckinDriftCore,
+  type AppUpdatePrompt,
 } from '@/lib/mobile/core/dashboard'
+import { markProductReceivedCore, type PendingProductItem } from '@/lib/mobile/core/products'
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
 } from '@/lib/mobile/core/workOrders'
@@ -40,11 +42,29 @@ export async function getMobileDashboardData(): Promise<{
   recentJobs: MobileWorkOrder[]
   engineer: { name: string } | null
   attendanceStatus: AttendanceEffectiveStatus
+  pendingProducts: PendingProductItem[]
+  updatePrompt: AppUpdatePrompt | null
   error: string | null
 }> {
   const user = await getAuthedUser()
-  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, attendanceStatus: { kind: 'pending' }, error: 'Not authenticated' }
+  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, attendanceStatus: { kind: 'pending' }, pendingProducts: [], updatePrompt: null, error: 'Not authenticated' }
   return getMobileDashboardDataCore(adminClient(), user.id)
+}
+
+// The one product-status change a field engineer can make: confirming receipt of a
+// dispatched item from the dashboard's Product Requests card (mirrors the native app).
+export async function markProductReceived(itemId: string): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return markProductReceivedCore(adminClient(), user.id, itemId)
+}
+
+// Check-in drift: is the engineer 2km+ from where they checked in while still "Reached"?
+// Powers the PWA dashboard's drift banner, same as the native app.
+export async function checkCheckinDrift(currentLat: number, currentLng: number): Promise<{ notice: CheckinDriftNotice | null; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { notice: null, error: 'Not authenticated' }
+  return checkCheckinDriftCore(adminClient(), user.id, currentLat, currentLng)
 }
 
 export async function getOverdueFollowUps(): Promise<{ followUps: OverdueFollowUp[]; error: string | null }> {
