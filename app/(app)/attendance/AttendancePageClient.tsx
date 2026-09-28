@@ -169,6 +169,11 @@ interface AttendanceCellProps {
 
 function AttendanceCell({ row, canApprove, actingOn, onDecision, dark }: AttendanceCellProps) {
   const s = row.attendance
+  // Today before the punch-in cutoff, with nothing marked yet, is genuinely "nothing has
+  // happened" — leave the cell blank rather than showing a "Pending" badge. (After the
+  // cutoff this becomes 'leave'/Absent, which still shows; this only blanks the pre-cutoff
+  // in-between state.)
+  if (s.kind === 'pending') return null
   // A Present day with a Late In/Early Out/Single Punch flag still pending or
   // rejected gets the same amber/red treatment as a Leave amendment — plain
   // Present (or an approved amendment) stays green. Every other kind uses the
