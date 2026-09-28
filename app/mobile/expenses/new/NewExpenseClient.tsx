@@ -80,7 +80,8 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
 
   async function handleSubmit() {
     setSubmitError('')
-    if (!workOrderId) { setSubmitError('Select the project'); return }
+    // Project (work order) is optional — a projectless expense routes to the engineer's
+    // own department + Head of Service for approval.
     if (lockReason) { setSubmitError(lockReason); return }
     if (!expenseTypeId) { setSubmitError('Select or add an expense type'); return }
     if (!expenseDate) { setSubmitError('Select a date'); return }
@@ -148,7 +149,7 @@ export default function NewExpenseClient({ workOrders, error }: Props) {
         )}
 
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
-          <label style={labelStyle}>Project <span style={{ color: '#7D1D3F' }}>*</span></label>
+          <label style={labelStyle}>Project <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(optional)</span></label>
           <select value={workOrderId} onChange={e => setWorkOrderId(e.target.value)} style={inputStyle}>
             <option value="">Select a project…</option>
             {workOrders.map(wo => (

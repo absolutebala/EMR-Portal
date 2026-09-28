@@ -62,7 +62,8 @@ export default function NewExpenseScreen() {
 
   async function handleSubmit() {
     setSubmitError('');
-    if (!workOrderId) { setSubmitError('Select the project'); return; }
+    // Project (work order) is optional — a projectless expense routes to your own
+    // department + Head of Service for approval.
     if (lockReason) { setSubmitError(lockReason); return; }
     if (!expenseTypeId) { setSubmitError('Select or add an expense type'); return; }
     if (!expenseDate) { setSubmitError('Select a date'); return; }
@@ -129,8 +130,8 @@ export default function NewExpenseScreen() {
       <Stack.Screen options={{ headerShown: true, title: 'Add Expense', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.label}>Project <Text style={styles.required}>*</Text></Text>
-          <RNWorkOrderPicker workOrders={jobsData?.workOrders || []} value={workOrderId} onChange={setWorkOrderId} placeholder="Select a project…" />
+          <Text style={styles.label}>Project <Text style={styles.optionalHint}>(optional)</Text></Text>
+          <RNWorkOrderPicker workOrders={jobsData?.workOrders || []} value={workOrderId} onChange={setWorkOrderId} placeholder="Select a project (optional)…" />
           {lockReason && <Text style={styles.lockNote}>{lockReason}</Text>}
         </View>
 
@@ -225,6 +226,7 @@ const styles = StyleSheet.create({
   photoHint: { fontSize: 10, fontWeight: '400', color: '#7A6870' },
   label: { fontSize: 11, fontWeight: '500', color: '#7A6870', marginBottom: 4 },
   required: { color: '#7D1D3F' },
+  optionalHint: { color: '#9CA3AF', fontWeight: '400' },
   input: {
     borderWidth: 1.5, borderColor: '#E5E0E3', borderRadius: 10, padding: 10, fontSize: 12,
     color: '#1C0D14', backgroundColor: '#fff',

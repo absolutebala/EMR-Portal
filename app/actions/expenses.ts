@@ -76,10 +76,25 @@ export async function getAllExpenseLogs(): Promise<{ logs: ExpenseLogView[]; err
     // resolved via each row's linked work order.
     let scopedRows = rows || []
     if (departmentScope && scopedRows.length) {
-      const woIds = [...new Set(scopedRows.map(r => r.work_order_id))]
-      const { data: wos } = await admin.from('work_orders').select('id, department_id').in('id', woIds)
+      // Project-linked expenses are scoped via the work order's department…
+      const woIds = [...new Set(scopedRows.map(r => r.work_order_id).filter(Boolean))] as string[]
+      const { data: wos } = woIds.length
+        ? await admin.from('work_orders').select('id, department_id').in('id', woIds)
+        : { data: [] as { id: string; department_id: string | null }[] }
       const scopedWoIds = new Set((wos || []).filter(w => departmentScope.includes(w.department_id || '')).map(w => w.id))
-      scopedRows = scopedRows.filter(r => scopedWoIds.has(r.work_order_id))
+
+      // …while a projectless expense is scoped via the engineer's own department (Head of
+      // Service / Super Admin have a null scope above, so they already see every one).
+      const projectlessEngineerIds = [...new Set(scopedRows.filter(r => !r.work_order_id && r.engineer_id).map(r => r.engineer_id))] as string[]
+      const inScopeEngineerIds = new Set<string>()
+      if (projectlessEngineerIds.length) {
+        const { data: pd } = await admin.from('profile_departments').select('profile_id, department_id').in('profile_id', projectlessEngineerIds)
+        for (const row of pd || []) if (departmentScope.includes(row.department_id)) inScopeEngineerIds.add(row.profile_id)
+      }
+
+      scopedRows = scopedRows.filter(r => r.work_order_id
+        ? scopedWoIds.has(r.work_order_id)
+        : !!(r.engineer_id && inScopeEngineerIds.has(r.engineer_id)))
     }
     const logs = await buildExpenseLogViews(admin, scopedRows)
     return { logs, error: null }

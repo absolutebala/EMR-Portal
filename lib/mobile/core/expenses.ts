@@ -139,7 +139,8 @@ type RawExpenseLog = {
 export async function buildExpenseLogViews(admin: AdminClient, rows: RawExpenseLog[]): Promise<ExpenseLogView[]> {
   if (!rows.length) return []
 
-  const woIds = [...new Set(rows.map(r => r.work_order_id))]
+  // Projectless expenses have a null work_order_id — drop nulls before the lookups.
+  const woIds = [...new Set(rows.map(r => r.work_order_id).filter(Boolean))] as string[]
   const typeIds = [...new Set(rows.map(r => r.expense_type_id))]
   const peopleIds = [...new Set([...rows.map(r => r.engineer_id), ...rows.map(r => r.reviewed_by), ...rows.map(r => r.manager_approved_by)].filter(Boolean))] as string[]
 
@@ -217,7 +218,8 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
   photo?: { base64: string; mimeType: string; ext: string }
 }): Promise<{ error: string | null }> {
   try {
-    if (!params.workOrderId) return { error: 'Select a project' }
+    // Project (work order) is optional — a projectless expense routes to the engineer's
+    // own department SM + Head of Service instead of a work order's department.
     if (!params.expenseTypeId) return { error: 'Select an expense type' }
     if (!params.expenseDate) return { error: 'Select a date' }
     if (!params.amount || params.amount <= 0) return { error: 'Enter a valid amount' }
@@ -225,16 +227,21 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
 
     // A Field-Engineer-created notification is expense-locked until a Service Manager /
     // Head of Service approves it (expense_approval null = admin-created, always allowed).
-    const { data: woApproval } = await admin.from('work_orders').select('expense_approval').eq('id', params.workOrderId).maybeSingle()
-    if (woApproval?.expense_approval === 'pending') return { error: 'This notification is awaiting manager approval before expenses can be added.' }
-    if (woApproval?.expense_approval === 'rejected') return { error: "This notification was rejected by a manager — expenses can't be added." }
+    // Only applies when the expense is tied to a project.
+    if (params.workOrderId) {
+      const { data: woApproval } = await admin.from('work_orders').select('expense_approval').eq('id', params.workOrderId).maybeSingle()
+      if (woApproval?.expense_approval === 'pending') return { error: 'This notification is awaiting manager approval before expenses can be added.' }
+      if (woApproval?.expense_approval === 'rejected') return { error: "This notification was rejected by a manager — expenses can't be added." }
+    }
 
     // Only persisted for Boarding & Lodging-type claims from an engineer with a grade
     // set — re-derived server-side rather than trusted from the client.
     let claimType: ClaimType | null = null
     let eligibleLimit: number | null = null
     let cityTier: CityTier | null = null
-    if (params.claimType) {
+    if (params.claimType && params.workOrderId) {
+      // Boarding & Lodging eligibility is derived from the work order's site/customer, so
+      // it only applies to project-linked expenses.
       const { data: expType } = await admin.from('expense_types').select('name').eq('id', params.expenseTypeId).maybeSingle()
       if (expType?.name && /lodging|boarding/i.test(expType.name)) {
         const eligibility = await resolveBLEligibility(admin, userId, params.workOrderId)
@@ -250,7 +257,7 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
     if (params.photo) {
       const base64 = params.photo.base64.split(',')[1] ?? params.photo.base64
       const buffer = Buffer.from(base64, 'base64')
-      const path = `expenses/${params.workOrderId}-${Date.now()}.${params.photo.ext}`
+      const path = `expenses/${params.workOrderId || 'no-project'}-${Date.now()}.${params.photo.ext}`
       const url = await withTimeout(uploadAsset(path, buffer, params.photo.mimeType), 25000)
       if (url) {
         photoUrl = url
@@ -260,7 +267,7 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
     }
 
     const { data: inserted, error } = await admin.from('expense_logs').insert({
-      work_order_id: params.workOrderId,
+      work_order_id: params.workOrderId || null,
       engineer_id: userId,
       expense_type_id: params.expenseTypeId,
       expense_date: params.expenseDate,
