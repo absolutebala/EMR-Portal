@@ -213,7 +213,18 @@ export default function FormFillView({ workOrder, form, existingSubmission, read
     if (!form) return
     setSubmitError('')
 
-    // No fields are mandatory — engineers can submit a form with any subset filled in.
+    // Only the Engineer signature is mandatory — every other field can be left blank so
+    // engineers can submit whatever subset applies. A form with no engineer-signature
+    // field at all (older/custom templates) is left unblocked.
+    const engineerSigIds = form.sections.flatMap(s => s.fields)
+      .filter(f => f.field_type === 'signature' && /engineer/i.test(f.label))
+      .map(f => f.id)
+    const missingSig = engineerSigIds.filter(id => !(fieldValues[id] && fieldValues[id].trim()))
+    if (missingSig.length) {
+      setIncompleteIds(new Set(missingSig))
+      setSubmitError('The Engineer signature is required before submitting.')
+      return
+    }
     setIncompleteIds(new Set())
 
     // Format-validate whatever IS filled (numbers/dates/email) and block on malformed values.

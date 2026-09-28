@@ -389,11 +389,17 @@ export default function WorkOrderDetailScreen() {
       )}
     </ScrollView>
     {detail.hasCheckedIn && !isClosed && !needsReassignment && (
-      <View style={styles.footer}>
-        <Pressable style={styles.markCompletedBtn} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/closure`)}>
-          <Text style={styles.markCompletedText}>Mark Completed</Text>
-        </Pressable>
-      </View>
+      availableForms.length > 0 && !availableForms.some(f => f.submitted) ? (
+        <View style={styles.footer}>
+          <Text style={styles.markCompletedHint}>Submit at least one form (with your signature) to enable Mark Completed.</Text>
+        </View>
+      ) : (
+        <View style={styles.footer}>
+          <Pressable style={styles.markCompletedBtn} onPress={() => router.push(`/(app)/(tabs)/work-orders/${id}/closure`)}>
+            <Text style={styles.markCompletedText}>Mark Completed</Text>
+          </Pressable>
+        </View>
+      )
     )}
     </View>
   );
@@ -426,6 +432,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32 },
   footer: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E0E3', padding: 14 },
   markCompletedBtn: { backgroundColor: '#059669', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
+  markCompletedHint: { fontSize: 12, color: '#7A6870', textAlign: 'center', paddingVertical: 4 },
   markCompletedText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   noticeInfo: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 10, padding: 12 },
   noticeInfoText: { color: '#1E40AF', fontSize: 12, lineHeight: 17 },

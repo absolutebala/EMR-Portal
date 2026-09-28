@@ -380,6 +380,10 @@ export default function JobDetailClient({ detail, currentUserId, isAdmin }: Prop
               <span style={{ fontSize: 10, color: '#A8708A' }}>GPS only, no photo</span>
             </button>
           </div>
+        ) : detail.availableForms.length > 0 && !detail.availableForms.some(f => f.submitted) ? (
+          <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: '#92400E' }}>
+            Submit at least one form (with your signature) to enable Mark Completed.
+          </div>
         ) : (
           <button
             className="mtap"
@@ -393,7 +397,7 @@ export default function JobDetailClient({ detail, currentUserId, isAdmin }: Prop
             </div>
             <div style={{ flex: 1, textAlign: 'left' }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>Mark Completed</p>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Submit any forms first, then close the visit (sign-off)</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>Close the visit (sign-off)</span>
             </div>
           </button>
         )}

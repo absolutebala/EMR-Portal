@@ -15,13 +15,16 @@ function getS3Client(): S3Client {
 // infra/lib/storage-stack.ts). Returns null on failure rather than throwing, matching
 // every call site's existing "log and continue" pattern — a failed photo upload
 // shouldn't fail the whole checkin/expense/request submission it's attached to.
-export async function uploadAsset(key: string, body: Buffer, contentType: string): Promise<string | null> {
+export async function uploadAsset(key: string, body: Buffer, contentType: string, contentDisposition?: string): Promise<string | null> {
   try {
     await getS3Client().send(new PutObjectCommand({
       Bucket: S3_BUCKET,
       Key: key,
       Body: body,
       ContentType: contentType,
+      // Optional: force a download (e.g. .docx, which browsers/PWAs can't preview inline —
+      // without this they silently swallow the click and leave the user on the page).
+      ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
     }))
     return `https://${CLOUDFRONT_DOMAIN}/${key}`
   } catch (e) {

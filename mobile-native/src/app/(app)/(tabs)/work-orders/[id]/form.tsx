@@ -149,7 +149,17 @@ export default function JobFormScreen() {
     if (!form || !workOrder) return;
     setSubmitError('');
 
-    // No fields are mandatory — engineers can submit a form with any subset filled in.
+    // Only the Engineer signature is mandatory — everything else is optional. A template
+    // with no engineer-signature field at all stays unblocked.
+    const engineerSigIds = form.sections.flatMap(s => s.fields)
+      .filter(f => f.field_type === 'signature' && /engineer/i.test(f.label))
+      .map(f => f.id);
+    const missingSig = engineerSigIds.filter(fid => !(fieldValues[fid] && fieldValues[fid].trim()));
+    if (missingSig.length) {
+      setIncompleteIds(new Set(missingSig));
+      setSubmitError('The Engineer signature is required before submitting.');
+      return;
+    }
     setIncompleteIds(new Set());
 
     // …but a value that IS filled must be well-formed for its type (number/date/email).

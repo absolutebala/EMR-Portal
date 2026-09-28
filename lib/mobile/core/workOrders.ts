@@ -515,11 +515,14 @@ async function buildVisitDocs(
   const { docParams, formName } = assembled
   const stamp = Date.now()
 
+  // Safe filename for the download prompt (strip anything that could break the header).
+  const safeName = (formName || 'report').replace(/[^\w.\- ]+/g, '_').slice(0, 80)
+
   let pdfUrl: string | null = null
   try {
     const pdfBuffer = await renderReportBuffer(docParams, formName, 'pdf')
     const path = `visit-pdfs/${workOrderId}-${stamp}.pdf`
-    pdfUrl = await withTimeout(uploadAsset(path, pdfBuffer, 'application/pdf'), 12000)
+    pdfUrl = await withTimeout(uploadAsset(path, pdfBuffer, 'application/pdf', `attachment; filename="${safeName}.pdf"`), 12000)
   } catch (e) {
     console.error('buildVisitDocs (pdf) failed:', e)
   }
@@ -528,7 +531,9 @@ async function buildVisitDocs(
   try {
     const wordBuffer = await renderReportBuffer(docParams, formName, 'word')
     const path = `visit-docs/${workOrderId}-${stamp}.docx`
-    wordUrl = await withTimeout(uploadAsset(path, wordBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 12000)
+    // A .docx can't render inline, so mark it as an attachment — otherwise the PWA just
+    // swallows the tap and leaves the engineer on the form.
+    wordUrl = await withTimeout(uploadAsset(path, wordBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', `attachment; filename="${safeName}.docx"`), 12000)
   } catch (e) {
     console.error('buildVisitDocs (word) failed:', e)
   }
