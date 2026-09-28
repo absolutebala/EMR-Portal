@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { requireMobilePasswordChanged } from '@/lib/mobile/authGuard'
-import { getMobileDashboardData, getOverdueFollowUps, getEngineerStatusPrompt } from '@/app/actions/mobile-actions'
+import { getMobileDashboardData, getOverdueFollowUps } from '@/app/actions/mobile-actions'
 import { getMyNotifications } from '@/app/actions/notifications'
 import MobileDashboardClient from './MobileDashboardClient'
 
@@ -12,10 +12,9 @@ export default async function MobileDashboardPage() {
   if (!user) redirect('/mobile/login')
   await requireMobilePasswordChanged(user.id)
 
-  const [{ stats, recentJobs, engineer, attendanceStatus, pendingProducts, updatePrompt, error }, { followUps }, { prompt }, { unreadCount }] = await Promise.all([
+  const [{ stats, recentJobs, engineer, attendanceStatus, pendingProducts, updatePrompt, streak, error }, { followUps }, { unreadCount }] = await Promise.all([
     getMobileDashboardData(),
     getOverdueFollowUps(),
-    getEngineerStatusPrompt(),
     getMyNotifications(1),
   ])
 
@@ -27,10 +26,10 @@ export default async function MobileDashboardPage() {
       attendanceStatus={attendanceStatus}
       error={error}
       overdueFollowUps={followUps}
-      statusPrompt={prompt}
       unreadAlerts={unreadCount}
       pendingProducts={pendingProducts}
       updatePrompt={updatePrompt}
+      streak={streak}
     />
   )
 }

@@ -11,8 +11,9 @@ import {
   getMobileWorkOrdersCore, getMobileDashboardDataCore, getOverdueFollowUpsCore, rescheduleFollowUpCore,
   getMobileJobsListCore, recordLastSeenCore, logLocationPingIssueCore, checkOpenVisitFollowUpCore,
   getEngineerStatusPromptCore, setEngineerStatusCore, checkNotStartedFollowUpCore, checkCheckinDriftCore,
-  type AppUpdatePrompt,
+  type AppUpdatePrompt, type EngineerStreak,
 } from '@/lib/mobile/core/dashboard'
+import { getNearbyEngineersCore, type NearbyEngineer } from '@/lib/mobile/core/nearby'
 import { markProductReceivedCore, type PendingProductItem } from '@/lib/mobile/core/products'
 import {
   getMobileWorkOrderBasicCore, getMobileWorkOrderDetailCore, getMobileWorkOrderWithFormCore,
@@ -44,11 +45,20 @@ export async function getMobileDashboardData(): Promise<{
   attendanceStatus: AttendanceEffectiveStatus
   pendingProducts: PendingProductItem[]
   updatePrompt: AppUpdatePrompt | null
+  streak: EngineerStreak
   error: string | null
 }> {
   const user = await getAuthedUser()
-  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, attendanceStatus: { kind: 'pending' }, pendingProducts: [], updatePrompt: null, error: 'Not authenticated' }
+  if (!user) return { stats: { assigned: 0, inProgress: 0, needsReassignment: 0, completed: 0 }, recentJobs: [], engineer: null, attendanceStatus: { kind: 'pending' }, pendingProducts: [], updatePrompt: null, streak: { count: 0, days: [false, false, false, false, false] }, error: 'Not authenticated' }
   return getMobileDashboardDataCore(adminClient(), user.id)
+}
+
+// Other field engineers within a radius of the caller's current location — powers the
+// PWA dashboard's Nearby Engineers strip (mirrors the native app).
+export async function getNearbyEngineers(lat: number, lng: number, radiusKm: number): Promise<{ engineers: NearbyEngineer[]; error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { engineers: [], error: 'Not authenticated' }
+  return getNearbyEngineersCore(adminClient(), user.id, lat, lng, radiusKm)
 }
 
 // The one product-status change a field engineer can make: confirming receipt of a
