@@ -118,13 +118,18 @@ export async function sendWhatsApp(
     const jobs: Promise<boolean>[] = []
 
     if (sendWa && waApiKey && campaignName) {
+      // WhatsApp rejects a template message if ANY body variable is empty/whitespace
+      // (e.g. an "assigned_engineer" message for a notification created with no serial
+      // number yet) — the whole send silently fails. Swap blanks for a dash so a missing
+      // value never sinks the message.
+      const waTemplateParams = templateParams.map(p => (p && p.trim() ? p : '-'))
       for (const r of targets) {
         jobs.push(sendCombirdsMessage({
           apiKey: waApiKey,
           campaignName,
           destination: formatPhoneForWhatsApp(r.phone as string),
           userName: r.userName,
-          templateParams,
+          templateParams: waTemplateParams,
           source: 'emr-portal',
         }).catch(() => false))
       }
