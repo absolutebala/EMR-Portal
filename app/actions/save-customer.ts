@@ -2,6 +2,32 @@
 
 import { adminClient } from '@/lib/db/admin-client'
 import { getAuthedUser } from '@/lib/cognito/server'
+import type { Customer, CustomerSite, Transformer } from '@/lib/types'
+
+// Everything needed to view/edit a customer and its equipment from another screen
+// (e.g. the notification detail): the full customer record plus its sites and
+// transformers. Kept as one round-trip so callers don't fan out three fetches.
+export async function getCustomerEquipment(customerId: string): Promise<{
+  customer: Customer | null
+  sites: CustomerSite[]
+  transformers: Transformer[]
+}> {
+  try {
+    const sb = adminClient()
+    const [{ data: customer }, { data: sites }, { data: transformers }] = await Promise.all([
+      sb.from('customers').select('*').eq('id', customerId).maybeSingle(),
+      sb.from('customer_sites').select('*').eq('customer_id', customerId).order('created_at', { ascending: true }),
+      sb.from('transformers').select('*').eq('customer_id', customerId).order('created_at', { ascending: true }),
+    ])
+    return {
+      customer: (customer as Customer) ?? null,
+      sites: (sites as CustomerSite[]) ?? [],
+      transformers: (transformers as Transformer[]) ?? [],
+    }
+  } catch {
+    return { customer: null, sites: [], transformers: [] }
+  }
+}
 
 export async function addCustomer(payload: {
   name: string

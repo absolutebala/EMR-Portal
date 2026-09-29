@@ -22,8 +22,11 @@ import type { ProductRequestView } from '@/lib/mobile/core/products'
 import CustomerCategoryPicker from '@/components/work-orders/CustomerCategoryPicker'
 import SitePhotosCard from '@/components/work-orders/SitePhotosCard'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
-import type { WorkOrder, WorkOrderActivity } from '@/lib/types'
+import type { WorkOrder, WorkOrderActivity, Customer, CustomerSite, Transformer } from '@/lib/types'
 import { getDepartments } from '@/app/actions/departments'
+import AddCustomerModal from '@/components/customers/AddCustomerModal'
+import TransformerTableClient from '@/components/customers/TransformerTableClient'
+import { getCustomerEquipment } from '@/app/actions/save-customer'
 import type { Department } from '@/lib/departments'
 
 const JOB_LABELS: Record<string, string> = {
@@ -311,6 +314,17 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [loadingTransformers, setLoadingTransformers] = useState(false)
   const [productRequests, setProductRequests] = useState<ProductRequestView[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  // Full customer record + its sites/transformers, so the notification detail can
+  // show and edit the extra customer (SAP code, city, region, search term) and
+  // transformer (rating, dispatch, manufacturer, notes) fields in place.
+  const [equipment, setEquipment] = useState<{ customer: Customer | null; sites: CustomerSite[]; transformers: Transformer[] }>({ customer: null, sites: [], transformers: [] })
+  const [showEditCustomer, setShowEditCustomer] = useState(false)
+  const [showEquipment, setShowEquipment] = useState(false)
+
+  async function refreshEquipment(customerId?: string | null) {
+    const id = customerId ?? wo?.customer_id
+    if (id) setEquipment(await getCustomerEquipment(id))
+  }
 
   async function refreshDetail() {
     const { workOrder, activity: act, submittedForms: sfs, visits: vs } = await getWorkOrderDetail(workOrderId)
@@ -318,6 +332,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     setActivity(act as WorkOrderActivity[])
     setSubmittedForms(sfs)
     setVisits(vs)
+    if (workOrder?.customer_id) refreshEquipment(workOrder.customer_id)
     const { assignments } = await getAdditionalEngineers(workOrderId)
     setAdditionalEngineers(assignments)
   }
@@ -1200,10 +1215,41 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—')}
                 {row('End Customer Type', wo.end_customer_type_name || '—')}
                 {row('Category', wo.customer_category_name || '—')}
+                {equipment.customer?.sap_customer_code && row('SAP code', equipment.customer.sap_customer_code)}
+                {equipment.customer?.city && row('City', equipment.customer.city)}
+                {equipment.customer?.region && row('Region', equipment.customer.region)}
+                {equipment.customer?.search_term && row('Search term', equipment.customer.search_term)}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
                 {wo.notes && row('Notes', wo.notes)}
                 {wo.customer_message && row('Customer message', wo.customer_message)}
+                {canEdit && equipment.customer && (
+                  <button onClick={() => setShowEditCustomer(true)}
+                    style={{ marginTop: 10, padding: '7px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                    Edit customer
+                  </button>
+                )}
               </div>
+
+              {equipment.customer && (
+                <div style={{ ...card, gridColumn: '1 / -1', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showEquipment ? 12 : 0 }}>
+                    <div style={cardLabel}>Equipment ({equipment.transformers.length} transformer{equipment.transformers.length !== 1 ? 's' : ''})</div>
+                    <button onClick={() => setShowEquipment(s => !s)}
+                      style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                      {showEquipment ? 'Hide' : (canEdit ? 'Manage equipment' : 'View equipment')}
+                    </button>
+                  </div>
+                  {showEquipment && (
+                    <TransformerTableClient
+                      key={equipment.transformers.map(t => t.id).join(',')}
+                      customer={equipment.customer}
+                      sites={equipment.sites}
+                      transformers={equipment.transformers}
+                      canEdit={canEdit}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1242,6 +1288,15 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
             </button>
           </div>
         </Modal>
+      )}
+
+      {equipment.customer && (
+        <AddCustomerModal
+          open={showEditCustomer}
+          onClose={() => setShowEditCustomer(false)}
+          onSaved={() => { setShowEditCustomer(false); refreshEquipment(); refreshDetail() }}
+          editCustomer={equipment.customer}
+        />
       )}
     </>
   )

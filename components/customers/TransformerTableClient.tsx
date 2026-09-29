@@ -79,6 +79,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       site_id: t.site_id || '',
       dispatch_date: t.dispatch_date || todayIsoDate(),
       warranty_years: t.warranty_years != null ? String(t.warranty_years) : '',
+      notes: t.notes || '',
     })
     setTxError('')
   }
@@ -99,6 +100,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       site_id: txForm.site_id || null,
       dispatch_date: txForm.dispatch_date || null,
       warranty_years: warrantyYears,
+      notes: txForm.notes || null,
     })
     setTxSaving(false)
     if (error) { setTxError(error); return }
@@ -112,6 +114,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       site_id: txForm.site_id || null,
       dispatch_date: txForm.dispatch_date || null,
       warranty_years: warrantyYears,
+      notes: txForm.notes || null,
     } : t))
     setTxEditing(null)
   }
@@ -131,7 +134,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
     new_site_name: '', new_site_address: '',
     serial_number: '', rating: '', manufacturer: '',
     year_of_manufacture: '', warranty_status: 'under_warranty',
-    dispatch_date: todayIsoDate(), warranty_years: '',
+    dispatch_date: todayIsoDate(), warranty_years: '', notes: '',
   }), [initSites])
 
   const [showAdd, setShowAdd] = useState(false)
@@ -159,6 +162,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       warranty_status: addForm.warranty_status,
       dispatch_date: addForm.dispatch_date || null,
       warranty_years: addForm.warranty_years ? Number(addForm.warranty_years) : null,
+      notes: addForm.notes || null,
     })
     setAddSaving(false)
     if (error) { setAddError(error); return }
@@ -228,6 +232,10 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
               <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Dispatch date</label>
               <input type="date" style={fi} value={addForm.dispatch_date} max={todayIsoDate()} onChange={e => aset('dispatch_date', e.target.value)} />
             </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: 10, color: 'var(--txm)', display: 'block', marginBottom: 3 }}>Notes</label>
+              <input style={fi} value={addForm.notes} onChange={e => aset('notes', e.target.value)} placeholder="Order reference / remarks" />
+            </div>
             {isNewSite && (
               <>
                 <div>
@@ -260,7 +268,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Project', ...(canEdit ? [''] : [])].map(h => (
+              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Notes', 'Project', ...(canEdit ? [''] : [])].map(h => (
                 <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
               ))}
             </tr>
@@ -311,6 +319,11 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                     {isEditing
                       ? <input type="date" style={{ ...fi, minWidth: 130 }} max={todayIsoDate()} value={txForm.dispatch_date} onChange={e => tfset('dispatch_date', e.target.value)} />
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{t.dispatch_date ? new Date(t.dispatch_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>}
+                  </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px', maxWidth: 220 }}>
+                    {isEditing
+                      ? <input style={{ ...fi, minWidth: 140 }} value={txForm.notes} onChange={e => tfset('notes', e.target.value)} placeholder="Reference / remarks" />
+                      : <span style={{ fontSize: 12, color: 'var(--txm)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }} title={t.notes || ''}>{t.notes || '—'}</span>}
                   </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing
