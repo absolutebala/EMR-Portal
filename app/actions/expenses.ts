@@ -199,3 +199,58 @@ export async function submitHeadDecision(id: string, decision: 'approve' | 'reje
     return { error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// ---------- Desktop: admin edit / delete of an expense entry ----------
+// Correction tools for managers/finance — the client gates these on the same access as
+// approval (soft enforcement, per the app's model), and every change is logged.
+
+export async function updateExpenseLog(id: string, fields: {
+  expenseTypeId: string
+  expenseDate: string
+  amount: number
+}): Promise<{ error: string | null }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated' }
+    if (!(fields.amount > 0)) return { error: 'Amount must be greater than 0.' }
+    if (!fields.expenseTypeId) return { error: 'Select an expense type.' }
+    if (!fields.expenseDate) return { error: 'Select a date.' }
+
+    const admin = adminClient()
+    const { error } = await admin.from('expense_logs').update({
+      expense_type_id: fields.expenseTypeId,
+      expense_date: fields.expenseDate,
+      amount: fields.amount,
+    }).eq('id', id)
+    if (error) return { error: error.message }
+
+    logActivity(admin, {
+      actorId: user.id, actorName: await getActorName(admin, user.id),
+      action: 'Edited expense log', entityType: 'expense_log', entityId: id,
+    }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteExpenseLog(id: string): Promise<{ error: string | null }> {
+  try {
+    const user = await getAuthedUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = adminClient()
+    const { error } = await admin.from('expense_logs').delete().eq('id', id)
+    if (error) return { error: error.message }
+
+    logActivity(admin, {
+      actorId: user.id, actorName: await getActorName(admin, user.id),
+      action: 'Deleted expense log', entityType: 'expense_log', entityId: id,
+    }).catch(() => {})
+
+    return { error: null }
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}

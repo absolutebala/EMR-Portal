@@ -20,6 +20,9 @@ export default async function ExpensesPage() {
   const isAdmin = userRole === 'Super Admin' || userRole === 'Head of Service'
   const canApproveAsManager = isAdmin || !hasPerms || permissions['Expenses — Approve'] === true
   const canApproveAsHead = isAdmin || !hasPerms || permissions['Expenses — Final Approve'] === true
+  // Edit / delete / export are correction & reporting tools — available to anyone who can
+  // act on expenses (a manager or head approver, or a full-access admin).
+  const canManage = isAdmin || canApproveAsManager || canApproveAsHead
 
-  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} />
+  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} canManage={canManage} />
 }
