@@ -5,6 +5,7 @@ import { getOrCreateCustomerCategory } from './customer-categories'
 
 export interface BulkCustomerRow {
   name: string
+  sap_customer_code?: string
   contact_person: string
   phone: string
   email: string
@@ -12,11 +13,27 @@ export interface BulkCustomerRow {
   address: string
   pincode: string
   end_customer_type_name: string
+  customer_notes?: string
   site_name: string
   site_address: string
+  // Transformer (all optional — a customer-only row leaves these blank)
   serial_number: string
   year_of_manufacture: string
   warranty_status: string
+  rating?: string
+  manufacturer?: string
+  dispatch_date?: string
+  transformer_notes?: string
+}
+
+export interface BulkImportOptions {
+  // When true, a customer that already exists (matched by SAP code, else by name) is
+  // reused and the row's transformer is attached to it, instead of the row being
+  // rejected as a duplicate. This is what lets the NIPS register — where one input
+  // line expands into many serials, and many lines can share a customer — build one
+  // customer with all its transformers. The OLTC customer master leaves this off so a
+  // repeated customer is flagged rather than silently merged.
+  attachToExisting?: boolean
 }
 
 export interface BulkCustomerResult {
@@ -25,18 +42,65 @@ export interface BulkCustomerResult {
   error?: string
 }
 
-// Same 4-insert sequence as addCustomer() in save-customer.ts (customer -> site ->
-// transformer -> primary contact), looped per row with its own duplicate checks —
-// customers.name has no DB-level uniqueness, so that check is app-layer only, but
-// transformers.serial_number is a real UNIQUE constraint, so checking it up front
-// gives a clean per-row error instead of a raw constraint-violation message.
-export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<BulkCustomerResult[]> {
+async function createCustomerWithSite(
+  admin: ReturnType<typeof adminClient>,
+  row: BulkCustomerRow,
+  endCustomerTypeId: string | null,
+): Promise<{ customerId: string; siteId: string } | { error: string }> {
+  const { data: cust, error: ce } = await admin.from('customers').insert({
+    name: row.name,
+    // Bulk sheets don't distinguish Sold/Shipped/Both — end-customer type lives in its
+    // own column instead, resolved separately above.
+    type: 'both',
+    contact_person: row.contact_person || row.name || '',
+    phone: row.phone || '',
+    email: row.email || null,
+    whatsapp_number: row.whatsapp_number || null,
+    address: row.address || null,
+    pincode: row.pincode || null,
+    sap_customer_code: row.sap_customer_code || null,
+    end_customer_type_id: endCustomerTypeId,
+    notes: row.customer_notes || null,
+  }).select().single()
+  if (ce || !cust) return { error: ce?.message || 'Could not create customer' }
+
+  const { data: site, error: se } = await admin.from('customer_sites').insert({
+    customer_id: cust.id,
+    site_name: row.site_name || row.name,
+    site_address: row.site_address || row.address || '',
+  }).select().single()
+  if (se || !site) return { error: se?.message || 'Could not create site' }
+
+  // Only seed a primary contact when there's an actual person/number to record.
+  if (row.contact_person || row.phone) {
+    await admin.from('customer_contacts').insert({
+      customer_id: cust.id,
+      site_id: site.id,
+      name: row.contact_person || row.name,
+      phone: row.phone || null,
+      email: row.email || null,
+      whatsapp_number: row.whatsapp_number || null,
+      address: row.address || null,
+      is_primary: true,
+    })
+  }
+
+  return { customerId: cust.id, siteId: site.id }
+}
+
+// Same customer -> site -> transformer -> primary-contact shape as addCustomer() in
+// save-customer.ts, looped per row. customers.name has no DB-level uniqueness so that
+// check is app-layer; transformers.serial_number is a real UNIQUE constraint so it's
+// checked up front for a clean per-row message. With attachToExisting, an already-known
+// customer is reused (and cached for the rest of the batch) so a serial range that was
+// expanded into many rows all hang off one customer.
+export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImportOptions = {}): Promise<BulkCustomerResult[]> {
   const admin = adminClient()
   const results: BulkCustomerResult[] = []
-  // Cached across the whole batch — real-world sheets repeat the same end-customer
-  // type ("OEM", "Solar"...) across many rows, and get-or-create-by-name shouldn't hit
-  // the DB again for a value this same import already resolved.
   const endTypeCache = new Map<string, string>()
+  // key (sap code || lowercased name) -> { customerId, siteId }, for customers created
+  // OR reused earlier in this same batch.
+  const customerCache = new Map<string, { customerId: string; siteId: string }>()
 
   async function resolveEndCustomerTypeId(name: string): Promise<string | null> {
     const trimmed = name.trim()
@@ -48,84 +112,88 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[]): Promise<Bulk
     return category?.id ?? null
   }
 
-  for (const row of rows) {
-    if (row.name) {
-      const { data: existingCust } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
-      if (existingCust) {
-        results.push({ name: row.name, status: 'error', error: `Customer "${row.name}" already exists.` })
-        continue
-      }
-    }
+  function customerKey(row: BulkCustomerRow): string {
+    return (row.sap_customer_code?.trim() || row.name.trim().toLowerCase())
+  }
 
-    // Serial number is optional now — only guard against duplicates when one is actually
-    // provided, otherwise an empty string would false-match every other serial-less row.
+  for (const row of rows) {
+    const label = row.serial_number ? `${row.name || 'Customer'} — ${row.serial_number}` : row.name
+
+    // Serial uniqueness is a hard DB constraint — check before touching the customer so
+    // a dup serial doesn't leave a half-created customer behind.
     if (row.serial_number) {
       const { data: existingSerial } = await admin.from('transformers').select('id').eq('serial_number', row.serial_number).maybeSingle()
       if (existingSerial) {
-        results.push({ name: row.name, status: 'error', error: `Serial number "${row.serial_number}" is already in use.` })
+        results.push({ name: label, status: 'error', error: `Serial number "${row.serial_number}" is already in use.` })
         continue
       }
     }
 
-    const endCustomerTypeId = await resolveEndCustomerTypeId(row.end_customer_type_name)
+    // ---- Resolve (or create) the customer ----
+    const key = customerKey(row)
+    let resolved = customerCache.get(key)
 
-    const { data: cust, error: ce } = await admin.from('customers').insert({
-      name: row.name,
-      // Bulk-imported sheets don't distinguish Sold/Shipped/Both in practice — every
-      // real-world file seen so far uses this column position for end-customer type
-      // instead (OEM, Solar, etc.), handled separately below.
-      type: 'both',
-      contact_person: row.contact_person,
-      phone: row.phone,
-      email: row.email || null,
-      whatsapp_number: row.whatsapp_number || null,
-      address: row.address || null,
-      pincode: row.pincode || null,
-      end_customer_type_id: endCustomerTypeId,
-    }).select().single()
-    if (ce || !cust) {
-      results.push({ name: row.name, status: 'error', error: ce?.message || 'Could not create customer' })
-      continue
+    if (!resolved) {
+      // Look for an existing customer: SAP code is the strong key, name is the fallback.
+      let existing: { id: string } | null = null
+      if (row.sap_customer_code?.trim()) {
+        const { data } = await admin.from('customers').select('id').eq('sap_customer_code', row.sap_customer_code.trim()).maybeSingle()
+        existing = data
+      }
+      if (!existing && row.name) {
+        const { data } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
+        existing = data
+      }
+
+      if (existing) {
+        if (!opts.attachToExisting) {
+          results.push({ name: row.name, status: 'error', error: `Customer "${row.name}" already exists.` })
+          continue
+        }
+        // Reuse the existing customer; grab (or make) a site to hang transformers on.
+        const { data: site } = await admin.from('customer_sites').select('id').eq('customer_id', existing.id).order('created_at', { ascending: true }).limit(1).maybeSingle()
+        let siteId = site?.id as string | undefined
+        if (!siteId) {
+          const { data: newSite } = await admin.from('customer_sites').insert({
+            customer_id: existing.id,
+            site_name: row.site_name || row.name,
+            site_address: row.site_address || row.address || '',
+          }).select().single()
+          siteId = newSite?.id
+        }
+        resolved = { customerId: existing.id, siteId: siteId || '' }
+      } else {
+        const endCustomerTypeId = await resolveEndCustomerTypeId(row.end_customer_type_name)
+        const created = await createCustomerWithSite(admin, row, endCustomerTypeId)
+        if ('error' in created) {
+          results.push({ name: row.name, status: 'error', error: created.error })
+          continue
+        }
+        resolved = created
+      }
+      customerCache.set(key, resolved)
     }
 
-    const { data: site, error: se } = await admin.from('customer_sites').insert({
-      customer_id: cust.id,
-      site_name: row.site_name || row.name,
-      site_address: row.site_address || row.address || '',
-    }).select().single()
-    if (se || !site) {
-      results.push({ name: row.name, status: 'error', error: se?.message || 'Could not create site' })
-      continue
-    }
-
-    // Only create a transformer when there's at least a serial to hang it on — a row
-    // with no serial/year/warranty is just a customer + site + contact.
+    // ---- Attach the transformer, if this row has one ----
     if (row.serial_number) {
       const { error: te } = await admin.from('transformers').insert({
-        customer_id: cust.id,
-        site_id: site.id,
+        customer_id: resolved.customerId,
+        site_id: resolved.siteId || null,
         serial_number: row.serial_number,
+        rating: row.rating || null,
+        manufacturer: row.manufacturer || null,
         year_of_manufacture: row.year_of_manufacture || null,
         warranty_status: row.warranty_status || 'under_warranty',
+        dispatch_date: row.dispatch_date || null,
+        notes: row.transformer_notes || null,
       })
       if (te) {
-        results.push({ name: row.name, status: 'error', error: te.message })
+        results.push({ name: label, status: 'error', error: te.message })
         continue
       }
     }
 
-    await admin.from('customer_contacts').insert({
-      customer_id: cust.id,
-      site_id: site.id,
-      name: row.contact_person,
-      phone: row.phone,
-      email: row.email || null,
-      whatsapp_number: row.whatsapp_number || null,
-      address: row.address || null,
-      is_primary: true,
-    })
-
-    results.push({ name: row.name, status: 'success' })
+    results.push({ name: label, status: 'success' })
   }
 
   return results

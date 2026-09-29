@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
-import BulkUploadCustomersModal from '@/components/customers/BulkUploadCustomersModal'
+import BulkUploadCustomersModal, { type UploadFormat } from '@/components/customers/BulkUploadCustomersModal'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import { CustomerTypeBadge } from '@/components/ui/Badge'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
@@ -43,7 +43,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
+  const [uploadFormat, setUploadFormat] = useState<UploadFormat | null>(null)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [woCustomer, setWoCustomer] = useState<{ id: string; name: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -164,9 +164,15 @@ export default function CustomersPageClient({ customers, userName, userRole, per
               </button>
             )}
             {canEdit && (
-              <button onClick={() => setShowUpload(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+              <button onClick={() => setUploadFormat('oltc')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Upload CSV
+                Upload OLTC
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => setUploadFormat('nips')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: 'var(--tx)', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload NIPS
               </button>
             )}
             {canEdit && (
@@ -284,8 +290,9 @@ export default function CustomersPageClient({ customers, userName, userRole, per
           onCreateWorkOrder={(id, name) => { setShowAdd(false); setEditCustomer(null); setWoCustomer({ id, name }) }}
         />
         <BulkUploadCustomersModal
-          open={showUpload}
-          onClose={() => setShowUpload(false)}
+          open={uploadFormat !== null}
+          format={uploadFormat ?? 'oltc'}
+          onClose={() => setUploadFormat(null)}
           onSaved={() => router.refresh()}
         />
         <NewWorkOrderModal
