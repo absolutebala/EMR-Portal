@@ -35,11 +35,19 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Stop a two-finger / trackpad horizontal swipe from triggering browser
+     Back/Forward navigation — especially when swiping across the app's wide,
+     horizontally-scrollable tables. */
+  overscroll-behavior-x: none;
+}
+
 body {
   font-family: 'Poppins', sans-serif;
   background: var(--gl);
   color: var(--tx);
   font-size: 13px;
+  overscroll-behavior-x: none;
 }
 
 /* Input focus */

@@ -136,6 +136,24 @@ export default async function DashboardPage() {
           </div>
         )}
 
+        {(kpis.warrantyUnits.underWarranty + kpis.warrantyUnits.noWarranty) > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Customers on warranty</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {[
+                { label: 'Under Warranty', count: kpis.warrantyUnits.underWarranty, color: '#065F46', bg: '#D1FAE5' },
+                { label: 'Warranty expiring in 3 months', count: kpis.warrantyUnits.expiringSoon, color: '#92400E', bg: '#FEF3C7' },
+                { label: 'No Warranty', count: kpis.warrantyUnits.noWarranty, color: '#991B1B', bg: '#FEE2E2' },
+              ].map(w => (
+                <div key={w.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{w.label}</span>
+                  <span style={{ fontSize: 12, color: w.color, background: w.bg, borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{w.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
           <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
             {expiredWarrantyList.map(t => (

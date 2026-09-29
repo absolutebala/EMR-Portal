@@ -78,6 +78,11 @@ export interface DashboardKpis {
   // counted per notification (matches /work-orders?warranty=<tier>), so one covering
   // multiple transformers in the same tier still only counts once.
   warrantyBreakdown: { under_warranty: number; expired: number; amc: number }
+  // Warranty across ALL registered transformers (not just those on open notifications):
+  // underWarranty = every active unit (under_warranty or AMC), expiringSoon = the subset
+  // of those whose computed expiry (dispatch date + warranty years) lands within 3
+  // months, noWarranty = expired units. underWarranty and expiringSoon overlap by design.
+  warrantyUnits: { underWarranty: number; expiringSoon: number; noWarranty: number }
   jobTypeBreakdown: { jobType: string; count: number }[]
   // Open notifications per department, org-wide (every engineer) — only meaningful
   // for Super Admin/Head of Service, who see every department's load at a glance
@@ -316,10 +321,29 @@ export async function getDashboardData(): Promise<DashboardData> {
   }))
   if (noDepartmentCount > 0) departmentBreakdown.push({ departmentId: NO_DEPARTMENT_ID, department: 'No Department', count: noDepartmentCount })
 
+  // Warranty across every registered transformer (org-wide, like the Expired Warranty
+  // list) — active units, those expiring within 3 months, and lapsed units.
+  const { data: warrantyUnitRows } = await admin.from('transformers').select('warranty_status, dispatch_date, warranty_years')
+  const nowMs = Date.now()
+  const in90Ms = nowMs + 90 * 24 * 60 * 60 * 1000
+  const warrantyUnits = { underWarranty: 0, expiringSoon: 0, noWarranty: 0 }
+  type WarrantyUnitRow = { warranty_status: string; dispatch_date: string | null; warranty_years: number | null }
+  ;((warrantyUnitRows as WarrantyUnitRow[]) || []).forEach(t => {
+    if (t.warranty_status === 'expired') { warrantyUnits.noWarranty++; return }
+    warrantyUnits.underWarranty++
+    if (t.dispatch_date && t.warranty_years != null) {
+      const exp = new Date(t.dispatch_date)
+      exp.setFullYear(exp.getFullYear() + t.warranty_years)
+      const expMs = exp.getTime()
+      if (expMs >= nowMs && expMs <= in90Ms) warrantyUnits.expiringSoon++
+    }
+  })
+
   const kpis: DashboardKpis = {
     notificationBreakdown,
     productRequestBreakdown,
     warrantyBreakdown,
+    warrantyUnits,
     jobTypeBreakdown,
     departmentBreakdown,
   }
