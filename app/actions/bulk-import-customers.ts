@@ -125,17 +125,28 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
     return (row.sap_customer_code?.trim() || row.name.trim().toLowerCase())
   }
 
+  // Which serials in this call already exist? One batched query instead of one per row
+  // — the difference between a few round-trips and tens of thousands on a large dispatch
+  // register (a 55k-row NIPS file would otherwise make 55k serial-lookup queries alone).
+  const serialList = [...new Set(rows.map(r => r.serial_number).filter(Boolean))] as string[]
+  const existingSerials = new Set<string>()
+  if (serialList.length) {
+    const { data } = await admin.from('transformers').select('serial_number').in('serial_number', serialList)
+    ;(data || []).forEach(t => { if (t.serial_number) existingSerials.add(t.serial_number) })
+  }
+
+  // Transformers are collected and bulk-inserted at the end (one insert for the call,
+  // not one per unit).
+  const pendingTx: { label: string; insert: Record<string, unknown> }[] = []
+  const seenSerials = new Set<string>()
+
   for (const row of rows) {
     const label = row.serial_number ? `${row.name || 'Customer'} — ${row.serial_number}` : row.name
 
-    // Serial uniqueness is a hard DB constraint — check before touching the customer so
-    // a dup serial doesn't leave a half-created customer behind.
-    if (row.serial_number) {
-      const { data: existingSerial } = await admin.from('transformers').select('id').eq('serial_number', row.serial_number).maybeSingle()
-      if (existingSerial) {
-        results.push({ name: label, status: 'skipped', error: `Serial "${row.serial_number}" already imported.` })
-        continue
-      }
+    // Skip serials already in the DB, or repeated earlier in this same call.
+    if (row.serial_number && (existingSerials.has(row.serial_number) || seenSerials.has(row.serial_number))) {
+      results.push({ name: label, status: 'skipped', error: `Serial "${row.serial_number}" already imported.` })
+      continue
     }
 
     // ---- Resolve (or create) the customer ----
@@ -186,9 +197,17 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
       customerCache.set(key, resolved)
     }
 
-    // ---- Attach the transformer, if this row has one ----
-    if (row.serial_number) {
-      const { error: te } = await admin.from('transformers').insert({
+    // Customer-only row (OLTC master) — done.
+    if (!row.serial_number) {
+      results.push({ name: row.name, status: 'success' })
+      continue
+    }
+
+    // Otherwise queue the transformer for the bulk insert below.
+    seenSerials.add(row.serial_number)
+    pendingTx.push({
+      label,
+      insert: {
         customer_id: resolved.customerId,
         site_id: resolved.siteId || null,
         serial_number: row.serial_number,
@@ -198,14 +217,24 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
         warranty_status: row.warranty_status || 'under_warranty',
         dispatch_date: row.dispatch_date || null,
         notes: row.transformer_notes || null,
-      })
-      if (te) {
-        results.push({ name: label, status: 'error', error: te.message })
-        continue
-      }
-    }
+      },
+    })
+  }
 
-    results.push({ name: label, status: 'success' })
+  // ---- Bulk-insert the collected transformers, up to 500 at a time ----
+  for (let i = 0; i < pendingTx.length; i += 500) {
+    const batch = pendingTx.slice(i, i + 500)
+    const { error } = await admin.from('transformers').insert(batch.map(b => b.insert))
+    if (error) {
+      // A bulk insert is all-or-nothing, so on failure retry the batch row-by-row to pin
+      // down the offending serial(s) and let the rest through.
+      for (const b of batch) {
+        const { error: e2 } = await admin.from('transformers').insert(b.insert)
+        results.push(e2 ? { name: b.label, status: 'error', error: e2.message } : { name: b.label, status: 'success' })
+      }
+    } else {
+      for (const b of batch) results.push({ name: b.label, status: 'success' })
+    }
   }
 
   return results

@@ -269,10 +269,11 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
   const [rows, setRows] = useState<ParsedRow[]>([])
   const [results, setResults] = useState<BulkCustomerResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [fileError, setFileError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function reset() { setStep('upload'); setRows([]); setResults([]); setFileError(''); setLoading(false) }
+  function reset() { setStep('upload'); setRows([]); setResults([]); setFileError(''); setLoading(false); setProgress(null) }
   function handleClose() { reset(); onClose() }
 
   function parseFile(file: File) {
@@ -312,8 +313,18 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
     const valid = rows.filter(r => !r._error)
     if (!valid.length) return
     setLoading(true)
-    const res = await bulkImportCustomers(valid, { attachToExisting: cfg.attachToExisting })
-    setResults(res)
+    // Send in chunks — a single request with tens of thousands of rows would blow past
+    // the server-action body limit and time out. Each chunk is a small, quick request;
+    // progress is reported between them.
+    const CHUNK = 400
+    const acc: BulkCustomerResult[] = []
+    for (let i = 0; i < valid.length; i += CHUNK) {
+      setProgress({ done: i, total: valid.length })
+      const res = await bulkImportCustomers(valid.slice(i, i + CHUNK), { attachToExisting: cfg.attachToExisting })
+      acc.push(...res)
+    }
+    setProgress(null)
+    setResults(acc)
     setLoading(false)
     setStep('results')
     onSaved()
@@ -332,7 +343,9 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
     <>
       <button onClick={reset} style={{ padding: '8px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>← Back</button>
       <button onClick={handleCreate} disabled={loading || validRows.length === 0} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', opacity: (loading || validRows.length === 0) ? .7 : 1 }}>
-        {loading ? 'Importing…' : `Import ${validRows.length} row${validRows.length !== 1 ? 's' : ''}`}
+        {loading
+          ? (progress ? `Importing ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}…` : 'Importing…')
+          : `Import ${validRows.length.toLocaleString()} row${validRows.length !== 1 ? 's' : ''}`}
       </button>
     </>
   ) : (
@@ -400,7 +413,9 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {/* Only the first rows are rendered — a big file (tens of thousands of
+                    rows) would otherwise put every row in the DOM and freeze the tab. */}
+                {rows.slice(0, 100).map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--gm)', background: r._error ? '#FFF5F5' : '' }}>
                     <td style={{ padding: '8px 12px', color: 'var(--tx)' }}>{r.name || '—'}</td>
                     <td style={{ padding: '8px 12px', color: 'var(--txm)' }}>{r.sap_customer_code || '—'}</td>
@@ -414,6 +429,13 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
                     </td>
                   </tr>
                 ))}
+                {rows.length > 100 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--txm)', fontSize: 11 }}>
+                      …and {(rows.length - 100).toLocaleString()} more row{rows.length - 100 !== 1 ? 's' : ''} (preview shows the first 100)
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
