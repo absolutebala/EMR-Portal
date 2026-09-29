@@ -41,7 +41,10 @@ export interface BulkImportOptions {
 
 export interface BulkCustomerResult {
   name: string
-  status: 'success' | 'error'
+  // 'skipped' = already in the system (customer/serial already imported) — a benign
+  // no-op on a re-upload, kept distinct from a real 'error' so a big skipped count on
+  // a repeat import doesn't read as failures.
+  status: 'success' | 'error' | 'skipped'
   error?: string
 }
 
@@ -130,7 +133,7 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
     if (row.serial_number) {
       const { data: existingSerial } = await admin.from('transformers').select('id').eq('serial_number', row.serial_number).maybeSingle()
       if (existingSerial) {
-        results.push({ name: label, status: 'error', error: `Serial number "${row.serial_number}" is already in use.` })
+        results.push({ name: label, status: 'skipped', error: `Serial "${row.serial_number}" already imported.` })
         continue
       }
     }
@@ -156,7 +159,7 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
 
       if (existing) {
         if (!opts.attachToExisting) {
-          results.push({ name: row.name, status: 'error', error: `Customer "${row.name}" already exists.` })
+          results.push({ name: row.name, status: 'skipped', error: 'Already imported.' })
           continue
         }
         // Reuse the existing customer; grab (or make) a site to hang transformers on.

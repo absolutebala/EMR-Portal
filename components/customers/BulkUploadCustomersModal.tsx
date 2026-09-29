@@ -322,6 +322,7 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
   const validRows = rows.filter(r => !r._error)
   const invalidRows = rows.filter(r => r._error)
   const successResults = results.filter(r => r.status === 'success')
+  const skippedResults = results.filter(r => r.status === 'skipped')
   const failResults = results.filter(r => r.status === 'error')
   const transformerCount = validRows.filter(r => r.serial_number).length
 
@@ -426,6 +427,12 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
               <div style={{ fontSize: 20, fontWeight: 700, color: '#065F46' }}>{successResults.length}</div>
               <div style={{ fontSize: 11, color: '#065F46' }}>Imported</div>
             </div>
+            {skippedResults.length > 0 && (
+              <div style={{ flex: 1, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1E40AF' }}>{skippedResults.length}</div>
+                <div style={{ fontSize: 11, color: '#1E40AF' }}>Already imported</div>
+              </div>
+            )}
             {failResults.length > 0 && (
               <div style={{ flex: 1, background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#991B1B' }}>{failResults.length}</div>
@@ -434,19 +441,33 @@ export default function BulkUploadCustomersModal({ open, format, onClose, onSave
             )}
           </div>
 
-          <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {results.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: r.status === 'success' ? '#F0FDF4' : '#FFF5F5', border: `1px solid ${r.status === 'success' ? '#BBF7D0' : '#FECACA'}`, borderRadius: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{r.name}</div>
-                  {r.status === 'error' && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>{r.error}</div>}
-                </div>
-                {r.status === 'success'
-                  ? <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', padding: '3px 8px', borderRadius: 4 }}>Imported</span>
-                  : <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#DC2626', background: '#FEE2E2', padding: '3px 8px', borderRadius: 4 }}>Failed</span>}
+          {successResults.length > 0 && failResults.length === 0 && skippedResults.length === 0 && (
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#065F46' }}>
+              All {successResults.length} row{successResults.length !== 1 ? 's' : ''} imported successfully.
+            </div>
+          )}
+          {(failResults.length > 0 || skippedResults.length > 0) && (
+            <>
+              <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8 }}>{successResults.length} imported. Rows that need a look:</div>
+              <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Failed first, then already-imported — successes are covered by the count above */}
+                {[...failResults, ...skippedResults].map((r, i) => {
+                  const skipped = r.status === 'skipped'
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: skipped ? '#EFF6FF' : '#FFF5F5', border: `1px solid ${skipped ? '#BFDBFE' : '#FECACA'}`, borderRadius: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{r.name}</div>
+                        {r.error && <div style={{ fontSize: 10, color: skipped ? '#1E40AF' : '#DC2626', marginTop: 2 }}>{r.error}</div>}
+                      </div>
+                      {skipped
+                        ? <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#1E40AF', background: '#DBEAFE', padding: '3px 8px', borderRadius: 4 }}>Already imported</span>
+                        : <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#DC2626', background: '#FEE2E2', padding: '3px 8px', borderRadius: 4 }}>Failed</span>}
+                    </div>
+                  )
+                })}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
     </Modal>
