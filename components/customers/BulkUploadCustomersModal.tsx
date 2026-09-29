@@ -130,14 +130,16 @@ function parseOltc(raw: Raw): ParsedRow[] {
   const iPost = idx('post'), iEmail = idx('mail'), iPhone = idx('telephone', 'phone')
   return raw.slice(headerIdx + 1).filter(r => r.some(c => S(c))).map(r => {
     const name = nameIdxs.map(i => S(r[i])).filter(Boolean).join(' ')
-    const address = [S(r[iStreet]), S(r[iCity]), iRg >= 0 ? S(r[iRg]) : ''].filter(Boolean).join(', ')
-    const search = S(r[iSearch])
+    const street = S(r[iStreet])
+    const city = iCity >= 0 ? S(r[iCity]) : ''
+    const region = iRg >= 0 ? S(r[iRg]) : ''
+    const siteAddress = [street, city, region].filter(Boolean).join(', ')
     return {
       name, sap_customer_code: iCode >= 0 ? S(r[iCode]) : '', contact_person: '',
       phone: iPhone >= 0 ? S(r[iPhone]) : '', email: iEmail >= 0 ? S(r[iEmail]) : '', whatsapp_number: '',
-      address, pincode: sanitizePincode(S(r[iPost])), end_customer_type_name: '',
-      customer_notes: search ? `Search term: ${search}` : '',
-      site_name: name, site_address: address, serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
+      address: street, city, region, search_term: iSearch >= 0 ? S(r[iSearch]) : '',
+      pincode: sanitizePincode(S(r[iPost])), end_customer_type_name: '',
+      site_name: name, site_address: siteAddress, serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
     } as ParsedRow
   }).filter(r => r.name || r.sap_customer_code)
 }

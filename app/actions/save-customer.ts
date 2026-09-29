@@ -12,12 +12,18 @@ export async function addCustomer(payload: {
   whatsapp_number: string | null
   address: string | null
   pincode: string
+  city?: string | null
+  region?: string | null
+  search_term?: string | null
+  sap_customer_code?: string | null
   end_customer_type_id: string | null
   serial_number: string
   year_of_manufacture: string | null
   warranty_status: string
   dispatch_date: string | null
   warranty_years: number | null
+  rating?: string | null
+  manufacturer?: string | null
   site_name: string
   site_address: string
 }): Promise<{ error: string | null; id?: string }> {
@@ -35,6 +41,10 @@ export async function addCustomer(payload: {
       whatsapp_number: payload.whatsapp_number,
       address: payload.address,
       pincode: payload.pincode,
+      city: payload.city ?? null,
+      region: payload.region ?? null,
+      search_term: payload.search_term ?? null,
+      sap_customer_code: payload.sap_customer_code ?? null,
       end_customer_type_id: payload.end_customer_type_id,
     }).select().single()
     if (ce) return { error: ce.message }
@@ -62,6 +72,8 @@ export async function addCustomer(payload: {
         warranty_status: payload.warranty_status,
         dispatch_date: payload.dispatch_date || null,
         warranty_years: payload.warranty_years,
+        rating: payload.rating || null,
+        manufacturer: payload.manufacturer || null,
       })
       if (te) return { error: te.message }
     }
@@ -99,6 +111,10 @@ export async function updateCustomer(
     // in the app touches pincode/end customer type, and forcing them to would block
     // saves on screens that were never asked to collect these fields.
     pincode?: string
+    city?: string | null
+    region?: string | null
+    search_term?: string | null
+    sap_customer_code?: string | null
     end_customer_type_id?: string | null
   }
 ): Promise<{ error: string | null }> {

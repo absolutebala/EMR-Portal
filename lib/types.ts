@@ -43,6 +43,9 @@ export interface Customer {
   sap_customer_code: string | null
   address: string | null
   pincode: string | null
+  city: string | null
+  region: string | null
+  search_term: string | null
   end_customer_type_id: string | null
   end_customer_type_name?: string | null
   created_at: string

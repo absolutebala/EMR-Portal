@@ -29,10 +29,11 @@ interface Props {
 export default function AddCustomerModal({ open, onClose, onSaved, editCustomer, onCreateWorkOrder, prefillName }: Props) {
   const [form, setForm] = useState({
     name: '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
+    sap_customer_code: '', city: '', region: '', search_term: '',
     end_customer_type_id: '', end_customer_type_name: '',
     whatsapp_number: '', site_name: '', site_address: '',
     serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
-    dispatch_date: todayIsoDate(), warranty_years: '',
+    dispatch_date: todayIsoDate(), warranty_years: '', rating: '', manufacturer: '',
   })
   const whatsappTouched = useRef(false)
   const [loading, setLoading] = useState(false)
@@ -52,6 +53,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
         email: editCustomer.email || '',
         address: editCustomer.address || '',
         pincode: editCustomer.pincode || '',
+        sap_customer_code: editCustomer.sap_customer_code || '',
+        city: editCustomer.city || '',
+        region: editCustomer.region || '',
+        search_term: editCustomer.search_term || '',
         end_customer_type_id: editCustomer.end_customer_type_id || '',
         end_customer_type_name: editCustomer.end_customer_type_name || '',
         whatsapp_number: editCustomer.whatsapp_number || '',
@@ -61,9 +66,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
     } else {
       setForm({
         name: prefillName || '', type: 'both', contact_person: '', phone: '', email: '', address: '', pincode: '',
+        sap_customer_code: '', city: '', region: '', search_term: '',
         end_customer_type_id: '', end_customer_type_name: '',
         whatsapp_number: '', site_name: '', site_address: '', serial_number: '', year_of_manufacture: '', warranty_status: 'under_warranty',
-        dispatch_date: todayIsoDate(), warranty_years: '',
+        dispatch_date: todayIsoDate(), warranty_years: '', rating: '', manufacturer: '',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,6 +113,10 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
           address: form.address || null,
           pincode: form.pincode.trim(),
+          city: form.city.trim() || null,
+          region: form.region.trim() || null,
+          search_term: form.search_term.trim() || null,
+          sap_customer_code: form.sap_customer_code.trim() || null,
           end_customer_type_id: form.end_customer_type_id || null,
         })
         if (error) throw new Error(error)
@@ -119,12 +129,18 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           email: form.email || null, whatsapp_number: form.whatsapp_number || null,
           address: form.address || null,
           pincode: form.pincode.trim(),
+          city: form.city.trim() || null,
+          region: form.region.trim() || null,
+          search_term: form.search_term.trim() || null,
+          sap_customer_code: form.sap_customer_code.trim() || null,
           end_customer_type_id: form.end_customer_type_id || null,
           serial_number: form.serial_number,
           year_of_manufacture: form.year_of_manufacture || null,
           warranty_status: form.warranty_status,
           dispatch_date: form.dispatch_date || null,
           warranty_years: form.warranty_years ? Number(form.warranty_years) : null,
+          rating: form.rating.trim() || null,
+          manufacturer: form.manufacturer.trim() || null,
           site_name: form.site_name,
           site_address: form.site_address,
         })
@@ -195,6 +211,14 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
                 <input style={fi2} value={form.year_of_manufacture} onChange={e => set('year_of_manufacture', e.target.value)} placeholder="e.g. 2019" />
               </div>
               <div>
+                <label style={fl2}>Rating</label>
+                <input style={fi2} value={form.rating} onChange={e => set('rating', e.target.value)} placeholder="e.g. 33 kV, 8000 kVA" />
+              </div>
+              <div>
+                <label style={fl2}>Manufacturer</label>
+                <input style={fi2} value={form.manufacturer} onChange={e => set('manufacturer', e.target.value)} placeholder="e.g. Plant / OEM" />
+              </div>
+              <div>
                 <label style={fl2}>Warranty status</label>
                 <select style={fi2} value={form.warranty_status} onChange={e => set('warranty_status', e.target.value)}>
                   <option value="under_warranty">Under warranty</option>
@@ -249,6 +273,22 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           <div>
             <label style={fl2}>Pincode <span style={{ color: 'var(--m)' }}>*</span></label>
             <input required style={fi2} value={form.pincode} onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" inputMode="numeric" maxLength={6} />
+          </div>
+          <div>
+            <label style={fl2}>City</label>
+            <input style={fi2} value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Chennai" />
+          </div>
+          <div>
+            <label style={fl2}>Region</label>
+            <input style={fi2} value={form.region} onChange={e => set('region', e.target.value)} placeholder="e.g. TN" />
+          </div>
+          <div>
+            <label style={fl2}>SAP customer code</label>
+            <input style={fi2} value={form.sap_customer_code} onChange={e => set('sap_customer_code', e.target.value)} placeholder="SAP account no." />
+          </div>
+          <div>
+            <label style={fl2}>Search term</label>
+            <input style={fi2} value={form.search_term} onChange={e => set('search_term', e.target.value)} placeholder="Short code / alias" />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>WhatsApp number</label>

@@ -14,6 +14,7 @@ export async function addTransformer(payload: {
   warranty_status: string
   dispatch_date: string | null
   warranty_years: number | null
+  notes?: string | null
 }): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
@@ -39,6 +40,7 @@ export async function addTransformer(payload: {
       warranty_status: payload.warranty_status,
       dispatch_date: payload.dispatch_date || null,
       warranty_years: payload.warranty_years,
+      notes: payload.notes || null,
     })
     return { error: error?.message || null }
   } catch (e: unknown) {
@@ -57,6 +59,7 @@ export async function updateTransformer(
     site_id: string | null
     dispatch_date: string | null
     warranty_years: number | null
+    notes?: string | null
   }
 ): Promise<{ error: string | null }> {
   try {

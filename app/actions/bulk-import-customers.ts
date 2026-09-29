@@ -12,6 +12,9 @@ export interface BulkCustomerRow {
   whatsapp_number: string
   address: string
   pincode: string
+  city?: string
+  region?: string
+  search_term?: string
   end_customer_type_name: string
   customer_notes?: string
   site_name: string
@@ -58,6 +61,9 @@ async function createCustomerWithSite(
     whatsapp_number: row.whatsapp_number || null,
     address: row.address || null,
     pincode: row.pincode || null,
+    city: row.city || null,
+    region: row.region || null,
+    search_term: row.search_term || null,
     sap_customer_code: row.sap_customer_code || null,
     end_customer_type_id: endCustomerTypeId,
     notes: row.customer_notes || null,
