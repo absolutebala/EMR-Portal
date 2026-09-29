@@ -140,13 +140,16 @@ export async function bulkImportCustomers(rows: BulkCustomerRow[], opts: BulkImp
     let resolved = customerCache.get(key)
 
     if (!resolved) {
-      // Look for an existing customer: SAP code is the strong key, name is the fallback.
+      // Look for an existing customer. When a SAP code is present it is THE unique key,
+      // so match on it alone — do NOT also fall back to name, or two distinct accounts
+      // that share a company name (very common in the SAP master, e.g. two "EMR Tap
+      // Changers" accounts with different codes) would collapse and the later rows get
+      // dropped as false "duplicates". Only match by name when there's no SAP code.
       let existing: { id: string } | null = null
       if (row.sap_customer_code?.trim()) {
         const { data } = await admin.from('customers').select('id').eq('sap_customer_code', row.sap_customer_code.trim()).maybeSingle()
         existing = data
-      }
-      if (!existing && row.name) {
+      } else if (row.name) {
         const { data } = await admin.from('customers').select('id').ilike('name', row.name).maybeSingle()
         existing = data
       }
