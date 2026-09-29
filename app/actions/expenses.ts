@@ -9,6 +9,7 @@ import {
   buildExpenseLogViews,
   getExpenseEligibilityCore, getExpenseTypesCore, getOrCreateExpenseTypeCore,
   submitExpenseLogCore, getMyExpenseLogsCore,
+  updateMyExpenseLogCore, deleteMyExpenseLogCore,
   type ExpenseType, type BLEligibility, type ExpenseLogView,
 } from '@/lib/mobile/core/expenses'
 // NOTE: ExpenseType, BLEligibility, ExpenseLogView now live in
@@ -50,6 +51,20 @@ export async function getMyExpenseLogs(): Promise<{ logs: ExpenseLogView[]; erro
   const user = await getAuthedUser()
   if (!user) return { logs: [], error: 'Not authenticated' }
   return getMyExpenseLogsCore(adminClient(), user.id)
+}
+
+// Engineer edits/deletes their OWN pending expense (mobile). Ownership + pending-status
+// are enforced in the core, shared with the RN REST route.
+export async function updateMyExpenseLog(id: string, fields: { expenseTypeId: string; expenseDate: string; amount: number }): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return updateMyExpenseLogCore(adminClient(), user.id, id, fields)
+}
+
+export async function deleteMyExpenseLog(id: string): Promise<{ error: string | null }> {
+  const user = await getAuthedUser()
+  if (!user) return { error: 'Not authenticated' }
+  return deleteMyExpenseLogCore(adminClient(), user.id, id)
 }
 
 // ---------- Desktop: per-engineer + admin review + two-stage approval ----------

@@ -366,3 +366,38 @@ export async function sendExpenseReminderCore(admin: AdminClient, userId: string
   }
 }
 
+
+// ---------- Field engineer: edit / delete their OWN expense (pending only) ----------
+// Once a manager or head has acted (status != 'pending'), the engineer can no longer
+// change it — the claim is in the approval pipeline. Ownership + status are both
+// enforced here so it holds for the PWA server action and the RN REST route alike.
+
+export async function updateMyExpenseLogCore(admin: AdminClient, userId: string, id: string, fields: {
+  expenseTypeId: string
+  expenseDate: string
+  amount: number
+}): Promise<{ error: string | null }> {
+  if (!(fields.amount > 0)) return { error: 'Amount must be greater than 0.' }
+  if (!fields.expenseTypeId) return { error: 'Select an expense type.' }
+  if (!fields.expenseDate) return { error: 'Select a date.' }
+
+  const { data: existing } = await admin.from('expense_logs').select('engineer_id, status').eq('id', id).maybeSingle()
+  if (!existing || existing.engineer_id !== userId) return { error: 'Expense not found.' }
+  if (existing.status !== 'pending') return { error: 'This expense has already been reviewed and can no longer be edited.' }
+
+  const { error } = await admin.from('expense_logs').update({
+    expense_type_id: fields.expenseTypeId,
+    expense_date: fields.expenseDate,
+    amount: fields.amount,
+  }).eq('id', id).eq('engineer_id', userId)
+  return { error: error?.message || null }
+}
+
+export async function deleteMyExpenseLogCore(admin: AdminClient, userId: string, id: string): Promise<{ error: string | null }> {
+  const { data: existing } = await admin.from('expense_logs').select('engineer_id, status').eq('id', id).maybeSingle()
+  if (!existing || existing.engineer_id !== userId) return { error: 'Expense not found.' }
+  if (existing.status !== 'pending') return { error: 'This expense has already been reviewed and can no longer be deleted.' }
+
+  const { error } = await admin.from('expense_logs').delete().eq('id', id).eq('engineer_id', userId)
+  return { error: error?.message || null }
+}
