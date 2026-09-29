@@ -3,6 +3,7 @@ import Topbar from '@/components/layout/Topbar'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
 import { ListCard, ListRow, Badge, BreakdownCard } from '@/components/dashboard/DashboardCards'
+import DashboardAutoRefresh from '@/components/dashboard/DashboardAutoRefresh'
 import AssignableList from '@/components/dashboard/AssignableList'
 import SuspiciousLoginsCard from '@/components/dashboard/SuspiciousLoginsCard'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
 
   return (
     <>
+      <DashboardAutoRefresh />
       <Topbar title="Dashboard" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
