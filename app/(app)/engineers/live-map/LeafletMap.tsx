@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, Circle, useMap } from 'react-leaflet'
@@ -67,38 +67,60 @@ const SEARCH_LOCATION_ICON = L.divIcon({
   popupAnchor: [0, -28],
 })
 
+// A round maroon badge showing the number of engineers grouped at (or near) a spot.
+function countIcon(n: number): L.DivIcon {
+  const size = n >= 100 ? 34 : n >= 10 ? 30 : 26
+  return L.divIcon({
+    className: 'technician-cluster',
+    html: `
+      <div style="width:${size}px;height:${size}px;border-radius:50%;background:#7D1D3F;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;font-family:Poppins,sans-serif;">${n}</div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  })
+}
+
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
 // Mainland India bounding box (SW → NE), used to frame the whole country on first
 // load so the admin sees how engineers are spread out nationally rather than being
 // zoomed straight into wherever the pins happen to cluster.
 const INDIA_BOUNDS: LatLngBoundsExpression = [[6.5, 68.0], [35.7, 97.5]]
 
-// Engineers can ping from coordinates only a few meters apart (e.g. several checked in
-// from the same office/HQ). Rather than stacking indistinguishably, points in the same
-// ~111m grid cell are collapsed onto ONE pin that shows how many engineers are there —
-// click it to see who. This groups by that grid cell.
-function clusterKey(lat: number, lng: number): string {
-  return `${lat.toFixed(3)},${lng.toFixed(3)}`
+type MapPoint = {
+  engineer: FieldEngineerOverview
+  lat: number
+  lng: number
+  at: string
+  placeName: string | null
+  previousSeen: FieldEngineerOverview['previousSeen']
 }
 
-// A round maroon badge showing the number of engineers sharing a location.
-function countIcon(n: number): L.DivIcon {
-  return L.divIcon({
-    className: 'technician-cluster',
-    html: `
-      <div style="min-width:24px;height:24px;padding:0 5px;border-radius:12px;background:#7D1D3F;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;font-family:Poppins,sans-serif;">${n}</div>
-    `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
-  })
+// Group pins that sit within ~CLUSTER_PX pixels of each other *at the current zoom*, so
+// engineers who visually overlap on the map (e.g. everyone around Chennai when zoomed
+// out to all of India) collapse onto one count pin — and separate back into individual
+// pins as the admin zooms in. This is screen-distance based (not a fixed geographic
+// grid) so it stays right at every zoom level.
+const CLUSTER_PX = 34
+type Cluster = { lat: number; lng: number; group: MapPoint[]; anchor: L.Point }
+function clusterByPixels(map: L.Map, points: MapPoint[]): Cluster[] {
+  const out: Cluster[] = []
+  for (const p of points) {
+    const pt = map.latLngToLayerPoint([p.lat, p.lng])
+    let placed = false
+    for (const c of out) {
+      if (c.anchor.distanceTo(pt) <= CLUSTER_PX) { c.group.push(p); placed = true; break }
+    }
+    if (!placed) out.push({ lat: p.lat, lng: p.lng, group: [p], anchor: pt })
+  }
+  return out
 }
 
 // Frame the whole of India once on first load (the documented react-leaflet way is to
 // reach into the map instance imperatively via useMap()). Fitting a fixed India box —
 // rather than the marker bounds — means the admin always opens on the national view and
 // can see how engineers are spread across the country, instead of being zoomed into
-// wherever the pins happen to cluster. Runs only once, so the 60s auto-refresh never
+// wherever the pins happen to cluster. Runs only once, so the auto-refresh never
 // resets the admin's own pan/zoom.
 function FitIndia() {
   const map = useMap()
@@ -115,7 +137,7 @@ function FitIndia() {
 function FlyToSelected({ target }: { target: [number, number] | null }) {
   const map = useMap()
   // Only fly when the target coordinates actually change (a new selection, or the
-  // selected engineer moved) — not on every render. Without this the 60s auto-refresh
+  // selected engineer moved) — not on every render. Without this the auto-refresh
   // re-runs the effect with a fresh array of the same coords and yanks the admin's
   // view back to the selected pin every minute.
   const lastKey = useRef<string | null>(null)
@@ -124,10 +146,8 @@ function FlyToSelected({ target }: { target: [number, number] | null }) {
     const key = `${target[0]},${target[1]}`
     if (key === lastKey.current) return
     lastKey.current = key
-    // Center exactly on the pin at street zoom. The marker's popup opens on selection
-    // (see the openPopup effect below) and Leaflet auto-pans it into view, so there's
-    // no need to manually offset the centre (an earlier attempt at that landed the map
-    // off the pin entirely).
+    // Center exactly on the pin at street zoom. At that zoom the pixel clustering splits
+    // co-located engineers back into individual pins, so the selected one is on its own.
     map.flyTo(target, Math.max(map.getZoom(), 15), { duration: 0.6 })
   }, [map, target])
   return null
@@ -154,103 +174,50 @@ function FitToSearch({ location, points }: { location: { lat: number; lng: numbe
   return null
 }
 
-interface Props {
-  engineers: FieldEngineerOverview[]
-  selectedId: string | null
-  searchedLocation?: { lat: number; lng: number; label: string } | null
-  radiusKm?: number
-  nearbyIds?: string[]
-}
-
-export default function LeafletMap({ engineers, selectedId, searchedLocation, radiusKm = 150, nearbyIds = [] }: Props) {
-  const rawPoints = engineers.flatMap(e => {
-    const ls = e.lastSeen
-    if (!ls || ls.lat == null || ls.lng == null) return []
-    // A pin only reflects a genuinely recent position — `fresh` (computed server-side,
-    // <24h) drops stale locations off the map. The engineer still shows in the sidebar
-    // list with their "Last seen …" text, just isn't plotted.
-    if (!ls.fresh) return []
-    return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
-  })
-  const points = rawPoints
-  const selected = points.find(p => p.engineer.id === selectedId)
-
-  const nearbySet = new Set(nearbyIds)
-  const nearbyPoints = points.filter(p => nearbySet.has(p.engineer.id)).map(p => [p.lat, p.lng] as [number, number])
-
-  // When a location is searched, plot ONLY the nearby-available engineers — the same set
-  // shown in the sidebar list — so the map and the list stay consistent (previously the
-  // map kept showing every engineer nationwide, which didn't match the "near this place"
-  // list). With no active search, show everyone as usual.
-  const visiblePoints = searchedLocation ? points.filter(p => nearbySet.has(p.engineer.id)) : points
-
-  // Collapse co-located engineers into one clustered pin (a count badge); a single
-  // engineer at a spot still shows the normal teardrop marker.
-  type MapPoint = typeof visiblePoints[number]
-  const clusterList = (() => {
-    const map = new Map<string, MapPoint[]>()
-    for (const p of visiblePoints) {
-      const key = clusterKey(p.lat, p.lng)
-      const list = map.get(key)
-      if (list) list.push(p)
-      else map.set(key, [p])
-    }
-    return [...map.entries()].map(([key, group]) => ({ key, group, lat: group[0].lat, lng: group[0].lng }))
-  })()
-
-  // The cluster holding the currently-selected engineer — used to fly to it and open
-  // its popup (a selected engineer may be inside a multi-engineer count pin).
-  const selectedClusterKey = selected ? clusterKey(selected.lat, selected.lng) : null
-
-  const markerRefs = useRef<Record<string, L.Marker | null>>({})
+// The engineer markers themselves — kept in a child so it can read the live map instance
+// (useMap) to project lat/lng to pixels and re-cluster whenever the admin zooms or pans.
+function EngineerMarkers({ points, selectedId }: { points: MapPoint[]; selectedId: string | null }) {
+  const map = useMap()
+  const [, setTick] = useState(0)
   useEffect(() => {
-    if (!selectedClusterKey) return
-    // Open the popup just after the flyTo animation settles, so its auto-pan lands on
-    // the already-centred pin instead of fighting the in-flight camera move.
-    const t = setTimeout(() => markerRefs.current[selectedClusterKey]?.openPopup(), 700)
+    const onChange = () => setTick(t => t + 1)
+    map.on('zoomend', onChange)
+    map.on('moveend', onChange)
+    return () => { map.off('zoomend', onChange); map.off('moveend', onChange) }
+  }, [map])
+
+  const clusters = clusterByPixels(map, points)
+  const clustersRef = useRef(clusters)
+  useEffect(() => { clustersRef.current = clusters })
+  const markerRefs = useRef<(L.Marker | null)[]>([])
+
+  // When an engineer is picked from the sidebar, open the popup of whichever pin now
+  // holds them once the fly-to has settled (by then the clusters have re-computed at the
+  // zoomed-in level, so it's typically their own pin).
+  useEffect(() => {
+    if (!selectedId) return
+    const t = setTimeout(() => {
+      const idx = clustersRef.current.findIndex(c => c.group.some(p => p.engineer.id === selectedId))
+      if (idx >= 0) markerRefs.current[idx]?.openPopup()
+    }, 750)
     return () => clearTimeout(t)
-  }, [selectedClusterKey])
+  }, [selectedId])
 
   return (
-    <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FitIndia />
-      <FlyToSelected target={selected ? [selected.lat, selected.lng] : null} />
-      <FitToSearch location={searchedLocation ?? null} points={nearbyPoints} />
-      {searchedLocation && (
-        <>
-          <Circle center={[searchedLocation.lat, searchedLocation.lng]} radius={radiusKm * 1000} pathOptions={{ color: '#2563EB', weight: 1, fillColor: '#2563EB', fillOpacity: 0.06 }} />
-          <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={SEARCH_LOCATION_ICON}>
-            <Popup>
-              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>Searched location</div>
-                <div style={{ fontSize: 11, color: '#7A6870' }}>{searchedLocation.label}</div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>Reachable engineers here: {nearbyIds.length}</div>
-              </div>
-            </Popup>
-          </Marker>
-        </>
-      )}
-      {clusterList.map(c => {
-        // Single engineer at this spot — the usual teardrop pin.
+    <>
+      {clusters.map((c, idx) => {
+        // A single engineer at this spot — the usual teardrop pin.
         if (c.group.length === 1) {
           const p = c.group[0]
           const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
           return (
             <Marker
-              key={c.key}
-              position={[c.lat, c.lng]}
+              key={`s-${p.engineer.id}`}
+              position={[p.lat, p.lng]}
               icon={TECHNICIAN_ICON}
-              ref={el => { markerRefs.current[c.key] = el }}
+              ref={el => { markerRefs.current[idx] = el }}
             >
-              {/* Name shows in the popup on click (and as a hover tooltip) — no permanent
-                  label, to keep a busy national map readable. */}
-              <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
-                {p.engineer.name}
-              </Tooltip>
+              <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>{p.engineer.name}</Tooltip>
               <Popup>
                 <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{p.engineer.name}</div>
@@ -275,31 +242,28 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
           )
         }
 
-        // Several engineers share this location — one count pin, expandable to the list.
+        // Several engineers overlap here — one count pin, expandable to the list.
         return (
           <Marker
-            key={c.key}
+            key={`c-${c.group.map(p => p.engineer.id).join('-')}`}
             position={[c.lat, c.lng]}
             icon={countIcon(c.group.length)}
-            ref={el => { markerRefs.current[c.key] = el }}
+            ref={el => { markerRefs.current[idx] = el }}
           >
-            <Tooltip direction="top" offset={[0, -12]} opacity={0.95}>
-              {c.group.length} engineers here
-            </Tooltip>
+            <Tooltip direction="top" offset={[0, -12]} opacity={0.95}>{c.group.length} engineers here</Tooltip>
             <Popup>
               <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 190 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>{c.group.length} engineers here</div>
-                <div style={{ fontSize: 11, color: '#7A6870', marginBottom: 4 }}>{c.group[0].placeName || 'Location unavailable'}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 6 }}>{c.group.length} engineers here</div>
                 <div style={{ maxHeight: 220, overflowY: 'auto' }}>
                   {c.group.map((p, i) => {
                     const cfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
                     return (
-                      <div key={p.engineer.id} style={{ borderTop: i === 0 ? 'none' : '1px solid #F1E7EB', paddingTop: 8, marginTop: i === 0 ? 6 : 8 }}>
+                      <div key={p.engineer.id} style={{ borderTop: i === 0 ? 'none' : '1px solid #F1E7EB', paddingTop: i === 0 ? 0 : 8, marginTop: i === 0 ? 0 : 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{p.engineer.name}</span>
                           <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', whiteSpace: 'nowrap' }}>{cfg.label}</span>
                         </div>
-                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>Last seen {formatRelativeTime(p.at)}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>{p.placeName || 'Location unavailable'} · {formatRelativeTime(p.at)}</div>
                         <Link href={`/engineers/${p.engineer.id}`} style={{ display: 'inline-block', marginTop: 3, fontSize: 10, color: '#7D1D3F', fontWeight: 500 }}>
                           View profile →
                         </Link>
@@ -312,6 +276,62 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
           </Marker>
         )
       })}
+    </>
+  )
+}
+
+interface Props {
+  engineers: FieldEngineerOverview[]
+  selectedId: string | null
+  searchedLocation?: { lat: number; lng: number; label: string } | null
+  radiusKm?: number
+  nearbyIds?: string[]
+}
+
+export default function LeafletMap({ engineers, selectedId, searchedLocation, radiusKm = 150, nearbyIds = [] }: Props) {
+  const rawPoints: MapPoint[] = engineers.flatMap(e => {
+    const ls = e.lastSeen
+    if (!ls || ls.lat == null || ls.lng == null) return []
+    // A pin only reflects a genuinely recent position — `fresh` (computed server-side,
+    // <24h) drops stale locations off the map. The engineer still shows in the sidebar
+    // list with their "Last seen …" text, just isn't plotted.
+    if (!ls.fresh) return []
+    return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
+  })
+  const selected = rawPoints.find(p => p.engineer.id === selectedId)
+
+  const nearbySet = new Set(nearbyIds)
+  const nearbyPoints = rawPoints.filter(p => nearbySet.has(p.engineer.id)).map(p => [p.lat, p.lng] as [number, number])
+
+  // When a location is searched, plot ONLY the nearby-available engineers — the same set
+  // shown in the sidebar list — so the map and the list stay consistent. With no active
+  // search, show everyone as usual.
+  const visiblePoints = searchedLocation ? rawPoints.filter(p => nearbySet.has(p.engineer.id)) : rawPoints
+
+  return (
+    <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <FitIndia />
+      <FlyToSelected target={selected ? [selected.lat, selected.lng] : null} />
+      <FitToSearch location={searchedLocation ?? null} points={nearbyPoints} />
+      {searchedLocation && (
+        <>
+          <Circle center={[searchedLocation.lat, searchedLocation.lng]} radius={radiusKm * 1000} pathOptions={{ color: '#2563EB', weight: 1, fillColor: '#2563EB', fillOpacity: 0.06 }} />
+          <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={SEARCH_LOCATION_ICON}>
+            <Popup>
+              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>Searched location</div>
+                <div style={{ fontSize: 11, color: '#7A6870' }}>{searchedLocation.label}</div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>Reachable engineers here: {nearbyIds.length}</div>
+              </div>
+            </Popup>
+          </Marker>
+        </>
+      )}
+      <EngineerMarkers points={visiblePoints} selectedId={selectedId} />
     </MapContainer>
   )
 }
