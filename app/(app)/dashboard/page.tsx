@@ -254,9 +254,9 @@ export default async function DashboardPage() {
                   }
                   href={`/work-orders/${wo.id}`}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, maxWidth: 150 }}>
                     <Badge bg={cfg.bg} color={cfg.color} label={cfg.label} />
-                    <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
+                    <span style={{ fontSize: 10, color: 'var(--txm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', textAlign: 'right' }} title={wo.customerName}>{wo.customerName}</span>
                   </div>
                 </ListRow>
               )
