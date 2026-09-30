@@ -6,7 +6,7 @@ import Modal from '@/components/ui/Modal'
 import { createWorkOrder, getNextTicketNumberPreview } from '@/app/actions/create-work-order'
 import { searchTransformersBySerial, searchCustomersByName, getTransformersForCustomer, getAssignableEngineers } from '@/app/actions/get-work-orders'
 import { getMyAssignableDepartments } from '@/app/actions/departments'
-import type { Department } from '@/lib/departments'
+import { type Department, siNoLabel } from '@/lib/departments'
 import CustomerCategoryPicker from './CustomerCategoryPicker'
 import EngineerSearchSelect from './EngineerSearchSelect'
 import type { CustomerCategoryType } from '@/app/actions/customer-categories'
@@ -70,6 +70,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [scheduledDate, setScheduledDate] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [departmentId, setDepartmentId] = useState('')
+  // Service item number — one value, label follows the selected department (see siNoLabel).
+  const [serviceItemNo, setServiceItemNo] = useState('')
 
   // Two ways to attach a customer to a notification:
   //  - 'existing' pulls a saved customer (+ their transformers) from the database.
@@ -114,7 +116,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setReportedDate(''); setReportedThrough(''); setCustomerMessage(''); setSolutionThrough(''); setAdditionalEngineerIds([])
       setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
       setEngineerId(''); setScheduledDate('')
-      setDepartmentId('')
+      setDepartmentId(''); setServiceItemNo('')
       // Default to typing details directly; a customer pre-filled from the Customers
       // page still forces the existing-customer path.
       setCustomerSource(prefillCustomerId ? 'existing' : 'direct')
@@ -248,6 +250,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       customer_type: customerType || null,
       customer_category_id: customerCategoryId || null,
       department_id: departmentId || null,
+      service_item_no: serviceItemNo.trim() || null,
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -329,6 +332,10 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               <option value="">Select department</option>
               {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
+          </div>
+          <div>
+            <label style={fl2}>{siNoLabel(departments.find(d => d.id === departmentId)?.name)}</label>
+            <input style={fi2} value={serviceItemNo} onChange={e => setServiceItemNo(e.target.value)} placeholder="Enter serial / item number" />
           </div>
 
           {customerSource === 'direct' && (

@@ -79,6 +79,7 @@ export async function createWorkOrder(payload: {
   customer_type: string | null
   customer_category_id: string | null
   department_id: string | null
+  service_item_no?: string | null
   // Second notification type — customer details typed directly onto the notification
   // (no linked customer). Present only when customer_id is null.
   direct_customer_name?: string | null
@@ -130,6 +131,7 @@ export async function createWorkOrder(payload: {
         customer_type: payload.customer_type || null,
         customer_category_id: payload.customer_category_id || null,
         department_id: payload.department_id || null,
+        service_item_no: payload.service_item_no || null,
         direct_customer_name: payload.customer_id ? null : (payload.direct_customer_name || null),
         direct_contact_person: payload.customer_id ? null : (payload.direct_contact_person || null),
         direct_phone: payload.customer_id ? null : (payload.direct_phone || null),
@@ -239,6 +241,7 @@ export async function updateWorkOrder(id: string, payload: {
   customer_type: string | null
   customer_category_id: string | null
   department_id: string | null
+  service_item_no?: string | null
 }): Promise<{ error: string | null }> {
   try {
     const user = await getAuthedUser()
@@ -283,6 +286,7 @@ export async function updateWorkOrder(id: string, payload: {
       customer_type: payload.customer_type || null,
       customer_category_id: payload.customer_category_id || null,
       department_id: payload.department_id || null,
+      service_item_no: payload.service_item_no ?? null,
     }).eq('id', id)
     if (updateErr) return { error: updateErr.message }
 

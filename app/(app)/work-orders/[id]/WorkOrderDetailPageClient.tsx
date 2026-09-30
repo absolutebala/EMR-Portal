@@ -27,7 +27,7 @@ import { getDepartments } from '@/app/actions/departments'
 import AddCustomerModal from '@/components/customers/AddCustomerModal'
 import TransformerTableClient from '@/components/customers/TransformerTableClient'
 import { getCustomerEquipment } from '@/app/actions/save-customer'
-import type { Department } from '@/lib/departments'
+import { type Department, siNoLabel } from '@/lib/departments'
 
 const JOB_LABELS: Record<string, string> = {
   site_inspection: 'Site Inspection',
@@ -255,6 +255,7 @@ interface EditForm {
   customer_category_id: string
   customer_category_name: string
   department_id: string
+  service_item_no: string
 }
 
 const inputStyle: React.CSSProperties = {
@@ -308,7 +309,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
   const [form, setForm] = useState<EditForm>({
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
     reported_date: '', reported_through: '', customer_message: '', solution_through: '', additional_engineer_ids: [],
-    customer_type: '', customer_category_id: '', customer_category_name: '', department_id: '',
+    customer_type: '', customer_category_id: '', customer_category_name: '', department_id: '', service_item_no: '',
   })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
@@ -386,6 +387,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_category_id: wo.customer_category_id || '',
       customer_category_name: wo.customer_category_name || '',
       department_id: wo.department_id || '',
+      service_item_no: wo.service_item_no || '',
     })
     setEditing(true)
     setShowReassign(false)
@@ -450,6 +452,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_type: form.customer_type || null,
       customer_category_id: form.customer_category_id || null,
       department_id: form.department_id || null,
+      service_item_no: form.service_item_no.trim() || null,
     })
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
@@ -687,6 +690,14 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         <option value="">Select department</option>
                         {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
+
+                      {fieldLabel(siNoLabel(departments.find(d => d.id === form.department_id)?.name))}
+                      <input
+                        style={{ ...inputStyle, marginBottom: 10 }}
+                        value={form.service_item_no}
+                        onChange={e => setForm(f => ({ ...f, service_item_no: e.target.value }))}
+                        placeholder="Enter serial / item number"
+                      />
 
                       {fieldLabel('End user type')}
                       <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
@@ -1205,6 +1216,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {wo.solution_through && row('Solution through', SOLUTION_THROUGH_LABELS[wo.solution_through] || wo.solution_through)}
                 {wo.additional_engineers && wo.additional_engineers.length > 0 && row('Additional engineers', wo.additional_engineers.map(e => e.name).join(', '))}
                 {row('Department', wo.department_name || '—')}
+                {wo.service_item_no && row(siNoLabel(wo.department_name), wo.service_item_no)}
               </div>
 
               <div style={card}>

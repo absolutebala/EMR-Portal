@@ -151,6 +151,9 @@ export interface WorkOrder {
   // department assignment(s) at creation time, not derived from the assigned
   // engineer (Field Engineers no longer carry a department for this purpose).
   department_id: string | null
+  // Per-notification service item number, captured after Department. The label shown
+  // to the user follows the department (OLTC/NIFPS/Breather SI. No.) — see siNoLabel().
+  service_item_no: string | null
   // Expense-approval gate for Field-Engineer-created notifications: null = admin-created
   // (expenses allowed as normal); 'pending' | 'approved' | 'rejected' otherwise. Expenses
   // are blocked until 'approved'.
