@@ -619,8 +619,8 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                       {fieldLabel('Scheduled date')}
                       <input type="date" style={inputStyle} value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
 
-                      {fieldLabel('Notes')}
-                      <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…" />
+                      {fieldLabel('Additional Information')}
+                      <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional information or instructions for the engineer…" />
 
                       {fieldLabel('Reported date')}
                       <input type="date" style={inputStyle} value={form.reported_date} onChange={e => setForm(f => ({ ...f, reported_date: e.target.value }))} max={new Date().toLocaleDateString('en-CA')} />
@@ -1231,7 +1231,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                 {equipment.customer?.region && row('Region', equipment.customer.region)}
                 {equipment.customer?.search_term && row('Search term', equipment.customer.search_term)}
                 {row('Warranty', wo.has_warranty ? <span style={{ color: '#065F46' }}>Yes</span> : <span style={{ color: 'var(--txm)' }}>No</span>)}
-                {wo.notes && row('Notes', wo.notes)}
+                {wo.notes && row('Additional Information', wo.notes)}
                 {wo.customer_message && row('Customer message', wo.customer_message)}
                 {canEdit && equipment.customer && (
                   <button onClick={() => setShowEditCustomer(true)}

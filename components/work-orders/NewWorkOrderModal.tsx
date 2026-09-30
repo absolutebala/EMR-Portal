@@ -81,6 +81,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [directContact, setDirectContact] = useState('')
   const [directPhone, setDirectPhone] = useState('')
   const [directWhatsapp, setDirectWhatsapp] = useState('')
+  // WhatsApp mirrors Phone until the user edits it directly — then it holds its own value.
+  const [directWhatsappTouched, setDirectWhatsappTouched] = useState(false)
   const [directEmail, setDirectEmail] = useState('')
   const [directAddress, setDirectAddress] = useState('')
 
@@ -116,7 +118,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       // Default to typing details directly; a customer pre-filled from the Customers
       // page still forces the existing-customer path.
       setCustomerSource(prefillCustomerId ? 'existing' : 'direct')
-      setDirectName(''); setDirectContact(''); setDirectPhone(''); setDirectWhatsapp(''); setDirectEmail(''); setDirectAddress('')
+      setDirectName(''); setDirectContact(''); setDirectPhone(''); setDirectWhatsapp(''); setDirectWhatsappTouched(false); setDirectEmail(''); setDirectAddress('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
@@ -341,11 +343,20 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               </div>
               <div>
                 <label style={fl2}>Phone</label>
-                <input style={fi2} value={directPhone} onChange={e => setDirectPhone(e.target.value)} placeholder="Contact phone" />
+                <input style={fi2} value={directPhone}
+                  onChange={e => {
+                    const v = e.target.value
+                    setDirectPhone(v)
+                    // Mirror into WhatsApp until the user overrides it.
+                    if (!directWhatsappTouched) setDirectWhatsapp(v)
+                  }}
+                  placeholder="Contact phone" />
               </div>
               <div>
                 <label style={fl2}>WhatsApp</label>
-                <input style={fi2} value={directWhatsapp} onChange={e => setDirectWhatsapp(e.target.value)} placeholder="WhatsApp number (defaults to phone)" />
+                <input style={fi2} value={directWhatsapp}
+                  onChange={e => { setDirectWhatsappTouched(true); setDirectWhatsapp(e.target.value) }}
+                  placeholder="Same as phone (edit to change)" />
               </div>
               <div>
                 <label style={fl2}>Email</label>
@@ -539,8 +550,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
           )}
 
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={fl2}>Notes</label>
-            <textarea style={{ ...fi2, resize: 'vertical' }} rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes or instructions…" />
+            <label style={fl2}>Additional Information</label>
+            <textarea style={{ ...fi2, resize: 'vertical' }} rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional information or instructions for the engineer…" />
           </div>
         </div>
       </form>
