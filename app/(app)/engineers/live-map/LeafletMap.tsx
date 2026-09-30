@@ -73,34 +73,25 @@ const INDIA_CENTER: [number, number] = [22.9734, 78.6569]
 // zoomed straight into wherever the pins happen to cluster.
 const INDIA_BOUNDS: LatLngBoundsExpression = [[6.5, 68.0], [35.7, 97.5]]
 
-// Two engineers can ping from coordinates that only differ a few meters apart (e.g.
-// both checked in from the same office) — round to ~111m grid cells to detect those
-// clusters, then nudge every point after the first outward along a golden-angle
-// spiral so overlapping pins become visually distinguishable instead of stacking
-// into what looks like a single marker.
-const GOLDEN_ANGLE = 137.508 * (Math.PI / 180)
-function jitterOverlapping<T extends { lat: number; lng: number }>(items: T[]): T[] {
-  const clusters = new Map<string, T[]>()
-  items.forEach(item => {
-    const key = `${item.lat.toFixed(3)},${item.lng.toFixed(3)}`
-    const list = clusters.get(key)
-    if (list) list.push(item)
-    else clusters.set(key, [item])
-  })
+// Engineers can ping from coordinates only a few meters apart (e.g. several checked in
+// from the same office/HQ). Rather than stacking indistinguishably, points in the same
+// ~111m grid cell are collapsed onto ONE pin that shows how many engineers are there —
+// click it to see who. This groups by that grid cell.
+function clusterKey(lat: number, lng: number): string {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`
+}
 
-  const result: T[] = []
-  clusters.forEach(group => {
-    group.forEach((item, i) => {
-      if (i === 0) {
-        result.push(item)
-        return
-      }
-      const angle = i * GOLDEN_ANGLE
-      const radius = 0.00012 * Math.sqrt(i)
-      result.push({ ...item, lat: item.lat + radius * Math.cos(angle), lng: item.lng + radius * Math.sin(angle) })
-    })
+// A round maroon badge showing the number of engineers sharing a location.
+function countIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    className: 'technician-cluster',
+    html: `
+      <div style="min-width:24px;height:24px;padding:0 5px;border-radius:12px;background:#7D1D3F;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;font-family:Poppins,sans-serif;">${n}</div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
   })
-  return result
 }
 
 // Frame the whole of India once on first load (the documented react-leaflet way is to
@@ -181,7 +172,7 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
     if (!ls.fresh) return []
     return [{ engineer: e, lat: ls.lat, lng: ls.lng, at: ls.at, placeName: ls.placeName, previousSeen: e.previousSeen }]
   })
-  const points = jitterOverlapping(rawPoints)
+  const points = rawPoints
   const selected = points.find(p => p.engineer.id === selectedId)
 
   const nearbySet = new Set(nearbyIds)
@@ -193,14 +184,32 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
   // list). With no active search, show everyone as usual.
   const visiblePoints = searchedLocation ? points.filter(p => nearbySet.has(p.engineer.id)) : points
 
+  // Collapse co-located engineers into one clustered pin (a count badge); a single
+  // engineer at a spot still shows the normal teardrop marker.
+  type MapPoint = typeof visiblePoints[number]
+  const clusterList = (() => {
+    const map = new Map<string, MapPoint[]>()
+    for (const p of visiblePoints) {
+      const key = clusterKey(p.lat, p.lng)
+      const list = map.get(key)
+      if (list) list.push(p)
+      else map.set(key, [p])
+    }
+    return [...map.entries()].map(([key, group]) => ({ key, group, lat: group[0].lat, lng: group[0].lng }))
+  })()
+
+  // The cluster holding the currently-selected engineer — used to fly to it and open
+  // its popup (a selected engineer may be inside a multi-engineer count pin).
+  const selectedClusterKey = selected ? clusterKey(selected.lat, selected.lng) : null
+
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   useEffect(() => {
-    if (!selectedId) return
+    if (!selectedClusterKey) return
     // Open the popup just after the flyTo animation settles, so its auto-pan lands on
     // the already-centred pin instead of fighting the in-flight camera move.
-    const t = setTimeout(() => markerRefs.current[selectedId]?.openPopup(), 700)
+    const t = setTimeout(() => markerRefs.current[selectedClusterKey]?.openPopup(), 700)
     return () => clearTimeout(t)
-  }, [selectedId])
+  }, [selectedClusterKey])
 
   return (
     <MapContainer center={INDIA_CENTER} zoom={5} style={{ width: '100%', height: '100%' }}>
@@ -225,38 +234,79 @@ export default function LeafletMap({ engineers, selectedId, searchedLocation, ra
           </Marker>
         </>
       )}
-      {visiblePoints.map(p => {
-        const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
+      {clusterList.map(c => {
+        // Single engineer at this spot — the usual teardrop pin.
+        if (c.group.length === 1) {
+          const p = c.group[0]
+          const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
+          return (
+            <Marker
+              key={c.key}
+              position={[c.lat, c.lng]}
+              icon={TECHNICIAN_ICON}
+              ref={el => { markerRefs.current[c.key] = el }}
+            >
+              {/* Name shows in the popup on click (and as a hover tooltip) — no permanent
+                  label, to keep a busy national map readable. */}
+              <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
+                {p.engineer.name}
+              </Tooltip>
+              <Popup>
+                <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{p.engineer.name}</div>
+                  <span style={{ fontSize: 10, fontWeight: 600, background: statusCfg.bg, color: statusCfg.color, borderRadius: 20, padding: '2px 8px' }}>
+                    {statusCfg.label}
+                  </span>
+                  <div style={{ fontSize: 11, color: '#7A6870', marginTop: 6 }}>{p.placeName || 'Location unavailable'}</div>
+                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>Last seen {formatRelativeTime(p.at)}</div>
+                  {p.previousSeen && (
+                    <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #F1E7EB' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF' }}>Previous location</div>
+                      <div style={{ fontSize: 11, color: '#7A6870', marginTop: 2 }}>{p.previousSeen.placeName || 'Location unavailable'}</div>
+                      <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>{formatRelativeTime(p.previousSeen.at)}</div>
+                    </div>
+                  )}
+                  <Link href={`/engineers/${p.engineer.id}`} style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: '#7D1D3F', fontWeight: 500 }}>
+                    View profile →
+                  </Link>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        }
+
+        // Several engineers share this location — one count pin, expandable to the list.
         return (
           <Marker
-            key={p.engineer.id}
-            position={[p.lat, p.lng]}
-            icon={TECHNICIAN_ICON}
-            ref={el => { markerRefs.current[p.engineer.id] = el }}
+            key={c.key}
+            position={[c.lat, c.lng]}
+            icon={countIcon(c.group.length)}
+            ref={el => { markerRefs.current[c.key] = el }}
           >
-            {/* Name shows in the popup on click (and as a hover tooltip) — no permanent
-                label, to keep a busy national map readable. */}
-            <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
-              {p.engineer.name}
+            <Tooltip direction="top" offset={[0, -12]} opacity={0.95}>
+              {c.group.length} engineers here
             </Tooltip>
             <Popup>
-              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 160 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1C0D14', marginBottom: 4 }}>{p.engineer.name}</div>
-                <span style={{ fontSize: 10, fontWeight: 600, background: statusCfg.bg, color: statusCfg.color, borderRadius: 20, padding: '2px 8px' }}>
-                  {statusCfg.label}
-                </span>
-                <div style={{ fontSize: 11, color: '#7A6870', marginTop: 6 }}>{p.placeName || 'Location unavailable'}</div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>Last seen {formatRelativeTime(p.at)}</div>
-                {p.previousSeen && (
-                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #F1E7EB' }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF' }}>Previous location</div>
-                    <div style={{ fontSize: 11, color: '#7A6870', marginTop: 2 }}>{p.previousSeen.placeName || 'Location unavailable'}</div>
-                    <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>{formatRelativeTime(p.previousSeen.at)}</div>
-                  </div>
-                )}
-                <Link href={`/engineers/${p.engineer.id}`} style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: '#7D1D3F', fontWeight: 500 }}>
-                  View profile →
-                </Link>
+              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 190 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 2 }}>{c.group.length} engineers here</div>
+                <div style={{ fontSize: 11, color: '#7A6870', marginBottom: 4 }}>{c.group[0].placeName || 'Location unavailable'}</div>
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {c.group.map((p, i) => {
+                    const cfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
+                    return (
+                      <div key={p.engineer.id} style={{ borderTop: i === 0 ? 'none' : '1px solid #F1E7EB', paddingTop: 8, marginTop: i === 0 ? 6 : 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14' }}>{p.engineer.name}</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 7px', whiteSpace: 'nowrap' }}>{cfg.label}</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>Last seen {formatRelativeTime(p.at)}</div>
+                        <Link href={`/engineers/${p.engineer.id}`} style={{ display: 'inline-block', marginTop: 3, fontSize: 10, color: '#7D1D3F', fontWeight: 500 }}>
+                          View profile →
+                        </Link>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </Popup>
           </Marker>
