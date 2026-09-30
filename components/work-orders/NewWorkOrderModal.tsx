@@ -76,7 +76,7 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   //  - 'direct' types the customer's details straight onto the notification; they are
   //    NOT saved to the customers table. Post-creation both behave identically — all
   //    downstream display/messaging resolves through resolveWoCustomerContact.
-  const [customerSource, setCustomerSource] = useState<'existing' | 'direct'>('existing')
+  const [customerSource, setCustomerSource] = useState<'existing' | 'direct'>('direct')
   const [directName, setDirectName] = useState('')
   const [directContact, setDirectContact] = useState('')
   const [directPhone, setDirectPhone] = useState('')
@@ -113,7 +113,9 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
       setEngineerId(''); setScheduledDate('')
       setDepartmentId('')
-      setCustomerSource('existing')
+      // Default to typing details directly; a customer pre-filled from the Customers
+      // page still forces the existing-customer path.
+      setCustomerSource(prefillCustomerId ? 'existing' : 'direct')
       setDirectName(''); setDirectContact(''); setDirectPhone(''); setDirectWhatsapp(''); setDirectEmail(''); setDirectAddress('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
@@ -267,6 +269,35 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       {error && <div style={{ background: '#FEE2E2', color: 'var(--red)', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{error}</div>}
       <form id="wo-form" onSubmit={handleSubmit}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {/* Customer source toggle at the very top — choose a saved customer or type
+              ad-hoc details. Hidden when a customer was pre-filled (already chosen). */}
+          {!prefillCustomerId && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Customer details</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[{ value: 'existing', label: 'Existing customer' }, { value: 'direct', label: 'Enter details directly' }].map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => {
+                      setCustomerSource(o.value as 'existing' | 'direct')
+                      setError('')
+                      if (o.value === 'direct') clearCustomer()
+                    }}
+                    style={{
+                      flex: 1, padding: '9px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                      border: `1.5px solid ${customerSource === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                      background: customerSource === o.value ? 'var(--mp)' : '#fff',
+                      color: customerSource === o.value ? 'var(--m)' : 'var(--tx)',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {customerSource === 'direct' && (
+                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>These details stay on this notification only — they are not saved to the customer database.</div>
+              )}
+            </div>
+          )}
+
           <div>
             <label style={fl2}>Ticket number</label>
             <input disabled style={{ ...fi2, background: 'var(--gl)', color: 'var(--txm)' }} value={ticketNumber || 'Generating…'} readOnly />
@@ -297,34 +328,6 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
-
-          {/* Customer source toggle — choose a saved customer or type ad-hoc details */}
-          {!prefillCustomerId && (
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={fl2}>Customer details</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[{ value: 'existing', label: 'Existing customer' }, { value: 'direct', label: 'Enter details directly' }].map(o => (
-                  <button key={o.value} type="button"
-                    onClick={() => {
-                      setCustomerSource(o.value as 'existing' | 'direct')
-                      setError('')
-                      if (o.value === 'direct') clearCustomer()
-                    }}
-                    style={{
-                      flex: 1, padding: '9px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
-                      border: `1.5px solid ${customerSource === o.value ? 'var(--m)' : 'var(--gm)'}`,
-                      background: customerSource === o.value ? 'var(--mp)' : '#fff',
-                      color: customerSource === o.value ? 'var(--m)' : 'var(--tx)',
-                    }}>
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              {customerSource === 'direct' && (
-                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>These details stay on this notification only — they are not saved to the customer database.</div>
-              )}
-            </div>
-          )}
 
           {customerSource === 'direct' && (
             <>
