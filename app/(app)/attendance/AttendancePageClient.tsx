@@ -663,6 +663,21 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, customInvalid])
 
+  // Auto-refresh the grid every 45s (silently — no loading spinner) so punches and
+  // approvals happening through the day appear without a manual reload. Only fires
+  // while the tab is visible and the current range is valid.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      if (customInvalid) return
+      getAttendanceOverview(range.from, range.to)
+        .then(({ rows: r, error: err }) => { setRows(r); if (err) setError(err) })
+        .catch(() => {})
+    }, 45000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, customInvalid])
+
   function selectMode(mode: ViewMode) {
     setViewMode(mode)
     if (mode !== 'custom') setAnchorDate(new Date())

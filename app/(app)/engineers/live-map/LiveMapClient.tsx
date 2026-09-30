@@ -17,7 +17,7 @@ const LeafletMap = dynamic(() => import('./LeafletMap'), {
   ),
 })
 
-const REFRESH_MS = 60_000
+const REFRESH_MS = 45_000
 
 // "Nearby" radius for the location search — available engineers within this many km of
 // the searched place are listed and the map is framed to fit them.
@@ -185,7 +185,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   // real-time feed, so a periodic full-page refresh is enough rather than a
   // websocket/polling API.
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), REFRESH_MS)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') router.refresh() }, REFRESH_MS)
     return () => clearInterval(id)
   }, [router])
 
