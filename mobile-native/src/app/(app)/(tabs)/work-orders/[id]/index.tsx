@@ -305,7 +305,7 @@ export default function WorkOrderDetailScreen() {
           )}
           {wo.notes && (
             <View>
-              <Text style={styles.msgLabel}>Notes for engineer</Text>
+              <Text style={styles.msgLabel}>Additional Information</Text>
               <Text style={styles.msgText}>{wo.notes}</Text>
             </View>
           )}

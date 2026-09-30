@@ -486,7 +486,7 @@ export default function JobDetailClient({ detail, currentUserId, isAdmin }: Prop
             )}
             {wo.notes && (
               <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Notes for engineer</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#7D1D3F', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Additional Information</p>
                 <p style={{ fontSize: 13, color: '#1C0D14', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>{wo.notes}</p>
               </div>
             )}
