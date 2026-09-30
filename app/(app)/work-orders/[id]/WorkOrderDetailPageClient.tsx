@@ -1210,6 +1210,17 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
               <div style={card}>
                 <div style={cardLabel}>Customer details</div>
                 {row('Sold customer', wo.customer_name || '—')}
+                {/* Direct-customer notifications have no customers record — surface the
+                    ad-hoc details typed onto the notification itself. */}
+                {!wo.customer_id && (wo.direct_customer_name || wo.direct_phone) && (
+                  <>
+                    {wo.direct_contact_person && row('Contact person', wo.direct_contact_person)}
+                    {wo.direct_phone && row('Phone', wo.direct_phone)}
+                    {wo.direct_whatsapp && row('WhatsApp', wo.direct_whatsapp)}
+                    {wo.direct_email && row('Email', wo.direct_email)}
+                    {wo.direct_address && row('Address / site', wo.direct_address)}
+                  </>
+                )}
                 {row('Shipped to', wo.site_name || '—')}
                 {row('Project', wo.site_name || '—')}
                 {row('End user type', wo.customer_type === 'utility' ? 'Utility' : wo.customer_type === 'industry' ? 'Industry' : wo.customer_type === 'oem' ? 'OEM' : '—')}

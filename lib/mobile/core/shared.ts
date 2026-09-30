@@ -12,6 +12,45 @@ export type AdminClient = ReturnType<typeof adminClient>
 
 // Storage/network calls have no built-in timeout — a stalled request would otherwise
 // hang the whole request (and the caller's UI) indefinitely.
+// A notification's customer contact, resolved from EITHER a linked customer record OR
+// the direct/one-off customer details typed onto the notification itself (the second
+// notification type — customer_id is null, direct_* fields hold the details). Every
+// customer message + customer display should go through this so both types behave the
+// same after creation.
+export type WoCustomerContact = { name: string; contactPerson: string; phone: string; whatsappNumber: string; email: string | null; address: string | null }
+export type WoDirectFields = {
+  customer_id?: string | null
+  direct_customer_name?: string | null
+  direct_contact_person?: string | null
+  direct_phone?: string | null
+  direct_whatsapp?: string | null
+  direct_email?: string | null
+  direct_address?: string | null
+}
+// Append to any work_orders .select() that will be passed to resolveWoCustomerContact
+// (or that needs the direct-customer name for display), so the ad-hoc customer details
+// come back alongside customer_id. Kept as one string to avoid drift across call sites.
+export const DIRECT_CUSTOMER_COLUMNS = 'direct_customer_name, direct_contact_person, direct_phone, direct_whatsapp, direct_email, direct_address'
+
+export async function resolveWoCustomerContact(admin: AdminClient, wo: WoDirectFields): Promise<WoCustomerContact | null> {
+  if (wo.customer_id) {
+    const { data } = await admin.from('customers').select('name, contact_person, phone, whatsapp_number, email, address').eq('id', wo.customer_id).maybeSingle()
+    if (!data) return null
+    return { name: data.name || '', contactPerson: data.contact_person || '', phone: data.phone || '', whatsappNumber: data.whatsapp_number || data.phone || '', email: data.email || null, address: data.address || null }
+  }
+  if (wo.direct_customer_name || wo.direct_phone || wo.direct_contact_person) {
+    return {
+      name: wo.direct_customer_name || '',
+      contactPerson: wo.direct_contact_person || wo.direct_customer_name || '',
+      phone: wo.direct_phone || '',
+      whatsappNumber: wo.direct_whatsapp || wo.direct_phone || '',
+      email: wo.direct_email || null,
+      address: wo.direct_address || null,
+    }
+  }
+  return null
+}
+
 export function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | null> {
   return Promise.race([
     Promise.resolve(promise),
@@ -106,12 +145,15 @@ type WorkOrderEmbed = {
   id: string; wo_number: string; job_type: string; status: string
   scheduled_date: string | null; notes: string | null; customer_message: string | null; customer_id: string; customer_type: string | null
   expense_approval: string | null
+  direct_customer_name: string | null; direct_contact_person: string | null; direct_phone: string | null
+  direct_whatsapp: string | null; direct_email: string | null; direct_address: string | null
   customers: { name: string; contact_person: string; phone: string } | null
   work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; dispatch_date: string | null; warranty_years: number | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 export const WORK_ORDER_SELECT = `
   id, wo_number, job_type, status, scheduled_date, notes, customer_message, customer_id, customer_type, expense_approval,
+  ${DIRECT_CUSTOMER_COLUMNS},
   customers ( name, contact_person, phone ),
   work_order_transformers ( transformers ( serial_number, rating, manufacturer, dispatch_date, warranty_years, customer_sites ( id, site_name, site_address ) ) )
 `
@@ -137,7 +179,7 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: n
     scheduled_date: w.scheduled_date,
     notes: w.notes,
     customer_message: w.customer_message,
-    customer_name: w.customers?.name || '',
+    customer_name: w.customers?.name || w.direct_customer_name || '',
     serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
     site_name: site?.site_name || null,
     expense_approval: w.expense_approval,
@@ -222,9 +264,10 @@ export async function fetchSingleWorkOrder(admin: AdminClient, woId: string): Pr
   return {
     ...mapWorkOrderEmbed(w, null, {}),
     customer_id: w.customer_id,
-    customer_contact: w.customers?.contact_person || null,
-    customer_phone: w.customers?.phone || null,
-    site_address: rows[0]?.transformers?.customer_sites?.site_address || null,
+    // Direct-customer notifications (customer_id null) carry contact details on the row.
+    customer_contact: w.customers?.contact_person || w.direct_contact_person || w.direct_customer_name || null,
+    customer_phone: w.customers?.phone || w.direct_phone || null,
+    site_address: rows[0]?.transformers?.customer_sites?.site_address || w.direct_address || null,
     rating: rows[0]?.transformers?.rating || null,
     manufacturer: rows[0]?.transformers?.manufacturer || null,
     customer_type: w.customer_type,

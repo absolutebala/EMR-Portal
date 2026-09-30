@@ -1,5 +1,5 @@
 import { logActivity } from '@/lib/activity-log'
-import { type AdminClient, withTimeout } from './shared'
+import { type AdminClient, withTimeout, resolveWoCustomerContact, DIRECT_CUSTOMER_COLUMNS } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
@@ -160,15 +160,15 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
         params.items.map(i => ({ request_id: request.id, product_id: i.productId, quantity: i.quantity }))
       ),
       admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle(),
-      admin.from('work_orders').select('wo_number, customer_id').eq('id', params.workOrderId).maybeSingle(),
+      admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', params.workOrderId).maybeSingle(),
     ])
     if (itemsError) return { error: itemsError.message }
 
     // Reassure the customer that material has been requested (fixed message, no params).
-    if (wo?.customer_id) {
-      const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
-      if (customer) {
-        sendWhatsApp(admin, 'product_requested_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }], []).catch(() => {})
+    if (wo) {
+      const contact = await resolveWoCustomerContact(admin, wo)
+      if (contact) {
+        sendWhatsApp(admin, 'product_requested_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }], []).catch(() => {})
       }
     }
 

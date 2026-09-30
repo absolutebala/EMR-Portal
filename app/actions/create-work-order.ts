@@ -5,6 +5,7 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
+import { resolveWoCustomerContact } from '@/lib/mobile/core/shared'
 
 function formatScheduledDate(d: string | null | undefined): string {
   return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not scheduled'
@@ -78,6 +79,14 @@ export async function createWorkOrder(payload: {
   customer_type: string | null
   customer_category_id: string | null
   department_id: string | null
+  // Second notification type — customer details typed directly onto the notification
+  // (no linked customer). Present only when customer_id is null.
+  direct_customer_name?: string | null
+  direct_contact_person?: string | null
+  direct_phone?: string | null
+  direct_whatsapp?: string | null
+  direct_email?: string | null
+  direct_address?: string | null
 }): Promise<{ error: string | null; id?: string }> {
   try {
     const user = await getAuthedUser()
@@ -121,6 +130,12 @@ export async function createWorkOrder(payload: {
         customer_type: payload.customer_type || null,
         customer_category_id: payload.customer_category_id || null,
         department_id: payload.department_id || null,
+        direct_customer_name: payload.customer_id ? null : (payload.direct_customer_name || null),
+        direct_contact_person: payload.customer_id ? null : (payload.direct_contact_person || null),
+        direct_phone: payload.customer_id ? null : (payload.direct_phone || null),
+        direct_whatsapp: payload.customer_id ? null : (payload.direct_whatsapp || null),
+        direct_email: payload.customer_id ? null : (payload.direct_email || null),
+        direct_address: payload.customer_id ? null : (payload.direct_address || null),
       }).select('id, wo_number').single()
       if (data) { wo = data; break }
       insertError = error
@@ -166,20 +181,18 @@ export async function createWorkOrder(payload: {
         entityType: 'work_order', entityId: wo.id, linkPath: `/mobile/work-orders/${wo.id}`,
       }).catch(() => {})
 
-      const [{ data: customer }, serials] = await Promise.all([
-        payload.customer_id
-          ? admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', payload.customer_id).maybeSingle()
-          : Promise.resolve({ data: null }),
+      const [contact, serials] = await Promise.all([
+        resolveWoCustomerContact(admin, payload),
         serialNumbersForTransformerIds(admin, payload.transformer_ids),
       ])
       const engName = assignedEngineer ? `${assignedEngineer.first_name} ${assignedEngineer.last_name}` : 'Engineer'
       const scheduledLabel = formatScheduledDate(payload.scheduled_date)
 
       sendWhatsApp(admin, 'assigned_engineer', [{ phone: assignedEngineer?.phone, userName: assignedEngineer?.first_name || 'Engineer' }],
-        [assignedEngineer?.first_name || 'Engineer', woNumber, customer?.name || '', serials, scheduledLabel]).catch(() => {})
+        [assignedEngineer?.first_name || 'Engineer', woNumber, contact?.name || '', serials, scheduledLabel]).catch(() => {})
 
-      if (customer) {
-        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+      if (contact) {
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
           [engName, scheduledLabel, assignedEngineer?.phone || '']).catch(() => {})
       }
     }
@@ -234,7 +247,7 @@ export async function updateWorkOrder(id: string, payload: {
     const admin = adminClient()
 
     // Fetch current WO to detect changes
-    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id, scheduled_date').eq('id', id).single()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id, scheduled_date, direct_customer_name, direct_contact_person, direct_phone, direct_whatsapp, direct_email, direct_address').eq('id', id).single()
     if (!current) return { error: 'Notification not found' }
 
     // Check WO number uniqueness (skip if unchanged)
@@ -304,14 +317,14 @@ export async function updateWorkOrder(id: string, payload: {
     // new date — same as when a field engineer reschedules from the app. Skipped when the
     // engineer also changed, since that path already messages the customer with the date.
     const dateChanged = (payload.scheduled_date || null) !== (current.scheduled_date || null)
-    if (dateChanged && !engineerChanged && current.customer_id) {
-      const [{ data: rsCustomer }, { data: rsEng }] = await Promise.all([
-        admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle(),
+    if (dateChanged && !engineerChanged) {
+      const [rsContact, { data: rsEng }] = await Promise.all([
+        resolveWoCustomerContact(admin, current),
         current.engineer_id ? admin.from('profiles').select('first_name, last_name, phone').eq('id', current.engineer_id).maybeSingle() : Promise.resolve({ data: null }),
       ])
-      if (rsCustomer) {
+      if (rsContact) {
         const rsEngName = rsEng ? `${rsEng.first_name} ${rsEng.last_name}` : 'Engineer'
-        sendWhatsApp(admin, 'assigned_customer', [{ phone: rsCustomer.whatsapp_number || rsCustomer.phone, userName: rsCustomer.contact_person }],
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: rsContact.whatsappNumber || rsContact.phone, userName: rsContact.contactPerson }],
           [rsEngName, formatScheduledDate(payload.scheduled_date), rsEng?.phone || '']).catch(() => {})
       }
     }
@@ -335,19 +348,19 @@ export async function updateWorkOrder(id: string, payload: {
         entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
       }).catch(() => {})
 
-      const [{ data: customer }, serials] = await Promise.all([
-        admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle(),
+      const [contact, serials] = await Promise.all([
+        resolveWoCustomerContact(admin, current),
         serialNumbersForTransformerIds(admin, payload.transformer_ids),
       ])
       const scheduledLabel = formatScheduledDate(payload.scheduled_date)
       sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
-        [eng?.first_name || 'Engineer', payload.wo_number, customer?.name || '', serials, scheduledLabel]).catch(() => {})
-      if (customer) {
+        [eng?.first_name || 'Engineer', payload.wo_number, contact?.name || '', serials, scheduledLabel]).catch(() => {})
+      if (contact) {
         // A first-time assignment tells the customer their engineer; a reassignment
         // (there was already an engineer) uses a distinct template that says a
         // *different* engineer is now attending. Same 3 params either way.
         const customerEvent = current.engineer_id ? 'reassigned_customer' : 'assigned_customer'
-        sendWhatsApp(admin, customerEvent, [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+        sendWhatsApp(admin, customerEvent, [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
           [engName, scheduledLabel, eng?.phone || '']).catch(() => {})
       }
 
@@ -398,7 +411,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
-    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id').eq('id', id).maybeSingle()
+    const { data: current } = await admin.from('work_orders').select('wo_number, engineer_id, status, customer_id, direct_customer_name, direct_contact_person, direct_phone, direct_whatsapp, direct_email, direct_address').eq('id', id).maybeSingle()
 
     const { error } = await admin.from('work_orders').update({
       engineer_id: engineerId,
@@ -426,16 +439,16 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
         entityType: 'work_order', entityId: id, linkPath: `/mobile/work-orders/${id}`,
       }).catch(() => {})
 
-      if (current?.customer_id) {
-        const [{ data: customer }, serials] = await Promise.all([
-          admin.from('customers').select('name, contact_person, phone, whatsapp_number').eq('id', current.customer_id).maybeSingle(),
+      if (current) {
+        const [contact, serials] = await Promise.all([
+          resolveWoCustomerContact(admin, current),
           serialNumbersForWorkOrder(admin, id),
         ])
         const scheduledLabel = formatScheduledDate(scheduledDate)
         sendWhatsApp(admin, 'assigned_engineer', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
-          [eng?.first_name || 'Engineer', current.wo_number || '', customer?.name || '', serials, scheduledLabel]).catch(() => {})
-        if (customer) {
-          sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+          [eng?.first_name || 'Engineer', current.wo_number || '', contact?.name || '', serials, scheduledLabel]).catch(() => {})
+        if (contact) {
+          sendWhatsApp(admin, 'assigned_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
             [engName, scheduledLabel, eng?.phone || '']).catch(() => {})
         }
       }

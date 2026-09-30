@@ -155,6 +155,15 @@ export interface WorkOrder {
   // (expenses allowed as normal); 'pending' | 'approved' | 'rejected' otherwise. Expenses
   // are blocked until 'approved'.
   expense_approval: 'pending' | 'approved' | 'rejected' | null
+  // Second notification type — ad-hoc customer details typed onto the notification
+  // instead of pulling from the customers table. Present (customer_id IS NULL) only for
+  // "direct customer" notifications; all display/messaging falls back to these.
+  direct_customer_name?: string | null
+  direct_contact_person?: string | null
+  direct_phone?: string | null
+  direct_whatsapp?: string | null
+  direct_email?: string | null
+  direct_address?: string | null
   // joined
   customer_name?: string
   customer_address?: string | null

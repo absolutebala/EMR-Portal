@@ -4,7 +4,7 @@ import { getAuthedUser } from '@/lib/cognito/server'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
-import { adminClient } from '@/lib/mobile/core/shared'
+import { adminClient, resolveWoCustomerContact, DIRECT_CUSTOMER_COLUMNS } from '@/lib/mobile/core/shared'
 import { uploadAsset } from '@/lib/storage/s3'
 import { getMyDepartmentScope } from './departments'
 import {
@@ -252,7 +252,7 @@ export async function updateProductRequestItemStatus(
       const { data: reqRow } = await admin.from('product_requests').select('engineer_id, work_order_id').eq('id', item.request_id).maybeSingle()
       const productName = item.products?.[0]?.name || 'item'
       const { data: wo } = reqRow?.work_order_id
-        ? await admin.from('work_orders').select('wo_number, customer_id').eq('id', reqRow.work_order_id).maybeSingle()
+        ? await admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', reqRow.work_order_id).maybeSingle()
         : { data: null }
 
       if (reqRow?.engineer_id) {
@@ -274,11 +274,11 @@ export async function updateProductRequestItemStatus(
       }
 
       // Customer: WhatsApp that the material has been dispatched.
-      if (status === 'dispatched' && wo?.customer_id) {
-        const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
-        if (customer) {
-          sendWhatsApp(admin, 'dispatched_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
-            [customer.contact_person, wo.wo_number || '', docketNumber || '-']).catch(() => {})
+      if (status === 'dispatched' && wo) {
+        const contact = await resolveWoCustomerContact(admin, wo)
+        if (contact) {
+          sendWhatsApp(admin, 'dispatched_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
+            [contact.contactPerson, wo.wo_number || '', docketNumber || '-']).catch(() => {})
         }
       }
     }

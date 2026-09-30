@@ -71,6 +71,19 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   const [departments, setDepartments] = useState<Department[]>([])
   const [departmentId, setDepartmentId] = useState('')
 
+  // Two ways to attach a customer to a notification:
+  //  - 'existing' pulls a saved customer (+ their transformers) from the database.
+  //  - 'direct' types the customer's details straight onto the notification; they are
+  //    NOT saved to the customers table. Post-creation both behave identically — all
+  //    downstream display/messaging resolves through resolveWoCustomerContact.
+  const [customerSource, setCustomerSource] = useState<'existing' | 'direct'>('existing')
+  const [directName, setDirectName] = useState('')
+  const [directContact, setDirectContact] = useState('')
+  const [directPhone, setDirectPhone] = useState('')
+  const [directWhatsapp, setDirectWhatsapp] = useState('')
+  const [directEmail, setDirectEmail] = useState('')
+  const [directAddress, setDirectAddress] = useState('')
+
   // Adding a brand-new customer used to send the user to /customers and back — now
   // it opens inline, on top of this modal, so creating a notification for a customer
   // that doesn't exist yet is a single uninterrupted flow.
@@ -100,6 +113,8 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
       setCustomerType(''); setCustomerCategoryId(''); setCustomerCategoryName('')
       setEngineerId(''); setScheduledDate('')
       setDepartmentId('')
+      setCustomerSource('existing')
+      setDirectName(''); setDirectContact(''); setDirectPhone(''); setDirectWhatsapp(''); setDirectEmail(''); setDirectAddress('')
       if (!prefillCustomerId) {
         setSelectedCustomerId(''); setSelectedCustomerName(''); setSelectedSNs([])
       }
@@ -201,15 +216,23 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!jobType) { setError('Please select a job type.'); return }
-    if (!isOverhauling && !selectedCustomerId) { setError('Please select a customer.'); return }
+    if (customerSource === 'existing' && !isOverhauling && !selectedCustomerId) { setError('Please select a customer.'); return }
+    if (customerSource === 'direct' && !isOverhauling && !directName.trim()) { setError('Please enter the customer name.'); return }
     // Serial number is optional at creation for every job type — it can be added or
     // corrected later by editing the notification (the serial(s) are editable there).
+    const isDirect = customerSource === 'direct'
     setLoading(true); setError('')
     const { error: err, id } = await createWorkOrder({
       wo_number: woNumber.trim(),
       job_type: jobType,
-      customer_id: selectedCustomerId || null,
-      transformer_ids: checkedSNs.map(s => s.transformer_id),
+      customer_id: isDirect ? null : (selectedCustomerId || null),
+      transformer_ids: isDirect ? [] : checkedSNs.map(s => s.transformer_id),
+      direct_customer_name: isDirect ? (directName.trim() || null) : null,
+      direct_contact_person: isDirect ? (directContact.trim() || null) : null,
+      direct_phone: isDirect ? (directPhone.trim() || null) : null,
+      direct_whatsapp: isDirect ? (directWhatsapp.trim() || null) : null,
+      direct_email: isDirect ? (directEmail.trim() || null) : null,
+      direct_address: isDirect ? (directAddress.trim() || null) : null,
       engineer_id: engineerId || null,
       scheduled_date: scheduledDate || null,
       notes: notes || null,
@@ -275,7 +298,65 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
             </select>
           </div>
 
+          {/* Customer source toggle — choose a saved customer or type ad-hoc details */}
+          {!prefillCustomerId && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={fl2}>Customer details</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[{ value: 'existing', label: 'Existing customer' }, { value: 'direct', label: 'Enter details directly' }].map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => {
+                      setCustomerSource(o.value as 'existing' | 'direct')
+                      setError('')
+                      if (o.value === 'direct') clearCustomer()
+                    }}
+                    style={{
+                      flex: 1, padding: '9px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif',
+                      border: `1.5px solid ${customerSource === o.value ? 'var(--m)' : 'var(--gm)'}`,
+                      background: customerSource === o.value ? 'var(--mp)' : '#fff',
+                      color: customerSource === o.value ? 'var(--m)' : 'var(--tx)',
+                    }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {customerSource === 'direct' && (
+                <div style={{ fontSize: 10, color: 'var(--txm)', marginTop: 4 }}>These details stay on this notification only — they are not saved to the customer database.</div>
+              )}
+            </div>
+          )}
+
+          {customerSource === 'direct' && (
+            <>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={fl2}>Customer name {!isOverhauling && <span style={{ color: 'var(--m)' }}>*</span>}</label>
+                <input style={fi2} value={directName} onChange={e => setDirectName(e.target.value)} placeholder="Customer / company name" />
+              </div>
+              <div>
+                <label style={fl2}>Contact person</label>
+                <input style={fi2} value={directContact} onChange={e => setDirectContact(e.target.value)} placeholder="Who to contact" />
+              </div>
+              <div>
+                <label style={fl2}>Phone</label>
+                <input style={fi2} value={directPhone} onChange={e => setDirectPhone(e.target.value)} placeholder="Contact phone" />
+              </div>
+              <div>
+                <label style={fl2}>WhatsApp</label>
+                <input style={fi2} value={directWhatsapp} onChange={e => setDirectWhatsapp(e.target.value)} placeholder="WhatsApp number (defaults to phone)" />
+              </div>
+              <div>
+                <label style={fl2}>Email</label>
+                <input style={fi2} value={directEmail} onChange={e => setDirectEmail(e.target.value)} placeholder="Email address" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={fl2}>Address / site</label>
+                <textarea style={{ ...fi2, resize: 'vertical' }} rows={2} value={directAddress} onChange={e => setDirectAddress(e.target.value)} placeholder="Site address or location" />
+              </div>
+            </>
+          )}
+
           {/* Serial number search */}
+          {customerSource === 'existing' && (
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={fl2}>Serial numbers <span style={{ color: 'var(--txm)', fontWeight: 400 }}>(optional)</span></label>
             {!selectedCustomerId ? (
@@ -341,8 +422,9 @@ export default function NewWorkOrderModal({ open, onClose, onSaved, prefillCusto
               </div>
             )}
           </div>
+          )}
 
-          {!selectedCustomerId && (
+          {customerSource === 'existing' && !selectedCustomerId && (
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={fl2}>Customer {!isOverhauling && <span style={{ color: 'var(--m)' }}>*</span>}</label>
               <div style={{ position: 'relative' }}>

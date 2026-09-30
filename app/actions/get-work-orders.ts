@@ -155,9 +155,11 @@ export async function getWorkOrders(customerId?: string, engineerId?: string): P
       const siteName = rows[0]?.transformers?.customer_sites?.site_name || null
       return {
         ...w,
-        customer_name: custMap[w.customer_id] || '',
-        customer_address: w.customer_id ? (custAddrMap[w.customer_id] ?? null) : null,
-        customer_phone: w.customer_id ? (custPhoneMap[w.customer_id] ?? null) : null,
+        // Direct-customer notifications (customer_id IS NULL) carry the details on the
+        // row itself — fall back to those so the list shows the same fields either way.
+        customer_name: custMap[w.customer_id] || w.direct_customer_name || '',
+        customer_address: w.customer_id ? (custAddrMap[w.customer_id] ?? null) : (w.direct_address ?? null),
+        customer_phone: w.customer_id ? (custPhoneMap[w.customer_id] ?? null) : (w.direct_phone ?? null),
         engineer_name: w.engineer_id ? (engMap[w.engineer_id] || '') : null,
         engineer_last_seen_state: w.engineer_id ? (engStateMap[w.engineer_id] ?? null) : null,
         serial_numbers: serialNumbers,
@@ -251,7 +253,7 @@ export async function getWorkOrderDetail(id: string): Promise<{
     if (!wo) return { ...empty, error: 'Not found' }
 
     const [{ data: customer }, { data: engineer }, { data: checkinRow }, { data: closureRow }, { data: allCheckins }, { data: allClosures }, { data: additionalEngineerRows }, { data: categoryRow }, { data: departmentRow }] = await Promise.all([
-      admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single(),
+      wo.customer_id ? admin.from('customers').select('name, end_customer_type_id').eq('id', wo.customer_id).single() : Promise.resolve({ data: null as { name: string; end_customer_type_id: string | null } | null }),
       wo.engineer_id ? admin.from('profiles').select('first_name, last_name').eq('id', wo.engineer_id).single() : Promise.resolve({ data: null }),
       admin.from('work_order_checkins').select('latitude, longitude, place_name, photo_url, checked_in_at, is_offline').eq('work_order_id', id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('work_order_daily_closures').select('outcome, summary, pending_reason, materials_required, revisit_date, needs_reassignment, created_at').eq('work_order_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -471,7 +473,10 @@ export async function getWorkOrderDetail(id: string): Promise<{
     return {
       workOrder: {
         ...wo,
-        customer_name: customer?.name || '',
+        // Direct-customer notifications keep their details on the row itself.
+        customer_name: customer?.name || wo.direct_customer_name || '',
+        customer_address: wo.customer_id ? null : (wo.direct_address ?? null),
+        customer_phone: wo.customer_id ? null : (wo.direct_phone ?? null),
         engineer_name: engineer ? `${engineer.first_name} ${engineer.last_name}` : null,
         serial_numbers: serialNumbers,
         transformer_ids: rows.map(r => r.transformer_id),

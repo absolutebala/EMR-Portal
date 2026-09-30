@@ -12,6 +12,7 @@ import {
   type AdminClient, type MobileWorkOrderWithCustomer, type MobileWorkOrderDetail,
   type MobileForm, type MobileFormField, type MobileFormRow, type MobileFormSection, type MobileFormTable,
   touchHeartbeat, fetchSingleWorkOrder, withTimeout, logActivity, reverseGeocodeCore,
+  resolveWoCustomerContact, DIRECT_CUSTOMER_COLUMNS,
 } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
 import { nextTicketNumber } from './create-notification'
@@ -360,10 +361,10 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
     ;(async () => {
       const [{ data: eng }, { data: wo }] = await Promise.all([
         admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle(),
-        admin.from('work_orders').select('wo_number, customer_id').eq('id', params.workOrderId).maybeSingle(),
+        admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', params.workOrderId).maybeSingle(),
       ])
       const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'An engineer'
-      let customerName = ''
+      let customerName = wo?.direct_customer_name || ''
       if (wo?.customer_id) {
         const { data: c } = await admin.from('customers').select('name').eq('id', wo.customer_id).maybeSingle()
         customerName = c?.name || ''
@@ -403,7 +404,7 @@ async function assembleDocParams(
   clientSignature: string | null
 ): Promise<{ docParams: DocParams; formName: string } | null> {
   const woResult = await withTimeout(
-    admin.from('work_orders').select('wo_number, job_type, customer_id').eq('id', workOrderId).single(),
+    admin.from('work_orders').select(`wo_number, job_type, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).single(),
     8000
   )
   const wo = woResult?.data
@@ -411,7 +412,10 @@ async function assembleDocParams(
 
   const dataResult = await withTimeout(
     Promise.all([
-      admin.from('customers').select('name').eq('id', wo.customer_id).single(),
+      // Direct-customer notifications have no customer_id — the name comes off the WO itself.
+      wo.customer_id
+        ? admin.from('customers').select('name').eq('id', wo.customer_id).single()
+        : Promise.resolve({ data: null as { name: string } | null }),
       admin.from('work_order_transformers').select('transformers(serial_number)').eq('work_order_id', workOrderId),
     ]),
     8000
@@ -458,7 +462,7 @@ async function assembleDocParams(
     formName,
     woNumber: wo.wo_number,
     jobType: wo.job_type,
-    customerName: customer?.name || '',
+    customerName: customer?.name || wo.direct_customer_name || '',
     serialNumbers,
     engineerName,
     clientName,
@@ -673,7 +677,7 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
 
     // Fetched once, reused below for the primary-engineer status gate, the
     // customer-facing WhatsApp send, and the off-site/needs-reassignment activity log.
-    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id, job_type, department_id').eq('id', params.workOrderId).maybeSingle()
+    const { data: wo } = await admin.from('work_orders').select(`wo_number, customer_id, engineer_id, job_type, department_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', params.workOrderId).maybeSingle()
 
     const actorResult = await withTimeout(
       admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).single(),
@@ -822,16 +826,16 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       } catch { /* best-effort */ }
     }
 
-    if (wo?.customer_id) {
-      const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
-      if (customer) {
-        const recipient = { phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }
+    if (wo) {
+      const contact = await resolveWoCustomerContact(admin, wo)
+      if (contact) {
+        const recipient = { phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }
         if (params.outcome === 'completed') {
           // Fixed completion message to the customer — no template variables.
           sendWhatsApp(admin, 'completed', [recipient], []).catch(() => {})
         } else {
           const revisitLabel = params.revisitDate ? new Date(params.revisitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
-          sendWhatsApp(admin, 'pending', [recipient], [customer.contact_person, wo.wo_number || '', engineerName, revisitLabel]).catch(() => {})
+          sendWhatsApp(admin, 'pending', [recipient], [contact.contactPerson, wo.wo_number || '', engineerName, revisitLabel]).catch(() => {})
         }
       }
     }
@@ -968,22 +972,21 @@ function scheduledLabel(d: string | null | undefined): string {
 // change any status. Scoped to the assigned engineer.
 export async function notifyOnTheWayCore(admin: AdminClient, userId: string, workOrderId: string): Promise<{ error: string | null }> {
   try {
-    const { data: wo } = await admin.from('work_orders').select('customer_id, engineer_id').eq('id', workOrderId).maybeSingle()
+    const { data: wo } = await admin.from('work_orders').select(`customer_id, engineer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).maybeSingle()
     if (!wo) return { error: 'Notification not found' }
     if (wo.engineer_id !== userId) return { error: 'Not authorized for this notification' }
-    if (!wo.customer_id) return { error: 'This notification has no customer to notify.' }
 
-    const [{ data: actor }, { data: customer }] = await Promise.all([
+    const [{ data: actor }, contact] = await Promise.all([
       admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).maybeSingle(),
-      admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle(),
+      resolveWoCustomerContact(admin, wo),
     ])
-    if (!customer) return { error: 'Customer not found' }
+    if (!contact) return { error: 'This notification has no customer to notify.' }
     const engName = actor ? `${actor.first_name} ${actor.last_name}`.trim() : 'Engineer'
 
     // Template params: 1) engineer full name, 2) engineer phone (so the customer can
     // reach the engineer who's on the way). Fired for both WhatsApp and SMS per the
     // global channel setting.
-    await sendWhatsApp(admin, 'on_the_way', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+    await sendWhatsApp(admin, 'on_the_way', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
       [engName, actor?.phone || ''])
     logActivity(admin, workOrderId, userId, 'Notified customer: on the way').catch(() => {})
     return { error: null }
@@ -998,7 +1001,7 @@ export async function notifyOnTheWayCore(admin: AdminClient, userId: string, wor
 export async function rescheduleNotificationCore(admin: AdminClient, userId: string, workOrderId: string, newDate: string): Promise<{ error: string | null }> {
   try {
     if (!newDate) return { error: 'Pick a new date.' }
-    const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id, engineer_id').eq('id', workOrderId).maybeSingle()
+    const { data: wo } = await admin.from('work_orders').select(`wo_number, customer_id, engineer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).maybeSingle()
     if (!wo) return { error: 'Notification not found' }
     if (wo.engineer_id !== userId) return { error: 'Not authorized for this notification' }
 
@@ -1008,15 +1011,15 @@ export async function rescheduleNotificationCore(admin: AdminClient, userId: str
 
     logActivity(admin, workOrderId, userId, `Rescheduled to ${scheduledLabel(newDate)}`).catch(() => {})
 
-    if (wo.customer_id) {
-      const [{ data: actor }, { data: customer }] = await Promise.all([
+    {
+      const [{ data: actor }, contact] = await Promise.all([
         admin.from('profiles').select('first_name, last_name, phone').eq('id', userId).maybeSingle(),
-        admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle(),
+        resolveWoCustomerContact(admin, wo),
       ])
-      if (customer) {
+      if (contact) {
         const engName = actor ? `${actor.first_name} ${actor.last_name}`.trim() : 'Engineer'
         // Reuse the customer-assignment template with the NEW date (per the chosen approach).
-        sendWhatsApp(admin, 'assigned_customer', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+        sendWhatsApp(admin, 'assigned_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
           [engName, scheduledLabel(newDate), actor?.phone || '']).catch(() => {})
       }
     }

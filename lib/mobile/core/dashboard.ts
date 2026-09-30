@@ -4,7 +4,7 @@ import {
   type AdminClient, type MobileWorkOrder, type MobileDashboardStats, type OverdueFollowUp,
   type EngineerStatusValue, type AssignableSite, type EngineerStatusPrompt, type NotStartedNotice, type CheckinDriftNotice,
   withTimeout, touchHeartbeat, haversineKm, fetchEngineerWorkOrders, getEngineerName, reverseGeocodeCore,
-  logActivity, WORK_ORDER_SELECT,
+  logActivity, WORK_ORDER_SELECT, resolveWoCustomerContact, DIRECT_CUSTOMER_COLUMNS,
 } from './shared'
 import { getPendingProductItemsCore, type PendingProductItem } from './products'
 import { getMyAttendanceStatusCore, getISTDateStr, markAttendanceCore, type AttendanceEffectiveStatus } from './attendance'
@@ -580,13 +580,13 @@ export async function setEngineerStatusCore(
     }
 
     if (status === 'on_the_way' && workOrderId) {
-      const { data: wo } = await admin.from('work_orders').select('wo_number, customer_id').eq('id', workOrderId).maybeSingle()
-      if (wo?.customer_id) {
-        const { data: customer } = await admin.from('customers').select('contact_person, phone, whatsapp_number').eq('id', wo.customer_id).maybeSingle()
-        if (customer) {
+      const { data: wo } = await admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).maybeSingle()
+      if (wo) {
+        const contact = await resolveWoCustomerContact(admin, wo)
+        if (contact) {
           // Template params: 1) engineer full name, 2) engineer phone (so the customer
           // can reach the engineer who is on the way directly).
-          sendWhatsApp(admin, 'on_the_way', [{ phone: customer.whatsapp_number || customer.phone, userName: customer.contact_person }],
+          sendWhatsApp(admin, 'on_the_way', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
             [actorName, actor?.phone || '']).catch(() => {})
         }
       }
