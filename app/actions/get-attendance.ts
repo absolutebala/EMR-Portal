@@ -71,8 +71,11 @@ export async function getAttendanceOverview(from: string, to: string): Promise<{
 
     const { data: profiles, error: profErr } = await admin
       .from('profiles')
-      .select('id, first_name, last_name, created_at, role')
+      .select('id, first_name, last_name, created_at, role, display_order')
       .in('role', ['Field Engineer', 'Installation Team'])
+      // Custom roster order first (the uploaded image order), engineers without an
+      // order fall to the end, then alphabetical as a stable tie-break.
+      .order('display_order', { nullsFirst: false })
       .order('first_name')
     if (profErr) return { rows: [], error: profErr.message }
 

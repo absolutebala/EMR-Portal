@@ -435,6 +435,9 @@ export default function AttendancePageClient({ initialRows, initialError, initia
   const [exportPrompt, setExportPrompt] = useState<null | 'status' | 'attendance'>(null)
   const [includeInstallation, setIncludeInstallation] = useState(false)
   const [nameQuery, setNameQuery] = useState('')
+  // Field-engineer column sort: null = roster (image) order, toggles to 'asc' then 'desc'.
+  // Intentionally not persisted — resets to roster order on page refresh.
+  const [engSort, setEngSort] = useState<null | 'asc' | 'desc'>(null)
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   // Grid colour theme (light soft tints vs the bold reference-chart palette). Remembered
@@ -727,16 +730,21 @@ export default function AttendancePageClient({ initialRows, initialError, initia
       if (!seenDate.has(row.date)) { seenDate.add(row.date); dateList.push(row.date) }
       cells[`${row.engineerId}:${row.date}`] = row
     }
-    // Field engineers listed A→Z by name by default (case-insensitive, natural order).
-    engList.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }))
+    // Keep the server order (the uploaded roster / image order) as the default — it's
+    // reset to this on every page load. The column header toggles A→Z / Z→A on demand.
     return { engineers: engList, dates: dateList, cellByEngDate: cells }
   }, [rows])
 
   // Name search filters only the on-screen grid rows (exports still cover everyone).
+  // engSort null = roster order; 'asc'/'desc' = alphabetical. Not persisted — a page
+  // refresh clears it back to the roster order.
   const visibleEngineers = useMemo(() => {
     const q = nameQuery.trim().toLowerCase()
-    return q ? engineers.filter(e => e.name.toLowerCase().includes(q)) : engineers
-  }, [engineers, nameQuery])
+    const filtered = q ? engineers.filter(e => e.name.toLowerCase().includes(q)) : engineers
+    if (!engSort) return filtered
+    const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }))
+    return engSort === 'desc' ? sorted.reverse() : sorted
+  }, [engineers, nameQuery, engSort])
 
   // The week runs Sun→Sat, so today (mid/late week) lands at the far right and gets
   // clipped by the horizontal scroll. Auto-scroll so today is fully visible with the
@@ -933,7 +941,20 @@ export default function AttendancePageClient({ initialRows, initialError, initia
                       color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', borderRight: '1px solid var(--gm)',
                       background: '#FAFAFA', whiteSpace: 'nowrap',
                     }}>
-                      Field Engineer
+                      <button
+                        type="button"
+                        onClick={() => setEngSort(s => s === 'asc' ? 'desc' : 'asc')}
+                        title={engSort === 'asc' ? 'Sorted A→Z (click for Z→A)' : engSort === 'desc' ? 'Sorted Z→A (click for A→Z)' : 'Roster order — click to sort A→Z'}
+                        style={{
+                          all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+                          font: 'inherit', color: 'inherit', letterSpacing: 'inherit',
+                        }}
+                      >
+                        Field Engineer
+                        <span style={{ fontSize: 11, lineHeight: 1, opacity: engSort ? 1 : 0.4, color: engSort ? 'var(--m)' : 'inherit' }}>
+                          {engSort === 'asc' ? '▲' : engSort === 'desc' ? '▼' : '↕'}
+                        </span>
+                      </button>
                     </th>
                     {dates.map(dateStr => {
                       const { weekday, dayMonth } = formatDateCell(dateStr)
