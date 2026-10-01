@@ -242,6 +242,13 @@ export async function updateWorkOrder(id: string, payload: {
   customer_category_id: string | null
   department_id: string | null
   service_item_no?: string | null
+  // Direct-customer details — editable only for notifications with no linked customer.
+  direct_customer_name?: string | null
+  direct_contact_person?: string | null
+  direct_phone?: string | null
+  direct_whatsapp?: string | null
+  direct_email?: string | null
+  direct_address?: string | null
 }): Promise<{ error: string | null }> {
   try {
     const user = await getAuthedUser()
@@ -287,6 +294,14 @@ export async function updateWorkOrder(id: string, payload: {
       customer_category_id: payload.customer_category_id || null,
       department_id: payload.department_id || null,
       service_item_no: payload.service_item_no ?? null,
+      // Only a direct-customer notification (no linked customer) carries these; never
+      // let them be set on a notification that points at a saved customer.
+      direct_customer_name: current.customer_id ? null : (payload.direct_customer_name ?? null),
+      direct_contact_person: current.customer_id ? null : (payload.direct_contact_person ?? null),
+      direct_phone: current.customer_id ? null : (payload.direct_phone ?? null),
+      direct_whatsapp: current.customer_id ? null : (payload.direct_whatsapp ?? null),
+      direct_email: current.customer_id ? null : (payload.direct_email ?? null),
+      direct_address: current.customer_id ? null : (payload.direct_address ?? null),
     }).eq('id', id)
     if (updateErr) return { error: updateErr.message }
 

@@ -256,6 +256,12 @@ interface EditForm {
   customer_category_name: string
   department_id: string
   service_item_no: string
+  direct_customer_name: string
+  direct_contact_person: string
+  direct_phone: string
+  direct_whatsapp: string
+  direct_email: string
+  direct_address: string
 }
 
 const inputStyle: React.CSSProperties = {
@@ -310,6 +316,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
     wo_number: '', job_type: '', transformer_ids: [], engineer_id: '', scheduled_date: '', notes: '',
     reported_date: '', reported_through: '', customer_message: '', solution_through: '', additional_engineer_ids: [],
     customer_type: '', customer_category_id: '', customer_category_name: '', department_id: '', service_item_no: '',
+    direct_customer_name: '', direct_contact_person: '', direct_phone: '', direct_whatsapp: '', direct_email: '', direct_address: '',
   })
   const [customerTransformers, setCustomerTransformers] = useState<CustomerTransformer[]>([])
   const [loadingTransformers, setLoadingTransformers] = useState(false)
@@ -388,6 +395,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_category_name: wo.customer_category_name || '',
       department_id: wo.department_id || '',
       service_item_no: wo.service_item_no || '',
+      direct_customer_name: wo.direct_customer_name || '',
+      direct_contact_person: wo.direct_contact_person || '',
+      direct_phone: wo.direct_phone || '',
+      direct_whatsapp: wo.direct_whatsapp || '',
+      direct_email: wo.direct_email || '',
+      direct_address: wo.direct_address || '',
     })
     setEditing(true)
     setShowReassign(false)
@@ -453,6 +466,13 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       customer_category_id: form.customer_category_id || null,
       department_id: form.department_id || null,
       service_item_no: form.service_item_no.trim() || null,
+      // Direct-customer edits — ignored server-side for linked-customer notifications.
+      direct_customer_name: form.direct_customer_name.trim() || null,
+      direct_contact_person: form.direct_contact_person.trim() || null,
+      direct_phone: form.direct_phone.trim() || null,
+      direct_whatsapp: form.direct_whatsapp.trim() || null,
+      direct_email: form.direct_email.trim() || null,
+      direct_address: form.direct_address.trim() || null,
     })
     if (err) { setError(err); setActing(false); return }
     await refreshDetail()
@@ -698,6 +718,25 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         onChange={e => setForm(f => ({ ...f, service_item_no: e.target.value }))}
                         placeholder="Enter serial / item number"
                       />
+
+                      {/* Direct-customer details — editable only when the notification has no
+                          linked customer (the "Enter details directly" type). */}
+                      {!wo.customer_id && (
+                        <>
+                          {fieldLabel('Customer name')}
+                          <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_customer_name} onChange={e => setForm(f => ({ ...f, direct_customer_name: e.target.value }))} placeholder="Customer / company name" />
+                          {fieldLabel('Contact person')}
+                          <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_contact_person} onChange={e => setForm(f => ({ ...f, direct_contact_person: e.target.value }))} placeholder="Who to contact" />
+                          {fieldLabel('Phone')}
+                          <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_phone} onChange={e => setForm(f => ({ ...f, direct_phone: e.target.value }))} placeholder="Contact phone" />
+                          {fieldLabel('WhatsApp')}
+                          <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_whatsapp} onChange={e => setForm(f => ({ ...f, direct_whatsapp: e.target.value }))} placeholder="WhatsApp number (defaults to phone)" />
+                          {fieldLabel('Email')}
+                          <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_email} onChange={e => setForm(f => ({ ...f, direct_email: e.target.value }))} placeholder="Email address" />
+                          {fieldLabel('Address / site')}
+                          <textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' as const, marginBottom: 10 }} value={form.direct_address} onChange={e => setForm(f => ({ ...f, direct_address: e.target.value }))} placeholder="Site address or location" />
+                        </>
+                      )}
 
                       {fieldLabel('End user type')}
                       <div style={{ display: 'flex', gap: 8, marginBottom: form.customer_type ? 10 : 0 }}>
