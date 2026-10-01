@@ -719,9 +719,11 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                         placeholder="Enter serial / item number"
                       />
 
-                      {/* Direct-customer details — editable only when the notification has no
-                          linked customer (the "Enter details directly" type). */}
-                      {!wo.customer_id && (
+                      {/* Direct-customer details — editable only for notifications actually
+                          created with typed-in customer details (the "Enter details directly"
+                          type), i.e. no linked customer AND at least one direct field set.
+                          A customer-less overhauling notification does not get these. */}
+                      {!wo.customer_id && (wo.direct_customer_name || wo.direct_phone || wo.direct_contact_person) && (
                         <>
                           {fieldLabel('Customer name')}
                           <input style={{ ...inputStyle, marginBottom: 10 }} value={form.direct_customer_name} onChange={e => setForm(f => ({ ...f, direct_customer_name: e.target.value }))} placeholder="Customer / company name" />
