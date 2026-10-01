@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal'
 import { ListCard } from '@/components/dashboard/DashboardCards'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { submitManagerDecision, submitHeadDecision, updateExpenseLog, deleteExpenseLog, getExpenseTypes } from '@/app/actions/expenses'
+import { approveNotificationExpenses, rejectNotificationExpenses, type PendingExpenseApproval } from '@/app/actions/notification-approval'
 import type { ExpenseLogView, ExpenseType } from '@/lib/mobile/core/expenses'
 import { CITY_TIER_LABEL } from '@/lib/travelGuidelines'
 
@@ -59,13 +60,23 @@ interface Props {
   canApproveAsManager: boolean
   canApproveAsHead: boolean
   canManage: boolean
+  pendingApprovals: PendingExpenseApproval[]
+  canApproveNotifications: boolean
 }
 
-export default function ExpensesPageClient({ logs, userName, userRole, canApproveAsManager, canApproveAsHead, canManage }: Props) {
+export default function ExpensesPageClient({ logs, userName, userRole, canApproveAsManager, canApproveAsHead, canManage, pendingApprovals, canApproveNotifications }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<TabId>('all')
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [approvingWoId, setApprovingWoId] = useState<string | null>(null)
+
+  async function decideNotification(id: string, decision: 'approved' | 'rejected') {
+    setApprovingWoId(id)
+    const { error } = decision === 'approved' ? await approveNotificationExpenses(id) : await rejectNotificationExpenses(id)
+    setApprovingWoId(null)
+    if (!error) router.refresh()
+  }
 
   // Edit / delete / export
   const [editLog, setEditLog] = useState<ExpenseLogView | null>(null)
@@ -179,6 +190,44 @@ export default function ExpensesPageClient({ logs, userName, userRole, canApprov
     <>
       <Topbar title="Expenses" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
+        {/* Field-Engineer-created notifications awaiting an expense-unlock decision.
+            Approving lets the engineer log expenses against the notification. */}
+        {canApproveNotifications && pendingApprovals.length > 0 && (
+          <div style={{ background: '#fff', border: '1px solid var(--gm)', borderLeft: '3px solid #D97706', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+            <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--gl)', fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+              Notifications awaiting expense approval
+              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#92400E', background: '#FEF3C7', borderRadius: 10, padding: '1px 8px' }}>{pendingApprovals.length}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--txm)', padding: '8px 16px 2px' }}>
+              A field engineer raised these notifications from the app. Approve to let them claim expenses against the notification; reject to decline.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {pendingApprovals.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderTop: '1px solid var(--gl)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+                      {p.engineerName}
+                      {p.status === 'rejected' && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: '#991B1B', background: '#FEE2E2', borderRadius: 10, padding: '1px 7px' }}>Previously rejected</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 1 }}>
+                      {p.woNumber}{p.customerName ? ` · ${p.customerName}` : ''}{p.createdAt ? ` · ${formatDate(p.createdAt)}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => router.push(`/work-orders/${p.id}`)}
+                    style={{ fontSize: 11, color: 'var(--m)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>View</button>
+                  <button onClick={() => decideNotification(p.id, 'approved')} disabled={approvingWoId === p.id}
+                    style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 7, border: 'none', background: '#D1FAE5', color: '#065F46', cursor: approvingWoId === p.id ? 'not-allowed' : 'pointer', opacity: approvingWoId === p.id ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                    Approve expenses
+                  </button>
+                  <button onClick={() => decideNotification(p.id, 'rejected')} disabled={approvingWoId === p.id || p.status === 'rejected'}
+                    style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', color: p.status === 'rejected' ? 'var(--txm)' : '#991B1B', cursor: (approvingWoId === p.id || p.status === 'rejected') ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                    Reject
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 16 }}>
           <ListCard title="Spend by expense type" empty="No expenses yet.">
             {typeSpend.map(t => <BarRow key={t.name} label={t.name} amount={t.amount} max={typeMax} color="#7D1D3F" />)}

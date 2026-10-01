@@ -1,5 +1,6 @@
 import { getAuthedUser } from '@/lib/cognito/server'
 import { getAllExpenseLogs } from '@/app/actions/expenses'
+import { getNotificationsPendingExpenseApproval } from '@/app/actions/notification-approval'
 import { getMyPermissions } from '@/app/actions/roles-actions'
 import ExpensesPageClient from './ExpensesPageClient'
 import { adminClient } from '@/lib/db/admin-client'
@@ -7,9 +8,10 @@ import { adminClient } from '@/lib/db/admin-client'
 export default async function ExpensesPage() {
   const user = await getAuthedUser()
 
-  const [{ data: profile }, { logs }, { permissions, role }] = await Promise.all([
+  const [{ data: profile }, { logs }, { items: pendingApprovals }, { permissions, role }] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getAllExpenseLogs(),
+    getNotificationsPendingExpenseApproval(),
     getMyPermissions(),
   ])
 
@@ -24,5 +26,8 @@ export default async function ExpensesPage() {
   // act on expenses (a manager or head approver, or a full-access admin).
   const canManage = isAdmin || canApproveAsManager || canApproveAsHead
 
-  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} canManage={canManage} />
+  // Field-Engineer-created notifications wait here for an expense-unlock decision.
+  const canApproveNotifications = userRole === 'Super Admin' || userRole === 'Head of Service' || userRole === 'Service Manager'
+
+  return <ExpensesPageClient logs={logs} userName={userName} userRole={userRole} canApproveAsManager={canApproveAsManager} canApproveAsHead={canApproveAsHead} canManage={canManage} pendingApprovals={pendingApprovals} canApproveNotifications={canApproveNotifications} />
 }

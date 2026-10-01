@@ -6,7 +6,6 @@ import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
 import Modal from '@/components/ui/Modal'
 import { deleteWorkOrder } from '@/app/actions/delete-work-order'
-import { approveNotificationExpenses, rejectNotificationExpenses } from '@/app/actions/notification-approval'
 import type { WorkOrderAlerts } from '@/app/actions/get-work-order-alerts'
 import { ListRow, Badge } from '@/components/dashboard/DashboardCards'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
@@ -203,16 +202,6 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
   }
   const canEdit = can('Notifications — Create / Edit')
   const canDelete = can('Notifications — Delete')
-  // Only these roles unlock expenses on a Field-Engineer-created notification.
-  const canApprove = userRole === 'Super Admin' || userRole === 'Head of Service' || userRole === 'Service Manager'
-  const [approvingId, setApprovingId] = useState<string | null>(null)
-
-  async function handleApproval(id: string, decision: 'approved' | 'rejected') {
-    setApprovingId(id)
-    const { error } = decision === 'approved' ? await approveNotificationExpenses(id) : await rejectNotificationExpenses(id)
-    setApprovingId(null)
-    if (!error) router.refresh()
-  }
 
   async function handleDelete() {
     if (!confirmDelete) return
@@ -478,18 +467,6 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
                             style={{ background: 'var(--gl)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                             <svg width="12" height="12" fill="none" stroke="var(--txm)" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                           </button>
-                          {canApprove && (wo.expense_approval === 'pending' || wo.expense_approval === 'rejected') && (
-                            <button onClick={e => { e.stopPropagation(); handleApproval(wo.id, 'approved') }} disabled={approvingId === wo.id} title="Approve — allow expenses"
-                              style={{ background: '#D1FAE5', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: approvingId === wo.id ? 'not-allowed' : 'pointer' }}>
-                              <svg width="13" height="13" fill="none" stroke="#065F46" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                            </button>
-                          )}
-                          {canApprove && wo.expense_approval === 'pending' && (
-                            <button onClick={e => { e.stopPropagation(); handleApproval(wo.id, 'rejected') }} disabled={approvingId === wo.id} title="Reject"
-                              style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: approvingId === wo.id ? 'not-allowed' : 'pointer' }}>
-                              <svg width="13" height="13" fill="none" stroke="#991B1B" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                            </button>
-                          )}
                           {canDelete && (
                             <button onClick={e => { e.stopPropagation(); setDeleteError(''); setConfirmDelete(wo) }} title="Delete notification"
                               style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
