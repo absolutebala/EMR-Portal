@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
-import { getAttendanceOverview, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats, type AttendanceStatKey } from '@/app/actions/get-attendance'
+import { getAttendanceOverview, getAttendanceStats, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats, type AttendanceStatKey } from '@/app/actions/get-attendance'
 import { categoryMeta } from '@/lib/punchCategory'
 import { approveRejectAttendanceAmendment, getPendingLeaveRequests, approveRejectLeaveRequest } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus, LeaveRequestItem } from '@/lib/mobile/core/attendance'
@@ -407,8 +407,12 @@ function StatsPanel({ stats }: { stats: AttendanceStats | null }) {
   )
 }
 
-export default function AttendancePageClient({ initialRows, initialError, initialAmendments, stats, canApprove, userName, userRole }: Props) {
+export default function AttendancePageClient({ initialRows, initialError, initialAmendments, stats: initialStats, canApprove, userName, userRole }: Props) {
   const [rows, setRows] = useState(initialRows)
+  // Today's Present/Absent/Leave summary. Held in state (not read straight from the prop)
+  // so the 45s auto-refresh can update it alongside the grid — otherwise the cards froze
+  // at their load-time values (e.g. Absent stuck at 0 until the no-show cutoff passed).
+  const [stats, setStats] = useState(initialStats)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const isFirstRun = useRef(true)
@@ -663,15 +667,20 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, customInvalid])
 
-  // Auto-refresh the grid every 45s (silently — no loading spinner) so punches and
-  // approvals happening through the day appear without a manual reload. Only fires
-  // while the tab is visible and the current range is valid.
+  // Auto-refresh every 45s (silently — no loading spinner) so punches and approvals
+  // happening through the day appear without a manual reload. Refreshes BOTH the grid
+  // and the today summary stats (Present/Absent/Leave) — the stats are recomputed with
+  // the current clock server-side, so e.g. Absent flips up as the no-show cutoff passes.
+  // Only fires while the tab is visible and the current range is valid.
   useEffect(() => {
     const id = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       if (customInvalid) return
       getAttendanceOverview(range.from, range.to)
         .then(({ rows: r, error: err }) => { setRows(r); if (err) setError(err) })
+        .catch(() => {})
+      getAttendanceStats()
+        .then(({ stats: s }) => { if (s) setStats(s) })
         .catch(() => {})
     }, 45000)
     return () => clearInterval(id)
