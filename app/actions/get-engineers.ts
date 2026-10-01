@@ -117,7 +117,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
   try {
     const admin = adminClient()
 
-    const PROFILE_COLS = 'id, first_name, last_name, employee_id, phone, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, engineer_status_start_by, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
+    const PROFILE_COLS = 'id, first_name, last_name, employee_id, display_order, phone, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, engineer_status_start_by, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
 
     // Build the roster from real activity (assigned work orders, site check-ins) rather
     // than filtering profiles by an exact role name — a role string that doesn't match
@@ -140,7 +140,17 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
       ? await admin.from('profiles').select(PROFILE_COLS).in('id', missingIds)
       : { data: [] as typeof roleProfiles }
 
-    const profiles = [...(roleProfiles || []), ...(extraProfiles || [])].sort((a, b) => a.first_name.localeCompare(b.first_name))
+    // Default order follows the roster (profiles.display_order, same as the Attendance
+    // page); engineers without a roster position fall to the end, alphabetical. The
+    // Field Engineers table's own column headers still re-sort client-side on demand.
+    const profiles = [...(roleProfiles || []), ...(extraProfiles || [])].sort((a, b) => {
+      const ao = (a as { display_order?: number | null }).display_order
+      const bo = (b as { display_order?: number | null }).display_order
+      if (ao != null && bo != null) return ao - bo
+      if (ao != null) return -1
+      if (bo != null) return 1
+      return a.first_name.localeCompare(b.first_name)
+    })
     if (!profiles.length) return { engineers: [], error: null }
 
     const engineerIds = profiles.map(p => p.id)
