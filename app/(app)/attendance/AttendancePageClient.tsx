@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import Topbar from '@/components/layout/Topbar'
 import { getAttendanceOverview, getAttendanceStats, type AttendanceOverviewRow, type AttendanceOverviewJob, type AttendanceStats, type AttendanceStatKey } from '@/app/actions/get-attendance'
 import { categoryMeta } from '@/lib/punchCategory'
-import { approveRejectAttendanceAmendment, getPendingLeaveRequests, approveRejectLeaveRequest } from '@/app/actions/attendance'
+import { approveRejectAttendanceAmendment, getPendingAttendanceAmendments, getPendingLeaveRequests, approveRejectLeaveRequest } from '@/app/actions/attendance'
 import type { PendingAmendment, AttendanceEffectiveStatus, LeaveRequestItem } from '@/lib/mobile/core/attendance'
 import PendingAmendmentsModal from './PendingAmendmentsModal'
 import PendingLeaveModal from './PendingLeaveModal'
@@ -682,10 +682,20 @@ export default function AttendancePageClient({ initialRows, initialError, initia
       getAttendanceStats()
         .then(({ stats: s }) => { if (s) setStats(s) })
         .catch(() => {})
+      // Keep the approver badges live too: new pending amendments and leave requests
+      // should appear without a manual reload.
+      if (canApprove) {
+        getPendingAttendanceAmendments()
+          .then(({ amendments: a }) => setAmendments(a))
+          .catch(() => {})
+        getPendingLeaveRequests()
+          .then(({ requests }) => setLeaveRequests(requests))
+          .catch(() => {})
+      }
     }, 45000)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.from, range.to, customInvalid])
+  }, [range.from, range.to, customInvalid, canApprove])
 
   function selectMode(mode: ViewMode) {
     setViewMode(mode)
