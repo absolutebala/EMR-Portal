@@ -383,12 +383,22 @@ export default function AttendanceScreen() {
     }
   }
 
-  // Any Absent day this month with no pending request — including today. The amendment
-  // is only ever created when the engineer taps the row and submits a reason; nothing
-  // is requested automatically.
+  // Any Absent day with no pending request — including today. The amendment is only ever
+  // created when the engineer taps the row and submits a reason; nothing is requested
+  // automatically. Allowed window: the current month always, plus last month through the
+  // 7th (grace). Mirrors isWithinAmendmentWindow() in lib/mobile/core/attendance.ts.
+  function withinAmendmentWindow(dateStr: string): boolean {
+    if (dateStr > todayStr) return false;
+    const dayMonth = dateStr.slice(0, 7);
+    if (dayMonth === todayStr.slice(0, 7)) return true;
+    const [y, m] = todayStr.split('-').map(Number);
+    const prevMonth = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}`;
+    if (dayMonth === prevMonth) return Number(todayStr.slice(8, 10)) <= 7;
+    return false;
+  }
   function isAmendable(day: { date: string; status: AttendanceEffectiveStatus }): boolean {
     return day.status.kind === 'leave' && !day.status.pendingApproval
-      && day.date.slice(0, 7) === todayStr.slice(0, 7);
+      && withinAmendmentWindow(day.date);
   }
 
   function toggleDay(day: { date: string; status: AttendanceEffectiveStatus }) {

@@ -41,6 +41,34 @@ export function getISTDateStr(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: IST_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 }
 
+// How many days into a new month the previous month stays open for amendments.
+// Through the 7th (inclusive), engineers can still request amendments for last month.
+export const AMENDMENT_PREV_MONTH_GRACE_DAYS = 7
+
+// YYYY-MM of the month before the given YYYY-MM-DD (or YYYY-MM) string.
+function prevMonthKey(dateStr: string): string {
+  const [y, m] = dateStr.split('-').map(Number)
+  const py = m === 1 ? y - 1 : y
+  const pm = m === 1 ? 12 : m - 1
+  return `${py}-${String(pm).padStart(2, '0')}`
+}
+
+// A day is amendable (date-wise) when it's not in the future AND either:
+//  - it falls in the current calendar month, or
+//  - it falls in the previous month and we're still within the grace window
+//    (today's day-of-month <= AMENDMENT_PREV_MONTH_GRACE_DAYS).
+// Pure date math — safe to mirror in the RN/PWA clients. Both dates are YYYY-MM-DD.
+export function isWithinAmendmentWindow(dateStr: string, todayStr: string): boolean {
+  if (dateStr > todayStr) return false
+  const dayMonth = dateStr.slice(0, 7)
+  const todayMonth = todayStr.slice(0, 7)
+  if (dayMonth === todayMonth) return true
+  if (dayMonth === prevMonthKey(todayStr)) {
+    return Number(todayStr.slice(8, 10)) <= AMENDMENT_PREV_MONTH_GRACE_DAYS
+  }
+  return false
+}
+
 function getISTHour(date: Date): number {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: IST_TZ, hour: 'numeric', hourCycle: 'h23' }).formatToParts(date)
   return parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10)
@@ -791,6 +819,9 @@ export async function requestAttendanceAmendmentCore(admin: AdminClient, userId:
     const todayStr = getISTDateStr(now)
     const dateStr = params.attendanceDate
     if (dateStr > todayStr) return { error: 'Cannot request an amendment for a future date.' }
+    if (!isWithinAmendmentWindow(dateStr, todayStr)) {
+      return { error: `Amendments are only allowed for the current month, and for last month through the ${AMENDMENT_PREV_MONTH_GRACE_DAYS}th.` }
+    }
     if (!params.reason?.trim()) return { error: 'A reason is required.' }
 
     const { data: existing } = await admin.from('attendance')

@@ -405,12 +405,23 @@ export default function AttendanceView({ initialDays, initialError, todayStr, en
     load(range.from, range.to)
   }
 
-  // Any past Absent day this month with no pending request can request an amendment; a
-  // rejected day can request again. Includes today — the amendment is only ever created
-  // when the engineer taps the row and submits a reason; nothing is requested automatically.
+  // Any past Absent day with no pending request can request an amendment; a rejected day
+  // can request again. Includes today — the amendment is only ever created when the engineer
+  // taps the row and submits a reason; nothing is requested automatically. Allowed window:
+  // the current month always, plus last month through the 7th (grace). Mirrors
+  // isWithinAmendmentWindow() in lib/mobile/core/attendance.ts.
+  function withinAmendmentWindow(dateStr: string): boolean {
+    if (dateStr > todayStr) return false
+    const dayMonth = dateStr.slice(0, 7)
+    if (dayMonth === todayStr.slice(0, 7)) return true
+    const [y, m] = todayStr.split('-').map(Number)
+    const prevMonth = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}`
+    if (dayMonth === prevMonth) return Number(todayStr.slice(8, 10)) <= 7
+    return false
+  }
   function isAmendable(day: AttendanceCalendarDay): boolean {
     return day.status.kind === 'leave' && !day.status.pendingApproval
-      && day.date.slice(0, 7) === todayStr.slice(0, 7)
+      && withinAmendmentWindow(day.date)
   }
 
   function toggleDay(day: AttendanceCalendarDay) {
