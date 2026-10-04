@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   // footer's date is automatic instead of a hand-maintained constant that drifts.
   env: {
     NEXT_PUBLIC_BUILD_DATE: new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    // Unique per build — baked into the service worker (served from app/sw.js/route.ts)
+    // so each deploy produces a different sw.js. That's what lets the browser detect a
+    // new version, purge the old cache, and reload clients onto the current build
+    // (otherwise a long-open PWA keeps calling the previous build's Server Actions —
+    // the "Failed to find Server Action" error).
+    NEXT_PUBLIC_BUILD_ID: process.env.BUILD_ID || String(Date.now()),
   },
   // Required for a minimal Docker image (AWS ECS deploy) — bundles a self-contained
   // server into .next/standalone instead of needing the full node_modules tree at runtime.
@@ -35,18 +41,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '4mb',
     },
   },
-  async headers() {
-    return [
-      {
-        source: '/sw.js',
-        headers: [
-          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
-          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
-          { key: 'Service-Worker-Allowed', value: '/' },
-        ],
-      },
-    ]
-  },
+  // /sw.js is now served by app/sw.js/route.ts (so its content is versioned per build);
+  // that route sets its own Content-Type / Cache-Control / Service-Worker-Allowed headers.
 }
 
 export default nextConfig
