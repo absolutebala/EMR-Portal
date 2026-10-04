@@ -101,7 +101,7 @@ export default async function DashboardPage() {
         {showDepartmentCards && kpis.departmentBreakdown.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Open notifications by department</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 12 }}>
               {kpis.departmentBreakdown.map((d, i) => {
                 const color = DEPARTMENT_CARD_COLORS[i % DEPARTMENT_CARD_COLORS.length]
                 return (
