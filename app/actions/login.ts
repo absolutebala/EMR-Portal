@@ -6,6 +6,7 @@ import { COGNITO_WEB_CLIENT_ID } from '@/lib/cognito/config'
 import { getIdVerifier } from '@/lib/cognito/verifier'
 import { setSessionCookie, setChallengeCookie, clearSessionCookie } from '@/lib/cognito/session'
 import { adminClient } from '@/lib/db/admin-client'
+import { sessionClaimsFromJwt, evaluateSingleDevice } from '@/lib/mobile/singleDevice'
 
 export type LoginResult =
   | { status: 'ok' }
@@ -56,11 +57,15 @@ export async function login(email: string, password: string, options?: { require
     if (options?.requireRole) {
       try {
         const payload = await getIdVerifier().verify(auth.IdToken)
-        const { data: profile } = await adminClient().from('profiles').select('role').eq('cognito_sub', payload.sub).maybeSingle()
+        const { data: profile } = await adminClient().from('profiles').select('id, role').eq('cognito_sub', payload.sub).maybeSingle()
         if (profile?.role !== options.requireRole) {
           await clearSessionCookie()
           return { status: 'error', error: MOBILE_ONLY_MESSAGE }
         }
+        // Single-device: claim this account for the just-signed-in browser session
+        // (newest login wins), so this PWA login displaces any other device — native
+        // app included. Field-Engineer-only path; evaluateSingleDevice no-ops otherwise.
+        await evaluateSingleDevice(adminClient(), profile.id, profile.role ?? null, sessionClaimsFromJwt(auth.AccessToken))
       } catch {
         await clearSessionCookie()
         return { status: 'error', error: 'Could not verify account access. Please try again.' }

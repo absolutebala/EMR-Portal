@@ -117,6 +117,11 @@ export interface AuthMeResponse {
   engineer: { name: string; avatarUrl: string | null } | null;
   role: string | null;
   error: string | null;
+  // Set by the server when this device's session was superseded by a newer login on
+  // another device (single-device enforcement). Older app builds don't read this —
+  // they sign out via the sentinel role instead — but newer builds use it to show the
+  // precise "signed in on another device" message.
+  sessionSuperseded?: boolean;
 }
 
 export interface EngineerStreak {

@@ -5,6 +5,7 @@ import { apiGet } from './api';
 import type { AuthMeResponse } from './types';
 
 const MOBILE_ONLY_MESSAGE = 'This mobile app is only for Field Engineers. Please access the application from your computer: https://portal.emr.global/login';
+const SIGNED_IN_ELSEWHERE_MESSAGE = 'You were signed out because your account was used to sign in on another device. Only one device can be signed in at a time.';
 
 interface AuthState {
   session: SessionTokens | null;
@@ -41,6 +42,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshMe = useCallback(async (): Promise<{ accessDenied: string | null }> => {
     try {
       const res = await apiGet<AuthMeResponse>('/api/mobile/v1/auth/me');
+      // Single-device: a newer login on another device superseded this one. Checked
+      // before the role check so the displaced engineer sees the precise reason rather
+      // than the generic Field-Engineer-only message (older builds, which lack this
+      // field, fall through to the role check below and sign out there anyway).
+      if (res.sessionSuperseded) {
+        await logoutAction();
+        setAccessDenied(SIGNED_IN_ELSEWHERE_MESSAGE);
+        return { accessDenied: SIGNED_IN_ELSEWHERE_MESSAGE };
+      }
       if (res.role && res.role !== 'Field Engineer') {
         await logoutAction();
         setAccessDenied(MOBILE_ONLY_MESSAGE);

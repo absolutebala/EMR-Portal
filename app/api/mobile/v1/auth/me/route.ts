@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveBearerUser } from '@/lib/mobile/apiAuth'
+import { resolveBearerSession } from '@/lib/mobile/apiAuth'
 import { adminClient, getEngineerName } from '@/lib/mobile/core/shared'
 import { mustChangePasswordCore } from '@/lib/mobile/core/auth'
 
 export async function GET(req: NextRequest) {
-  const user = await resolveBearerUser(req)
-  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  // Non-rejecting resolve so a displaced session gets a friendly sign-out response
+  // instead of a bare 401 (which the app would just treat as a transient error).
+  const session = await resolveBearerSession(req)
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+  // Single-device enforcement: this engineer signed in on a newer device, so this one
+  // is superseded. Return a sentinel role (!== 'Field Engineer') so EXISTING app builds
+  // — which already sign themselves out and return to login whenever the role isn't
+  // Field Engineer — do so here too, no app update required. New builds additionally
+  // read `sessionSuperseded` to show the precise "signed in on another device" message.
+  if (session.displaced) {
+    return NextResponse.json({
+      userId: null,
+      mustChangePassword: false,
+      engineer: null,
+      role: 'SESSION_SUPERSEDED',
+      sessionSuperseded: true,
+      error: null,
+    })
+  }
+
+  const user = { id: session.id }
   const admin = adminClient()
 
   // Record the mobile sign-in. The native app authenticates directly against Cognito
