@@ -72,6 +72,8 @@ export default async function DashboardPage() {
   const warrantyTotal = kpis.warrantyBreakdown.under_warranty + kpis.warrantyBreakdown.expired + kpis.warrantyBreakdown.amc
   const notificationTotal = kpis.notificationBreakdown.unassigned + kpis.notificationBreakdown.assigned + kpis.notificationBreakdown.in_progress + kpis.notificationBreakdown.needs_reassignment
   const productRequestTotal = kpis.productRequestBreakdown.pending + kpis.productRequestBreakdown.approved + kpis.productRequestBreakdown.dispatched + kpis.productRequestBreakdown.delivered
+  const jobTypeTotal = kpis.jobTypeBreakdown.reduce((s, jt) => s + jt.count, 0)
+  const JOB_TYPE_ROW_COLORS = ['#D97706', '#1D4ED8', '#065F46', '#5B21B6', '#9A3412', '#7D1D3F', '#475569']
   // Org-wide department load is only meaningful for the two roles who oversee every
   // department at once — everyone else already sees their own department's work
   // through the notification list itself.
@@ -83,7 +85,7 @@ export default async function DashboardPage() {
       <DashboardAutoRefresh />
       <Topbar title="Dashboard" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
           <BreakdownCard
             title="Notifications" total={notificationTotal} borderColor="#D97706"
             rows={NOTIFICATION_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.notificationBreakdown[s.key], color: s.color, href: s.href }))}
@@ -95,6 +97,10 @@ export default async function DashboardPage() {
           <BreakdownCard
             title="Open notifications by warranty" total={warrantyTotal} borderColor="#7D1D3F"
             rows={WARRANTY_TIER_CFG.map(t => ({ key: t.key, label: t.label, count: kpis.warrantyBreakdown[t.key], color: t.color, href: `/work-orders?warranty=${t.key}` }))}
+          />
+          <BreakdownCard
+            title="Open notifications by job type" total={jobTypeTotal} borderColor="#2563EB"
+            rows={kpis.jobTypeBreakdown.map((jt, i) => ({ key: jt.jobType, label: JOB_TYPE_LABELS[jt.jobType] || jt.jobType, count: jt.count, color: JOB_TYPE_ROW_COLORS[i % JOB_TYPE_ROW_COLORS.length], href: `/work-orders?job=${jt.jobType}` }))}
           />
         </div>
 
@@ -116,24 +122,6 @@ export default async function DashboardPage() {
                   </Link>
                 )
               })}
-            </div>
-          </div>
-        )}
-
-        {kpis.jobTypeBreakdown.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Open notifications by job type</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {kpis.jobTypeBreakdown.map(jt => (
-                <Link
-                  key={jt.jobType}
-                  href={`/work-orders?job=${jt.jobType}`}
-                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}
-                >
-                  <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{JOB_TYPE_LABELS[jt.jobType] || jt.jobType}</span>
-                  <span style={{ fontSize: 12, color: '#fff', background: 'var(--m)', borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{jt.count}</span>
-                </Link>
-              ))}
             </div>
           </div>
         )}
