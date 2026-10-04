@@ -205,7 +205,7 @@ export default async function DashboardPage() {
                   }}>
                     {wo.alertReason === 'missed' ? 'Missed' : 'Due today'}
                   </span>
-                  <span style={{ fontSize: 10, color: 'var(--txm)' }}>{wo.customerName}</span>
+                  <span style={{ fontSize: 10, color: 'var(--txm)', maxWidth: 150, textAlign: 'right', overflowWrap: 'anywhere' }}>{wo.customerName}</span>
                 </div>
               </ListRow>
             ))}
