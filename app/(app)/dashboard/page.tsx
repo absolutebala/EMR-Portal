@@ -127,15 +127,15 @@ export default async function DashboardPage() {
         )}
 
         {(kpis.warrantyUnits.underWarranty + kpis.warrantyUnits.noWarranty) > 0 && (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Customers on warranty</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: '10px 16px', border: '1px solid var(--gm)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 700 }}>Customers on warranty</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1 }}>
               {[
                 { label: 'Under Warranty', count: kpis.warrantyUnits.underWarranty, color: '#065F46', bg: '#D1FAE5' },
                 { label: 'Warranty expiring in 3 months', count: kpis.warrantyUnits.expiringSoon, color: '#92400E', bg: '#FEF3C7' },
                 { label: 'No Warranty', count: kpis.warrantyUnits.noWarranty, color: '#991B1B', bg: '#FEE2E2' },
               ].map(w => (
-                <div key={w.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}>
+                <div key={w.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}>
                   <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{w.label}</span>
                   <span style={{ fontSize: 12, color: w.color, background: w.bg, borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{w.count}</span>
                 </div>
@@ -144,12 +144,8 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
-          <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
-            {expiredWarrantyList.map(t => (
-              <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
-            ))}
-          </ListCard>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+          <SuspiciousLoginsCard flags={suspiciousLogins} />
 
           <ListCard title="Off-site status updates" empty="No off-site updates — engineers are updating jobs from the site as expected.">
             {offSiteUpdates.map(u => (
@@ -159,19 +155,6 @@ export default async function DashboardPage() {
             ))}
           </ListCard>
 
-          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
-            {pendingApprovals.map(ap => {
-              const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
-              return (
-                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
-                  <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
-                </ListRow>
-              )
-            })}
-          </ListCard>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
           <ListCard title="Missed & at-risk follow-ups" viewAllHref="/work-orders" empty="Nothing missed or at risk.">
             {overdueList.map(wo => (
               <ListRow
@@ -198,14 +181,6 @@ export default async function DashboardPage() {
               </ListRow>
             ))}
           </ListCard>
-
-          <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
-
-          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." showScheduleInfo />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 14 }}>
-          <SuspiciousLoginsCard flags={suspiciousLogins} />
 
           <ListCard title="Paid Notifications" viewAllHref="/work-orders?job=overhauling" empty="No Overhauling notifications.">
             {overhaulingList.map(wo => {
@@ -250,6 +225,27 @@ export default async function DashboardPage() {
               )
             })}
           </ListCard>
+
+          <AssignableList title="Unassigned" viewAllHref="/work-orders" workOrders={unassignedList} empty="Nothing unassigned." showScheduleInfo />
+
+          <ListCard title="Expired Warranty" viewAllHref="/work-orders?warranty=expired" empty="No transformers with expired warranty.">
+            {expiredWarrantyList.map(t => (
+              <ListRow key={t.id} title={t.customerName} subtitle={t.serialNumber} />
+            ))}
+          </ListCard>
+
+          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
+            {pendingApprovals.map(ap => {
+              const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
+              return (
+                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
+                  <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
+                </ListRow>
+              )
+            })}
+          </ListCard>
+
+          <AssignableList title="Needs reassignment" viewAllHref="/work-orders" workOrders={needsReassignList} empty="Nothing needs reassignment." />
         </div>
       </div>
     </>

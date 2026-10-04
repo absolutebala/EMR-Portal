@@ -55,7 +55,7 @@ export function BreakdownCard({ title, total, borderColor, rows }: {
 }) {
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--gm)', borderTop: `3px solid ${borderColor}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-      <div style={{ fontSize: 11, color: 'var(--txm)', marginBottom: 8, fontWeight: 500 }}>{title} ({total})</div>
+      <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 8, fontWeight: 700 }}>{title} ({total})</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map(row => (
           <Link key={row.key} href={row.href} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
