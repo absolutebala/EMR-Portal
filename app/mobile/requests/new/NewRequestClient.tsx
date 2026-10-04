@@ -225,7 +225,10 @@ export default function NewRequestClient({ workOrders, error }: Props) {
         <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)' }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 8 }}>Damaged product photos <span style={{ color: '#7D1D3F' }}>*</span></p>
           <p style={{ fontSize: 11, color: '#7A6870', marginBottom: 8 }}>Upload photos of the damaged products requiring replacement.</p>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} style={{ display: 'none' }} />
+          {/* No `capture` attribute so the OS photo chooser offers Gallery + Camera
+              (and the camera lets the engineer switch front/back) — product-damage
+              photos are often taken earlier, so uploading from the gallery is allowed. */}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoCapture} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {damagePhotos.map((p, i) => (
               <div key={i} style={{ position: 'relative', width: 60, height: 60 }}>

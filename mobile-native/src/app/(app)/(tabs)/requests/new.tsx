@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator, Alert, Vibration } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useJobs, searchProducts, useSubmitProductRequest } from '@/lib/hooks';
-import { capturePhoto, type CapturedPhoto } from '@/lib/photo';
+import { capturePhoto, pickPhotoFromLibrary, type CapturedPhoto } from '@/lib/photo';
 import { isOnline, apiErrorMessage } from '@/lib/offlineSubmit';
 import RNWorkOrderPicker from '@/components/RNWorkOrderPicker';
 import type { Product } from '@/lib/types';
@@ -90,11 +90,22 @@ export default function NewRequestScreen() {
     });
   }
 
-  async function handleCapturePhoto() {
+  // Let the engineer either take a live photo or pick an existing one from the gallery
+  // (the camera itself allows switching front/back). Damaged-product photos are often
+  // taken earlier, so uploading from the device is allowed.
+  function handleAddPhoto() {
     setSubmitError('');
+    Alert.alert('Add photo', 'Choose a source', [
+      { text: 'Take Photo', onPress: () => addPhoto('camera') },
+      { text: 'Choose from Gallery', onPress: () => addPhoto('gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function addPhoto(source: 'camera' | 'gallery') {
     setCapturing(true);
     try {
-      const result = await capturePhoto();
+      const result = source === 'camera' ? await capturePhoto() : await pickPhotoFromLibrary();
       if (result) setDamagePhotos(prev => [...prev, result]);
     } catch {
       setSubmitError('Could not process that photo — please try again');
@@ -228,7 +239,7 @@ export default function NewRequestScreen() {
                 </Pressable>
               </View>
             ))}
-            <Pressable style={styles.addPhotoBox} onPress={handleCapturePhoto} disabled={capturing}>
+            <Pressable style={styles.addPhotoBox} onPress={handleAddPhoto} disabled={capturing}>
               {capturing ? <ActivityIndicator size="small" color="#7D1D3F" /> : <Text style={styles.addPhotoIcon}>+</Text>}
             </Pressable>
           </View>
