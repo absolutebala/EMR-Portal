@@ -93,7 +93,7 @@ export default async function DashboardPage() {
             rows={PRODUCT_REQUEST_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.productRequestBreakdown[s.key], color: s.color, href: s.href }))}
           />
           <BreakdownCard
-            title="Warranty Status" total={warrantyTotal} borderColor="#7D1D3F"
+            title="Open notifications by warranty" total={warrantyTotal} borderColor="#7D1D3F"
             rows={WARRANTY_TIER_CFG.map(t => ({ key: t.key, label: t.label, count: kpis.warrantyBreakdown[t.key], color: t.color, href: `/work-orders?warranty=${t.key}` }))}
           />
         </div>
