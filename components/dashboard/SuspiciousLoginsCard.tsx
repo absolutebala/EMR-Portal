@@ -32,11 +32,15 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
   useEffect(() => {
     if (!selected) return
     let cancelled = false
-    for (const d of selected.devices) {
-      if (d.lastPlaceName || d.lastLatitude == null || d.lastLongitude == null) continue
-      const key = coordKey(d.lastLatitude, d.lastLongitude)
+    // Every point shown in the popup that lacks a stored place name: each device's
+    // last-seen, plus the active device's first-login-after-switch (handover).
+    const points: [number, number, string | null][] = selected.devices.map(d => [d.lastLatitude, d.lastLongitude, d.lastPlaceName] as [number, number, string | null])
+    if (selected.handover) points.push([selected.handover.newLatitude, selected.handover.newLongitude, selected.handover.newPlaceName])
+    for (const [lat, lng, place] of points) {
+      if (place || lat == null || lng == null) continue
+      const key = coordKey(lat, lng)
       if (places[key] !== undefined) continue
-      geocodeLoginPlace(d.lastLatitude, d.lastLongitude).then(label => {
+      geocodeLoginPlace(lat, lng).then(label => {
         if (!cancelled && label) setPlaces(prev => ({ ...prev, [key]: label }))
       })
     }
@@ -67,21 +71,34 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
               {selected.kinds.includes('impossible_travel') && <Badge bg="#FEE2E2" color="#991B1B" label="Impossible travel" />}
               {selected.kinds.includes('multi_device') && <Badge bg="#FEE2E2" color="#991B1B" label={`${selected.devices.length} devices`} />}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 16 }}>{selected.detail}</div>
+            <div style={{ fontSize: 12, color: 'var(--txm)', marginBottom: 14 }}>{selected.detail}</div>
+
+            {selected.handover && selected.handover.distanceKm != null && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#991B1B' }}>
+                <strong>≈ {Math.round(selected.handover.distanceKm)} km</strong> between where the previous device was last used and where the new device first signed in.
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {selected.devices.map((d, i) => {
-                const resolved = d.lastLatitude != null && d.lastLongitude != null ? places[coordKey(d.lastLatitude, d.lastLongitude)] : undefined
-                const loc = d.lastPlaceName || resolved
-                  || (d.lastLatitude != null && d.lastLongitude != null ? `${d.lastLatitude.toFixed(4)}, ${d.lastLongitude.toFixed(4)}` : null)
-                const mapHref = d.lastLatitude != null && d.lastLongitude != null
-                  ? `https://www.google.com/maps?q=${d.lastLatitude},${d.lastLongitude}` : null
+                const isActive = i === activeIdx
+                // Active device → show its first login AFTER the switch (handover);
+                // previous devices → show their last-seen.
+                const h = isActive ? selected.handover : null
+                const lat = h ? h.newLatitude : d.lastLatitude
+                const lng = h ? h.newLongitude : d.lastLongitude
+                const placeName = h ? h.newPlaceName : d.lastPlaceName
+                const when = h ? h.newFirstLogin : d.lastSeen
+                const whenLabel = h ? 'First login (after switch)' : 'Last seen'
+                const resolved = lat != null && lng != null ? places[coordKey(lat, lng)] : undefined
+                const loc = placeName || resolved || (lat != null && lng != null ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : null)
+                const mapHref = lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null
                 return (
                   <div key={d.deviceId || i} style={{ border: '1px solid var(--gm)', borderRadius: 10, padding: '12px 14px', background: '#FAFAFA' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{d.deviceName || 'Unknown device'}</span>
-                        {i === activeIdx && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#065F46', background: '#D1FAE5', borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>Currently active</span>}
+                        {isActive && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#065F46', background: '#D1FAE5', borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>Currently active</span>}
                       </span>
                       <span style={{ fontSize: 10, color: 'var(--txm)' }}>{d.loginCount} login{d.loginCount !== 1 ? 's' : ''}</span>
                     </div>
@@ -91,8 +108,8 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
                         {loc ? (mapHref ? <a href={mapHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--m)', textDecoration: 'none' }}>{loc} ↗</a> : loc) : 'No location captured'}
                       </div>
                       <div>
-                        <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Last login: </span>
-                        {formatTime(d.lastSeen)}
+                        <span style={{ fontWeight: 600, color: 'var(--tx)' }}>{whenLabel}: </span>
+                        {formatTime(when)}
                       </div>
                       {!d.deviceName && (
                         <div style={{ fontSize: 10, color: 'var(--txm)', fontStyle: 'italic' }}>

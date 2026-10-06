@@ -45,6 +45,26 @@ export interface LoginDeviceSummary {
   loginCount: number
 }
 
+// The device "handover": where/when the account was last used on the previous device vs
+// the first login on the now-active device after it switched. The distance between those
+// two points over the elapsed time is the clearest account-sharing signal.
+export interface LoginHandover {
+  prevDeviceId: string | null
+  activeDeviceId: string | null
+  // Previous device's last activity before the switch.
+  prevLastSeen: string
+  prevPlaceName: string | null
+  prevLatitude: number | null
+  prevLongitude: number | null
+  // Active device's first login AFTER the previous device's last-seen.
+  newFirstLogin: string
+  newPlaceName: string | null
+  newLatitude: number | null
+  newLongitude: number | null
+  // Straight-line km between the two points (null if either has no GPS).
+  distanceKm: number | null
+}
+
 export interface SuspiciousLoginFlag {
   engineerId: string
   engineerName: string
@@ -56,6 +76,8 @@ export interface SuspiciousLoginFlag {
   // Every distinct device this engineer logged in from over the lookback window,
   // most-recently-seen first — powers the click-through detail popup.
   devices: LoginDeviceSummary[]
+  // The switch from the previous device to the current one (null if only one device).
+  handover: LoginHandover | null
 }
 
 interface Ev { user_id: string; device_id: string | null; device_name: string | null; latitude: number | null; longitude: number | null; place_name: string | null; created_at: string }
@@ -148,7 +170,31 @@ export async function getSuspiciousLoginsCore(admin: AdminClient, nameById: Reco
           }
         }
         const devices = [...deviceMap.values()].sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
-        flags.push({ engineerId: uid, engineerName: nameById[uid] || 'Engineer', kinds: [...kinds], detail, at, devices })
+
+        // Handover: active device (most recent) vs the device it displaced (next most
+        // recent). The active device's "first login after the switch" is its earliest
+        // login later than the previous device's last-seen (fallback: its first login).
+        let handover: LoginHandover | null = null
+        if (devices.length >= 2) {
+          const active = devices[0], prev = devices[1]
+          const activeKey = active.deviceId || 'unknown'
+          const prevLastMs = new Date(prev.lastSeen).getTime()
+          const activeEvents = events.filter(e => (e.device_id || 'unknown') === activeKey)
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          const nf = activeEvents.find(e => new Date(e.created_at).getTime() > prevLastMs) || activeEvents[0]
+          if (nf) {
+            const distanceKm = (prev.lastLatitude != null && prev.lastLongitude != null && nf.latitude != null && nf.longitude != null)
+              ? haversineKm(prev.lastLatitude, prev.lastLongitude, nf.latitude, nf.longitude) : null
+            handover = {
+              prevDeviceId: prev.deviceId, activeDeviceId: active.deviceId,
+              prevLastSeen: prev.lastSeen, prevPlaceName: prev.lastPlaceName, prevLatitude: prev.lastLatitude, prevLongitude: prev.lastLongitude,
+              newFirstLogin: nf.created_at, newPlaceName: nf.place_name, newLatitude: nf.latitude, newLongitude: nf.longitude,
+              distanceKm,
+            }
+          }
+        }
+
+        flags.push({ engineerId: uid, engineerName: nameById[uid] || 'Engineer', kinds: [...kinds], detail, at, devices, handover })
       }
     }
 
