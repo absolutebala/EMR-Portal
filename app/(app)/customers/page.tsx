@@ -3,6 +3,7 @@ import { getMyPermissions } from '@/app/actions/roles-actions'
 import CustomersPageClient from './CustomersPageClient'
 import type { Customer } from '@/lib/types'
 import { adminClient } from '@/lib/db/admin-client'
+import { classifyWarranty } from '@/lib/warranty'
 
 export default async function CustomersPage() {
   const user = await getAuthedUser()
