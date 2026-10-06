@@ -112,6 +112,12 @@ export async function getSuspiciousLoginsCore(admin: AdminClient, nameById: Reco
       let detail = ''
       let at = events[events.length - 1].created_at
 
+      // Group by physical device, keyed by device NAME — not device_id, which is minted
+      // fresh on every reinstall, so one phone (e.g. an emulator) otherwise shows up as
+      // several "devices". Fall back to device_id (then 'unknown') when no name was
+      // captured (older app builds).
+      const keyOf = (e: Ev) => e.device_name || e.device_id || 'unknown'
+
       // Impossible travel: any two consecutive logins with GPS on both, ≥50km apart,
       // within an hour of each other.
       for (let i = 1; i < events.length; i++) {
@@ -127,13 +133,14 @@ export async function getSuspiciousLoginsCore(admin: AdminClient, nameById: Reco
         }
       }
 
-      // Multi-device: 2+ distinct device ids logging in within a rolling 24h window.
+      // Multi-device: 2+ distinct physical devices logging in within a rolling 24h window.
       const windowMs = MULTI_DEVICE_WINDOW_H * 60 * 60 * 1000
       for (let i = 0; i < events.length; i++) {
         const devs = new Set<string>()
         for (let j = i; j < events.length; j++) {
           if (new Date(events[j].created_at).getTime() - new Date(events[i].created_at).getTime() > windowMs) break
-          if (events[j].device_id) devs.add(events[j].device_id as string)
+          const k = events[j].device_name || events[j].device_id
+          if (k) devs.add(k)
         }
         if (devs.size >= 2) {
           kinds.add('multi_device')
@@ -147,7 +154,7 @@ export async function getSuspiciousLoginsCore(admin: AdminClient, nameById: Reco
         // in ascending time order, so the last one seen per device is its most recent.
         const deviceMap = new Map<string, LoginDeviceSummary>()
         for (const e of events) {
-          const key = e.device_id || 'unknown'
+          const key = keyOf(e)
           const existing = deviceMap.get(key)
           if (!existing) {
             deviceMap.set(key, {
@@ -169,17 +176,19 @@ export async function getSuspiciousLoginsCore(admin: AdminClient, nameById: Reco
             if (e.device_name) existing.deviceName = e.device_name
           }
         }
-        const devices = [...deviceMap.values()].sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
+        const entries = [...deviceMap.entries()].sort((a, b) => new Date(b[1].lastSeen).getTime() - new Date(a[1].lastSeen).getTime())
+        const devices = entries.map(e => e[1])
 
         // Handover: active device (most recent) vs the device it displaced (next most
-        // recent). The active device's "first login after the switch" is its earliest
-        // login later than the previous device's last-seen (fallback: its first login).
+        // recent) — now distinct physical devices thanks to name grouping. The active
+        // device's "first login after the switch" is its earliest login later than the
+        // previous device's last-seen (fallback: its first login).
         let handover: LoginHandover | null = null
-        if (devices.length >= 2) {
-          const active = devices[0], prev = devices[1]
-          const activeKey = active.deviceId || 'unknown'
+        if (entries.length >= 2) {
+          const activeKey = entries[0][0]
+          const active = entries[0][1], prev = entries[1][1]
           const prevLastMs = new Date(prev.lastSeen).getTime()
-          const activeEvents = events.filter(e => (e.device_id || 'unknown') === activeKey)
+          const activeEvents = events.filter(e => keyOf(e) === activeKey)
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
           const nf = activeEvents.find(e => new Date(e.created_at).getTime() > prevLastMs) || activeEvents[0]
           if (nf) {
