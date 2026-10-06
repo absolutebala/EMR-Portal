@@ -40,23 +40,21 @@ export default async function CustomersPage() {
     const siteMap: Record<string, number> = {}
     sites?.forEach(s => { siteMap[s.customer_id] = (siteMap[s.customer_id] || 0) + 1 })
 
-    // Same bucket definitions as the dashboard's warrantyUnits (get-dashboard.ts):
-    // under_warranty = not expired, expiring = subset of those with expiry within 90
-    // days, expired = status 'expired'.
+    // Warranty buckets per the shared classifier (lib/warranty.ts) — identical to the
+    // dashboard's warrantyUnits counts: 'expired' = No Warranty (expired / no info /
+    // lapsed), 'under_warranty' = valid, 'expiring' = subset within 90 days.
     const nowMs = Date.now()
-    const in90Ms = nowMs + 90 * 24 * 60 * 60 * 1000
     const snMap: Record<string, number> = {}
     const bucketMap: Record<string, Set<string>> = {}
     ;(sns as { customer_id: string; warranty_status: string; dispatch_date: string | null; warranty_years: number | null }[] | null)?.forEach(t => {
       snMap[t.customer_id] = (snMap[t.customer_id] || 0) + 1
       const set = bucketMap[t.customer_id] || (bucketMap[t.customer_id] = new Set())
-      if (t.warranty_status === 'expired') { set.add('expired'); return }
-      set.add('under_warranty')
-      if (t.dispatch_date && t.warranty_years != null) {
-        const exp = new Date(t.dispatch_date)
-        exp.setFullYear(exp.getFullYear() + t.warranty_years)
-        const ms = exp.getTime()
-        if (ms >= nowMs && ms <= in90Ms) set.add('expiring')
+      const { bucket, expiringSoon } = classifyWarranty(t, nowMs)
+      if (bucket === 'under_warranty') {
+        set.add('under_warranty')
+        if (expiringSoon) set.add('expiring')
+      } else {
+        set.add('expired')
       }
     })
 

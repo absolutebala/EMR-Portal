@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '@/lib/db/admin-client'
+import { classifyWarranty } from '@/lib/warranty'
 import { getFieldEngineersOverview, type FieldEngineerOverview } from './get-engineers'
 import { getMyDepartmentScope } from './departments'
 import { getSuspiciousLoginsCore, type SuspiciousLoginFlag } from '@/lib/mobile/core/loginEvents'
@@ -321,21 +322,19 @@ export async function getDashboardData(): Promise<DashboardData> {
   }))
   if (noDepartmentCount > 0) departmentBreakdown.push({ departmentId: NO_DEPARTMENT_ID, department: 'No Department', count: noDepartmentCount })
 
-  // Warranty across every registered transformer (org-wide, like the Expired Warranty
-  // list) — active units, those expiring within 3 months, and lapsed units.
+  // Warranty across every registered transformer (org-wide). No Warranty = explicitly
+  // expired, no warranty info on record, or already lapsed; see lib/warranty.ts.
   const { data: warrantyUnitRows } = await admin.from('transformers').select('warranty_status, dispatch_date, warranty_years')
   const nowMs = Date.now()
-  const in90Ms = nowMs + 90 * 24 * 60 * 60 * 1000
   const warrantyUnits = { underWarranty: 0, expiringSoon: 0, noWarranty: 0 }
   type WarrantyUnitRow = { warranty_status: string; dispatch_date: string | null; warranty_years: number | null }
   ;((warrantyUnitRows as WarrantyUnitRow[]) || []).forEach(t => {
-    if (t.warranty_status === 'expired') { warrantyUnits.noWarranty++; return }
-    warrantyUnits.underWarranty++
-    if (t.dispatch_date && t.warranty_years != null) {
-      const exp = new Date(t.dispatch_date)
-      exp.setFullYear(exp.getFullYear() + t.warranty_years)
-      const expMs = exp.getTime()
-      if (expMs >= nowMs && expMs <= in90Ms) warrantyUnits.expiringSoon++
+    const { bucket, expiringSoon } = classifyWarranty(t, nowMs)
+    if (bucket === 'under_warranty') {
+      warrantyUnits.underWarranty++
+      if (expiringSoon) warrantyUnits.expiringSoon++
+    } else {
+      warrantyUnits.noWarranty++
     }
   })
 
