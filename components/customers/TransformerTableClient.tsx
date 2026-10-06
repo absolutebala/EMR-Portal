@@ -304,7 +304,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
           <thead>
             <tr>
-              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Warranty expiry', 'Notes', 'Project', ...(canEdit || canRequestRenewal ? [''] : [])].map(h => (
+              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Warranty expiry', 'Notes', 'Project', ...(canEdit ? [''] : [])].map(h => (
                 <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
               ))}
             </tr>
@@ -344,7 +344,19 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                           <option value="expired">Warranty expired</option>
                           <option value="amc">AMC</option>
                         </select>
-                      : <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: ws.bg, color: ws.color }}>{ws.label}</span>}
+                      : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: ws.bg, color: ws.color }}>{ws.label}</span>
+                          {canRequestRenewal && (
+                            openRenewals[t.id]
+                              ? <span style={{ fontSize: 10, fontWeight: 600, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>Renewal pending</span>
+                              : <button onClick={() => openRenew(t, isExpiredDate(t.warranty_expiry_date) ? 'renew' : 'extend')}
+                                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: 'pointer', fontSize: 10, fontWeight: 600, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
+                                  {isExpiredDate(t.warranty_expiry_date) ? 'Renew' : 'Extend'}
+                                </button>
+                          )}
+                        </div>
+                      )}
                   </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
                     {isEditing
@@ -372,7 +384,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                         </select>
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{site?.site_name || '—'}</span>}
                   </td>
-                  {(canEdit || canRequestRenewal) && (
+                  {canEdit && (
                     <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -398,17 +410,9 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          {canEdit && <button onClick={() => startEdit(t)} style={iconBtn()} title="Edit"><EditIcon /></button>}
-                          {canEdit && <button onClick={() => setTxConfirmDelete(t.id)} style={iconBtn(true)} title="Delete"><TrashIcon /></button>}
-                          {canRequestRenewal && (
-                            openRenewals[t.id]
-                              ? <span style={{ fontSize: 10, fontWeight: 600, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>Renewal pending</span>
-                              : <button onClick={() => openRenew(t, isExpiredDate(t.warranty_expiry_date) ? 'renew' : 'extend')}
-                                  style={{ padding: '5px 11px', borderRadius: 6, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
-                                  {isExpiredDate(t.warranty_expiry_date) ? 'Renew' : 'Extend'}
-                                </button>
-                          )}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => startEdit(t)} style={iconBtn()} title="Edit"><EditIcon /></button>
+                          <button onClick={() => setTxConfirmDelete(t.id)} style={iconBtn(true)} title="Delete"><TrashIcon /></button>
                         </div>
                       )}
                     </td>
