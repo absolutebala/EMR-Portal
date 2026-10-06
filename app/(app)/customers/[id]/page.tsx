@@ -31,6 +31,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const permissions = (roleData?.permissions as Record<string, boolean> | null) ?? {}
   const hasPerms = Object.keys(permissions).length > 0
   const canEdit = !hasPerms || permissions['Customers — Create / Edit'] !== false
+  const canRequestRenewal = !hasPerms || permissions['Renewal Requests — View'] === true
+
+  // Which transformers already have a renewal request in flight (so the row shows a
+  // "pending" chip instead of another Extend/Renew button).
+  const txIds = (transformers || []).map(t => t.id)
+  const { data: openReqs } = txIds.length
+    ? await adminClient().from('renewal_requests').select('transformer_id, status').in('transformer_id', txIds).in('status', ['pending', 'manager_approved'])
+    : { data: [] as { transformer_id: string; status: string }[] }
+  const openRenewals: Record<string, 'pending' | 'manager_approved'> = {}
+  ;(openReqs || []).forEach(r => { openRenewals[r.transformer_id] = r.status as 'pending' | 'manager_approved' })
 
   return (
     <>
@@ -74,6 +84,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           sites={sites || []}
           transformers={transformers || []}
           canEdit={canEdit}
+          canRequestRenewal={canRequestRenewal}
+          openRenewals={openRenewals}
         />
 
         {/* Notifications belonging to this customer */}

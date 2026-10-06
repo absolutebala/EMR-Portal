@@ -141,6 +141,7 @@ export default async function DashboardPage() {
                 </Link>
               ))}
             </div>
+            <div style={{ fontSize: 10, color: 'var(--txm)', flexBasis: '100%' }}>Based on each transformer&apos;s saved warranty status — may be inaccurate where expired warranties haven&apos;t been updated.</div>
           </div>
         )}
 

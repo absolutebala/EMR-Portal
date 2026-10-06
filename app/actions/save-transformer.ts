@@ -2,6 +2,16 @@
 
 import { adminClient } from '@/lib/db/admin-client'
 
+// Baseline warranty expiry from dispatch date + warranty years. Extend/Renew later push
+// this date forward; here it just seeds a value when both inputs are present.
+function computeExpiry(dispatchDate: string | null, warrantyYears: number | null): string | null {
+  if (!dispatchDate || warrantyYears == null) return null
+  const d = new Date(dispatchDate + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return null
+  d.setFullYear(d.getFullYear() + warrantyYears)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export async function addTransformer(payload: {
   customer_id: string
   site_id: string | null
@@ -40,6 +50,7 @@ export async function addTransformer(payload: {
       warranty_status: payload.warranty_status,
       dispatch_date: payload.dispatch_date || null,
       warranty_years: payload.warranty_years,
+      warranty_expiry_date: computeExpiry(payload.dispatch_date || null, payload.warranty_years),
       notes: payload.notes || null,
     })
     return { error: error?.message || null }
@@ -64,7 +75,14 @@ export async function updateTransformer(
 ): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
-    const { error } = await sb.from('transformers').update(fields).eq('id', transformerId)
+    // Seed warranty_expiry_date from dispatch + years only if it isn't already set —
+    // never overwrite an expiry that an extend/renew has already pushed forward.
+    const { data: current } = await sb.from('transformers').select('warranty_expiry_date').eq('id', transformerId).maybeSingle()
+    const patch: Record<string, unknown> = { ...fields }
+    if (!current?.warranty_expiry_date) {
+      patch.warranty_expiry_date = computeExpiry(fields.dispatch_date, fields.warranty_years)
+    }
+    const { error } = await sb.from('transformers').update(patch).eq('id', transformerId)
     return { error: error?.message || null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

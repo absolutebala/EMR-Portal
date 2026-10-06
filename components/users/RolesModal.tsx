@@ -22,6 +22,8 @@ const REQUIRES_VIEW: Record<string, string> = {
   'Expenses — Approve':                'Expenses — View',
   'Expenses — Final Approve':          'Expenses — View',
   'Attendance — Approve':              'Attendance — View',
+  'Renewal Requests — Approve':        'Renewal Requests — View',
+  'Renewal Requests — Final Approve':  'Renewal Requests — View',
 }
 
 const ROLE_ORDER = [
@@ -63,6 +65,9 @@ const MODULES = [
   'Expenses — View',
   'Expenses — Approve',
   'Expenses — Final Approve',
+  'Renewal Requests — View',
+  'Renewal Requests — Approve',
+  'Renewal Requests — Final Approve',
   'MoM — View / Download',
   'Activities — View',
   'Settings',

@@ -84,8 +84,29 @@ export interface Transformer {
   warranty_status: WarrantyStatus
   dispatch_date: string | null
   warranty_years: number | null
+  warranty_expiry_date: string | null
   notes: string | null
   created_at: string
+}
+
+export type RenewalRequestType = 'extend' | 'renew'
+export type RenewalRequestStatus = 'pending' | 'manager_approved' | 'approved' | 'rejected'
+
+export interface RenewalRequest {
+  id: string
+  transformerId: string
+  serialNumber: string
+  customerId: string | null
+  customerName: string
+  requestType: RenewalRequestType
+  years: number
+  comments: string | null
+  requestedBy: string | null
+  requestedByName: string
+  status: RenewalRequestStatus
+  previousExpiryDate: string | null
+  newExpiryDate: string | null
+  createdAt: string | null
 }
 
 export interface AppSettings {

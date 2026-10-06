@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from 'react'
 import { addTransformer, updateTransformer, deleteTransformer } from '@/app/actions/save-transformer'
+import { requestRenewal } from '@/app/actions/renewal-requests'
+import Modal from '@/components/ui/Modal'
 import type { Customer, CustomerSite, Transformer } from '@/lib/types'
 
 const fi: React.CSSProperties = {
@@ -41,6 +43,16 @@ function todayIsoDate(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function fmtDate(d: string | null): string {
+  return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+}
+
+// Expired for the Extend-vs-Renew choice = the stored expiry date is in the past. A
+// missing expiry is treated as not-yet-expired (Extend), since there's nothing to renew.
+function isExpiredDate(d: string | null): boolean {
+  return !!d && new Date(d + 'T00:00:00').getTime() < Date.now()
+}
+
 function iconBtn(danger = false): React.CSSProperties {
   return {
     width: 28, height: 28, borderRadius: 6, border: `1px solid ${danger ? '#FCA5A5' : 'var(--gm)'}`,
@@ -54,11 +66,34 @@ interface Props {
   sites: CustomerSite[]
   transformers: Transformer[]
   canEdit: boolean
+  canRequestRenewal?: boolean
+  openRenewals?: Record<string, 'pending' | 'manager_approved'>
 }
 
-export default function TransformerTableClient({ customer, sites: initSites, transformers: initTx, canEdit }: Props) {
+export default function TransformerTableClient({ customer, sites: initSites, transformers: initTx, canEdit, canRequestRenewal = false, openRenewals = {} }: Props) {
   const [sites, setSites] = useState(initSites)
   const [transformers, setTransformers] = useState(initTx)
+
+  // ── Extend / Renew warranty ──────────────────────────────────────────────
+  const [renewTx, setRenewTx] = useState<{ id: string; serial: string; type: 'extend' | 'renew' } | null>(null)
+  const [renewYears, setRenewYears] = useState('')
+  const [renewComments, setRenewComments] = useState('')
+  const [renewSaving, setRenewSaving] = useState(false)
+  const [renewError, setRenewError] = useState('')
+
+  function openRenew(t: Transformer, type: 'extend' | 'renew') {
+    setRenewTx({ id: t.id, serial: t.serial_number, type }); setRenewYears(''); setRenewComments(''); setRenewError('')
+  }
+  async function submitRenew() {
+    if (!renewTx) return
+    const years = Number(renewYears)
+    if (!years || years <= 0) { setRenewError('Enter a valid number of years'); return }
+    setRenewSaving(true); setRenewError('')
+    const { error } = await requestRenewal(renewTx.id, { type: renewTx.type, years, comments: renewComments.trim() || null })
+    setRenewSaving(false)
+    if (error) { setRenewError(error); return }
+    window.location.reload()
+  }
 
   // ── Row editing ──────────────────────────────────────────────────────────
   const [txEditing, setTxEditing] = useState<string | null>(null)
@@ -268,7 +303,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Notes', 'Project', ...(canEdit ? [''] : [])].map(h => (
+              {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Warranty expiry', 'Notes', 'Project', ...(canEdit || canRequestRenewal ? [''] : [])].map(h => (
                 <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA' }}>{h}</th>
               ))}
             </tr>
@@ -320,6 +355,9 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                       ? <input type="date" style={{ ...fi, minWidth: 130 }} max={todayIsoDate()} value={txForm.dispatch_date} onChange={e => tfset('dispatch_date', e.target.value)} />
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{t.dispatch_date ? new Date(t.dispatch_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>}
                   </td>
+                  <td style={{ padding: isEditing ? '8px 10px' : '10px 14px' }}>
+                    <span style={{ fontSize: 12, fontWeight: isExpiredDate(t.warranty_expiry_date) ? 600 : 400, color: isExpiredDate(t.warranty_expiry_date) ? '#991B1B' : 'var(--txm)' }}>{fmtDate(t.warranty_expiry_date)}</span>
+                  </td>
                   <td style={{ padding: isEditing ? '8px 10px' : '10px 14px', maxWidth: 220 }}>
                     {isEditing
                       ? <input style={{ ...fi, minWidth: 140 }} value={txForm.notes} onChange={e => tfset('notes', e.target.value)} placeholder="Reference / remarks" />
@@ -333,7 +371,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                         </select>
                       : <span style={{ fontSize: 12, color: 'var(--txm)' }}>{site?.site_name || '—'}</span>}
                   </td>
-                  {canEdit && (
+                  {(canEdit || canRequestRenewal) && (
                     <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -359,9 +397,17 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => startEdit(t)} style={iconBtn()} title="Edit"><EditIcon /></button>
-                          <button onClick={() => setTxConfirmDelete(t.id)} style={iconBtn(true)} title="Delete"><TrashIcon /></button>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {canEdit && <button onClick={() => startEdit(t)} style={iconBtn()} title="Edit"><EditIcon /></button>}
+                          {canEdit && <button onClick={() => setTxConfirmDelete(t.id)} style={iconBtn(true)} title="Delete"><TrashIcon /></button>}
+                          {canRequestRenewal && (
+                            openRenewals[t.id]
+                              ? <span style={{ fontSize: 10, fontWeight: 600, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>Renewal pending</span>
+                              : <button onClick={() => openRenew(t, isExpiredDate(t.warranty_expiry_date) ? 'renew' : 'extend')}
+                                  style={{ padding: '5px 11px', borderRadius: 6, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
+                                  {isExpiredDate(t.warranty_expiry_date) ? 'Renew' : 'Extend'}
+                                </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -372,6 +418,31 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
           </tbody>
         </table>
       )}
+
+      <Modal open={!!renewTx} onClose={() => !renewSaving && setRenewTx(null)} title={renewTx ? `${renewTx.type === 'renew' ? 'Renew' : 'Extend'} warranty — ${renewTx.serial}` : ''} size="sm">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {renewError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>{renewError}</div>}
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--txm)', display: 'block', marginBottom: 4 }}>Number of years *</label>
+            <input type="number" min="1" style={fi} value={renewYears} onChange={e => setRenewYears(e.target.value)} placeholder="e.g. 2" autoFocus />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--txm)', display: 'block', marginBottom: 4 }}>Comments</label>
+            <textarea style={{ ...fi, minHeight: 70, resize: 'vertical' }} value={renewComments} onChange={e => setRenewComments(e.target.value)} placeholder="Reason / reference (optional)" />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--txm)' }}>
+            Requests from a Service Manager or below go to Head of Service for approval. Head of Service / Super Admin apply immediately.
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setRenewTx(null)} disabled={renewSaving}
+              style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'Poppins,sans-serif' }}>Cancel</button>
+            <button onClick={submitRenew} disabled={renewSaving}
+              style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: renewSaving ? .7 : 1 }}>
+              {renewSaving ? 'Submitting…' : (renewTx?.type === 'renew' ? 'Submit renewal' : 'Submit extension')}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
