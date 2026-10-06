@@ -34,7 +34,7 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
     let cancelled = false
     // Every point shown in the popup that lacks a stored place name: each device's
     // last-seen, plus the active device's first-login-after-switch (handover).
-    const points: [number, number, string | null][] = selected.devices.map(d => [d.lastLatitude, d.lastLongitude, d.lastPlaceName] as [number, number, string | null])
+    const points: [number | null, number | null, string | null][] = selected.devices.map(d => [d.lastLatitude, d.lastLongitude, d.lastPlaceName])
     if (selected.handover) points.push([selected.handover.newLatitude, selected.handover.newLongitude, selected.handover.newPlaceName])
     for (const [lat, lng, place] of points) {
       if (place || lat == null || lng == null) continue
