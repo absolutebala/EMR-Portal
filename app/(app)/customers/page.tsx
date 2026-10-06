@@ -28,14 +28,16 @@ export default async function CustomersPage() {
   endTypes?.forEach(c => { endTypeMap[c.id] = c.name })
 
   if (customerRows.length > 0) {
-    // Fetch all site and transformer counts in 2 bulk queries instead of N×2 queries.
-    // Transformers also carry warranty fields so each customer can be tagged with which
-    // warranty buckets it has — lets the dashboard's "Customers on warranty" badges link
-    // here as /customers?warranty=<bucket> and the client filter to matching customers.
-    const customerIds = customerRows.map(c => c.id)
+    // Fetch all sites and transformers in 2 bulk queries, then tally per customer_id.
+    // NOT scoped with .in(customerIds): with thousands of customers that builds a URL
+    // long enough for the proxy to reject, which silently zeroed the counts AND the
+    // warranty buckets (so /customers?warranty=under_warranty matched nobody). Both
+    // tables are well under PGRST_DB_MAX_ROWS, so fetching all and bucketing by
+    // customer_id is correct and cheap. Transformers carry warranty fields so each
+    // customer can be tagged with its warranty buckets for the dashboard badge links.
     const [{ data: sites }, { data: sns }] = await Promise.all([
-      adminClient().from('customer_sites').select('customer_id').in('customer_id', customerIds),
-      adminClient().from('transformers').select('customer_id, warranty_status, dispatch_date, warranty_years').in('customer_id', customerIds),
+      adminClient().from('customer_sites').select('customer_id'),
+      adminClient().from('transformers').select('customer_id, warranty_status, dispatch_date, warranty_years'),
     ])
 
     const siteMap: Record<string, number> = {}
