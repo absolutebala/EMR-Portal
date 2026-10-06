@@ -131,14 +131,14 @@ export default async function DashboardPage() {
             <div style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 700 }}>Customers on warranty</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1 }}>
               {[
-                { label: 'Under Warranty', count: kpis.warrantyUnits.underWarranty, color: '#065F46', bg: '#D1FAE5' },
-                { label: 'Warranty expiring in 3 months', count: kpis.warrantyUnits.expiringSoon, color: '#92400E', bg: '#FEF3C7' },
-                { label: 'No Warranty', count: kpis.warrantyUnits.noWarranty, color: '#991B1B', bg: '#FEE2E2' },
+                { label: 'Under Warranty', count: kpis.warrantyUnits.underWarranty, color: '#065F46', bg: '#D1FAE5', bucket: 'under_warranty' },
+                { label: 'Warranty expiring in 3 months', count: kpis.warrantyUnits.expiringSoon, color: '#92400E', bg: '#FEF3C7', bucket: 'expiring' },
+                { label: 'No Warranty', count: kpis.warrantyUnits.noWarranty, color: '#991B1B', bg: '#FEE2E2', bucket: 'expired' },
               ].map(w => (
-                <div key={w.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)' }}>
+                <Link key={w.label} href={`/customers?warranty=${w.bucket}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--gm)', background: 'var(--gl)', textDecoration: 'none' }}>
                   <span style={{ fontSize: 12, color: 'var(--tx)', fontWeight: 500 }}>{w.label}</span>
                   <span style={{ fontSize: 12, color: w.color, background: w.bg, borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{w.count}</span>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import Modal from '@/components/ui/Modal'
@@ -18,6 +18,16 @@ const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED'
 interface CustomerWithCounts extends Customer {
   site_count: number
   sn_count: number
+  // Warranty buckets this customer has at least one transformer in: 'under_warranty',
+  // 'expiring', 'expired'. Used by the dashboard's "Customers on warranty" badges, which
+  // link here as /customers?warranty=<bucket>.
+  warranty_buckets?: string[]
+}
+
+const WARRANTY_FILTER_LABELS: Record<string, string> = {
+  under_warranty: 'Under Warranty',
+  expiring: 'Warranty expiring in 3 months',
+  expired: 'No Warranty',
 }
 
 interface Props {
@@ -53,6 +63,11 @@ export default function CustomersPageClient({ customers, userName, userRole, per
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkNotice, setBulkNotice] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Warranty filter from the dashboard's "Customers on warranty" badges
+  // (/customers?warranty=under_warranty|expiring|expired).
+  const warrantyFilter = searchParams.get('warranty')
+  const warrantyFilterLabel = warrantyFilter ? WARRANTY_FILTER_LABELS[warrantyFilter] : null
   const canDelete = userRole === 'Super Admin' || userRole === 'Head of Service'
 
   function toggleSelect(id: string) {
@@ -72,6 +87,9 @@ export default function CustomersPageClient({ customers, userName, userRole, per
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     let list = customers.filter(c => !q || c.name.toLowerCase().includes(q) || c.contact_person.toLowerCase().includes(q) || c.phone.includes(q))
+    if (warrantyFilter && WARRANTY_FILTER_LABELS[warrantyFilter]) {
+      list = list.filter(c => c.warranty_buckets?.includes(warrantyFilter))
+    }
     if (sort && SORT_KEYS[sort.col]) {
       const get = SORT_KEYS[sort.col]
       list = list.slice().sort((a, b) => {
@@ -81,7 +99,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
       })
     }
     return list
-  }, [customers, search, sort])
+  }, [customers, search, sort, warrantyFilter])
 
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered)
 
@@ -156,6 +174,12 @@ export default function CustomersPageClient({ customers, userName, userRole, per
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--txm)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers..." style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: 220 }} />
           </div>
+          {warrantyFilterLabel && (
+            <Link href="/customers" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F3E8EC', color: '#7D1D3F', border: '1px solid #E5C9D3', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+              {warrantyFilterLabel}: {filtered.length}
+              <span style={{ fontSize: 14, lineHeight: 1 }}>×</span>
+            </Link>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             {canDelete && selected.size > 0 && (
               <button onClick={handleBulkDelete} disabled={bulkBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: '#DC2626', color: '#fff', cursor: bulkBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'Poppins,sans-serif', opacity: bulkBusy ? .7 : 1 }}>
