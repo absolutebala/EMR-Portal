@@ -43,6 +43,13 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
     return () => { cancelled = true }
   }, [selected, places])
 
+  // The currently-active device = the one with the most recent login. Single-device
+  // enforcement makes the newest login the active session, so the device whose last
+  // login is latest is the one signed in now.
+  const activeIdx = selected && selected.devices.length
+    ? selected.devices.reduce((best, d, i, arr) => new Date(d.lastSeen).getTime() > new Date(arr[best].lastSeen).getTime() ? i : best, 0)
+    : -1
+
   return (
     <>
       <ListCard title="Suspicious logins" viewAllHref="/engineers" empty="No suspicious logins — all clear.">
@@ -72,7 +79,10 @@ export default function SuspiciousLoginsCard({ flags }: { flags: SuspiciousLogin
                 return (
                   <div key={d.deviceId || i} style={{ border: '1px solid var(--gm)', borderRadius: 10, padding: '12px 14px', background: '#FAFAFA' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{d.deviceName || 'Unknown device'}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{d.deviceName || 'Unknown device'}</span>
+                        {i === activeIdx && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#065F46', background: '#D1FAE5', borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>Currently active</span>}
+                      </span>
                       <span style={{ fontSize: 10, color: 'var(--txm)' }}>{d.loginCount} login{d.loginCount !== 1 ? 's' : ''}</span>
                     </div>
                     <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--txm)' }}>

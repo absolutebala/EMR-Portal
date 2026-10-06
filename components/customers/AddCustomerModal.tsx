@@ -195,9 +195,13 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
       {savedCustomer ? null : <form id="cust-form" onSubmit={handleSubmit}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Customer details</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div>
             <label style={fl2}>Organisation name <span style={{ color: 'var(--m)' }}>*</span></label>
             <input required style={fi2} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Customer organisation name" />
+          </div>
+          <div>
+            <label style={fl2}>Customer ID</label>
+            <input style={fi2} value={form.sap_customer_code} onChange={e => set('sap_customer_code', e.target.value)} placeholder="Customer code / SAP account no." />
           </div>
 
           {!isEdit && (
@@ -281,10 +285,6 @@ export default function AddCustomerModal({ open, onClose, onSaved, editCustomer,
           <div>
             <label style={fl2}>Region</label>
             <input style={fi2} value={form.region} onChange={e => set('region', e.target.value)} placeholder="e.g. TN" />
-          </div>
-          <div>
-            <label style={fl2}>SAP customer code</label>
-            <input style={fi2} value={form.sap_customer_code} onChange={e => set('sap_customer_code', e.target.value)} placeholder="SAP account no." />
           </div>
           <div>
             <label style={fl2}>Search term</label>

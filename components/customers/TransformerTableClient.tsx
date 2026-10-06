@@ -300,7 +300,8 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
       {transformers.length === 0 && !showAdd ? (
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--txm)', fontSize: 12 }}>No transformers registered yet.</div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
           <thead>
             <tr>
               {['Serial number', 'Rating', 'Manufacturer', 'Year', 'Warranty', 'Warranty years', 'Dispatch date', 'Warranty expiry', 'Notes', 'Project', ...(canEdit || canRequestRenewal ? [''] : [])].map(h => (
@@ -417,6 +418,7 @@ export default function TransformerTableClient({ customer, sites: initSites, tra
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       <Modal open={!!renewTx} onClose={() => !renewSaving && setRenewTx(null)} title={renewTx ? `${renewTx.type === 'renew' ? 'Renew' : 'Extend'} warranty — ${renewTx.serial}` : ''} size="sm">

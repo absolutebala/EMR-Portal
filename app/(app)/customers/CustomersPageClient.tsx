@@ -40,6 +40,7 @@ interface Props {
 // How each sortable column pulls a comparable value from a row. Columns not listed here
 // (checkbox, Last service, Actions) aren't sortable.
 const SORT_KEYS: Record<string, (c: CustomerWithCounts) => string | number> = {
+  'Customer ID': c => (c.sap_customer_code || '').toLowerCase(),
   'Customer': c => (c.name || '').toLowerCase(),
   'Type': c => c.type || '',
   'End Customer Type': c => (c.end_customer_type_name || '').toLowerCase(),
@@ -224,7 +225,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                       <input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} title="Select all on this page" style={{ cursor: 'pointer' }} />
                     </th>
                   )}
-                  {['Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => {
+                  {['Customer ID', 'Customer', 'Type', 'End Customer Type', 'Contact', 'Phone', 'Projects', 'Serial numbers', 'Last service', 'Actions'].map(h => {
                     const sortable = !!SORT_KEYS[h]
                     const active = sort?.col === h
                     return (
@@ -245,6 +246,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                         <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} style={{ cursor: 'pointer' }} />
                       </td>
                     )}
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)', whiteSpace: 'nowrap' }} onClick={() => router.push(`/customers/${c.id}`)}>{c.sap_customer_code || '—'}</td>
                     <td style={{ padding: '10px 14px' }} onClick={() => router.push(`/customers/${c.id}`)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: COLORS[i % COLORS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
