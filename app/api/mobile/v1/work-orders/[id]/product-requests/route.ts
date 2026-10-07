@@ -9,12 +9,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const body = await req.json()
-  const { items, damagePhotos } = body as {
+  const { items, damagePhotos, customerName, oltcSlNo, siteAddress, pincode, siteContact } = body as {
     items: { productId: string; quantity: number }[]
     damagePhotos: { base64: string; mimeType: string; ext: string }[]
+    customerName?: string | null
+    oltcSlNo?: string | null
+    siteAddress?: string | null
+    pincode?: string | null
+    siteContact?: string | null
   }
 
-  const result = await submitProductRequestCore(adminClient(), user.id, { workOrderId: id, items, damagePhotos })
+  const result = await submitProductRequestCore(adminClient(), user.id, { workOrderId: id, items, damagePhotos, customerName, oltcSlNo, siteAddress, pincode, siteContact })
   if (result.error) return NextResponse.json(result, { status: 400 })
   return NextResponse.json(result)
 }

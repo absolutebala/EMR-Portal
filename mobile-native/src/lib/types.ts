@@ -15,6 +15,10 @@ export interface MobileWorkOrder {
   customer_name: string;
   serial_numbers: string[];
   site_name: string | null;
+  // Carried on the base list so the Material Requirement form can prefill from a job.
+  customer_phone: string | null;
+  site_address: string | null;
+  pincode: string | null;
   expense_approval: string | null;
   distanceKm: number | null;
 }
@@ -22,8 +26,7 @@ export interface MobileWorkOrder {
 export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   customer_id: string;
   customer_contact: string | null;
-  customer_phone: string | null;
-  site_address: string | null;
+  // customer_phone / site_address inherited from the base MobileWorkOrder now.
   rating: string | null;
   manufacturer: string | null;
   engineer_name?: string | null;
@@ -620,6 +623,13 @@ export interface SubmitProductRequestVariables {
   workOrderId: string;
   items: { productId: string; quantity: number }[];
   damagePhotos: { base64: string; mimeType: string; ext: string }[];
+  // Material Requirement site/customer snapshot (optional for back-compat with the
+  // offline replay path; the form requires them before submit).
+  customerName?: string;
+  oltcSlNo?: string;
+  siteAddress?: string;
+  pincode?: string;
+  siteContact?: string;
 }
 
 // ── Expenses ─────────────────────────────────────────────────────────────────────

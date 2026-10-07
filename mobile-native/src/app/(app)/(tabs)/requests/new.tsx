@@ -25,6 +25,12 @@ export default function NewRequestScreen() {
   const [capturing, setCapturing] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  // Site/customer details — prefilled from the selected notification, editable.
+  const [customerName, setCustomerName] = useState('');
+  const [oltcSlNo, setOltcSlNo] = useState('');
+  const [siteAddress, setSiteAddress] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [siteContact, setSiteContact] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // This screen lives inside the persistent Tabs navigator, so it is never unmounted —
@@ -44,8 +50,25 @@ export default function NewRequestScreen() {
       setHasSearched(false);
       setSearching(false);
       setSelectedWoId(wo || '');
+      setCustomerName('');
+      setOltcSlNo('');
+      setSiteAddress('');
+      setPincode('');
+      setSiteContact('');
     }, [wo])
   );
+
+  // Prefill the detail fields whenever the linked notification changes (including the
+  // initial `wo` param). The FE can then correct anything that's missing or wrong.
+  useEffect(() => {
+    const job = jobsData?.workOrders.find(w => w.id === selectedWoId);
+    if (!job) return;
+    setCustomerName(job.customer_name || '');
+    setOltcSlNo(job.serial_numbers[0] || '');
+    setSiteAddress(job.site_address || '');
+    setPincode(job.pincode || '');
+    setSiteContact(job.customer_phone || '');
+  }, [selectedWoId, jobsData]);
 
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q);
@@ -123,6 +146,11 @@ export default function NewRequestScreen() {
   async function handleSubmit() {
     setSubmitError('');
     if (!selectedWoId) { setSubmitError('Select the linked notification'); return; }
+    if (!customerName.trim()) { setSubmitError('Customer name is required'); return; }
+    if (!oltcSlNo.trim()) { setSubmitError('OLTC SL No. is required'); return; }
+    if (!siteAddress.trim()) { setSubmitError('Address is required'); return; }
+    if (!pincode.trim()) { setSubmitError('Pincode is required'); return; }
+    if (!siteContact.trim()) { setSubmitError('Site contact is required'); return; }
     if (cartItems.length === 0) { setSubmitError('Add at least one product'); return; }
     if (damagePhotos.length === 0) { setSubmitError('At least one damaged-product photo is required'); return; }
 
@@ -130,6 +158,11 @@ export default function NewRequestScreen() {
       workOrderId: selectedWoId,
       items: cartItems.map(c => ({ productId: c.product.id, quantity: c.quantity })),
       damagePhotos: damagePhotos.map(p => ({ base64: p.dataUrl, mimeType: p.mimeType, ext: p.ext })),
+      customerName: customerName.trim(),
+      oltcSlNo: oltcSlNo.trim(),
+      siteAddress: siteAddress.trim(),
+      pincode: pincode.trim(),
+      siteContact: siteContact.trim(),
     };
 
     if (!(await isOnline())) {
@@ -168,11 +201,24 @@ export default function NewRequestScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'New Request', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'New Material Requirement', headerTintColor: '#7D1D3F', headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.label}>Linked notification <Text style={styles.required}>*</Text></Text>
           <RNWorkOrderPicker workOrders={jobsData?.workOrders || []} value={selectedWoId} onChange={setSelectedWoId} placeholder="Select a notification…" />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Customer Name <Text style={styles.required}>*</Text></Text>
+          <TextInput style={styles.input} value={customerName} onChangeText={setCustomerName} placeholder="Customer / organisation" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.label, { marginTop: 10 }]}>OLTC SL No. <Text style={styles.required}>*</Text></Text>
+          <TextInput style={styles.input} value={oltcSlNo} onChangeText={setOltcSlNo} placeholder="Serial number" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.label, { marginTop: 10 }]}>Address <Text style={styles.required}>*</Text></Text>
+          <TextInput style={[styles.input, { minHeight: 64, textAlignVertical: 'top' }]} value={siteAddress} onChangeText={setSiteAddress} placeholder="Site address" placeholderTextColor="#9CA3AF" multiline />
+          <Text style={[styles.label, { marginTop: 10 }]}>Pincode <Text style={styles.required}>*</Text></Text>
+          <TextInput style={styles.input} value={pincode} onChangeText={setPincode} placeholder="Pincode" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
+          <Text style={[styles.label, { marginTop: 10 }]}>Site Contact <Text style={styles.required}>*</Text></Text>
+          <TextInput style={styles.input} value={siteContact} onChangeText={setSiteContact} placeholder="Phone number" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
         </View>
 
         {cartItems.length > 0 && (

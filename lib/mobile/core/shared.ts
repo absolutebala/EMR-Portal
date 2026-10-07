@@ -114,6 +114,12 @@ export interface MobileWorkOrder {
   customer_name: string
   serial_numbers: string[]
   site_name: string | null
+  // Site/customer contact details, carried on the base list so the Material Requirement
+  // create screen can prefill its fields the moment a notification is picked (no extra
+  // detail fetch). Direct-customer notifications fall back to their direct_* columns.
+  customer_phone: string | null
+  site_address: string | null
+  pincode: string | null
   // 'pending'/'rejected'/'approved' for field-engineer-created notifications, null for
   // admin/manager-created ones. Used to keep an FE-created notification visible in lists
   // even after it's completed, until its expenses are approved.
@@ -127,8 +133,7 @@ export interface MobileWorkOrder {
 export interface MobileWorkOrderWithCustomer extends MobileWorkOrder {
   customer_id: string
   customer_contact: string | null
-  customer_phone: string | null
-  site_address: string | null
+  // customer_phone / site_address are inherited from the base MobileWorkOrder now.
   rating: string | null
   manufacturer: string | null
   engineer_name?: string | null
@@ -147,14 +152,14 @@ type WorkOrderEmbed = {
   expense_approval: string | null
   direct_customer_name: string | null; direct_contact_person: string | null; direct_phone: string | null
   direct_whatsapp: string | null; direct_email: string | null; direct_address: string | null
-  customers: { name: string; contact_person: string; phone: string } | null
+  customers: { name: string; contact_person: string; phone: string; pincode: string | null } | null
   work_order_transformers: { transformers: { serial_number: string; rating: string | null; manufacturer: string | null; dispatch_date: string | null; warranty_years: number | null; customer_sites: { id: string; site_name: string; site_address: string } | null } | null }[]
 }
 
 export const WORK_ORDER_SELECT = `
   id, wo_number, job_type, status, scheduled_date, notes, customer_message, customer_id, customer_type, expense_approval,
   ${DIRECT_CUSTOMER_COLUMNS},
-  customers ( name, contact_person, phone ),
+  customers ( name, contact_person, phone, pincode ),
   work_order_transformers ( transformers ( serial_number, rating, manufacturer, dispatch_date, warranty_years, customer_sites ( id, site_name, site_address ) ) )
 `
 
@@ -182,6 +187,9 @@ function mapWorkOrderEmbed(w: WorkOrderEmbed, engineerLoc: { lat: number; lng: n
     customer_name: w.customers?.name || w.direct_customer_name || '',
     serial_numbers: rows.map(r => r.transformers?.serial_number).filter(Boolean) as string[],
     site_name: site?.site_name || null,
+    customer_phone: w.customers?.phone || w.direct_phone || null,
+    site_address: site?.site_address || w.direct_address || null,
+    pincode: w.customers?.pincode || null,
     expense_approval: w.expense_approval,
     distanceKm,
   }

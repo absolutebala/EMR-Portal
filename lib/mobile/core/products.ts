@@ -34,6 +34,14 @@ export interface ProductRequestView {
   damagePhotoUrls: string[]
   items: ProductRequestItemView[]
   engineerName?: string
+  // Site/customer details captured on the "Material Requirement" form (snapshot at
+  // submit; prefilled from the notification, editable by the field engineer). Null for
+  // requests from app builds that predate these fields.
+  customerName: string | null
+  oltcSlNo: string | null
+  siteAddress: string | null
+  pincode: string | null
+  siteContact: string | null
   // Dispatch docket (PDF/image) attached when items are marked dispatched.
   docketUrl: string | null
   docketNumber: string | null
@@ -48,11 +56,11 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
   if (!requestIds.length) return []
 
   const [{ data: requests }, { data: items }] = await Promise.all([
-    admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, docket_url, docket_number, docket_uploaded_at, work_orders(wo_number)').in('id', requestIds),
+    admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, customer_name, oltc_sl_no, site_address, pincode, site_contact, docket_url, docket_number, docket_uploaded_at, work_orders(wo_number)').in('id', requestIds),
     admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivered_at, delivery_estimate, admin_notes').in('request_id', requestIds),
   ])
 
-  type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; docket_url: string | null; docket_number: string | null; docket_uploaded_at: string | null; work_orders: { wo_number: string } | null }
+  type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; customer_name: string | null; oltc_sl_no: string | null; site_address: string | null; pincode: string | null; site_contact: string | null; docket_url: string | null; docket_number: string | null; docket_uploaded_at: string | null; work_orders: { wo_number: string } | null }
   type ItemRow = {
     id: string; request_id: string; product_id: string; quantity: number; status: string
     approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivered_at: string | null; delivery_estimate: string | null; admin_notes: string | null
@@ -102,6 +110,11 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
       damagePhotoUrls: r.damage_photo_urls || [],
       items: itemsByRequest[r.id] || [],
       engineerName: r.engineer_id ? (nameMap[r.engineer_id] || 'Engineer') : undefined,
+      customerName: r.customer_name,
+      oltcSlNo: r.oltc_sl_no,
+      siteAddress: r.site_address,
+      pincode: r.pincode,
+      siteContact: r.site_contact,
       docketUrl: r.docket_url,
       docketNumber: r.docket_number,
       docketUploadedAt: r.docket_uploaded_at,
@@ -128,6 +141,13 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
   workOrderId: string
   items: { productId: string; quantity: number }[]
   damagePhotos: { base64: string; mimeType: string; ext: string }[]
+  // Site/customer snapshot from the Material Requirement form. Optional so older app
+  // builds that don't send them still submit successfully (stored null).
+  customerName?: string | null
+  oltcSlNo?: string | null
+  siteAddress?: string | null
+  pincode?: string | null
+  siteContact?: string | null
 }): Promise<{ error: string | null }> {
   try {
     if (!params.items.length) return { error: 'Add at least one product to the request' }
@@ -152,6 +172,11 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
       work_order_id: params.workOrderId,
       engineer_id: userId,
       damage_photo_urls: photoUrls,
+      customer_name: params.customerName ?? null,
+      oltc_sl_no: params.oltcSlNo ?? null,
+      site_address: params.siteAddress ?? null,
+      pincode: params.pincode ?? null,
+      site_contact: params.siteContact ?? null,
     }).select('id').single()
     if (reqError || !request) return { error: reqError?.message || 'Could not create request' }
 
@@ -179,9 +204,8 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
       entityType: 'product_request', entityId: request.id,
     }).catch(() => {})
 
-    // Any Service Manager can act as level-1 approver, Head of Service/Super Admin
-    // as level 2 — previously this flow sent no notification at all on submission,
-    // approvers only found it via page access.
+    // Head of Service / Super Admin approve material requirements; Service Manager is
+    // view-only but still notified so they're aware of the request.
     ;(async () => {
       const targets = [
         { role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const },

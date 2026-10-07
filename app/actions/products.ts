@@ -101,6 +101,11 @@ export async function submitProductRequest(params: {
   workOrderId: string
   items: { productId: string; quantity: number }[]
   damagePhotos: { base64: string; mimeType: string; ext: string }[]
+  customerName?: string | null
+  oltcSlNo?: string | null
+  siteAddress?: string | null
+  pincode?: string | null
+  siteContact?: string | null
 }) {
   const user = await getAuthedUser()
   if (!user) return { error: 'Not authenticated' }
@@ -210,6 +215,23 @@ export async function updateProductRequestItemStatus(
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+
+    // Approve/reject a material requirement is Head of Service / Super Admin only
+    // (Service Manager is view-only). Enforced here, not just in the UI, since the web
+    // action is otherwise client-trust. A role holding 'Product Requests — Approve'
+    // (grantable in Roles) is also allowed, for flexibility.
+    if (status === 'approved' || status === 'rejected') {
+      const { data: actor } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const role = actor?.role as string | undefined
+      let allowed = role === 'Super Admin' || role === 'Head of Service'
+      if (!allowed && role) {
+        const { data: roleRow } = await admin.from('roles').select('permissions').eq('name', role).maybeSingle()
+        const perms = (roleRow?.permissions as Record<string, boolean> | null) || {}
+        allowed = perms['Product Requests — Approve'] === true
+      }
+      if (!allowed) return { error: 'Only Head of Service can approve or reject material requirements.' }
+    }
+
     const patch: Record<string, unknown> = { status }
     if (status === 'approved') { patch.approved_by = user.id; patch.approved_at = new Date().toISOString() }
     if (status === 'dispatched') { patch.dispatched_at = new Date().toISOString() }

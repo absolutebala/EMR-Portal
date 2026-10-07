@@ -188,6 +188,16 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
                 </div>
               </div>
 
+              {(req.customerName || req.oltcSlNo || req.siteAddress || req.pincode || req.siteContact) && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px 16px', fontSize: 11, color: 'var(--txm)', background: 'var(--gl)', borderRadius: 8, padding: '8px 12px', marginBottom: 6 }}>
+                  {req.customerName && <div><span style={{ fontWeight: 600, color: 'var(--tx)' }}>Customer: </span>{req.customerName}</div>}
+                  {req.oltcSlNo && <div><span style={{ fontWeight: 600, color: 'var(--tx)' }}>OLTC SL No.: </span>{req.oltcSlNo}</div>}
+                  {req.siteContact && <div><span style={{ fontWeight: 600, color: 'var(--tx)' }}>Site contact: </span>{req.siteContact}</div>}
+                  {req.pincode && <div><span style={{ fontWeight: 600, color: 'var(--tx)' }}>Pincode: </span>{req.pincode}</div>}
+                  {req.siteAddress && <div style={{ gridColumn: '1 / -1' }}><span style={{ fontWeight: 600, color: 'var(--tx)' }}>Address: </span>{req.siteAddress}</div>}
+                </div>
+              )}
+
               {req.items.map(item => (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderTop: '1px solid var(--gl)' }}>
                   <div style={{ flex: 1 }}>

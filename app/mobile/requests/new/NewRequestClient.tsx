@@ -22,6 +22,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 12, color: '#1C0D14', outline: 'none', fontFamily: 'Poppins, sans-serif',
   background: '#fff', boxSizing: 'border-box',
 }
+const reqLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 500, color: '#7A6870', marginBottom: 4 }
 
 export default function NewRequestClient({ workOrders, error }: Props) {
   const router = useRouter()
@@ -39,7 +40,25 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  // Site/customer details — prefilled from the selected notification, editable by the FE.
+  const [customerName, setCustomerName] = useState('')
+  const [oltcSlNo, setOltcSlNo] = useState('')
+  const [siteAddress, setSiteAddress] = useState('')
+  const [pincode, setPincode] = useState('')
+  const [siteContact, setSiteContact] = useState('')
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Prefill the detail fields whenever the linked notification changes (including the
+  // initial ?wo= preselect). The FE can then correct anything that's missing or wrong.
+  useEffect(() => {
+    const wo = workOrders.find(w => w.id === selectedWoId)
+    if (!wo) return
+    setCustomerName(wo.customer_name || '')
+    setOltcSlNo(wo.serial_numbers[0] || '')
+    setSiteAddress(wo.site_address || '')
+    setPincode(wo.pincode || '')
+    setSiteContact(wo.customer_phone || '')
+  }, [selectedWoId, workOrders])
 
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q)
@@ -110,6 +129,11 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   async function handleSubmit() {
     setSubmitError('')
     if (!selectedWoId) { setSubmitError('Select the linked notification'); return }
+    if (!customerName.trim()) { setSubmitError('Customer name is required'); return }
+    if (!oltcSlNo.trim()) { setSubmitError('OLTC SL No. is required'); return }
+    if (!siteAddress.trim()) { setSubmitError('Address is required'); return }
+    if (!pincode.trim()) { setSubmitError('Pincode is required'); return }
+    if (!siteContact.trim()) { setSubmitError('Site contact is required'); return }
     if (cartItems.length === 0) { setSubmitError('Add at least one product'); return }
     if (damagePhotos.length === 0) { setSubmitError('At least one damaged-product photo is required'); return }
 
@@ -118,6 +142,11 @@ export default function NewRequestClient({ workOrders, error }: Props) {
       workOrderId: selectedWoId,
       items: cartItems.map(c => ({ productId: c.product.id, quantity: c.quantity })),
       damagePhotos: damagePhotos.map(p => ({ base64: p.dataUrl, mimeType: p.mimeType, ext: p.ext })),
+      customerName: customerName.trim(),
+      oltcSlNo: oltcSlNo.trim(),
+      siteAddress: siteAddress.trim(),
+      pincode: pincode.trim(),
+      siteContact: siteContact.trim(),
     })
     setSubmitting(false)
     if (result.error) { setSubmitError(result.error); return }
@@ -149,7 +178,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#F8F5F6' }}>
-      <MobileHeader title="New Request" backHref="/mobile/requests" />
+      <MobileHeader title="New Material Requirement" backHref="/mobile/requests" />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 160 }}>
         {error && (
@@ -166,6 +195,29 @@ export default function NewRequestClient({ workOrders, error }: Props) {
               <option key={wo.id} value={wo.id}>{wo.wo_number}{wo.customer_name ? ` — ${wo.customer_name}` : ''}</option>
             ))}
           </select>
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 13, padding: 13, marginBottom: 12, boxShadow: '0 1px 4px rgba(125,29,63,0.05)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={reqLabel}>Customer Name <span style={{ color: '#7D1D3F' }}>*</span></label>
+            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer / organisation" style={inputStyle} />
+          </div>
+          <div>
+            <label style={reqLabel}>OLTC SL No. <span style={{ color: '#7D1D3F' }}>*</span></label>
+            <input value={oltcSlNo} onChange={e => setOltcSlNo(e.target.value)} placeholder="Serial number" style={inputStyle} />
+          </div>
+          <div>
+            <label style={reqLabel}>Address <span style={{ color: '#7D1D3F' }}>*</span></label>
+            <textarea value={siteAddress} onChange={e => setSiteAddress(e.target.value)} placeholder="Site address" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={reqLabel}>Pincode <span style={{ color: '#7D1D3F' }}>*</span></label>
+            <input value={pincode} onChange={e => setPincode(e.target.value)} placeholder="Pincode" inputMode="numeric" style={inputStyle} />
+          </div>
+          <div>
+            <label style={reqLabel}>Site Contact <span style={{ color: '#7D1D3F' }}>*</span></label>
+            <input value={siteContact} onChange={e => setSiteContact(e.target.value)} placeholder="Phone number" inputMode="tel" style={inputStyle} />
+          </div>
         </div>
 
         {cartItems.length > 0 && (
