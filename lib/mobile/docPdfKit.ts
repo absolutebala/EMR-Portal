@@ -16,8 +16,8 @@ export class PdfBuilder {
   private done: (b: Buffer) => void = () => {}
   private fail: (e: unknown) => void = () => {}
 
-  constructor(opts: { margin?: number } = {}) {
-    this.doc = new PDFDocument({ margin: opts.margin ?? 40, size: 'A4' })
+  constructor(opts: { margin?: number; layout?: 'portrait' | 'landscape' } = {}) {
+    this.doc = new PDFDocument({ margin: opts.margin ?? 40, size: 'A4', layout: opts.layout ?? 'portrait' })
     this.x0 = this.doc.page.margins.left
     this.W = this.doc.page.width - this.doc.page.margins.left - this.doc.page.margins.right
     this.doc.on('data', c => this.chunks.push(c))

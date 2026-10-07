@@ -46,6 +46,7 @@ const MODULES = [
   'Field Engineers — Manage',
   'Attendance — View',
   'Attendance — Approve',
+  'Reports — View',
   'Users — View',
   'Users — Create / Edit',
   'Users — Roles View',

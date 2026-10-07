@@ -20,6 +20,7 @@ const NAV = [
     { label: 'Field Engineers', icon: 'engineers',  path: '/engineers',    permKey: 'Field Engineers — View' },
     { label: 'Live Map',        icon: 'map',        path: '/engineers/live-map', permKey: 'Field Engineers — View' },
     { label: 'Attendance',      icon: 'attendance', path: '/attendance',   permKey: 'Attendance — View' },
+    { label: 'Reports',         icon: 'reports',    path: '/reports',      permKey: 'Reports — View' },
   ]},
   { section: 'Management', items: [
     { label: 'Users',      icon: 'users',      path: '/users',     permKey: 'Users — View' },
@@ -53,6 +54,7 @@ const ICONS: Record<string, React.ReactElement> = {
   activities: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
   attendance: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   expenses: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5a2.5 2.5 0 00-2.5-1H11a2 2 0 000 4h2a2 2 0 010 4h-1a2.5 2.5 0 01-2.5-1M12 6.5v1M12 16.5v1"/></svg>,
+  reports: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h2v5H8zM13 10h2v8h-2z"/></svg>,
 }
 
 function getInitials(name: string) {
