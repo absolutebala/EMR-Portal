@@ -24,6 +24,8 @@ const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: 
   travel: { label: 'Travel', bg: '#FBE3F1', color: '#9D174D' },
   site_visit: { label: 'Site Visit', bg: '#DCFCE7', color: '#166534' },
   others: { label: 'Others', bg: '#F6F6F7', color: '#4B5563' },
+  present: { label: 'Present', bg: '#D1FAE5', color: '#065F46' },
+  absent: { label: 'Absent', bg: '#FEE2E2', color: '#991B1B' },
 }
 
 function StatusBadge({ status, statusSiteName, statusStartBy, scheduledTodayCustomer }: { status: EngineerStatus; statusSiteName: string | null; statusStartBy: string | null; scheduledTodayCustomer: string | null }) {

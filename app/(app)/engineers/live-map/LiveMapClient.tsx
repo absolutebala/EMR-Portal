@@ -52,10 +52,10 @@ async function geocodePlace(query: string): Promise<{ lat: number; lng: number; 
 }
 
 // Engineers we consider "reachable" for a location search: anyone who isn't explicitly
-// Unavailable or On Leave (Available, plus on-job states like On the way / Reached / Site
-// Visit / HQ). Excludes only the two "can't take work" statuses.
+// Reachable for the location search = anyone who could actually take nearby work:
+// everyone except those Absent (no attendance) or On Leave.
 function isReachable(status: string): boolean {
-  return status !== 'unavailable' && status !== 'on_leave'
+  return status !== 'absent' && status !== 'on_leave'
 }
 
 // Same small status config duplicated per-page elsewhere in this app (dashboard/page.tsx,
@@ -74,6 +74,8 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   travel: { bg: '#FBE3F1', color: '#9D174D', label: 'Travel' },
   site_visit: { bg: '#DCFCE7', color: '#166534', label: 'Site Visit' },
   others: { bg: '#F6F6F7', color: '#4B5563', label: 'Others' },
+  present: { bg: '#D1FAE5', color: '#065F46', label: 'Present' },
+  absent: { bg: '#FEE2E2', color: '#991B1B', label: 'Absent' },
 }
 
 const UNKNOWN_LOCATION = 'Unknown location'

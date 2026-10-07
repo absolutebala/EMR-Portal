@@ -3,17 +3,15 @@
 import { adminClient } from '@/lib/db/admin-client'
 import { getISTDateStr } from '@/lib/mobile/core/attendance'
 
-// Explicit, engineer-set status (mobile app) — replaces the old heuristic derived
-// from last_active_at + checkin/form-submission presence, which could only ever
-// guess "on site" vs "off duty" and couldn't represent leave or travel at all.
-// 'unavailable' is not a stored value — it's derived at read time for engineers who
-// have no evidence of being on duty today (see resolveDisplayStatus).
+// Field Engineers / Live Map status mirrors the engineer's attendance exactly — the
+// punch-in category they recorded (HQ / Travel / Site Visit / Business Dev / Others),
+// On Leave, or Present (marked in with no category) — never a derived "Available" /
+// "Unavailable". 'absent' and 'present' are read-time results, not stored values (see
+// resolveDisplayStatus). 'available'/'unavailable' are retained in the union only for
+// backward compatibility and are no longer produced.
 export type EngineerStatus = 'available' | 'unavailable' | 'on_leave' | 'on_the_way' | 'travelling' | 'reached' | 'completed'
-  | 'hq' | 'business_dev' | 'travel' | 'site_visit' | 'others'
+  | 'hq' | 'business_dev' | 'travel' | 'site_visit' | 'others' | 'absent' | 'present'
 
-// No activity at all (app open / check-in / location ping) for this long → the engineer
-// reads as Unavailable regardless of any stale workflow/punch state.
-const OFFLINE_MS = 30 * 60 * 60 * 1000
 // "Reached project" only holds while the engineer is actually near the project site;
 // beyond this they read as Available (they've evidently moved on / weren't there).
 const AT_PROJECT_KM = 2
@@ -39,41 +37,48 @@ function topPunchToken(cat: string | null | undefined): Extract<EngineerStatus, 
   return null
 }
 
-// Badge precedence (per product decision 2026-09-19):
-//   1. Offline > 30h  → Unavailable (overrides everything).
-//   2. Active job workflow → On the way / Travelling / Completed / On leave; and
-//      Reached → stays "Reached" only while near the project site (≤2km), else Available.
-//   3. Punched in today with a category → HQ / Business Dev / Travel / Site Visit / Others.
-//   4. Else → Available (present/explicitly-available today) or Unavailable.
+// Resolve one attendance row (today's or a previous day's) into the exact status to
+// display: Leave, the punch-in category, or "Present" (marked in with no category).
+// Returns null when there's no usable row.
+function attendanceRowToStatus(row: { status: string | null; marked_at?: string | null; punch_category: string | null } | null | undefined): EngineerStatus | null {
+  if (!row) return null
+  if (row.status === 'leave') return 'on_leave'
+  if (row.status === 'present' || row.marked_at) return topPunchToken(row.punch_category) ?? 'present'
+  return null
+}
+
+// Badge precedence (per product decision 2026-10-07 — show the exact attendance status,
+// never Available/Unavailable):
+//   1. A live job-workflow status set *today* (On the way / Travelling / Reached /
+//      Completed) still wins while it's current — it's the most up-to-date field signal
+//      and isn't an attendance category. "Reached" reverts to the attendance base once
+//      the engineer has clearly left the project site.
+//   2. Today's attendance: On Leave, or the punch-in category (HQ / Travel / Site Visit /
+//      Business Dev / Others), falling back to "Present" when marked in with no category.
+//   3. Not marked yet today: before 10 AM IST, carry the previous day's status forward;
+//      from 10 AM IST onward (or with no prior record at all) → Absent.
 function resolveDisplayStatus(params: {
   rawStatus: string | null
   statusUpdatedAt: string | null
-  presentToday: boolean
   istTodayStr: string
-  offline: boolean
   reachedAtProject: boolean
-  punchToken: EngineerStatus | null
-  seenWithin24h: boolean
+  todayRow: { status: string | null; marked_at: string | null; punch_category: string | null } | null
+  prevDayStatus: EngineerStatus | null
+  istHour: number
 }): EngineerStatus {
-  const { rawStatus, statusUpdatedAt, presentToday, istTodayStr, offline, reachedAtProject, punchToken, seenWithin24h } = params
-  if (offline) return 'unavailable'
-  // Movement statuses (on the way / travelling / reached / completed) reflect a live,
-  // same-day activity — a status set on a previous day (e.g. "Reached project" left over
-  // from yesterday evening) is stale and must not carry into today. Only honour it when
-  // it was set today (IST); otherwise fall through to the punch/present-based resolution.
+  const { rawStatus, statusUpdatedAt, istTodayStr, reachedAtProject, todayRow, prevDayStatus, istHour } = params
+  // A status set on a previous day (e.g. "Reached project" left over from yesterday
+  // evening) is stale — only a status set today (IST) is treated as live.
   const statusSetToday = statusUpdatedAt != null && getISTDateStr(new Date(statusUpdatedAt)) === istTodayStr
-  if (rawStatus === 'on_leave') return 'on_leave'
   if (statusSetToday) {
     if (rawStatus === 'on_the_way' || rawStatus === 'travelling' || rawStatus === 'completed') return rawStatus
-    if (rawStatus === 'reached') return reachedAtProject ? 'reached' : 'available'
+    if (rawStatus === 'reached' && reachedAtProject) return 'reached'
   }
-  if (punchToken) return punchToken
-  const setAvailableToday = rawStatus === 'available' && statusSetToday
-  // Anyone whose location was seen within the last 24h is treated as Available — an
-  // engineer who's clearly online (recent ping) but hasn't explicitly marked attendance
-  // shouldn't read Unavailable. Beyond 24h (and up to the 30h offline cut) we fall back
-  // to whether they marked present / set available today.
-  return presentToday || setAvailableToday || seenWithin24h ? 'available' : 'unavailable'
+  const todayStatus = attendanceRowToStatus(todayRow)
+  if (todayStatus) return todayStatus
+  if (rawStatus === 'on_leave' && statusSetToday) return 'on_leave'
+  if (istHour < 10 && prevDayStatus) return prevDayStatus
+  return 'absent'
 }
 
 export interface FieldEngineerOverview {
@@ -155,8 +160,12 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
 
     const engineerIds = profiles.map(p => p.id)
     const istTodayStr = getISTDateStr()
+    // Lower bound for the "previous day" lookup (last 30 IST days) so an engineer who
+    // simply hasn't punched in yet today shows their most recent prior attendance status
+    // rather than jumping straight to a derived state — bounded so the query stays small.
+    const istThirtyAgoStr = getISTDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
 
-    const [{ data: wos }, { data: checkins }, { data: presentRows }] = await Promise.all([
+    const [{ data: wos }, { data: checkins }, { data: presentRows }, { data: prevAttendanceRows }] = await Promise.all([
       admin.from('work_orders')
         .select('id, wo_number, job_type, status, scheduled_date, customer_id, engineer_id, updated_at')
         .in('engineer_id', engineerIds),
@@ -169,20 +178,36 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         .in('engineer_id', engineerIds)
         .order('checked_in_at', { ascending: false })
         .limit(500),
-      // Today's attendance rows (IST): drives "present → Available", the punch category
-      // badge (HQ / Travel / Site Visit / …), and whether they've punched out (end_day_at).
+      // Today's attendance rows (IST): drives the exact status badge (Leave / HQ / Travel
+      // / Site Visit / Business Dev / Others / Present) and whether they've punched out.
       admin.from('attendance')
         .select('engineer_id, status, marked_at, end_day_at, punch_category')
         .eq('attendance_date', istTodayStr)
         .in('engineer_id', engineerIds),
+      // Recent prior attendance (most recent first) — used, before 10 AM IST, to carry
+      // the previous day's status forward until the engineer marks today's attendance.
+      admin.from('attendance')
+        .select('engineer_id, status, marked_at, punch_category, attendance_date')
+        .lt('attendance_date', istTodayStr)
+        .gte('attendance_date', istThirtyAgoStr)
+        .in('engineer_id', engineerIds)
+        .order('attendance_date', { ascending: false }),
     ])
-    const presentTodayIds = new Set((presentRows || []).filter(r => r.status === 'present').map(r => r.engineer_id))
-    // Engineers who have punched out for the day — a "Reached" badge then reverts to Available.
+    // One today-row per engineer (one attendance row per engineer per day).
+    const todayRowByEng: Record<string, { status: string | null; marked_at: string | null; punch_category: string | null }> = {}
+    ;(presentRows || []).forEach(r => { if (!todayRowByEng[r.engineer_id]) todayRowByEng[r.engineer_id] = { status: r.status, marked_at: r.marked_at, punch_category: r.punch_category } })
+    // Engineers who have punched out for the day — a "Reached" badge then reverts to the
+    // attendance base.
     const punchedOutTodayIds = new Set((presentRows || []).filter(r => r.end_day_at).map(r => r.engineer_id))
-    // Top-level punch category per engineer for today (only when actually punched in).
-    const punchTokenByEng: Record<string, EngineerStatus | null> = {}
-    ;(presentRows || []).forEach(r => { if (r.marked_at) punchTokenByEng[r.engineer_id] = topPunchToken(r.punch_category) })
-    // IST hour right now — the 2km "left the site" check only kicks in after 6 PM.
+    // Previous day's resolved status per engineer (rows are ordered newest-first, so the
+    // first one seen per engineer is their most recent prior attendance day).
+    const prevDayStatusByEng: Record<string, EngineerStatus | null> = {}
+    ;(prevAttendanceRows || []).forEach(r => {
+      if (r.engineer_id in prevDayStatusByEng) return
+      prevDayStatusByEng[r.engineer_id] = attendanceRowToStatus(r)
+    })
+    // IST hour right now — the 2km "left the site" check only kicks in after 6 PM, and
+    // the "not marked yet" fallback shows the previous day's status only before 10 AM.
     const nowIstHour = new Date(Date.now() + 5.5 * 60 * 60 * 1000).getUTCHours()
     const afterSixPmIst = nowIstHour >= 18
 
@@ -285,10 +310,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         ? { placeName: earlierCheckin.placeName, at: earlierCheckin.checkedInAt, lat: earlierCheckin.lat!, lng: earlierCheckin.lng! }
         : null
 
-      // No activity at all for >30h → Unavailable (overrides workflow/punch state).
-      const offline = !lastSeen || Date.now() - new Date(lastSeen.at).getTime() > OFFLINE_MS
-
-      // "Reached project" reverts to Available once the engineer is clearly done there:
+      // "Reached project" reverts to the attendance base once the engineer is clearly done there:
       //   - they've punched out for the day, OR
       //   - it's past 6 PM AND their last location is >2km from the project site
       //     (during the day, moving around / brief trips shouldn't flip it).
@@ -317,7 +339,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         name: `${p.first_name} ${p.last_name}`,
         employee_id: p.employee_id,
         phone: p.phone,
-        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday: presentTodayIds.has(p.id), istTodayStr, offline, reachedAtProject, punchToken: punchTokenByEng[p.id] ?? null, seenWithin24h: lastSeen?.fresh ?? false }),
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, istTodayStr, reachedAtProject, todayRow: todayRowByEng[p.id] ?? null, prevDayStatus: prevDayStatusByEng[p.id] ?? null, istHour: nowIstHour }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,
@@ -406,13 +428,25 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
     // notifications list already shown further down this page.
     const todayStr = new Date().toLocaleDateString('en-CA')
     const istTodayStr = getISTDateStr()
-    const { data: presentRow } = await admin.from('attendance')
-      .select('engineer_id')
-      .eq('engineer_id', id)
-      .eq('attendance_date', istTodayStr)
-      .eq('status', 'present')
-      .maybeSingle()
-    const presentToday = !!presentRow
+    const istThirtyAgoStr = getISTDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    const nowIstHour = new Date(Date.now() + 5.5 * 60 * 60 * 1000).getUTCHours()
+    // Today's attendance row (any status, to catch Leave) + the most recent prior one —
+    // same exact-attendance-status derivation as the Field Engineers / Live Map list.
+    const [{ data: todayRow }, { data: prevRows }] = await Promise.all([
+      admin.from('attendance')
+        .select('status, marked_at, punch_category')
+        .eq('engineer_id', id)
+        .eq('attendance_date', istTodayStr)
+        .maybeSingle(),
+      admin.from('attendance')
+        .select('status, marked_at, punch_category, attendance_date')
+        .eq('engineer_id', id)
+        .lt('attendance_date', istTodayStr)
+        .gte('attendance_date', istThirtyAgoStr)
+        .order('attendance_date', { ascending: false })
+        .limit(1),
+    ])
+    const prevDayStatus = attendanceRowToStatus(prevRows?.[0])
     const { data: scheduledTodayRows } = await admin.from('work_orders')
       .select('customer_id')
       .eq('engineer_id', id)
@@ -436,10 +470,9 @@ export async function getEngineerProfile(id: string): Promise<{ profile: Enginee
         grade: p.grade,
         role: p.role,
         managerName,
-        // This list (Field Engineers table / pickers) keeps the simpler status derivation
-        // — the 30h-offline / project-proximity / punch-category refinements are the Live
-        // Map's concern, where the extra signals are fetched.
-        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, presentToday, istTodayStr, offline: false, reachedAtProject: true, punchToken: null, seenWithin24h: false }),
+        // Exact attendance status, same as the Field Engineers list / Live Map. No live
+        // project-proximity check here, so a "Reached" status is taken at face value.
+        status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, istTodayStr, reachedAtProject: true, todayRow: todayRow ?? null, prevDayStatus, istHour: nowIstHour }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
         statusUpdatedAt: p.engineer_status_updated_at,

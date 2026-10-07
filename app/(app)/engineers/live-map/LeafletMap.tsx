@@ -19,6 +19,13 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   travelling: { bg: '#EDE9FE', color: '#5B21B6', label: 'Travelling' },
   reached: { bg: '#FEF3C7', color: '#92400E', label: 'Reached project' },
   completed: { bg: '#D1FAE5', color: '#065F46', label: 'Completed' },
+  hq: { bg: '#FBEDE2', color: '#9A5B2E', label: 'HQ' },
+  business_dev: { bg: '#E1E6F5', color: '#1E2A6B', label: 'Business Development' },
+  travel: { bg: '#FBE3F1', color: '#9D174D', label: 'Travel' },
+  site_visit: { bg: '#DCFCE7', color: '#166534', label: 'Site Visit' },
+  others: { bg: '#F6F6F7', color: '#4B5563', label: 'Others' },
+  present: { bg: '#D1FAE5', color: '#065F46', label: 'Present' },
+  absent: { bg: '#FEE2E2', color: '#991B1B', label: 'Absent' },
 }
 
 function formatRelativeTime(at: string): string {
@@ -209,7 +216,7 @@ function EngineerMarkers({ points, selectedId }: { points: MapPoint[]; selectedI
         // A single engineer at this spot — the usual teardrop pin.
         if (c.group.length === 1) {
           const p = c.group[0]
-          const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
+          const statusCfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.absent
           return (
             <Marker
               key={`s-${p.engineer.id}`}
@@ -256,7 +263,7 @@ function EngineerMarkers({ points, selectedId }: { points: MapPoint[]; selectedI
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1C0D14', marginBottom: 6 }}>{c.group.length} engineers here</div>
                 <div style={{ maxHeight: 220, overflowY: 'auto' }}>
                   {c.group.map((p, i) => {
-                    const cfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.available
+                    const cfg = STATUS_CFG[p.engineer.status] || STATUS_CFG.absent
                     return (
                       <div key={p.engineer.id} style={{ borderTop: i === 0 ? 'none' : '1px solid #F1E7EB', paddingTop: i === 0 ? 0 : 8, marginTop: i === 0 ? 0 : 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
