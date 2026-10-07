@@ -968,7 +968,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
                   {productRequests.length > 0 && (
                     <div style={card}>
-                      <div style={cardLabel}>Product requests</div>
+                      <div style={cardLabel}>Spare requests</div>
                       {productRequests.map((req, ri) => (
                         <div key={req.id} style={{ padding: '10px 0', borderTop: ri > 0 ? '1px solid var(--gl)' : 'none' }}>
                           <div style={{ fontSize: 10, color: 'var(--txm)', marginBottom: 6 }}>
@@ -1338,7 +1338,7 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
       {confirmDelete && wo && (
         <Modal open onClose={() => { if (!deleting) setConfirmDelete(false) }} title="Delete notification">
           <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
-            Delete notification <strong>{wo.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, product requests and expenses. This cannot be undone.
+            Delete notification <strong>{wo.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, spare requests and expenses. This cannot be undone.
           </div>
           {error && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 10 }}>{error}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>

@@ -14,7 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/work-orders': 'Notifications',
   '/engineers': 'Field Engineers',
   '/products': 'Products',
-  '/requests': 'Product Requests',
+  '/requests': 'Spare Requests',
   '/renewal-requests': 'Renewal Requests',
   '/activities': 'Activities',
   '/attendance': 'Attendance',

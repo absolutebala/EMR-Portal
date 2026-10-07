@@ -487,7 +487,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
       {confirmDelete && (
         <Modal open onClose={() => { if (!deleting) setConfirmDelete(null) }} title="Delete notification">
           <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 8 }}>
-            Delete notification <strong>{confirmDelete.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, product requests and expenses. This cannot be undone.
+            Delete notification <strong>{confirmDelete.wo_number}</strong>? This permanently removes the notification and all of its data — check-ins, closures, submitted forms, spare requests and expenses. This cannot be undone.
           </div>
           {deleteError && <div style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 10 }}>{deleteError}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>

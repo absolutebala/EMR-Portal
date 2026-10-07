@@ -86,7 +86,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
   async function handleBulkDelete() {
     const ids = [...selected]
     if (!ids.length) return
-    if (!confirm(`Delete ${ids.length} selected product${ids.length === 1 ? '' : 's'}? Any that are used in a product request will be skipped.`)) return
+    if (!confirm(`Delete ${ids.length} selected product${ids.length === 1 ? '' : 's'}? Any that are used in a spare request will be skipped.`)) return
     setBulkBusy(true); setBulkNotice('')
     const res = await deleteProductsBulk(ids)
     setBulkBusy(false)
@@ -96,7 +96,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
     let notice = `Deleted ${deletedN} product${deletedN === 1 ? '' : 's'}.`
     if (skipped.length) {
       const names = skipped.map(s => products.find(p => p.id === s.id)?.name || 'Unknown').join(', ')
-      notice += ` Skipped ${skipped.length} in use by product requests: ${names}.`
+      notice += ` Skipped ${skipped.length} in use by spare requests: ${names}.`
     }
     setBulkNotice(notice)
     setSelected(new Set())

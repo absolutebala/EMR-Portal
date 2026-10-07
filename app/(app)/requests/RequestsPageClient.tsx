@@ -45,12 +45,12 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   }
   async function handleDeleteRequests(ids: string[]) {
     if (!ids.length) return
-    if (!window.confirm(`Delete ${ids.length} product request${ids.length === 1 ? '' : 's'}? This also removes their line items and can't be undone.`)) return
+    if (!window.confirm(`Delete ${ids.length} spare request${ids.length === 1 ? '' : 's'}? This also removes their line items and can't be undone.`)) return
     setBulkBusy(true); setBulkNotice('')
     const res = await deleteProductRequests(ids)
     setBulkBusy(false)
     if (res.error) { setBulkNotice(res.error); return }
-    setBulkNotice(`Deleted ${res.deletedCount ?? ids.length} product request${(res.deletedCount ?? ids.length) === 1 ? '' : 's'}.`)
+    setBulkNotice(`Deleted ${res.deletedCount ?? ids.length} spare request${(res.deletedCount ?? ids.length) === 1 ? '' : 's'}.`)
     setSelected(new Set())
     router.refresh()
   }
@@ -120,7 +120,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
 
   return (
     <>
-      <Topbar title="Product Requests" userName={userName} userRole={userRole} />
+      <Topbar title="Spare Requests" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           {TAB_IDS.map(t => (
@@ -148,7 +148,7 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
 
         {filteredRequests.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13, background: '#fff', borderRadius: 10, border: '1px solid var(--gm)' }}>
-            No product requests{tab !== 'all' ? ` in "${STATUS_CFG[tab].label}"` : ''} yet.
+            No spare requests{tab !== 'all' ? ` in "${STATUS_CFG[tab].label}"` : ''} yet.
           </div>
         ) : (
           filteredRequests.map(req => (

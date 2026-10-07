@@ -191,7 +191,9 @@ export default function RolesModal({ open, onClose, canEdit = false }: { open: b
               {MODULES.map((mod, i) => (
                 <tr key={mod} style={{ background: i % 2 === 0 ? 'var(--mp)' : '#fff', borderBottom: '1px solid var(--gm)' }}>
                   <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: mod.includes('—') ? 400 : 600, paddingLeft: mod.includes('—') ? 22 : 14, color: 'var(--tx)', whiteSpace: 'nowrap' }}>
-                    {mod}
+                    {/* Display-only relabel — the permission KEY ('Product Requests — …')
+                        stays as stored in roles.permissions; only the shown text changes. */}
+                    {mod.replace('Product Requests', 'Spare Requests')}
                   </td>
                   {roles.map(role => {
                     const val = getVal(role, mod)

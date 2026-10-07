@@ -91,7 +91,7 @@ export default async function DashboardPage() {
             rows={NOTIFICATION_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.notificationBreakdown[s.key], color: s.color, href: s.href }))}
           />
           <BreakdownCard
-            title="Product Requests" total={productRequestTotal} borderColor="#7D1D3F"
+            title="Spare Requests" total={productRequestTotal} borderColor="#7D1D3F"
             rows={PRODUCT_REQUEST_BREAKDOWN_CFG.map(s => ({ key: s.key, label: s.label, count: kpis.productRequestBreakdown[s.key], color: s.color, href: s.href }))}
           />
           <BreakdownCard
@@ -235,7 +235,7 @@ export default async function DashboardPage() {
             ))}
           </ListCard>
 
-          <ListCard title="Product requests" viewAllHref="/requests" empty="No product requests in progress.">
+          <ListCard title="Spare requests" viewAllHref="/requests" empty="No spare requests in progress.">
             {pendingApprovals.map(ap => {
               const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
               return (

@@ -28,7 +28,7 @@ const NAV = [
   ]},
   { section: 'Operations', items: [
     { label: 'Forms',             icon: 'forms',     path: '/forms',    permKey: 'Forms — View' },
-    { label: 'Product Requests',  icon: 'requests',  path: '/requests', permKey: 'Product Requests — View' },
+    { label: 'Spare Requests',  icon: 'requests',  path: '/requests', permKey: 'Product Requests — View' },
     { label: 'Renewal Requests',  icon: 'renewals',  path: '/renewal-requests', permKey: 'Renewal Requests — View' },
     { label: 'Expenses',          icon: 'expenses',  path: '/expenses', permKey: 'Expenses — View' },
   ]},

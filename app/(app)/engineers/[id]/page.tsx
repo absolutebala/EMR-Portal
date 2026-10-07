@@ -113,7 +113,7 @@ export default async function EngineerProfilePage({ params }: { params: Promise<
           <KpiCard label="Total expense requested" value={formatAmount(totalExpenseRequested)} color="#7D1D3F" href="#expenses" />
           <KpiCard label="Pending expense amount" value={formatAmount(pendingExpenseAmount)} color="#D97706" href="#expenses" />
           <KpiCard label="Over policy limit claims" value={overLimitCount} color="#991B1B" href="#expenses" />
-          <KpiCard label="Pending product requests" value={pendingProductItems} color="#1D4ED8" href="#products" />
+          <KpiCard label="Pending spare requests" value={pendingProductItems} color="#1D4ED8" href="#products" />
         </div>
 
         {/* Profile card */}

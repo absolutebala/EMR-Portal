@@ -82,7 +82,7 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
     example: 'Hi {{1}}, your notification *{{2}}* is still in progress. {{3}} will follow up on {{4}}.\n\nWe’ll keep you updated.',
   },
   {
-    key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign',
+    key: 'whatsapp_campaign_product_request', label: 'Spare request status — Engineer campaign',
     params: '1) Engineer name  2) Notification number  3) Status  4) Product name',
     example: 'Hi {{1}}, your product request for notification *{{2}}* has been {{3}}.\n\nMaterial: {{4}}\n\nCheck the EMR Portal app for details.',
   },
@@ -435,7 +435,7 @@ export default function SettingsPageClient({ initialSettings, settingsId, initia
         {/* Departments */}
         <div style={ss}>
           <h3 style={h3s}>Departments</h3>
-          <p style={ps}>Field Engineers belong to one department; Service Managers (and other roles) can be assigned to one or more. Requests from a Field Engineer — expenses, attendance amendments, product requests — route to whoever&apos;s assigned to their department.</p>
+          <p style={ps}>Field Engineers belong to one department; Service Managers (and other roles) can be assigned to one or more. Requests from a Field Engineer — expenses, attendance amendments, spare requests — route to whoever&apos;s assigned to their department.</p>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
