@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { reportStatusGroup, STATUS_GROUP_META, type ComplaintReportRow, type ReportStatusGroup } from '@/lib/reports'
+import { getRange, type ViewMode } from '../attendance/dateRange'
 
 type TabId = 'all' | ReportStatusGroup
 const TAB_IDS: TabId[] = ['all', 'open', 'in_progress', 'closed']
@@ -13,21 +14,6 @@ const TAB_LABEL: Record<TabId, string> = { all: 'All', open: 'Open', in_progress
 function fmtDate(d: string | null): string {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-// Monday of the week containing d (local time).
-function startOfWeek(d: Date): Date {
-  const x = new Date(d)
-  const dow = (x.getDay() + 6) % 7 // 0 = Monday
-  x.setDate(x.getDate() - dow)
-  x.setHours(0, 0, 0, 0)
-  return x
-}
-function toISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-function fmtShort(d: Date): string {
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 interface Props {
@@ -41,60 +27,47 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
   const rows = initialRows
   const [tab, setTab] = useState<TabId>('all')
 
-  // Search + date range apply only when "Search" is clicked (Clear resets both).
+  // Period selector (This Week / This Month / Custom + prev-next nav) — drives the date
+  // range for both the list and the export, like the Attendance page.
+  const [viewMode, setViewMode] = useState<ViewMode>('week')
+  const [anchor, setAnchor] = useState(new Date())
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const range = useMemo(() => getRange(viewMode, anchor, customFrom, customTo), [viewMode, anchor, customFrom, customTo])
+  const customInvalid = viewMode === 'custom' && !!customFrom && !!customTo && customFrom > customTo
+
+  function selectMode(m: ViewMode) {
+    setViewMode(m)
+    if (m !== 'custom') setAnchor(new Date())
+    else if (!customFrom) { const r = getRange('week', new Date(), '', ''); setCustomFrom(r.from); setCustomTo(r.to) }
+  }
+  function shift(delta: number) {
+    const a = new Date(anchor)
+    if (viewMode === 'week') a.setDate(a.getDate() + delta * 7)
+    else if (viewMode === 'month') a.setMonth(a.getMonth() + delta)
+    setAnchor(a)
+  }
+
+  // Effective date range (empty while a custom range is incomplete/invalid → no date filter).
+  const dateFrom = customInvalid ? '' : range.from
+  const dateTo = customInvalid ? '' : range.to
+
+  // Search (applied on Search click; Clear resets it).
   const [searchInput, setSearchInput] = useState('')
-  const [fromInput, setFromInput] = useState('')
-  const [toInput, setToInput] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
-  const [appliedFrom, setAppliedFrom] = useState('')
-  const [appliedTo, setAppliedTo] = useState('')
+  function onSearch() { setAppliedSearch(searchInput.trim()) }
+  function onClear() { setSearchInput(''); setAppliedSearch('') }
 
-  function onSearch() { setAppliedSearch(searchInput.trim()); setAppliedFrom(fromInput); setAppliedTo(toInput); setWeekSel('') }
-  function onClear() { setSearchInput(''); setFromInput(''); setToInput(''); setAppliedSearch(''); setAppliedFrom(''); setAppliedTo(''); setWeekSel('') }
-
-  // "Select Week" is a quick way to set the date range (current week + previous 7,
-  // Monday–Sunday); picking one fills + applies the From/To filter so the table and the
-  // export both scope to it. "All dates" clears the range.
-  const weeks = useMemo(() => {
-    const out: { from: string; to: string; label: string }[] = []
-    const thisMon = startOfWeek(new Date())
-    for (let i = 0; i < 8; i++) {
-      const mon = new Date(thisMon); mon.setDate(mon.getDate() - 7 * i)
-      const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
-      const range = `${fmtShort(mon)} – ${fmtShort(sun)}`
-      out.push({ from: toISO(mon), to: toISO(sun), label: i === 0 ? `This Week: ${range}` : range })
-    }
-    return out
-  }, [])
-  const [weekSel, setWeekSel] = useState('')
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
-  function selectWeek(val: string) {
-    setWeekSel(val)
-    if (val === '') { setFromInput(''); setToInput(''); setAppliedFrom(''); setAppliedTo('') }
-    else { const w = weeks[Number(val)]; if (w) { setFromInput(w.from); setToInput(w.to); setAppliedFrom(w.from); setAppliedTo(w.to) } }
-  }
-  // Export EVERY row matching the current filters (status tab + search + date range) —
-  // all pages — generated server-side so nothing is capped to the visible page.
-  function downloadExport(format: 'xlsx' | 'pdf') {
-    const params = new URLSearchParams({ format })
-    if (tab !== 'all') params.set('tab', tab)
-    if (appliedSearch) params.set('search', appliedSearch)
-    if (appliedFrom) params.set('from', appliedFrom)
-    if (appliedTo) params.set('to', appliedTo)
-    window.location.href = `/api/reports/export?${params.toString()}`
-    setShowDownloadMenu(false)
-  }
-
-  // Search + date filters applied (tab applied separately for per-tab counts).
+  // Search + date-range filters (tab applied separately so each tab shows its own count).
   const scoped = useMemo(() => rows.filter(r => {
     if (appliedSearch) {
       const hay = `${r.woNumber} ${r.ticketNumber} ${r.customerName} ${r.siteName} ${r.engineerName}`.toLowerCase()
       if (!hay.includes(appliedSearch.toLowerCase())) return false
     }
-    if (appliedFrom && (!r.complaintDate || r.complaintDate.slice(0, 10) < appliedFrom)) return false
-    if (appliedTo && (!r.complaintDate || r.complaintDate.slice(0, 10) > appliedTo)) return false
+    if (dateFrom && (!r.complaintDate || r.complaintDate.slice(0, 10) < dateFrom)) return false
+    if (dateTo && (!r.complaintDate || r.complaintDate.slice(0, 10) > dateTo)) return false
     return true
-  }), [rows, appliedSearch, appliedFrom, appliedTo])
+  }), [rows, appliedSearch, dateFrom, dateTo])
 
   const counts = useMemo(() => {
     const c = { all: scoped.length, open: 0, in_progress: 0, closed: 0 }
@@ -104,9 +77,27 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
 
   const filtered = useMemo(() => tab === 'all' ? scoped : scoped.filter(r => reportStatusGroup(r.status) === tab), [scoped, tab])
   const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered, 8)
-  useEffect(() => { setPage(1) }, [tab, appliedSearch, appliedFrom, appliedTo, setPage])
+  useEffect(() => { setPage(1) }, [tab, appliedSearch, dateFrom, dateTo, setPage])
 
-  const inputStyle: React.CSSProperties = { padding: '8px 11px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 12, fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }
+  // Export EVERY row matching the current list (status tab + search + date range) — all
+  // pages — generated server-side so nothing is capped to the visible page.
+  function downloadExport(format: 'xlsx' | 'pdf') {
+    const params = new URLSearchParams({ format })
+    if (tab !== 'all') params.set('tab', tab)
+    if (appliedSearch) params.set('search', appliedSearch)
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo) params.set('to', dateTo)
+    window.location.href = `/api/reports/export?${params.toString()}`
+  }
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${active ? 'var(--m)' : 'var(--gm)'}`,
+    background: active ? 'var(--m)' : '#fff', color: active ? '#fff' : 'var(--tx)',
+    fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
+  })
+  const navBtn: React.CSSProperties = { width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  const dateInput: React.CSSProperties = { padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }
+  const exportBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: '1px solid var(--m)', background: '#fff', color: 'var(--m)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }
   const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--gm)' }
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 12, color: 'var(--tx)', borderBottom: '1px solid var(--gl)', verticalAlign: 'top' }
 
@@ -114,72 +105,59 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
     <>
       <Topbar title="Reports" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
-        {/* Status tabs with counts */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {TAB_IDS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${tab === t ? 'var(--m)' : 'var(--gm)'}`,
-              background: tab === t ? 'var(--m)' : '#fff', color: tab === t ? '#fff' : 'var(--tx)',
-              fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
-            }}>
-              {TAB_LABEL[t]} ({counts[t]})
-            </button>
-          ))}
-        </div>
-
-        {/* Weekly download */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', padding: '14px 16px', marginBottom: 14 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txm)', marginBottom: 5 }}>Select Week</label>
-              <select value={weekSel} onChange={e => selectWeek(e.target.value)} style={{ ...inputStyle, minWidth: 280, cursor: 'pointer' }}>
-                <option value="">All dates</option>
-                {weeks.map((w, i) => <option key={w.from} value={i}>{w.label}</option>)}
-              </select>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setShowDownloadMenu(s => !s)} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 8, border: 'none',
-                background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
-              }}>
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Download Reports
-                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+        {/* Period selector (top) */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
+            <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
+            <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
+          </div>
+          {viewMode !== 'custom' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={() => shift(-1)} aria-label="Previous" style={navBtn}>
+                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
-              {showDownloadMenu && (
-                <>
-                  <div onClick={() => setShowDownloadMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
-                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 11, overflow: 'hidden', minWidth: 210 }}>
-                    <button onClick={() => downloadExport('xlsx')} style={menuItem}>Download as Excel (.xlsx)</button>
-                    <button onClick={() => downloadExport('pdf')} style={{ ...menuItem, borderTop: '1px solid var(--gl)' }}>Download as PDF (.pdf)</button>
-                  </div>
-                </>
-              )}
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', minWidth: 170, textAlign: 'center' }}>{range.label}</span>
+              <button onClick={() => shift(1)} aria-label="Next" style={navBtn}>
+                <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
             </div>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-            Exports every complaint matching the current tab, search and date filters — all pages — with status, customer, site and engineer.
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>From</label>
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={dateInput} />
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>To</label>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={dateInput} />
+              {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From must be on or before To).</span>}
+            </div>
+          )}
         </div>
 
-        {/* Search + filters */}
+        {/* Search */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
-          <div style={{ flex: '1 1 260px', minWidth: 200 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txm)', marginBottom: 5 }}>Search</label>
+          <div style={{ flex: '1 1 300px', minWidth: 220 }}>
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') onSearch() }}
-              placeholder="Notification no, customer, site, engineer…" style={{ ...inputStyle, width: '100%' }} />
+              placeholder="Search by notification no, customer, site, engineer…" style={{ padding: '9px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 12, fontFamily: 'Poppins,sans-serif', width: '100%', boxSizing: 'border-box' }} />
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txm)', marginBottom: 5 }}>From Date</label>
-            <input type="date" value={fromInput} onChange={e => setFromInput(e.target.value)} style={inputStyle} />
+          <button onClick={onSearch} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Search</button>
+          <button onClick={onClear} style={{ padding: '9px 20px', borderRadius: 8, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Clear</button>
+        </div>
+
+        {/* Status tabs (with counts) + per-list export buttons on the right */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          {TAB_IDS.map(t => (
+            <button key={t} onClick={() => setTab(t)} style={tabStyle(tab === t)}>{TAB_LABEL[t]} ({counts[t]})</button>
+          ))}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button onClick={() => downloadExport('pdf')} style={exportBtn} title="Download the current list as PDF (all pages)">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Export PDF
+            </button>
+            <button onClick={() => downloadExport('xlsx')} style={exportBtn} title="Download the current list as Excel (all pages)">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Export Excel
+            </button>
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txm)', marginBottom: 5 }}>To Date</label>
-            <input type="date" value={toInput} onChange={e => setToInput(e.target.value)} style={inputStyle} />
-          </div>
-          <button onClick={onSearch} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Search</button>
-          <button onClick={onClear} style={{ padding: '8px 18px', borderRadius: 8, border: '1.5px solid var(--gm)', background: '#fff', color: 'var(--tx)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>Clear</button>
         </div>
 
         {initialError && <div style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 8, padding: '10px 12px', fontSize: 12, marginBottom: 14 }}>{initialError}</div>}
@@ -231,9 +209,4 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
       </div>
     </>
   )
-}
-
-const menuItem: React.CSSProperties = {
-  display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: '#fff',
-  color: 'var(--tx)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
 }
