@@ -20,8 +20,9 @@ import { sendCombirdsMessage, sendCombirdsSms } from './combirds'
 //                          engineer is now attending.
 //   on_the_way        (2): 1) engineer full name, 2) engineer phone number (so the
 //                          customer can reach the engineer who is on the way directly)
-//   product_request    (4): 1) engineer first name, 2) WO number, 3) status label,
-//                          4) product name
+//   product_request    (5): 1) engineer first name, 2) WO number, 3) status label,
+//                          4) product name, 5) ZFOD (SAP/order reference; '-' until the
+//                          line is approved)
 //   product_requested_customer (0): no params — a fixed reassurance message sent to the
 //                          customer when the engineer submits a material/product request
 //                          after inspecting the site.

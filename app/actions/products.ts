@@ -245,7 +245,7 @@ export async function updateProductRequestItemStatus(
     if (extra?.deliveryEstimate !== undefined) patch.delivery_estimate = extra.deliveryEstimate
     if (extra?.notes !== undefined) patch.admin_notes = extra.notes
 
-    const { data: item } = await admin.from('product_request_items').select('request_id, products(name)').eq('id', itemId).maybeSingle()
+    const { data: item } = await admin.from('product_request_items').select('request_id, zfod, products(name)').eq('id', itemId).maybeSingle()
 
     const { error } = await admin.from('product_request_items').update(patch).eq('id', itemId)
     if (error) return { error: error.message }
@@ -301,8 +301,12 @@ export async function updateProductRequestItemStatus(
         }).catch(() => {})
 
         const { data: eng } = await admin.from('profiles').select('first_name, phone').eq('id', reqRow.engineer_id).maybeSingle()
+        // ZFOD: the value just entered on approve, else whatever was stored on the item
+        // at approval (so dispatched/delivered messages carry it too). item.zfod is the
+        // pre-update value, which equals the stored ZFOD for every non-approve status.
+        const effectiveZfod = zfod || (item as { zfod?: string | null }).zfod || ''
         sendWhatsApp(admin, 'product_request', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
-          [eng?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName]).catch(() => {})
+          [eng?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName, effectiveZfod]).catch(() => {})
       }
 
       // Customer: WhatsApp that the material has been dispatched.
