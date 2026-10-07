@@ -239,7 +239,7 @@ export default async function DashboardPage() {
             {pendingApprovals.map(ap => {
               const pcfg = PRODUCT_REQUEST_STATUS_CFG[ap.status] || PRODUCT_REQUEST_STATUS_CFG.pending
               return (
-                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.woNumber} href="/requests">
+                <ListRow key={ap.id} title={`${ap.productName} × ${ap.quantity}`} subtitle={ap.zfod ? `${ap.woNumber} · ZFOD ${ap.zfod}` : ap.woNumber} href="/requests">
                   <Badge bg={pcfg.bg} color={pcfg.color} label={pcfg.label} />
                 </ListRow>
               )

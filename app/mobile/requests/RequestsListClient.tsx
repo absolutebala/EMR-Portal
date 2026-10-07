@@ -98,11 +98,14 @@ export default function RequestsListClient({ requests, error }: Props) {
               </div>
             )}
             {req.items.map(item => (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0' }}>
-                <span style={{ fontSize: 12, color: '#1C0D14' }}>{item.productName} × {item.quantity}</span>
-                <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: STATUS_CFG[item.status].bg, color: STATUS_CFG[item.status].color, whiteSpace: 'nowrap' }}>
-                  {STATUS_CFG[item.status].label}
-                </span>
+              <div key={item.id} style={{ padding: '5px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: '#1C0D14' }}>{item.productName} × {item.quantity}</span>
+                  <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: STATUS_CFG[item.status].bg, color: STATUS_CFG[item.status].color, whiteSpace: 'nowrap' }}>
+                    {STATUS_CFG[item.status].label}
+                  </span>
+                </div>
+                {item.zfod && <div style={{ fontSize: 10, color: '#7D1D3F', fontWeight: 600, marginTop: 2 }}>ZFOD: {item.zfod}</div>}
               </div>
             ))}
           </div>

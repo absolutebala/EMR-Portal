@@ -57,6 +57,7 @@ export interface DashboardApproval {
   productName: string
   woNumber: string
   status: string
+  zfod: string | null
 }
 
 export interface DashboardOffSiteUpdate {
@@ -172,7 +173,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     // once it's delivered or rejected. Same "till delivered" scope as the mobile
     // dashboard's equivalent card. Department filtering happens below (post-fetch) since
     // it's on the doubly-nested work_orders relation.
-    admin.from('product_request_items').select('id, quantity, status, products(name), product_requests(work_orders(wo_number, department_id))').in('status', ['pending', 'approved', 'dispatched']).order('created_at', { ascending: false }).limit(24),
+    admin.from('product_request_items').select('id, quantity, status, zfod, products(name), product_requests(work_orders(wo_number, department_id))').in('status', ['pending', 'approved', 'dispatched']).order('created_at', { ascending: false }).limit(24),
     // Genuinely missed: still in_progress (was checked into / had a follow-up) but the
     // follow-up date has already passed with no closure since.
     scopeWo(admin.from('work_orders').select('id, wo_number, status, scheduled_date, engineer_id, department_id, customers(name)').eq('status', 'in_progress').lt('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(6)),
@@ -256,7 +257,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const needsReassignList = ((needsReassignRows as unknown as BriefRow[]) || []).map(toBrief)
   const unassignedList = ((unassignedRows as unknown as BriefRow[]) || []).map(toBrief)
 
-  type ApprovalRowRaw = { id: string; quantity: number; status: string; products: { name: string } | null; product_requests: { work_orders: { wo_number: string; department_id: string | null } | null } | null }
+  type ApprovalRowRaw = { id: string; quantity: number; status: string; zfod: string | null; products: { name: string } | null; product_requests: { work_orders: { wo_number: string; department_id: string | null } | null } | null }
   const pendingApprovals: DashboardApproval[] = ((approvalRowsRaw as unknown as ApprovalRowRaw[]) || [])
     .filter(r => !departmentScope || departmentScope.includes(r.product_requests?.work_orders?.department_id || ''))
     .slice(0, 6)
@@ -266,6 +267,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       productName: r.products?.name || 'Unknown product',
       woNumber: r.product_requests?.work_orders?.wo_number || '—',
       status: r.status,
+      zfod: r.zfod,
     }))
 
   type ExpiredTransformerRow = { id: string; serial_number: string; customers: { name: string } | null }

@@ -83,11 +83,14 @@ function RequestCard({ request }: { request: ProductRequestView }) {
       {request.items.map(item => {
         const cfg = PRODUCT_REQUEST_STATUS_CFG[item.status];
         return (
-          <View key={item.id} style={styles.itemRow}>
-            <Text style={styles.itemText}>{item.productName} × {item.quantity}</Text>
-            <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
-              <Text style={[styles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+          <View key={item.id}>
+            <View style={styles.itemRow}>
+              <Text style={styles.itemText}>{item.productName} × {item.quantity}</Text>
+              <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
+                <Text style={[styles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+              </View>
             </View>
+            {!!item.zfod && <Text style={styles.zfodText}>ZFOD: {item.zfod}</Text>}
           </View>
         );
       })}
@@ -115,6 +118,7 @@ const styles = StyleSheet.create({
   docket: { fontSize: 11, color: '#7D1D3F', fontWeight: '600', marginBottom: 8 },
   itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 5 },
   itemText: { fontSize: 12, color: '#1C0D14' },
+  zfodText: { fontSize: 10, color: '#7D1D3F', fontWeight: '600', marginTop: 1, marginBottom: 3 },
   badge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   badgeText: { fontSize: 9, fontWeight: '600' },
 });

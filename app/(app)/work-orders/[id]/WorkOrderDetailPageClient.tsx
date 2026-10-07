@@ -983,9 +983,12 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
                               delivered: { bg: '#D1FAE5', color: '#065F46', label: 'Delivered' },
                             }[item.status]
                             return (
-                              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12 }}>
-                                <span style={{ color: 'var(--tx)' }}>{item.productName} × {item.quantity}</span>
-                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>{cfg.label}</span>
+                              <div key={item.id} style={{ padding: '4px 0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
+                                  <span style={{ color: 'var(--tx)' }}>{item.productName} × {item.quantity}</span>
+                                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>{cfg.label}</span>
+                                </div>
+                                {item.zfod && <div style={{ fontSize: 10, color: 'var(--m)', fontWeight: 600, marginTop: 2 }}>ZFOD: {item.zfod}</div>}
                               </div>
                             )
                           })}

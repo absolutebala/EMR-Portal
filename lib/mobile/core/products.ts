@@ -24,6 +24,9 @@ export interface ProductRequestItemView {
   deliveredAt: string | null
   deliveryEstimate: string | null
   adminNotes: string | null
+  // SAP/order reference the Head of Service enters when approving the line; shown
+  // everywhere the item appears once approved.
+  zfod: string | null
 }
 
 export interface ProductRequestView {
@@ -57,13 +60,13 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
 
   const [{ data: requests }, { data: items }] = await Promise.all([
     admin.from('product_requests').select('id, work_order_id, engineer_id, damage_photo_urls, created_at, customer_name, oltc_sl_no, site_address, pincode, site_contact, docket_url, docket_number, docket_uploaded_at, work_orders(wo_number)').in('id', requestIds),
-    admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivered_at, delivery_estimate, admin_notes').in('request_id', requestIds),
+    admin.from('product_request_items').select('id, request_id, product_id, quantity, status, approved_by, approved_at, dispatched_at, delivered_at, delivery_estimate, admin_notes, zfod').in('request_id', requestIds),
   ])
 
   type ReqRow = { id: string; work_order_id: string; engineer_id: string | null; damage_photo_urls: string[]; created_at: string; customer_name: string | null; oltc_sl_no: string | null; site_address: string | null; pincode: string | null; site_contact: string | null; docket_url: string | null; docket_number: string | null; docket_uploaded_at: string | null; work_orders: { wo_number: string } | null }
   type ItemRow = {
     id: string; request_id: string; product_id: string; quantity: number; status: string
-    approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivered_at: string | null; delivery_estimate: string | null; admin_notes: string | null
+    approved_by: string | null; approved_at: string | null; dispatched_at: string | null; delivered_at: string | null; delivery_estimate: string | null; admin_notes: string | null; zfod: string | null
   }
   const reqRows = (requests as unknown as ReqRow[]) || []
   const itemRows = (items as unknown as ItemRow[]) || []
@@ -98,6 +101,7 @@ export async function fetchRequestViews(admin: AdminClient, requestIds: string[]
       deliveredAt: it.delivered_at,
       deliveryEstimate: it.delivery_estimate,
       adminNotes: it.admin_notes,
+      zfod: it.zfod,
     })
   }
 

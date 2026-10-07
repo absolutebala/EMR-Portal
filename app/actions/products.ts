@@ -208,6 +208,8 @@ export async function updateProductRequestItemStatus(
     // Dispatch docket (PDF/image) + optional docket/tracking number, stored on the request.
     docket?: { base64: string; mimeType: string; ext: string } | null
     docketNumber?: string | null
+    // ZFOD (SAP/order reference) — mandatory when approving a spare request line.
+    zfod?: string | null
   }
 ): Promise<{ error: string | null }> {
   try {
@@ -232,8 +234,12 @@ export async function updateProductRequestItemStatus(
       if (!allowed) return { error: 'Only Head of Service can approve or reject material requirements.' }
     }
 
+    // ZFOD is mandatory to approve a spare request line.
+    const zfod = (extra?.zfod ?? '').trim()
+    if (status === 'approved' && !zfod) return { error: 'ZFOD is required to approve.' }
+
     const patch: Record<string, unknown> = { status }
-    if (status === 'approved') { patch.approved_by = user.id; patch.approved_at = new Date().toISOString() }
+    if (status === 'approved') { patch.approved_by = user.id; patch.approved_at = new Date().toISOString(); patch.zfod = zfod }
     if (status === 'dispatched') { patch.dispatched_at = new Date().toISOString() }
     if (status === 'delivered') { patch.delivered_at = new Date().toISOString() }
     if (extra?.deliveryEstimate !== undefined) patch.delivery_estimate = extra.deliveryEstimate
@@ -285,10 +291,10 @@ export async function updateProductRequestItemStatus(
         // Engineer: dashboard bell + push. On dispatch, spell out the docket.
         const engBody = status === 'dispatched'
           ? `${actorName} dispatched "${productName}"${docketNumber ? ` (docket ${docketNumber})` : ''} for ${wo?.wo_number || 'your notification'}.`
-          : `${actorName} ${label[status].toLowerCase()} an item in your product request.`
+          : `${actorName} ${label[status].toLowerCase()} an item in your spare request${status === 'approved' && zfod ? ` (ZFOD ${zfod})` : ''}.`
         notifyUsers(admin, [{ userId: reqRow.engineer_id }], {
           type: 'product_request_status',
-          title: status === 'dispatched' ? 'Material dispatched' : `Product request ${status}`,
+          title: status === 'dispatched' ? 'Material dispatched' : `Spare request ${status}`,
           body: engBody,
           entityType: 'product_request_item', entityId: itemId,
           linkPath: reqRow.work_order_id ? `/mobile/work-orders/${reqRow.work_order_id}` : '/mobile/requests',

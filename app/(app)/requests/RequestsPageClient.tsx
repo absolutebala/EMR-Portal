@@ -62,10 +62,30 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [acting, setActing] = useState<{ id: string; status: string } | null>(null)
 
-  async function act(itemId: string, status: 'approved' | 'rejected' | 'delivered') {
+  async function act(itemId: string, status: 'rejected' | 'delivered') {
     setActing({ id: itemId, status })
     await updateProductRequestItemStatus(itemId, status)
     setActing(null)
+    router.refresh()
+  }
+
+  // Approving a line requires the Head of Service to enter the ZFOD (SAP/order
+  // reference) — collected in a small modal, then stored and shown everywhere after.
+  const [approveItemId, setApproveItemId] = useState<string | null>(null)
+  const [zfod, setZfod] = useState('')
+  const [approving, setApproving] = useState(false)
+  const [approveError, setApproveError] = useState('')
+  function openApprove(itemId: string) {
+    setApproveItemId(itemId); setZfod(''); setApproveError('')
+  }
+  async function submitApprove() {
+    if (!approveItemId) return
+    if (!zfod.trim()) { setApproveError('ZFOD is required to approve.'); return }
+    setApproving(true)
+    const { error } = await updateProductRequestItemStatus(approveItemId, 'approved', { zfod: zfod.trim() })
+    setApproving(false)
+    if (error) { setApproveError(error); return }
+    setApproveItemId(null)
     router.refresh()
   }
 
@@ -207,11 +227,14 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
                       {item.approverName && item.status !== 'pending' && ` · by ${item.approverName}`}
                       {item.deliveryEstimate && ` · Est. delivery ${formatDate(item.deliveryEstimate)}`}
                     </div>
+                    {item.zfod && (
+                      <div style={{ fontSize: 10, color: 'var(--m)', fontWeight: 600, marginTop: 2 }}>ZFOD: {item.zfod}</div>
+                    )}
                   </div>
                   <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: STATUS_CFG[item.status].bg, color: STATUS_CFG[item.status].color, whiteSpace: 'nowrap' }}>
                     {STATUS_CFG[item.status].label}
                   </span>
-                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} actingStatus={acting?.id === item.id ? acting.status : null} onAct={status => act(item.id, status)} onDispatch={() => openDispatch(item.id)} />
+                  <ItemActions item={item} canApprove={canApprove} canDispatch={canDispatch} canDeliver={canDeliver} actingStatus={acting?.id === item.id ? acting.status : null} onAct={status => act(item.id, status)} onApprove={() => openApprove(item.id)} onDispatch={() => openDispatch(item.id)} />
                 </div>
               ))}
             </div>
@@ -224,6 +247,22 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
           // eslint-disable-next-line @next/next/no-img-element
           <img src={enlargedPhoto} alt="Damaged product" style={{ display: 'block', margin: '0 auto', maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 8 }} />
         )}
+      </Modal>
+
+      <Modal open={!!approveItemId} onClose={() => !approving && setApproveItemId(null)} title="Approve — enter ZFOD" size="sm">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 4 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--tx)', marginBottom: 6 }}>ZFOD <span style={{ color: '#DC2626' }}>*</span></label>
+            <input autoFocus value={zfod} onChange={e => setZfod(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitApprove() }} placeholder="Enter ZFOD"
+              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--gm)', borderRadius: 8, fontSize: 13, fontFamily: 'Poppins,sans-serif', boxSizing: 'border-box' }} />
+          </div>
+          {approveError && <div style={{ fontSize: 12, color: '#DC2626' }}>{approveError}</div>}
+          <div style={{ fontSize: 11, color: 'var(--txm)' }}>The ZFOD is required to approve and will be shown with this spare request everywhere after.</div>
+          <button onClick={submitApprove} disabled={approving || !zfod.trim()}
+            style={{ padding: '11px', borderRadius: 8, border: 'none', background: (approving || !zfod.trim()) ? '#C9AEB8' : 'var(--m)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: (approving || !zfod.trim()) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif' }}>
+            {approving ? 'Approving…' : 'Approve'}
+          </button>
+        </div>
       </Modal>
 
       <Modal open={!!dispatchItemId} onClose={() => !dispatching && setDispatchItemId(null)} title="Dispatch — upload docket" size="md">
@@ -261,13 +300,14 @@ export default function RequestsPageClient({ requests, userName, userRole, canAp
   )
 }
 
-function ItemActions({ item, canApprove, canDispatch, canDeliver, actingStatus, onAct, onDispatch }: {
+function ItemActions({ item, canApprove, canDispatch, canDeliver, actingStatus, onAct, onApprove, onDispatch }: {
   item: ProductRequestItemView
   canApprove: boolean
   canDispatch: boolean
   canDeliver: boolean
   actingStatus: string | null
-  onAct: (status: 'approved' | 'rejected' | 'delivered') => void
+  onAct: (status: 'rejected' | 'delivered') => void
+  onApprove: () => void
   onDispatch: () => void
 }) {
   const isActing = actingStatus !== null
@@ -276,7 +316,7 @@ function ItemActions({ item, canApprove, canDispatch, canDeliver, actingStatus, 
   if (item.status === 'pending' && canApprove) {
     return (
       <div style={{ display: 'flex', gap: 6 }}>
-        <button disabled={isActing} onClick={() => onAct('approved')} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>{actingStatus === 'approved' ? 'Approving…' : 'Approve'}</button>
+        <button disabled={isActing} onClick={onApprove} style={{ ...btnStyle, background: '#D1FAE5', color: '#065F46' }}>Approve</button>
         <button disabled={isActing} onClick={() => onAct('rejected')} style={{ ...btnStyle, background: '#FEE2E2', color: '#991B1B' }}>{actingStatus === 'rejected' ? 'Rejecting…' : 'Reject'}</button>
       </div>
     )

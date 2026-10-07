@@ -594,6 +594,7 @@ export interface ProductRequestItemView {
   deliveredAt: string | null;
   deliveryEstimate: string | null;
   adminNotes: string | null;
+  zfod: string | null;
 }
 
 export interface ProductRequestView {
