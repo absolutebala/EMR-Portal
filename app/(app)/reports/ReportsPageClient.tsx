@@ -49,10 +49,12 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
   const [appliedFrom, setAppliedFrom] = useState('')
   const [appliedTo, setAppliedTo] = useState('')
 
-  function onSearch() { setAppliedSearch(searchInput.trim()); setAppliedFrom(fromInput); setAppliedTo(toInput) }
-  function onClear() { setSearchInput(''); setFromInput(''); setToInput(''); setAppliedSearch(''); setAppliedFrom(''); setAppliedTo('') }
+  function onSearch() { setAppliedSearch(searchInput.trim()); setAppliedFrom(fromInput); setAppliedTo(toInput); setWeekSel('') }
+  function onClear() { setSearchInput(''); setFromInput(''); setToInput(''); setAppliedSearch(''); setAppliedFrom(''); setAppliedTo(''); setWeekSel('') }
 
-  // Weekly download: current week + the previous 7 (Monday–Sunday).
+  // "Select Week" is a quick way to set the date range (current week + previous 7,
+  // Monday–Sunday); picking one fills + applies the From/To filter so the table and the
+  // export both scope to it. "All dates" clears the range.
   const weeks = useMemo(() => {
     const out: { from: string; to: string; label: string }[] = []
     const thisMon = startOfWeek(new Date())
@@ -64,11 +66,22 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
     }
     return out
   }, [])
-  const [weekIdx, setWeekIdx] = useState(0)
+  const [weekSel, setWeekSel] = useState('')
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
-  function downloadWeekly(format: 'xlsx' | 'pdf') {
-    const w = weeks[weekIdx]
-    if (w) window.location.href = `/api/reports/weekly?format=${format}&from=${w.from}&to=${w.to}`
+  function selectWeek(val: string) {
+    setWeekSel(val)
+    if (val === '') { setFromInput(''); setToInput(''); setAppliedFrom(''); setAppliedTo('') }
+    else { const w = weeks[Number(val)]; if (w) { setFromInput(w.from); setToInput(w.to); setAppliedFrom(w.from); setAppliedTo(w.to) } }
+  }
+  // Export EVERY row matching the current filters (status tab + search + date range) —
+  // all pages — generated server-side so nothing is capped to the visible page.
+  function downloadExport(format: 'xlsx' | 'pdf') {
+    const params = new URLSearchParams({ format })
+    if (tab !== 'all') params.set('tab', tab)
+    if (appliedSearch) params.set('search', appliedSearch)
+    if (appliedFrom) params.set('from', appliedFrom)
+    if (appliedTo) params.set('to', appliedTo)
+    window.location.href = `/api/reports/export?${params.toString()}`
     setShowDownloadMenu(false)
   }
 
@@ -119,7 +132,8 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txm)', marginBottom: 5 }}>Select Week</label>
-              <select value={weekIdx} onChange={e => setWeekIdx(Number(e.target.value))} style={{ ...inputStyle, minWidth: 280, cursor: 'pointer' }}>
+              <select value={weekSel} onChange={e => selectWeek(e.target.value)} style={{ ...inputStyle, minWidth: 280, cursor: 'pointer' }}>
+                <option value="">All dates</option>
                 {weeks.map((w, i) => <option key={w.from} value={i}>{w.label}</option>)}
               </select>
             </div>
@@ -129,15 +143,15 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
                 background: 'var(--m)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
               }}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Download Weekly Reports
+                Download Reports
                 <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               {showDownloadMenu && (
                 <>
                   <div onClick={() => setShowDownloadMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
                   <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 11, overflow: 'hidden', minWidth: 210 }}>
-                    <button onClick={() => downloadWeekly('xlsx')} style={menuItem}>Download as Excel (.xlsx)</button>
-                    <button onClick={() => downloadWeekly('pdf')} style={{ ...menuItem, borderTop: '1px solid var(--gl)' }}>Download as PDF (.pdf)</button>
+                    <button onClick={() => downloadExport('xlsx')} style={menuItem}>Download as Excel (.xlsx)</button>
+                    <button onClick={() => downloadExport('pdf')} style={{ ...menuItem, borderTop: '1px solid var(--gl)' }}>Download as PDF (.pdf)</button>
                   </div>
                 </>
               )}
@@ -145,7 +159,7 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
           </div>
           <div style={{ fontSize: 11, color: 'var(--txm)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-            The file includes all complaints with current status, customer details, site information and assigned engineer.
+            Exports every complaint matching the current tab, search and date filters — all pages — with status, customer, site and engineer.
           </div>
         </div>
 
