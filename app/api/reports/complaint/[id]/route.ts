@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   pdf.logoLeftWithPill('Complaint')
 
   pdf.doc.font('Helvetica-Bold').fontSize(16).fillColor('#1C0D14').text('Complaint Report', pdf.x0, pdf.y, { width: pdf.W })
-  pdf.doc.font('Helvetica').fontSize(10).fillColor('#555').text(`Notification No. ${wo.wo_number}${wo.ticket_number ? `  ·  Complaint No. ${wo.ticket_number}` : ''}`, pdf.x0, pdf.y, { width: pdf.W })
+  pdf.doc.font('Helvetica').fontSize(10).fillColor('#555').text(`${wo.ticket_number ? `Complaint No. ${wo.ticket_number}  ·  ` : ''}Notification No. ${wo.wo_number}`, pdf.x0, pdf.y, { width: pdf.W })
   // Status pill.
   pdf.gap(6)
   {

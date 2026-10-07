@@ -16,6 +16,30 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+type SortKey = 'complaintNo' | 'notificationNo' | 'customer' | 'site' | 'engineer' | 'issue' | 'status' | 'date'
+const STATUS_ORDER: ReportStatusGroup[] = ['open', 'in_progress', 'closed']
+function sortVal(r: ComplaintReportRow, k: SortKey): string | number {
+  switch (k) {
+    case 'complaintNo': return r.ticketNumber || ''
+    case 'notificationNo': return r.woNumber || ''
+    case 'customer': return r.customerName || ''
+    case 'site': return r.siteName || ''
+    case 'engineer': return r.engineerName || ''
+    case 'issue': return r.customerIssue || ''
+    case 'status': return STATUS_ORDER.indexOf(reportStatusGroup(r.status))
+    case 'date': return r.complaintDate ? new Date(r.complaintDate).getTime() : 0
+  }
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 0, marginLeft: 3 }}>
+      <svg width="7" height="4" viewBox="0 0 10 6" style={{ opacity: active && dir === 'asc' ? 1 : 0.3 }}><path d="M5 0l5 6H0z" fill="currentColor" /></svg>
+      <svg width="7" height="4" viewBox="0 0 10 6" style={{ opacity: active && dir === 'desc' ? 1 : 0.3, marginTop: 2 }}><path d="M5 6L0 0h10z" fill="currentColor" /></svg>
+    </span>
+  )
+}
+
 interface Props {
   initialRows: ComplaintReportRow[]
   initialError: string | null
@@ -76,8 +100,28 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
   }, [scoped])
 
   const filtered = useMemo(() => tab === 'all' ? scoped : scoped.filter(r => reportStatusGroup(r.status) === tab), [scoped, tab])
-  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(filtered, 8)
-  useEffect(() => { setPage(1) }, [tab, appliedSearch, dateFrom, dateTo, setPage])
+
+  // Click-to-sort on any column (asc first, then toggles to desc).
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(k); setSortDir('asc') }
+  }
+  const sorted = useMemo(() => {
+    const arr = [...filtered]
+    arr.sort((a, b) => {
+      const av = sortVal(a, sortKey), bv = sortVal(b, sortKey)
+      let c: number
+      if (typeof av === 'number' && typeof bv === 'number') c = av - bv
+      else { const as = String(av).toLowerCase(), bs = String(bv).toLowerCase(); c = as < bs ? -1 : as > bs ? 1 : 0 }
+      return sortDir === 'asc' ? c : -c
+    })
+    return arr
+  }, [filtered, sortKey, sortDir])
+
+  const { page, setPage, totalPages, pageItems, total, pageSize } = usePagination(sorted, 8)
+  useEffect(() => { setPage(1) }, [tab, appliedSearch, dateFrom, dateTo, sortKey, sortDir, setPage])
 
   // Export EVERY row matching the current list (status tab + search + date range) — all
   // pages — generated server-side so nothing is capped to the visible page.
@@ -169,24 +213,32 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
               <thead>
                 <tr>
                   <th style={th}>#</th>
-                  <th style={th}>Notification No.</th>
-                  <th style={th}>Customer Name</th>
-                  <th style={th}>Site</th>
-                  <th style={th}>Engineer</th>
-                  <th style={th}>Customer Issue</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Complaint Date</th>
+                  {([
+                    ['complaintNo', 'Complaint No.'],
+                    ['notificationNo', 'Notification No.'],
+                    ['customer', 'Customer Name'],
+                    ['site', 'Site'],
+                    ['engineer', 'Engineer'],
+                    ['issue', 'Customer Issue'],
+                    ['status', 'Status'],
+                    ['date', 'Complaint Date'],
+                  ] as [SortKey, string][]).map(([key, label]) => (
+                    <th key={key} style={{ ...th, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort(key)}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<SortIcon active={sortKey === key} dir={sortDir} /></span>
+                    </th>
+                  ))}
                   <th style={th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.length === 0 ? (
-                  <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--txm)', padding: 36 }}>No reports found.</td></tr>
+                  <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--txm)', padding: 36 }}>No reports found.</td></tr>
                 ) : pageItems.map((r, i) => {
                   const meta = STATUS_GROUP_META[reportStatusGroup(r.status)]
                   return (
                     <tr key={r.id}>
                       <td style={td}>{(page - 1) * pageSize + i + 1}</td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{r.ticketNumber || '—'}</td>
                       <td style={{ ...td, fontWeight: 600, whiteSpace: 'nowrap' }}>{r.woNumber}</td>
                       <td style={td}>{r.customerName}</td>
                       <td style={td}>{r.siteName || '—'}</td>

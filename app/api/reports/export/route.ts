@@ -41,9 +41,9 @@ export async function GET(req: NextRequest) {
     .filter(r => !to || (r.complaintDate && r.complaintDate.slice(0, 10) <= to))
     .sort((a, b) => (a.complaintDate && b.complaintDate ? (a.complaintDate < b.complaintDate ? 1 : -1) : 0))
 
-  const header = ['#', 'Notification No.', 'Customer Name', 'Site', 'Engineer', 'Customer Issue', 'Status', 'Complaint Date']
+  const header = ['#', 'Complaint No.', 'Notification No.', 'Customer Name', 'Site', 'Engineer', 'Customer Issue', 'Status', 'Complaint Date']
   const body = matched.map((r, i) => [
-    String(i + 1), r.woNumber, r.customerName, r.siteName, r.engineerName,
+    String(i + 1), r.ticketNumber, r.woNumber, r.customerName, r.siteName, r.engineerName,
     r.customerIssue, STATUS_LABEL[reportStatusGroup(r.status)], fmtDate(r.complaintDate),
   ])
 
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   if (format === 'xlsx') {
     const aoa: string[][] = [['Complaints Report'], [scopeLabel], [INFO_NOTE], [], header, ...body]
     const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!cols'] = [{ wch: 5 }, { wch: 18 }, { wch: 26 }, { wch: 24 }, { wch: 22 }, { wch: 40 }, { wch: 13 }, { wch: 16 }]
+    ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 16 }, { wch: 26 }, { wch: 24 }, { wch: 22 }, { wch: 40 }, { wch: 13 }, { wch: 16 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Complaints')
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
@@ -80,15 +80,16 @@ export async function GET(req: NextRequest) {
   pdf.gap(10)
   const cols = [
     { header: '#', frac: 0.04 },
-    { header: 'Notification No.', frac: 0.12 },
-    { header: 'Customer Name', frac: 0.16 },
-    { header: 'Site', frac: 0.15 },
-    { header: 'Engineer', frac: 0.13 },
-    { header: 'Customer Issue', frac: 0.22 },
-    { header: 'Status', frac: 0.09 },
-    { header: 'Complaint Date', frac: 0.09 },
+    { header: 'Complaint No.', frac: 0.11 },
+    { header: 'Notification No.', frac: 0.11 },
+    { header: 'Customer Name', frac: 0.15 },
+    { header: 'Site', frac: 0.13 },
+    { header: 'Engineer', frac: 0.12 },
+    { header: 'Customer Issue', frac: 0.18 },
+    { header: 'Status', frac: 0.08 },
+    { header: 'Complaint Date', frac: 0.08 },
   ]
-  pdf.table(cols, body.length ? body : [['', '', 'No complaints match the current filters.', '', '', '', '', '']])
+  pdf.table(cols, body.length ? body : [['', '', '', 'No complaints match the current filters.', '', '', '', '', '']])
   const buf = await pdf.finish()
   return new NextResponse(new Uint8Array(buf), {
     headers: {
