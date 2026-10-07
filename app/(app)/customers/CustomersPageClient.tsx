@@ -13,8 +13,6 @@ import Pagination, { usePagination } from '@/components/ui/Pagination'
 import { deleteCustomer, deleteCustomersBulk, type BlockingNotification } from '@/app/actions/save-customer'
 import type { Customer } from '@/lib/types'
 
-const COLORS = ['#7D1D3F', '#5B6AC4', '#0891B2', '#D97706', '#059669', '#7C3AED']
-
 interface CustomerWithCounts extends Customer {
   site_count: number
   sn_count: number
@@ -151,10 +149,6 @@ export default function CustomersPageClient({ customers, userName, userRole, per
     router.refresh()
   }
 
-  function getInitials(name: string) {
-    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-  }
-
   // Select-all applies to the customers currently visible on this page.
   const pageAllSelected = pageItems.length > 0 && pageItems.every(c => selected.has(c.id))
   function toggleSelectPage() {
@@ -237,7 +231,7 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((c, i) => (
+                {pageItems.map(c => (
                   <tr key={c.id} style={{ borderBottom: '1px solid var(--gm)', cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--mp)'}
                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ''}>
@@ -247,18 +241,13 @@ export default function CustomersPageClient({ customers, userName, userRole, per
                       </td>
                     )}
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)', whiteSpace: 'nowrap' }} onClick={() => router.push(`/customers/${c.id}`)}>{c.sap_customer_code || '—'}</td>
-                    <td style={{ padding: '10px 14px' }} onClick={() => router.push(`/customers/${c.id}`)}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: COLORS[i % COLORS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                          {getInitials(c.name)}
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m)' }}>{c.name}</span>
-                      </div>
+                    <td style={{ padding: '10px 14px', minWidth: 240 }} onClick={() => router.push(`/customers/${c.id}`)}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m)' }}>{c.name}</span>
                     </td>
                     <td style={{ padding: '10px 14px' }}><CustomerTypeBadge type={c.type} /></td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{c.end_customer_type_name || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx)' }}>{c.contact_person}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>{c.phone}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)', whiteSpace: 'nowrap' }}>{c.phone}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{c.site_count}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{c.sn_count}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--txm)' }}>—</td>

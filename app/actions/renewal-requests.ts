@@ -82,42 +82,18 @@ export async function requestRenewal(
       ? addYears(previousExpiry || todayIso(), years)
       : addYears(todayIso(), years)
 
-    const immediate = actor.role === 'Head of Service' || actor.role === 'Super Admin'
+    // Warranty extend/renew now applies immediately for everyone — the Renewal Requests
+    // approval queue has been retired/hidden, so a pending request would have nowhere to
+    // be actioned. The transformer update is the real effect and is the only awaited step
+    // so the submit returns promptly; the history row + activity are best-effort.
     const now = new Date().toISOString()
-
-    if (immediate) {
-      await applyRenewal(admin, transformerId, newExpiry)
-      await admin.from('renewal_requests').insert({
-        transformer_id: transformerId, request_type: input.type, years, comments: input.comments,
-        requested_by: user.id, status: 'approved', reviewed_by: user.id, reviewed_at: now,
-        previous_expiry_date: previousExpiry, new_expiry_date: newExpiry,
-      })
-      logActivity(admin, { actorId: user.id, actorName, action: `${input.type === 'extend' ? 'Extended' : 'Renewed'} warranty for ${tx.serial_number} (${years} yr)`, entityType: 'transformer', entityId: transformerId }).catch(() => {})
-      return { error: null }
-    }
-
-    const status: RenewalRequestStatus = actor.role === 'Service Manager' ? 'manager_approved' : 'pending'
-    const { error } = await admin.from('renewal_requests').insert({
+    await applyRenewal(admin, transformerId, newExpiry)
+    admin.from('renewal_requests').insert({
       transformer_id: transformerId, request_type: input.type, years, comments: input.comments,
-      requested_by: user.id, status,
-      manager_approved_by: status === 'manager_approved' ? user.id : null,
-      manager_approved_at: status === 'manager_approved' ? now : null,
+      requested_by: user.id, status: 'approved', reviewed_by: user.id, reviewed_at: now,
       previous_expiry_date: previousExpiry, new_expiry_date: newExpiry,
-    })
-    if (error) return { error: error.message }
-
-    // Notify the next stage's approvers.
-    const targets = status === 'pending'
-      ? [{ role: 'Service Manager' as const }, { role: 'Head of Service' as const }, { role: 'Super Admin' as const }]
-      : [{ role: 'Head of Service' as const }, { role: 'Super Admin' as const }]
-    notifyUsers(admin, targets, {
-      type: 'renewal_request',
-      title: 'Warranty renewal needs approval',
-      body: `${actorName} requested a warranty ${input.type} for ${tx.serial_number} (${years} yr).`,
-      entityType: 'transformer', entityId: transformerId, linkPath: '/renewal-requests',
-    }).catch(() => {})
-    logActivity(admin, { actorId: user.id, actorName, action: `Requested warranty ${input.type} for ${tx.serial_number} (${years} yr)`, entityType: 'transformer', entityId: transformerId }).catch(() => {})
-
+    }).then(() => {}, () => {})
+    logActivity(admin, { actorId: user.id, actorName, action: `${input.type === 'extend' ? 'Extended' : 'Renewed'} warranty for ${tx.serial_number} (${years} yr)`, entityType: 'transformer', entityId: transformerId }).catch(() => {})
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }

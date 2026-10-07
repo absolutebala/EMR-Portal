@@ -60,7 +60,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           content pushes the whole page wider than the viewport and the page itself
           scrolls horizontally instead of the offending content scrolling internally. */}
       <div style={{ marginLeft: 'var(--sidebar-w, 230px)', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left .18s ease' }}>
-        {children}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>{children}</div>
+        <footer style={{ padding: '6px 20px', textAlign: 'right', fontSize: 10.5, color: 'var(--txm)' }}>
+          Application Developed by{' '}
+          <a href="https://ittrident.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--m)', textDecoration: 'none', fontWeight: 600 }}>itTrident</a>
+        </footer>
       </div>
     </div>
   )

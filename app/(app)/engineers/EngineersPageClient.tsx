@@ -11,6 +11,19 @@ import { deleteUser } from '@/app/actions/delete-user'
 import type { FieldEngineerOverview, EngineerStatus } from '@/app/actions/get-engineers'
 import type { Profile } from '@/lib/types'
 
+// Profile icon for an engineer — their uploaded photo, else coloured initials (same
+// style as the Users page). Colour is deterministic from the id so it stays stable.
+const AV_COLORS = ['#7D1D3F', '#1D4ED8', '#059669', '#D97706', '#5B21B6', '#9A3412', '#0891B2']
+function engineerAvatar(name: string, id: string, avatarUrl?: string | null) {
+  if (avatarUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={avatarUrl} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+  }
+  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return <span style={{ width: 28, height: 28, borderRadius: '50%', background: AV_COLORS[h % AV_COLORS.length], display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, color: '#fff', flexShrink: 0 }}>{initials}</span>
+}
+
 const STATUS_CONFIG: Record<EngineerStatus, { label: string; bg: string; color: string }> = {
   available: { label: 'Available', bg: '#D1FAE5', color: '#065F46' },
   unavailable: { label: 'Unavailable', bg: '#F3F4F6', color: '#6B7280' },
@@ -183,7 +196,10 @@ export default function EngineersPageClient({ engineers, userName, userRole, per
                   {pageItems.map(e => (
                     <tr key={e.id} style={{ borderBottom: '1px solid var(--gm)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        <Link href={`/engineers/${e.id}`} style={{ color: 'var(--m)', textDecoration: 'none' }}>{e.name}</Link>
+                        <Link href={`/engineers/${e.id}`} style={{ color: 'var(--m)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                          {engineerAvatar(e.name, e.id, e.avatarUrl)}
+                          {e.name}
+                        </Link>
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--txm)' }}>{e.employee_id}</td>
                       <td style={{ padding: '10px 14px' }}><StatusBadge status={e.status} statusSiteName={e.statusSiteName} statusStartBy={e.statusStartBy} scheduledTodayCustomer={e.scheduledTodayCustomer} /></td>

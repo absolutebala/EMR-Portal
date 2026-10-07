@@ -48,7 +48,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
     const { error } = await updateCustomer(customer.id, {
       name: form.name, type: form.type,
       contact_person: form.contact_person, phone: form.phone,
-      email: form.email || null, whatsapp_number: form.whatsapp_number || null,
+      email: form.email || null, whatsapp_number: form.whatsapp_number || form.phone || null,
       address: form.address || null,
     })
     setSaving(false)
@@ -56,7 +56,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
     setCustomer(c => ({
       ...c, name: form.name, type: form.type as Customer['type'],
       contact_person: form.contact_person, phone: form.phone,
-      email: form.email || null, whatsapp_number: form.whatsapp_number || null,
+      email: form.email || null, whatsapp_number: form.whatsapp_number || form.phone || null,
       designation: form.designation || null,
       sap_customer_code: form.sap_customer_code || null,
       address: form.address || null,
@@ -147,7 +147,7 @@ export default function CustomerInfoClient({ customer: init, canEdit }: Props) {
             ['Phone', customer.phone],
             ['Email', customer.email || '—'],
             ['Address', customer.address || '—'],
-            ['WhatsApp', customer.whatsapp_number || '—'],
+            ['WhatsApp', customer.whatsapp_number || customer.phone || '—'],
             ['SAP code', customer.sap_customer_code || '—'],
           ].map(([label, value]) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--gm)', fontSize: 12 }}>

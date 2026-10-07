@@ -86,6 +86,7 @@ export interface FieldEngineerOverview {
   name: string
   employee_id: string
   phone: string | null
+  avatarUrl: string | null
   status: EngineerStatus
   // Site name the status refers to, for on_the_way / travelling / reached / completed.
   statusSiteName: string | null
@@ -122,7 +123,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
   try {
     const admin = adminClient()
 
-    const PROFILE_COLS = 'id, first_name, last_name, employee_id, display_order, phone, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, engineer_status_start_by, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
+    const PROFILE_COLS = 'id, first_name, last_name, employee_id, display_order, phone, avatar_url, last_active_at, engineer_status, engineer_status_work_order_id, engineer_status_updated_at, engineer_status_start_by, last_seen_lat, last_seen_lng, last_seen_place_label, last_seen_at'
 
     // Build the roster from real activity (assigned work orders, site check-ins) rather
     // than filtering profiles by an exact role name — a role string that doesn't match
@@ -339,6 +340,7 @@ export async function getFieldEngineersOverview(): Promise<{ engineers: FieldEng
         name: `${p.first_name} ${p.last_name}`,
         employee_id: p.employee_id,
         phone: p.phone,
+        avatarUrl: (p as { avatar_url?: string | null }).avatar_url ?? null,
         status: resolveDisplayStatus({ rawStatus: p.engineer_status, statusUpdatedAt: p.engineer_status_updated_at, istTodayStr, reachedAtProject, todayRow: todayRowByEng[p.id] ?? null, prevDayStatus: prevDayStatusByEng[p.id] ?? null, istHour: nowIstHour }),
         statusSiteName,
         statusStartBy: p.engineer_status_start_by,
