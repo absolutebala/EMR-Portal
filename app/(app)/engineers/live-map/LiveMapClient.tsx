@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useAutoRefresh } from '@/lib/useAutoRefresh'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Topbar from '@/components/layout/Topbar'
@@ -184,10 +185,7 @@ export default function LiveMapClient({ engineers, error, userName, userRole }: 
   // last-known position (updated passively when their app is open), not a continuous
   // real-time feed, so a periodic full-page refresh is enough rather than a
   // websocket/polling API.
-  useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === 'visible') router.refresh() }, REFRESH_MS)
-    return () => clearInterval(id)
-  }, [router])
+  useAutoRefresh(() => router.refresh(), REFRESH_MS)
 
   const filteredEngineers = useMemo(() => {
     const q = search.trim().toLowerCase()
