@@ -272,7 +272,11 @@ export async function updateProductRequestItemStatus(
 
     if (item?.request_id) {
       const { data: reqRow } = await admin.from('product_requests').select('engineer_id, work_order_id').eq('id', item.request_id).maybeSingle()
-      const productName = item.products?.[0]?.name || 'item'
+      // PostgREST returns a many-to-one embed (products via product_id) as a single
+      // object, though the generated types widen it to an array — handle both so the
+      // product name actually lands in the notification/WhatsApp instead of the fallback.
+      const prod = item.products as unknown as { name?: string } | { name?: string }[] | null
+      const productName = (Array.isArray(prod) ? prod[0]?.name : prod?.name) || 'item'
       const { data: wo } = reqRow?.work_order_id
         ? await admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', reqRow.work_order_id).maybeSingle()
         : { data: null }

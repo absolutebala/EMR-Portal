@@ -180,7 +180,14 @@ export default function WorkOrderDetailScreen() {
             <Text style={styles.rsTitle}>Reschedule notification</Text>
             <Text style={styles.rsSub}>Pick a new date — the customer will be notified.</Text>
             <View style={styles.rsPickerWrap}>
-              <DateTimePicker value={rescheduleDate} mode="date" minimumDate={new Date()} onChange={onRescheduleDateChange} />
+              <DateTimePicker
+                value={rescheduleDate}
+                mode="date"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={onRescheduleDateChange}
+                style={styles.rsPicker}
+              />
             </View>
             <Pressable style={[styles.rsBtn, rescheduleBusy && styles.customerActionBtnOff]} onPress={handleReschedule} disabled={rescheduleBusy}>
               <Text style={styles.rsBtnText}>{rescheduleBusy ? 'Rescheduling…' : 'Reschedule & notify'}</Text>
@@ -465,6 +472,7 @@ const styles = StyleSheet.create({
   rsTitle: { fontSize: 16, fontWeight: '700', color: '#1C0D14' },
   rsSub: { fontSize: 12, color: '#7A6870', marginTop: 3, marginBottom: 10 },
   rsPickerWrap: { alignItems: 'center', marginBottom: 12 },
+  rsPicker: { width: '100%' },
   rsBtn: { backgroundColor: '#7D1D3F', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
   rsBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   rsCancel: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },

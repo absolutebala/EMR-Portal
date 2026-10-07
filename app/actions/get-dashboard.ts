@@ -118,7 +118,25 @@ type BriefRow = { id: string; wo_number: string; ticket_number: string; schedule
 // the viewing admin's own RLS grants. profiles in particular is RLS-locked to "view
 // your own row" for most roles, which silently made every notification's engineer
 // name resolve to a fallback string when this was fetched with the session client.
+// Safe fallback so a single transient failure in any of the ~15 parallel queries
+// below (a DB/PostgREST blip) degrades to an empty dashboard the auto-refresh then
+// recovers from, instead of rejecting the whole server render and bouncing the user
+// to the framework's "This page couldn't load" boundary.
+const EMPTY_DASHBOARD: DashboardData = {
+  engineers: [], recentNotifications: [], pendingApprovals: [], overdueList: [],
+  needsReassignList: [], unassignedList: [], offSiteUpdates: [], expiredWarrantyList: [],
+  overhaulingList: [], suspiciousLogins: [],
+  kpis: {
+    notificationBreakdown: { unassigned: 0, assigned: 0, in_progress: 0, needs_reassignment: 0 },
+    productRequestBreakdown: { pending: 0, approved: 0, dispatched: 0, delivered: 0 },
+    warrantyBreakdown: { under_warranty: 0, expired: 0, amc: 0 },
+    warrantyUnits: { underWarranty: 0, expiringSoon: 0, noWarranty: 0 },
+    jobTypeBreakdown: [], departmentBreakdown: [],
+  },
+}
+
 export async function getDashboardData(): Promise<DashboardData> {
+ try {
   const admin = adminClient()
   const todayStr = new Date().toLocaleDateString('en-CA')
   // Service Manager sees only their own department's notifications (and anything
@@ -357,4 +375,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   const { flags: suspiciousLogins } = await getSuspiciousLoginsCore(admin, loginNameById)
 
   return { engineers, recentNotifications, pendingApprovals, overdueList, needsReassignList, unassignedList, offSiteUpdates, expiredWarrantyList, overhaulingList, suspiciousLogins, kpis }
+ } catch (e) {
+   console.error('getDashboardData failed — returning empty dashboard:', e)
+   return EMPTY_DASHBOARD
+ }
 }

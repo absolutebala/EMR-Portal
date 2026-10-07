@@ -84,7 +84,7 @@ const CAMPAIGN_FIELDS: { key: keyof SettingsShape; label: string; params: string
   {
     key: 'whatsapp_campaign_product_request', label: 'Product request status — Engineer campaign',
     params: '1) Engineer name  2) Notification number  3) Status  4) Product name',
-    example: 'Hi {{1}}, your product request for notification *{{2}}* has been {{3}}.\n\nItem: {{4}}\n\nCheck the EMR Portal app for details.',
+    example: 'Hi {{1}}, your product request for notification *{{2}}* has been {{3}}.\n\nMaterial: {{4}}\n\nCheck the EMR Portal app for details.',
   },
   {
     key: 'whatsapp_campaign_product_requested_customer', label: 'Material requested — Customer campaign',
