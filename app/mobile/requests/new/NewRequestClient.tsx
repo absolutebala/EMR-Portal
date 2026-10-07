@@ -33,7 +33,6 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
   const [cart, setCart] = useState<Record<string, CartItem>>({})
   const [damagePhotos, setDamagePhotos] = useState<DamagePhoto[]>([])
   const [compressing, setCompressing] = useState(false)
@@ -63,7 +62,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
-    if (q.trim().length < 2) { setResults([]); setSearching(false); return }
+    if (q.trim().length < 1) { setResults([]); setSearching(false); return }
     setSearching(true)
     searchTimeout.current = setTimeout(async () => {
       const { products } = await searchProducts(q)
@@ -73,17 +72,6 @@ export default function NewRequestClient({ workOrders, error }: Props) {
   }, [])
 
   useEffect(() => () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }, [])
-
-  // Tapping the empty field shows a browse list right away, instead of making the
-  // engineer type something first to see anything at all.
-  async function handleFocus() {
-    if (hasSearched || query) return
-    setSearching(true)
-    const { products } = await searchProducts('')
-    setResults(products)
-    setSearching(false)
-    setHasSearched(true)
-  }
 
   function addToCart(product: Product) {
     // Short buzz so the engineer feels the product was added (Android; no-op on iOS).
@@ -245,7 +233,6 @@ export default function NewRequestClient({ workOrders, error }: Props) {
             <input
               value={query}
               onChange={e => handleQueryChange(e.target.value)}
-              onFocus={handleFocus}
               placeholder="Search by product name or SAP code…"
               style={inputStyle}
             />
@@ -269,7 +256,7 @@ export default function NewRequestClient({ workOrders, error }: Props) {
               </button>
             </div>
           ))}
-          {query.trim().length >= 2 && !searching && results.length === 0 && (
+          {query.trim().length >= 1 && !searching && results.length === 0 && (
             <p style={{ fontSize: 11, color: '#7A6870', marginTop: 4 }}>No products found for &quot;{query}&quot;</p>
           )}
         </div>

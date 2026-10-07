@@ -19,7 +19,6 @@ export default function NewRequestScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [damagePhotos, setDamagePhotos] = useState<CapturedPhoto[]>([]);
   const [capturing, setCapturing] = useState(false);
@@ -47,7 +46,6 @@ export default function NewRequestScreen() {
       setDamagePhotos([]);
       setQuery('');
       setResults([]);
-      setHasSearched(false);
       setSearching(false);
       setSelectedWoId(wo || '');
       setCustomerName('');
@@ -73,7 +71,7 @@ export default function NewRequestScreen() {
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    if (q.trim().length < 2) { setResults([]); setSearching(false); return; }
+    if (q.trim().length < 1) { setResults([]); setSearching(false); return; }
     setSearching(true);
     searchTimeout.current = setTimeout(async () => {
       const { products } = await searchProducts(q);
@@ -83,15 +81,6 @@ export default function NewRequestScreen() {
   }, []);
 
   useEffect(() => () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); }, []);
-
-  async function handleFocus() {
-    if (hasSearched || query) return;
-    setSearching(true);
-    const { products } = await searchProducts('');
-    setResults(products);
-    setSearching(false);
-    setHasSearched(true);
-  }
 
   function addToCart(product: Product) {
     // Short buzz so the engineer feels the product was added to the request.
@@ -251,7 +240,6 @@ export default function NewRequestScreen() {
               style={styles.input}
               value={query}
               onChangeText={handleQueryChange}
-              onFocus={handleFocus}
               placeholder="Search by product name or SAP code…"
               placeholderTextColor="#9CA3AF"
             />
@@ -268,7 +256,7 @@ export default function NewRequestScreen() {
               </Pressable>
             </View>
           ))}
-          {query.trim().length >= 2 && !searching && results.length === 0 && (
+          {query.trim().length >= 1 && !searching && results.length === 0 && (
             <Text style={styles.noResults}>No products found for &quot;{query}&quot;</Text>
           )}
         </View>
