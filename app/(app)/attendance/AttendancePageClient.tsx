@@ -670,35 +670,46 @@ export default function AttendancePageClient({ initialRows, initialError, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, customInvalid])
 
-  // Auto-refresh every 45s (silently — no loading spinner) so punches and approvals
-  // happening through the day appear without a manual reload. Refreshes BOTH the grid
-  // and the today summary stats (Present/Absent/Leave) — the stats are recomputed with
-  // the current clock server-side, so e.g. Absent flips up as the no-show cutoff passes.
-  // Only fires while the tab is visible and the current range is valid.
+  // Silently re-pull the grid, today's summary stats, and the approver badges for the
+  // current range — stats are recomputed with the current clock server-side, so e.g.
+  // Absent flips up as the no-show cutoff passes, and new punches/approvals appear
+  // without a manual reload.
+  const refreshAll = useCallback(() => {
+    if (customInvalid) return
+    getAttendanceOverview(range.from, range.to)
+      .then(({ rows: r, error: err }) => { setRows(r); if (err) setError(err) })
+      .catch(() => {})
+    getAttendanceStats()
+      .then(({ stats: s }) => { if (s) setStats(s) })
+      .catch(() => {})
+    if (canApprove) {
+      getPendingAttendanceAmendments().then(({ amendments: a }) => setAmendments(a)).catch(() => {})
+      getPendingLeaveRequests().then(({ requests }) => setLeaveRequests(requests)).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, customInvalid, canApprove])
+
+  // Auto-refresh every 45s while the tab is visible.
   useEffect(() => {
     const id = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-      if (customInvalid) return
-      getAttendanceOverview(range.from, range.to)
-        .then(({ rows: r, error: err }) => { setRows(r); if (err) setError(err) })
-        .catch(() => {})
-      getAttendanceStats()
-        .then(({ stats: s }) => { if (s) setStats(s) })
-        .catch(() => {})
-      // Keep the approver badges live too: new pending amendments and leave requests
-      // should appear without a manual reload.
-      if (canApprove) {
-        getPendingAttendanceAmendments()
-          .then(({ amendments: a }) => setAmendments(a))
-          .catch(() => {})
-        getPendingLeaveRequests()
-          .then(({ requests }) => setLeaveRequests(requests))
-          .catch(() => {})
-      }
+      refreshAll()
     }, 45000)
     return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.from, range.to, customInvalid, canApprove])
+  }, [refreshAll])
+
+  // Browsers throttle/pause timers in background tabs, so a page left open while the
+  // user worked elsewhere would show stale counts. Refresh immediately whenever the tab
+  // is brought back to the foreground (made visible or the window regains focus).
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshAll() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [refreshAll])
 
   function selectMode(mode: ViewMode) {
     setViewMode(mode)
