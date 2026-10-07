@@ -71,11 +71,13 @@ export async function GET(req: NextRequest) {
 
   const pdf = new PdfBuilder({ layout: 'landscape', margin: 32 })
   pdf.logoLeftWithPill('Complaints')
-  pdf.doc.font('Helvetica-Bold').fontSize(14).fillColor('#1C0D14').text('Complaints Report')
-  pdf.doc.font('Helvetica').fontSize(10).fillColor('#555').text(scopeLabel)
+  // Reset x to the left margin on every line (logoLeftWithPill leaves pdfkit's cursor at
+  // the pill on the right) and constrain to the page width so nothing wraps mid-header.
+  pdf.doc.font('Helvetica-Bold').fontSize(14).fillColor('#1C0D14').text('Complaints Report', pdf.x0, pdf.y, { width: pdf.W })
+  pdf.doc.font('Helvetica').fontSize(10).fillColor('#555').text(scopeLabel, pdf.x0, pdf.y, { width: pdf.W })
   pdf.gap(4)
-  pdf.doc.font('Helvetica-Oblique').fontSize(8).fillColor('#777').text(INFO_NOTE, { width: pdf.W })
-  pdf.gap(8)
+  pdf.doc.font('Helvetica-Oblique').fontSize(8).fillColor('#777').text(INFO_NOTE, pdf.x0, pdf.y, { width: pdf.W })
+  pdf.gap(10)
   const cols = [
     { header: '#', frac: 0.04 },
     { header: 'Notification No.', frac: 0.12 },

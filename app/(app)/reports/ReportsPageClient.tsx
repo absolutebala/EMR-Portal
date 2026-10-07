@@ -194,7 +194,10 @@ export default function ReportsPageClient({ initialRows, initialError, userName,
                       <td style={{ ...td, maxWidth: 260 }}>{r.customerIssue || '—'}</td>
                       <td style={td}><span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: meta.bg, color: meta.color, whiteSpace: 'nowrap' }}>{meta.label}</span></td>
                       <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtDate(r.complaintDate)}</td>
-                      <td style={td}><Link href={`/work-orders/${r.id}`} style={{ color: 'var(--m)', fontWeight: 600, textDecoration: 'none', fontSize: 11 }}>View</Link></td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                        <Link href={`/work-orders/${r.id}`} style={{ color: 'var(--m)', fontWeight: 600, textDecoration: 'none', fontSize: 11 }}>View</Link>
+                        <a href={`/api/reports/complaint/${r.id}?format=pdf`} title="Download this complaint's detailed report" style={{ color: 'var(--m)', fontWeight: 600, textDecoration: 'none', fontSize: 11, marginLeft: 12 }}>PDF</a>
+                      </td>
                     </tr>
                   )
                 })}
