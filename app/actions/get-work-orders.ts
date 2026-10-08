@@ -597,6 +597,17 @@ async function geocodeOnce(query: string): Promise<{ lat: number; lng: number; p
 // than no coordinates at all. Spaced ~1.1s apart — Nominatim's usage policy caps
 // free-tier use at 1 request/second.
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  // Prefer the PIN code when the address has one — an Indian 6-digit pincode geocodes
+  // unambiguously to the right city, whereas a free-form address often matches a
+  // same-named locality in the WRONG city (e.g. "Vishwakarma Industrial Area" exists in
+  // both Jaipur and Bengaluru), which silently produces a wildly wrong distance.
+  const pin = address.match(/\b([1-9]\d{5})\b/)?.[1]
+  if (pin) {
+    const byPin = await geocodeOnce(pin)
+    if (byPin) return byPin
+    await sleep(1100)
+  }
+
   const full = await geocodeOnce(address)
   if (full) return full
 
