@@ -687,9 +687,12 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
   // perfectly valid.
   let siteCoords = siteId ? await getSiteCoordinates(admin, siteId) : null
   if (!siteCoords) {
-    const { data: wo, error: woError } = await admin.from('work_orders').select('customer_id').eq('id', workOrderId).maybeSingle()
+    const { data: wo, error: woError } = await admin.from('work_orders').select('customer_id, direct_address').eq('id', workOrderId).maybeSingle()
     if (woError) console.error('getAssignableEngineers: work_orders lookup failed', woError.message)
     if (wo?.customer_id) siteCoords = await getCustomerCoordinates(admin, wo.customer_id)
+    // Direct-customer notifications have no linked customer/site — geocode the address
+    // typed on the notification itself so distance still ranks/shows for them.
+    if (!siteCoords && wo?.direct_address) siteCoords = await geocodeAddress(wo.direct_address)
     if (!siteCoords) console.error('getAssignableEngineers: no coordinates resolved', { workOrderId, siteId, customerId: wo?.customer_id })
   }
 
