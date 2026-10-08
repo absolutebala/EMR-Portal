@@ -86,14 +86,14 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
   async function handleBulkDelete() {
     const ids = [...selected]
     if (!ids.length) return
-    if (!confirm(`Delete ${ids.length} selected product${ids.length === 1 ? '' : 's'}? Any that are used in a spare request will be skipped.`)) return
+    if (!confirm(`Delete ${ids.length} selected spare${ids.length === 1 ? '' : 's'}? Any that are used in a spare request will be skipped.`)) return
     setBulkBusy(true); setBulkNotice('')
     const res = await deleteProductsBulk(ids)
     setBulkBusy(false)
     if (res.error) { setBulkNotice(res.error); return }
     const skipped = res.skipped || []
     const deletedN = res.deletedIds?.length ?? 0
-    let notice = `Deleted ${deletedN} product${deletedN === 1 ? '' : 's'}.`
+    let notice = `Deleted ${deletedN} spare${deletedN === 1 ? '' : 's'}.`
     if (skipped.length) {
       const names = skipped.map(s => products.find(p => p.id === s.id)?.name || 'Unknown').join(', ')
       notice += ` Skipped ${skipped.length} in use by spare requests: ${names}.`
@@ -138,7 +138,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
 
   return (
     <>
-      <Topbar title="Products" userName={userName} userRole={userRole} />
+      <Topbar title="Spares" userName={userName} userRole={userRole} />
       <div style={{ flex: 1, padding: '22px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--gm)', borderRadius: 8, padding: '7px 12px', flex: 1, maxWidth: 320 }}>
@@ -155,7 +155,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
             Bulk Upload
           </button>
           <button onClick={openAdd} style={{ background: 'var(--m)', color: '#fff', border: 'none', borderRadius: 7, padding: '9px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif' }}>
-            + Add Product
+            + Add Spare
           </button>
         </div>
 
@@ -164,7 +164,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--gm)', overflow: 'hidden' }}>
           {filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>
-              {products.length === 0 ? 'No products yet. Click "Add Product" to build the catalog.' : 'No products match your search.'}
+              {products.length === 0 ? 'No spares yet. Click "Add Spare" to build the catalog.' : 'No spares match your search.'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -212,7 +212,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
         </div>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Product' : 'Add Product'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Spare' : 'Add Spare'}>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>Product name <span style={{ color: 'var(--m)' }}>*</span></label>
           <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="e.g. Oil Surge Relay" />
@@ -235,7 +235,7 @@ export default function ProductsPageClient({ products, userName, userRole }: Pro
           disabled={saving}
           style={{ width: '100%', padding: '10px', borderRadius: 8, border: 'none', background: saving ? '#A8294F' : 'var(--m)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Poppins,sans-serif' }}
         >
-          {saving ? 'Saving…' : editing ? 'Save changes' : 'Add product'}
+          {saving ? 'Saving…' : editing ? 'Save changes' : 'Add spare'}
         </button>
       </Modal>
 

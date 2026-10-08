@@ -25,7 +25,7 @@ const NAV = [
   { section: 'Management', items: [
     { label: 'Users',      icon: 'users',      path: '/users',     permKey: 'Users — View' },
     { label: 'Customers',  icon: 'customers',  path: '/customers', permKey: 'Customers — View' },
-    { label: 'Products',   icon: 'products',   path: '/products',  permKey: 'Products — View' },
+    { label: 'Spares',   icon: 'products',   path: '/products',  permKey: 'Products — View' },
   ]},
   { section: 'Operations', items: [
     { label: 'Forms',             icon: 'forms',     path: '/forms',    permKey: 'Forms — View' },

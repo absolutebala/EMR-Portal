@@ -13,7 +13,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/forms': 'Forms',
   '/work-orders': 'Notifications',
   '/engineers': 'Field Engineers',
-  '/products': 'Products',
+  '/products': 'Spares',
   '/requests': 'Spare Requests',
   '/renewal-requests': 'Renewal Requests',
   '/activities': 'Activities',
