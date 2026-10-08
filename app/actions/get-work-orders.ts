@@ -646,6 +646,20 @@ async function getCustomerCoordinates(admin: ReturnType<typeof adminClient>, cus
   return geocoded
 }
 
+// Direct-customer notifications have no linked customer/site row to cache coordinates on,
+// so cache them on the work order itself (migration 123). Geocodes the typed-in address
+// once, then every later assign/open reads the stored coords — no repeated slow geocode.
+async function getWorkOrderCoordinates(admin: ReturnType<typeof adminClient>, workOrderId: string, directAddress: string): Promise<{ lat: number; lng: number; placeLabel: string | null } | null> {
+  const { data: wo } = await admin.from('work_orders').select('latitude, longitude, place_label').eq('id', workOrderId).maybeSingle()
+  if (wo?.latitude != null && wo?.longitude != null) return { lat: wo.latitude, lng: wo.longitude, placeLabel: wo.place_label ?? null }
+  if (!directAddress) return null
+  const geocoded = await geocodeAddress(directAddress)
+  if (!geocoded) return null
+  const { error: updateError } = await admin.from('work_orders').update({ latitude: geocoded.lat, longitude: geocoded.lng, place_label: geocoded.placeLabel }).eq('id', workOrderId)
+  if (updateError) console.error('getWorkOrderCoordinates: cache update failed', updateError.message)
+  return geocoded
+}
+
 export interface AssignableEngineer {
   id: string
   first_name: string
@@ -691,8 +705,8 @@ export async function getAssignableEngineers(workOrderId?: string): Promise<{ en
     if (woError) console.error('getAssignableEngineers: work_orders lookup failed', woError.message)
     if (wo?.customer_id) siteCoords = await getCustomerCoordinates(admin, wo.customer_id)
     // Direct-customer notifications have no linked customer/site — geocode the address
-    // typed on the notification itself so distance still ranks/shows for them.
-    if (!siteCoords && wo?.direct_address) siteCoords = await geocodeAddress(wo.direct_address)
+    // typed on the notification itself (cached on the work order so it only happens once).
+    if (!siteCoords && wo?.direct_address) siteCoords = await getWorkOrderCoordinates(admin, workOrderId, wo.direct_address)
     if (!siteCoords) console.error('getAssignableEngineers: no coordinates resolved', { workOrderId, siteId, customerId: wo?.customer_id })
   }
 

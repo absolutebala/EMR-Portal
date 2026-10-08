@@ -347,11 +347,13 @@ export default function WorkOrderDetailPageClient({ workOrderId }: { workOrderId
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([refreshDetail(), getAssignableEngineers(workOrderId), getProductRequestsForWorkOrder(workOrderId)]).then(([, { engineers: eng }, { requests }]) => {
-      setEngineers(eng)
+    Promise.all([refreshDetail(), getProductRequestsForWorkOrder(workOrderId)]).then(([, { requests }]) => {
       setProductRequests(requests)
       setLoading(false)
     })
+    // Suggested engineers load independently — resolving the project location for the
+    // distance ranking can involve a geocode, which must never hold up the page render.
+    getAssignableEngineers(workOrderId).then(({ engineers: eng }) => setEngineers(eng))
     getCurrentUserSummary().then(summary => {
       if (summary) setCurrentUser(summary)
     })
