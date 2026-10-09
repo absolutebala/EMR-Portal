@@ -207,28 +207,72 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
     router.refresh()
   }
 
-  const filtered = useMemo(() => workOrders.filter(wo => {
+  // Per-notification match flags for every filter, computed once so the list AND the
+  // per-option dropdown counts share the exact same logic.
+  const flags = useMemo(() => {
     const q = search.toLowerCase()
-    const matchSearch = !q || wo.wo_number.toLowerCase().includes(q) || (wo.serial_numbers?.join(' ').toLowerCase().includes(q)) || wo.customer_name?.toLowerCase().includes(q) || ''
-    // Default view hides completed notifications, except field-engineer-created ones
-    // whose expense approval is still pending/rejected (an admin still needs to act on
-    // those). Explicitly picking a status from the dropdown overrides the hide.
-    const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
-    // Open (active) shows everything except finished (completed/closed) work — but keeps
-    // a finished notification visible if it still needs approval OR has no engineer
-    // assigned (an unassigned notification needs someone to pick it up, so it belongs in
-    // the active queue even if a stale completion is still on it).
-    const matchStatus =
-      statusFilter === 'all' ? true
-      : statusFilter === 'open' ? ((wo.status !== 'completed' && wo.status !== 'closed') || feUnapproved || !wo.engineer_id)
-      : wo.status === statusFilter
-    const matchJob = !jobFilter || wo.job_type === jobFilter
-    const matchEng = !engFilter || wo.engineer_id === engFilter
-    const matchSm = !smFilter || wo.created_by === smFilter
-    const matchWarranty = !warrantyFilter || (wo.warranty_tiers || []).includes(warrantyFilter as WarrantyStatus)
-    const matchDepartment = !departmentFilter || (departmentFilter === NO_DEPARTMENT_ID ? !wo.department_id : wo.department_id === departmentFilter)
-    return matchSearch && matchStatus && matchJob && matchEng && matchSm && matchWarranty && matchDepartment
-  }), [workOrders, search, statusFilter, jobFilter, engFilter, smFilter, warrantyFilter, departmentFilter])
+    return workOrders.map(wo => {
+      const matchSearch = !q || wo.wo_number.toLowerCase().includes(q) || !!wo.serial_numbers?.join(' ').toLowerCase().includes(q) || !!wo.customer_name?.toLowerCase().includes(q)
+      // Default view hides completed notifications, except field-engineer-created ones
+      // whose expense approval is still pending/rejected (an admin still needs to act on
+      // those). Explicitly picking a status from the dropdown overrides the hide.
+      const feUnapproved = wo.expense_approval === 'pending' || wo.expense_approval === 'rejected'
+      // Open (active) shows everything except finished (completed/closed) work — but keeps
+      // a finished notification visible if it still needs approval OR has no engineer
+      // assigned (an unassigned notification needs someone to pick it up, so it belongs in
+      // the active queue even if a stale completion is still on it).
+      const isOpen = (wo.status !== 'completed' && wo.status !== 'closed') || feUnapproved || !wo.engineer_id
+      const matchStatus = statusFilter === 'all' ? true : statusFilter === 'open' ? isOpen : wo.status === statusFilter
+      const matchJob = !jobFilter || wo.job_type === jobFilter
+      const matchEng = !engFilter || wo.engineer_id === engFilter
+      const matchSm = !smFilter || wo.created_by === smFilter
+      const matchWarranty = !warrantyFilter || (wo.warranty_tiers || []).includes(warrantyFilter as WarrantyStatus)
+      const matchDepartment = !departmentFilter || (departmentFilter === NO_DEPARTMENT_ID ? !wo.department_id : wo.department_id === departmentFilter)
+      return { wo, isOpen, matchSearch, matchStatus, matchJob, matchEng, matchSm, matchWarranty, matchDepartment }
+    })
+  }, [workOrders, search, statusFilter, jobFilter, engFilter, smFilter, warrantyFilter, departmentFilter])
+
+  const filtered = useMemo(
+    () => flags.filter(f => f.matchSearch && f.matchStatus && f.matchJob && f.matchEng && f.matchSm && f.matchWarranty && f.matchDepartment).map(f => f.wo),
+    [flags],
+  )
+
+  // Faceted counts: each dropdown's option counts reflect the OTHER active filters (its
+  // own selection is ignored), so the numbers stay meaningful as you narrow down.
+  const facets = useMemo(() => {
+    const base = (exclude: string) => flags.filter(f =>
+      (exclude === 'search' || f.matchSearch) &&
+      (exclude === 'status' || f.matchStatus) &&
+      (exclude === 'job' || f.matchJob) &&
+      (exclude === 'eng' || f.matchEng) &&
+      (exclude === 'sm' || f.matchSm) &&
+      (exclude === 'warranty' || f.matchWarranty) &&
+      (exclude === 'department' || f.matchDepartment),
+    )
+    const tally = <K extends string>(rows: typeof flags, key: (wo: WorkOrder) => K | null | undefined) => {
+      const m: Record<string, number> = {}
+      rows.forEach(f => { const k = key(f.wo); if (k != null) m[k] = (m[k] || 0) + 1 })
+      return m
+    }
+    const sBase = base('status')
+    const status: Record<string, number> = {
+      all: sBase.length,
+      open: sBase.filter(f => f.isOpen).length,
+      ...tally(sBase, wo => wo.status),
+    }
+    const jBase = base('job'); const dBase = base('department'); const wBase = base('warranty')
+    const warranty: Record<string, number> = {}
+    wBase.forEach(f => (f.wo.warranty_tiers || []).forEach(t => { warranty[t] = (warranty[t] || 0) + 1 }))
+    return {
+      status,
+      job: tally(jBase, wo => wo.job_type), jobAll: jBase.length,
+      eng: tally(base('eng'), wo => wo.engineer_id), engAll: base('eng').length,
+      sm: tally(base('sm'), wo => wo.created_by), smAll: base('sm').length,
+      warranty, warrantyAll: wBase.length,
+      dept: tally(dBase, wo => wo.department_id), deptAll: dBase.length,
+      noDept: dBase.filter(f => !f.wo.department_id).length,
+    }
+  }, [flags])
 
   // Default sort: soonest/most-overdue first (Days Left ascending → -8, -7, 0, 1, 2…).
   const [sortKey, setSortKey] = useState<SortKey>('daysLeft')
@@ -313,37 +357,37 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search WO ID, serial no, customer…" style={{ border: 'none', outline: 'none', fontSize: 12, color: 'var(--tx)', background: 'transparent', fontFamily: 'Poppins,sans-serif', width: '100%' }} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="open">Open (active)</option>
-            <option value="all">All statuses</option>
-            <option value="unassigned">Unassigned</option>
-            <option value="assigned">Assigned</option>
-            <option value="in_progress">In Progress</option>
-            <option value="needs_reassignment">Need Reassign</option>
-            <option value="completed">Completed</option>
-            <option value="closed">Closed</option>
+            <option value="open">Open (active) ({facets.status.open || 0})</option>
+            <option value="all">All statuses ({facets.status.all || 0})</option>
+            <option value="unassigned">Unassigned ({facets.status.unassigned || 0})</option>
+            <option value="assigned">Assigned ({facets.status.assigned || 0})</option>
+            <option value="in_progress">In Progress ({facets.status.in_progress || 0})</option>
+            <option value="needs_reassignment">Need Reassign ({facets.status.needs_reassignment || 0})</option>
+            <option value="completed">Completed ({facets.status.completed || 0})</option>
+            <option value="closed">Closed ({facets.status.closed || 0})</option>
           </select>
           <select value={jobFilter} onChange={e => setJobFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All job types</option>
-            {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            <option value="">All job types ({facets.jobAll})</option>
+            {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l} ({facets.job[v] || 0})</option>)}
           </select>
           <select value={engFilter} onChange={e => setEngFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All engineers</option>
-            {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+            <option value="">All engineers ({facets.engAll})</option>
+            {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({facets.eng[e.id] || 0})</option>)}
           </select>
           <select value={warrantyFilter} onChange={e => setWarrantyFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All warranty</option>
-            <option value="under_warranty">Under Warranty</option>
-            <option value="expired">Expired</option>
-            <option value="amc">AMC</option>
+            <option value="">All warranty ({facets.warrantyAll})</option>
+            <option value="under_warranty">Under Warranty ({facets.warranty.under_warranty || 0})</option>
+            <option value="expired">Expired ({facets.warranty.expired || 0})</option>
+            <option value="amc">AMC ({facets.warranty.amc || 0})</option>
           </select>
           <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All departments</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            <option value={NO_DEPARTMENT_ID}>No Department</option>
+            <option value="">All departments ({facets.deptAll})</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({facets.dept[d.id] || 0})</option>)}
+            <option value={NO_DEPARTMENT_ID}>No Department ({facets.noDept})</option>
           </select>
           <select value={smFilter} onChange={e => setSmFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All service managers</option>
-            {serviceManagers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+            <option value="">All service managers ({facets.smAll})</option>
+            {serviceManagers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({facets.sm[m.id] || 0})</option>)}
           </select>
           {canEdit && (
             <button onClick={() => setShowNew(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--m)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'Poppins,sans-serif', whiteSpace: 'nowrap' }}>
