@@ -9,6 +9,7 @@ import type { ChartWindow, DashboardChartsData, SeriesItem } from '@/lib/dashboa
 
 const NO_DEPT = 'no-department'
 const JOB_ORDER = Object.keys(JOB_TYPE_LABELS)
+const MAX_WEEKS = 53 // guard against an enormous custom range
 
 // ── IST week helpers (operate on YYYY-MM-DD strings, which sort chronologically) ──
 function mondayOf(iso: string): string {
@@ -24,25 +25,23 @@ function labelOf(iso: string): string {
 function rangeOf(start: string): string {
   return `${labelOf(start)} – ${labelOf(addDays(start, 6))}`
 }
-// Index of the week bucket an IST date falls into, or -1.
 function bucketIdx(starts: string[], iso: string): number {
   for (let i = 0; i < starts.length; i++) if (iso >= starts[i] && iso <= addDays(starts[i], 6)) return i
   return -1
 }
 
-// Normalise a to-one embed that the generated types may widen to an array.
 function one<T>(v: T | T[] | null | undefined): T | undefined { return Array.isArray(v) ? v[0] : (v ?? undefined) }
 
 type WoRow = { created_at: string; job_type: string; department_id: string | null }
 type TsEmbedRow = { department_id: string | null }
 type WarrEmbed = { warranty_status: string | null; dispatch_date: string | null; warranty_years: number | null }
 
-export async function getDashboardCharts(): Promise<DashboardChartsData> {
+export async function getDashboardCharts(range?: { from: string; to: string }): Promise<DashboardChartsData> {
   const emptyWin: ChartWindow = { labels: [], ranges: [], ccc: { created: [], completed: [], closed: [] }, pt: { total: [], paid: [] }, job: [], dept: [], spare: { requested: [], approved: [], dispatched: [] } }
   const emptyData: DashboardChartsData = {
     status: { unassigned: 0, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0, closed: 0 },
     warranty: { underWarranty: 0, expiring: 0, noWarranty: 0 },
-    weeks: emptyWin, month: emptyWin,
+    window: emptyWin,
   }
   try {
     const admin = adminClient()
@@ -51,15 +50,15 @@ export async function getDashboardCharts(): Promise<DashboardChartsData> {
     const scopeWo = (q: any): any => (departmentScope ? q.or(`department_id.in.(${departmentScope.join(',')}),department_id.is.null`) : q)
     const inScope = (dept: string | null | undefined) => !departmentScope || dept == null || departmentScope.includes(dept)
 
-    // ── Window definitions (last 8 Mon–Sun weeks; current month's weeks) ──
+    // ── Resolve the selected range → whole Mon–Sun weeks covering it. Default: this IST month. ──
     const todayIso = getISTDateStr()
-    const thisMon = mondayOf(todayIso)
-    const weekStarts = Array.from({ length: 8 }, (_, i) => addDays(thisMon, -7 * (7 - i)))
-    const firstOfMonth = todayIso.slice(0, 8) + '01'
-    const lastOfMonth = (() => { const d = new Date(todayIso + 'T00:00:00Z'); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10) })()
-    const monthStarts: string[] = []
-    for (let m = mondayOf(firstOfMonth); m <= lastOfMonth; m = addDays(m, 7)) if (addDays(m, 6) >= firstOfMonth) monthStarts.push(m)
-    const fetchFrom = addDays(weekStarts[0], -1) // ≤ earliest week start, with a day of IST slack
+    const from = range?.from || (todayIso.slice(0, 8) + '01')
+    const to = range?.to || (() => { const d = new Date(todayIso + 'T00:00:00Z'); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10) })()
+    const weekStarts: string[] = []
+    for (let m = mondayOf(from); m <= to && weekStarts.length < MAX_WEEKS; m = addDays(m, 7)) weekStarts.push(m)
+    if (!weekStarts.length) weekStarts.push(mondayOf(from))
+    const fetchFrom = weekStarts[0]
+    const fetchTo = addDays(weekStarts[weekStarts.length - 1], 7) // exclusive upper bound
 
     const nowMs = Date.now()
     const STATUSES = ['unassigned', 'assigned', 'in_progress', 'needs_reassignment', 'completed', 'closed'] as const
@@ -68,29 +67,25 @@ export async function getDashboardCharts(): Promise<DashboardChartsData> {
       statusCounts,
       { data: openWarrRows },
       { data: woRows }, { data: completedRows }, { data: closedRows },
-      { data: reqRows }, { data: itemRows }, { data: deptRows },
+      { data: spareItemRows }, { data: deptRows },
     ] = await Promise.all([
-      // Status snapshot — head counts (no 10k row cap).
       Promise.all(STATUSES.map(async s => {
         const { count } = await scopeWo(admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('status', s))
         return count || 0
       })),
-      // Open notifications + their transformers' warranty, for the warranty snapshot.
       scopeWo(admin.from('work_orders').select('department_id, work_order_transformers(transformers(warranty_status, dispatch_date, warranty_years))').not('status', 'in', '(completed,closed)')),
-      // Time-series sources, bounded to the 8-week window.
-      scopeWo(admin.from('work_orders').select('created_at, job_type, department_id').gte('created_at', fetchFrom)),
-      admin.from('work_order_daily_closures').select('created_at, work_orders(department_id)').eq('outcome', 'completed').gte('created_at', fetchFrom),
-      admin.from('work_order_activity').select('created_at, work_orders(department_id)').eq('action', 'Status updated to Closed').gte('created_at', fetchFrom),
-      admin.from('product_requests').select('created_at, work_orders(department_id)').gte('created_at', fetchFrom),
-      admin.from('product_request_items').select('approved_at, dispatched_at, product_requests(work_orders(department_id))').or(`approved_at.gte.${fetchFrom},dispatched_at.gte.${fetchFrom}`),
+      scopeWo(admin.from('work_orders').select('created_at, job_type, department_id').gte('created_at', fetchFrom).lt('created_at', fetchTo)),
+      admin.from('work_order_daily_closures').select('created_at, work_orders(department_id)').eq('outcome', 'completed').gte('created_at', fetchFrom).lt('created_at', fetchTo),
+      admin.from('work_order_activity').select('created_at, work_orders(department_id)').eq('action', 'Status updated to Closed').gte('created_at', fetchFrom).lt('created_at', fetchTo),
+      // Spare funnel — items keyed on the PARENT REQUEST's week, counting how far each
+      // has progressed (requested ⊇ approved ⊇ dispatched) so counts are consistent.
+      admin.from('product_request_items').select('approved_at, dispatched_at, product_requests!inner(created_at, work_orders(department_id))').gte('product_requests.created_at', fetchFrom).lt('product_requests.created_at', fetchTo),
       admin.from('departments').select('id, name').order('sort_order').order('name'),
     ])
 
     const status = Object.fromEntries(STATUSES.map((s, i) => [s, statusCounts[i]])) as DashboardChartsData['status']
 
-    // ── Warranty snapshot: classify each open notification by the best warranty state
-    // among its transformers (Under > Expiring > No Warranty). WOs with no transformer
-    // are skipped — there's nothing to classify. ──
+    // ── Warranty snapshot: best warranty state among each open notification's transformers. ──
     const warranty = { underWarranty: 0, expiring: 0, noWarranty: 0 }
     type OpenWoRow = { work_order_transformers: { transformers: WarrEmbed | WarrEmbed[] | null }[] | null }
     for (const wo of ((openWarrRows as unknown as OpenWoRow[]) || [])) {
@@ -107,16 +102,14 @@ export async function getDashboardCharts(): Promise<DashboardChartsData> {
       else warranty.noWarranty++
     }
 
-    // Pre-scope + flatten embeds so computeWindow just buckets by date.
     const wo = (woRows as WoRow[] | null) || []
     const completed = ((completedRows as unknown as { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[]) || [])
       .filter(r => inScope(one(r.work_orders)?.department_id))
     const closed = ((closedRows as unknown as { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[]) || [])
       .filter(r => inScope(one(r.work_orders)?.department_id))
-    const requested = ((reqRows as unknown as { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[]) || [])
-      .filter(r => inScope(one(r.work_orders)?.department_id))
-    const items = ((itemRows as unknown as { approved_at: string | null; dispatched_at: string | null; product_requests: { work_orders: TsEmbedRow | TsEmbedRow[] | null } | { work_orders: TsEmbedRow | TsEmbedRow[] | null }[] | null }[]) || [])
-      .filter(r => inScope(one(one(r.product_requests)?.work_orders)?.department_id))
+    const spareItems = ((spareItemRows as unknown as { approved_at: string | null; dispatched_at: string | null; product_requests: { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null } | { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[] | null }[]) || [])
+      .map(r => { const pr = one(r.product_requests); return { approved_at: r.approved_at, dispatched_at: r.dispatched_at, reqCreated: pr?.created_at, dept: one(pr?.work_orders)?.department_id } })
+      .filter(r => r.reqCreated && inScope(r.dept))
 
     const depts = (deptRows as { id: string; name: string }[] | null) || []
     const deptName: Record<string, string> = { [NO_DEPT]: 'No Department' }
@@ -124,37 +117,36 @@ export async function getDashboardCharts(): Promise<DashboardChartsData> {
     const deptOrder = [...depts.map(d => d.id), NO_DEPT]
     const istDay = (ts: string) => getISTDateStr(new Date(ts))
 
-    function computeWindow(starts: string[]): ChartWindow {
-      const N = starts.length
-      const z = () => Array(N).fill(0) as number[]
-      const ccc = { created: z(), completed: z(), closed: z() }
-      const pt = { total: z(), paid: z() }
-      const spare = { requested: z(), approved: z(), dispatched: z() }
-      const jobAgg: Record<string, number[]> = {}
-      const deptAgg: Record<string, number[]> = {}
-      const bi = (ts: string) => bucketIdx(starts, istDay(ts))
+    const N = weekStarts.length
+    const z = () => Array(N).fill(0) as number[]
+    const ccc = { created: z(), completed: z(), closed: z() }
+    const pt = { total: z(), paid: z() }
+    const spare = { requested: z(), approved: z(), dispatched: z() }
+    const jobAgg: Record<string, number[]> = {}
+    const deptAgg: Record<string, number[]> = {}
+    const bi = (ts: string) => bucketIdx(weekStarts, istDay(ts))
 
-      for (const r of wo) {
-        const i = bi(r.created_at); if (i < 0) continue
-        ccc.created[i]++; pt.total[i]++; if (r.job_type === 'overhauling') pt.paid[i]++
-        ;(jobAgg[r.job_type] || (jobAgg[r.job_type] = z()))[i]++
-        const dk = r.department_id || NO_DEPT
-        ;(deptAgg[dk] || (deptAgg[dk] = z()))[i]++
-      }
-      for (const r of completed) { const i = bi(r.created_at); if (i >= 0) ccc.completed[i]++ }
-      for (const r of closed) { const i = bi(r.created_at); if (i >= 0) ccc.closed[i]++ }
-      for (const r of requested) { const i = bi(r.created_at); if (i >= 0) spare.requested[i]++ }
-      for (const r of items) {
-        if (r.approved_at) { const i = bi(r.approved_at); if (i >= 0) spare.approved[i]++ }
-        if (r.dispatched_at) { const i = bi(r.dispatched_at); if (i >= 0) spare.dispatched[i]++ }
-      }
-
-      const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt] }))
-      const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k] }))
-      return { labels: starts.map(labelOf), ranges: starts.map(rangeOf), ccc, pt, job, dept, spare }
+    for (const r of wo) {
+      const i = bi(r.created_at); if (i < 0) continue
+      ccc.created[i]++; pt.total[i]++; if (r.job_type === 'overhauling') pt.paid[i]++
+      ;(jobAgg[r.job_type] || (jobAgg[r.job_type] = z()))[i]++
+      const dk = r.department_id || NO_DEPT
+      ;(deptAgg[dk] || (deptAgg[dk] = z()))[i]++
+    }
+    for (const r of completed) { const i = bi(r.created_at); if (i >= 0) ccc.completed[i]++ }
+    for (const r of closed) { const i = bi(r.created_at); if (i >= 0) ccc.closed[i]++ }
+    for (const r of spareItems) {
+      const i = bi(r.reqCreated!); if (i < 0) continue
+      spare.requested[i]++
+      if (r.approved_at) spare.approved[i]++
+      if (r.dispatched_at) spare.dispatched[i]++
     }
 
-    return { status, warranty, weeks: computeWindow(weekStarts), month: computeWindow(monthStarts) }
+    const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt] }))
+    const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k] }))
+    const window: ChartWindow = { labels: weekStarts.map(labelOf), ranges: weekStarts.map(rangeOf), ccc, pt, job, dept, spare }
+
+    return { status, warranty, window }
   } catch (e) {
     console.error('getDashboardCharts failed:', e)
     return emptyData

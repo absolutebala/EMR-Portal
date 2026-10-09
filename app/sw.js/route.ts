@@ -30,6 +30,10 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
+  // React Server Component payloads (router.refresh / soft navigation) must always go
+  // straight to the network — never cached or served an offline fallback — otherwise a
+  // silent background refresh briefly flashes the offline page or reuses stale data.
+  if (url.searchParams.has('_rsc') || request.headers.get('RSC') === '1') return
   // Never serve the service worker itself from cache — always from the network so a new
   // deploy is picked up immediately.
   if (url.pathname === '/sw.js') return

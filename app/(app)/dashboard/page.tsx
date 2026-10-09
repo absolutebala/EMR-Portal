@@ -2,7 +2,6 @@ import Link from 'next/link'
 import Topbar from '@/components/layout/Topbar'
 import { getAuthedUser } from '@/lib/cognito/server'
 import { getDashboardData } from '@/app/actions/get-dashboard'
-import { getDashboardCharts } from '@/app/actions/get-dashboard-charts'
 import { ListCard, ListRow, Badge, BreakdownCard } from '@/components/dashboard/DashboardCards'
 import DashboardChartsSection from '@/components/dashboard/DashboardChartsSection'
 import DashboardAutoRefresh from '@/components/dashboard/DashboardAutoRefresh'
@@ -63,10 +62,9 @@ function formatDateTime(d: string) {
 export default async function DashboardPage() {
   const user = await getAuthedUser()
 
-  const [{ data: profile }, dashboard, charts] = await Promise.all([
+  const [{ data: profile }, dashboard] = await Promise.all([
     adminClient().from('profiles').select('first_name,last_name,role').eq('id', user!.id).single(),
     getDashboardData(),
-    getDashboardCharts(),
   ])
 
   const userName = profile ? `${profile.first_name} ${profile.last_name}` : 'User'
@@ -107,7 +105,7 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <DashboardChartsSection data={charts} />
+        <DashboardChartsSection />
 
         {showDepartmentCards && kpis.departmentBreakdown.length > 0 && (
           <div style={{ marginBottom: 14 }}>

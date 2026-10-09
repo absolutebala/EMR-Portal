@@ -1,6 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { getDashboardCharts } from '@/app/actions/get-dashboard-charts'
+import { getRange, type ViewMode } from '@/app/(app)/attendance/dateRange'
+import { useAutoRefresh } from '@/lib/useAutoRefresh'
 import type { DashboardChartsData, ChartWindow, SeriesItem } from '@/lib/dashboardCharts'
 
 // ── geometry ──────────────────────────────────────────────────────────────
@@ -26,26 +29,38 @@ const WARR_ROWS: { key: keyof DashboardChartsData['warranty']; label: string; co
   { key: 'expiring', label: 'Expiring (3mo)', color: '#F59E0B' },
   { key: 'noWarranty', label: 'No Warranty', color: '#EF4444' },
 ]
-// Bright, well-separated palette for stacked charts.
 const PAL = ['#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#06B6D4', '#A855F7', '#F97316', '#14B8A6']
 
 interface TipRow { color: string; label: string; value: number }
 interface TipState { show: boolean; x: number; y: number; title: string; rows: TipRow[] }
 type SetTip = (t: Partial<TipState> & { show: boolean }) => void
 
-// ── shared bits ─────────────────────────────────────────────────────────────
-function niceMax(max: number) { return Math.max(10, Math.ceil(max / 10) * 10) }
+// ── nice integer axis ───────────────────────────────────────────────────────
+function niceStep(raw: number): number {
+  if (raw <= 0) return 1
+  const p = Math.pow(10, Math.floor(Math.log10(raw)))
+  const m = raw / p
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p
+}
+function niceAxis(max: number): { ymax: number; ticks: number[] } {
+  const m = Math.max(1, max)
+  const step = Math.max(1, niceStep(m / 4))
+  const ymax = Math.max(step, Math.ceil(m / step) * step)
+  const ticks: number[] = []
+  for (let v = 0; v <= ymax + 1e-9; v += step) ticks.push(v)
+  return { ymax, ticks }
+}
 
-function Axes({ g, ymax }: { g: Geo; ymax: number }) {
+function Axes({ g, ymax, ticks }: { g: Geo; ymax: number; ticks: number[] }) {
   const IH = g.H - g.t - g.b
   return (
     <>
-      {[0, 1, 2, 3, 4].map(i => {
-        const y = g.t + IH - (IH * i) / 4
+      {ticks.map(v => {
+        const y = g.t + IH - (IH * v) / ymax
         return (
-          <g key={i}>
+          <g key={v}>
             <line x1={g.l} y1={y} x2={g.W - g.r} y2={y} stroke={GRID} strokeWidth={1} />
-            <text x={g.l - 6} y={y + 3} textAnchor="end" fontSize={10} fill={AXIS}>{Math.round((ymax * i) / 4)}</text>
+            <text x={g.l - 6} y={y + 3} textAnchor="end" fontSize={10} fill={AXIS}>{v}</text>
           </g>
         )
       })}
@@ -65,7 +80,7 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   )
 }
 
-function Card({ title, caption, children }: { title: string; caption: string; children: React.ReactNode; }) {
+function Card({ title, caption, children }: { title: string; caption: string; children: React.ReactNode }) {
   return (
     <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 14, padding: '16px 18px' }}>
       <h3 style={{ fontSize: 14, margin: '0 0 2px', color: 'var(--tx)' }}>{title}</h3>
@@ -77,14 +92,13 @@ function Card({ title, caption, children }: { title: string; caption: string; ch
 
 const svgStyle: React.CSSProperties = { display: 'block', width: '100%', height: 'auto', overflow: 'visible' }
 
-// ── simple labelled snapshot bars ───────────────────────────────────────────
 function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value: number; color: string }[]; setTip: SetTip; g?: Geo }) {
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
-  const ymax = niceMax(Math.max(0, ...data.map(d => d.value)))
+  const { ymax, ticks } = niceAxis(Math.max(0, ...data.map(d => d.value)))
   const gw = IW / data.length, barw = Math.min(54, gw * 0.6)
   return (
     <svg viewBox={`0 0 ${g.W} ${g.H}`} style={svgStyle}>
-      <Axes g={g} ymax={ymax} />
+      <Axes g={g} ymax={ymax} ticks={ticks} />
       {data.map((d, i) => {
         const x = g.l + gw * i + (gw - barw) / 2
         const hh = (IH * d.value) / ymax, y = g.t + IH - hh
@@ -102,15 +116,14 @@ function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value:
   )
 }
 
-// ── grouped bars ─────────────────────────────────────────────────────────────
 function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
   const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
-  const ymax = niceMax(Math.max(0, ...series.flatMap(s => s.data)))
+  const { ymax, ticks } = niceAxis(Math.max(0, ...series.flatMap(s => s.data)))
   const gw = IW / Math.max(1, cats.length), inner = gw * 0.72, bw = inner / Math.max(1, series.length)
   return (
     <svg viewBox={`0 0 ${g.W} ${g.H}`} style={svgStyle}>
-      <Axes g={g} ymax={ymax} />
+      <Axes g={g} ymax={ymax} ticks={ticks} />
       {cats.map((c, ci) => {
         const gx = g.l + gw * ci + (gw - inner) / 2
         return (
@@ -129,16 +142,15 @@ function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; s
   )
 }
 
-// ── stacked bars ──────────────────────────────────────────────────────────────
 function Stacked({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: SeriesItem[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
   const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const totals = cats.map((_, i) => series.reduce((a, s) => a + (s.data[i] || 0), 0))
-  const ymax = niceMax(Math.max(0, ...totals))
+  const { ymax, ticks } = niceAxis(Math.max(0, ...totals))
   const gw = IW / Math.max(1, cats.length), barw = Math.min(42, gw * 0.58)
   return (
     <svg viewBox={`0 0 ${g.W} ${g.H}`} style={svgStyle}>
-      <Axes g={g} ymax={ymax} />
+      <Axes g={g} ymax={ymax} ticks={ticks} />
       {cats.map((c, ci) => {
         let acc = 0
         const x = g.l + gw * ci + (gw - barw) / 2
@@ -160,17 +172,16 @@ function Stacked({ cats, series, setTip, titles, g = HALF }: { cats: string[]; s
   )
 }
 
-// ── Created/Completed/Closed line, shared crosshair tooltip ─────────────────────
 function LineCombined({ cats, series, setTip, titles, g = WIDE }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
-  const ymax = niceMax(Math.max(0, ...series.flatMap(s => s.data)))
+  const { ymax, ticks } = niceAxis(Math.max(0, ...series.flatMap(s => s.data)))
   const gw = IW / Math.max(1, cats.length)
   const X = (i: number) => g.l + gw * i + gw / 2
   const Y = (v: number) => g.t + IH - (IH * v) / ymax
   const [guide, setGuide] = useState(-1)
   return (
     <svg viewBox={`0 0 ${g.W} ${g.H}`} style={svgStyle}>
-      <Axes g={g} ymax={ymax} />
+      <Axes g={g} ymax={ymax} ticks={ticks} />
       {guide >= 0 && <line x1={X(guide)} y1={g.t} x2={X(guide)} y2={g.t + IH} stroke={AXIS} strokeWidth={1} strokeDasharray="3 3" />}
       {series.map(s => (
         <g key={s.label}>
@@ -197,92 +208,162 @@ function LineCombined({ cats, series, setTip, titles, g = WIDE }: { cats: string
 const CARD_GAP = 16
 const ROW: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: CARD_GAP }
 
-export default function DashboardChartsSection({ data }: { data: DashboardChartsData }) {
-  const [win, setWin] = useState<'weeks' | 'month'>('weeks')
+export default function DashboardChartsSection() {
+  // Period selector (This Week / This Month / Custom + prev-next nav), mirroring Reports.
+  const [viewMode, setViewMode] = useState<ViewMode>('month')
+  const [anchor, setAnchor] = useState(new Date())
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const range = useMemo(() => getRange(viewMode, anchor, customFrom, customTo), [viewMode, anchor, customFrom, customTo])
+  const customInvalid = viewMode === 'custom' && !!customFrom && !!customTo && customFrom > customTo
+  const effFrom = viewMode === 'custom' ? (customInvalid ? '' : customFrom) : range.from
+  const effTo = viewMode === 'custom' ? (customInvalid ? '' : customTo) : range.to
+
+  function selectMode(m: ViewMode) {
+    setViewMode(m)
+    if (m !== 'custom') setAnchor(new Date())
+    else if (!customFrom) { const r = getRange('week', new Date(), '', ''); setCustomFrom(r.from); setCustomTo(r.to) }
+  }
+  function shift(delta: number) {
+    const a = new Date(anchor)
+    if (viewMode === 'week') a.setDate(a.getDate() + delta * 7)
+    else if (viewMode === 'month') a.setMonth(a.getMonth() + delta)
+    setAnchor(a)
+  }
+
+  const [data, setData] = useState<DashboardChartsData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch whenever the effective range changes. Keep the previous chart visible while the
+  // new data loads (no flicker); only the very first load shows a placeholder.
+  useEffect(() => {
+    if (!effFrom || !effTo) return
+    let cancelled = false
+    getDashboardCharts({ from: effFrom, to: effTo }).then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [effFrom, effTo])
+
+  // Silent background refresh — this card updates in place, no page reload.
+  const rangeRef = useRef({ from: effFrom, to: effTo })
+  rangeRef.current = { from: effFrom, to: effTo }
+  useAutoRefresh(() => {
+    const { from, to } = rangeRef.current
+    if (from && to) getDashboardCharts({ from, to }).then(setData)
+  }, 45000)
+
   const [tip, setTipState] = useState<TipState>({ show: false, x: 0, y: 0, title: '', rows: [] })
   const setTip: SetTip = t => setTipState(prev => ({ ...prev, ...t }))
-  const w: ChartWindow = data[win]
 
-  const statusData = STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key] }))
-  const warrData = WARR_ROWS.map(r => ({ label: r.label, value: data.warranty[r.key], color: r.color }))
-  const ccc = [
-    { label: 'Created', data: w.ccc.created, color: '#2563EB' },
-    { label: 'Completed', data: w.ccc.completed, color: '#F59E0B' },
-    { label: 'Closed', data: w.ccc.closed, color: '#22C55E' },
-  ]
-  const pt = [
-    { label: 'Total', data: w.pt.total, color: '#C9AEB8' },
-    { label: 'Paid', data: w.pt.paid, color: '#7D1D3F' },
-  ]
-  const spare = [
-    { label: 'Requested', data: w.spare.requested, color: '#F59E0B' },
-    { label: 'Approved', data: w.spare.approved, color: '#3B82F6' },
-    { label: 'Dispatched', data: w.spare.dispatched, color: '#A855F7' },
-  ]
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${active ? 'var(--m)' : 'var(--gm)'}`,
+    background: active ? 'var(--m)' : '#fff', color: active ? '#fff' : 'var(--tx)',
+    fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
+  })
+  const navBtn: React.CSSProperties = { width: 30, height: 30, borderRadius: 7, border: '1px solid var(--gm)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  const dateInput: React.CSSProperties = { padding: '7px 10px', border: '1.5px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif' }
 
-  const toggleBtn = (val: 'weeks' | 'month', label: string) => (
-    <button onClick={() => setWin(val)} style={{
-      border: 'none', background: win === val ? 'var(--m)' : 'transparent', color: win === val ? '#fff' : 'var(--txm)',
-      fontSize: 12, fontWeight: 600, padding: '6px 15px', cursor: 'pointer', fontFamily: 'Poppins,sans-serif',
-    }}>{label}</button>
+  const periodSelector = (
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button style={tabStyle(viewMode === 'week')} onClick={() => selectMode('week')}>This Week</button>
+        <button style={tabStyle(viewMode === 'month')} onClick={() => selectMode('month')}>This Month</button>
+        <button style={tabStyle(viewMode === 'custom')} onClick={() => selectMode('custom')}>Custom</button>
+      </div>
+      {viewMode !== 'custom' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => shift(-1)} aria-label="Previous" style={navBtn}>
+            <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', minWidth: 170, textAlign: 'center' }}>{range.label}</span>
+          <button onClick={() => shift(1)} aria-label="Next" style={navBtn}>
+            <svg width="14" height="14" fill="none" stroke="var(--tx)" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>From</label>
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={dateInput} />
+          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--txm)' }}>To</label>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={dateInput} />
+          {customInvalid && <span style={{ fontSize: 11, color: '#DC2626' }}>Pick a valid range (From on or before To).</span>}
+        </div>
+      )}
+    </div>
   )
+
+  const w: ChartWindow | undefined = data?.window
+  const flip = typeof window !== 'undefined' && tip.x > window.innerWidth - 190
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Snapshots — not affected by the window toggle */}
+      {/* Snapshots — current totals, independent of the period selector */}
       <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Snapshots — current totals</div>
       <div style={{ ...ROW, marginBottom: CARD_GAP }}>
         <Card title="Notifications by status" caption="Snapshot of the six statuses">
-          <SnapshotBar data={statusData} setTip={setTip} />
+          {data ? <SnapshotBar data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key] }))} setTip={setTip} /> : <ChartSkeleton />}
         </Card>
         <Card title="Open notifications by warranty" caption="Open notifications by their transformer’s warranty state">
-          <SnapshotBar data={warrData} setTip={setTip} />
+          {data ? <SnapshotBar data={WARR_ROWS.map(r => ({ label: r.label, value: data.warranty[r.key], color: r.color }))} setTip={setTip} /> : <ChartSkeleton />}
         </Card>
       </div>
 
-      {/* Window toggle drives the weekly charts below */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--txm)' }}>Trends</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--txm)', fontWeight: 600 }}>Window:</span>
-        <span style={{ display: 'inline-flex', border: '1px solid var(--gm)', borderRadius: 20, overflow: 'hidden', background: '#fff' }}>
-          {toggleBtn('weeks', '8 weeks')}{toggleBtn('month', 'This month')}
-        </span>
-      </div>
+      <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Trends</div>
+      {periodSelector}
 
-      <div style={{ marginBottom: CARD_GAP }}>
-        <Card title="Created vs Completed vs Closed" caption="Hover any week to see its range and Created / Completed / Closed">
-          <LineCombined cats={w.labels} series={ccc} setTip={setTip} titles={w.ranges} />
-          <Legend items={ccc} />
-        </Card>
-      </div>
+      {!w ? (
+        <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>
+          {loading ? 'Loading charts…' : 'No data for this period.'}
+        </div>
+      ) : (
+        <>
+          <div style={{ marginBottom: CARD_GAP }}>
+            <Card title="Created vs Completed vs Closed" caption="Hover any week to see its range and Created / Completed / Closed">
+              <LineCombined cats={w.labels} titles={w.ranges} setTip={setTip} series={[
+                { label: 'Created', data: w.ccc.created, color: '#2563EB' },
+                { label: 'Completed', data: w.ccc.completed, color: '#F59E0B' },
+                { label: 'Closed', data: w.ccc.closed, color: '#22C55E' },
+              ]} />
+              <Legend items={[{ color: '#2563EB', label: 'Created' }, { color: '#F59E0B', label: 'Completed' }, { color: '#22C55E', label: 'Closed' }]} />
+            </Card>
+          </div>
 
-      <div style={{ ...ROW, marginBottom: CARD_GAP }}>
-        <Card title="Paid vs Total notifications" caption="Paid = Overhauling, against all notifications">
-          <Grouped cats={w.labels} series={pt} setTip={setTip} titles={w.ranges} />
-          <Legend items={pt} />
-        </Card>
-        <Card title="Spare requests" caption="Spare (material) requests per week, by stage">
-          <Grouped cats={w.labels} series={spare} setTip={setTip} titles={w.ranges} />
-          <Legend items={spare} />
-        </Card>
-      </div>
+          <div style={{ ...ROW, marginBottom: CARD_GAP }}>
+            <Card title="Paid vs Total notifications" caption="Paid = Overhauling, against all notifications">
+              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
+                { label: 'Total', data: w.pt.total, color: '#C9AEB8' },
+                { label: 'Paid', data: w.pt.paid, color: '#7D1D3F' },
+              ]} />
+              <Legend items={[{ color: '#C9AEB8', label: 'Total' }, { color: '#7D1D3F', label: 'Paid' }]} />
+            </Card>
+            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched">
+              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
+                { label: 'Requested', data: w.spare.requested, color: '#F59E0B' },
+                { label: 'Approved', data: w.spare.approved, color: '#3B82F6' },
+                { label: 'Dispatched', data: w.spare.dispatched, color: '#A855F7' },
+              ]} />
+              <Legend items={[{ color: '#F59E0B', label: 'Requested' }, { color: '#3B82F6', label: 'Approved' }, { color: '#A855F7', label: 'Dispatched' }]} />
+            </Card>
+          </div>
 
-      <div style={ROW}>
-        <Card title="Notifications by Job type" caption="Created per week, by job type">
-          <Stacked cats={w.labels} series={w.job} setTip={setTip} titles={w.ranges} />
-          <Legend items={w.job.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
-        </Card>
-        <Card title="Notifications by Department" caption="Created per week, by department">
-          <Stacked cats={w.labels} series={w.dept} setTip={setTip} titles={w.ranges} />
-          <Legend items={w.dept.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
-        </Card>
-      </div>
+          <div style={ROW}>
+            <Card title="Notifications by Job type" caption="Created per week, by job type">
+              <Stacked cats={w.labels} titles={w.ranges} series={w.job} setTip={setTip} />
+              <Legend items={w.job.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
+            </Card>
+            <Card title="Notifications by Department" caption="Created per week, by department">
+              <Stacked cats={w.labels} titles={w.ranges} series={w.dept} setTip={setTip} />
+              <Legend items={w.dept.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
+            </Card>
+          </div>
+        </>
+      )}
 
       {tip.show && (
         <div style={{
-          position: 'fixed', left: tip.x + 14, top: tip.y - 10, pointerEvents: 'none', zIndex: 50,
-          background: 'var(--tx)', color: '#fff', fontSize: 11, padding: '7px 9px', borderRadius: 7,
-          whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.7,
+          position: 'fixed', left: flip ? tip.x - 14 : tip.x + 14, top: Math.max(8, tip.y - 10),
+          transform: flip ? 'translateX(-100%)' : 'none',
+          pointerEvents: 'none', zIndex: 50, background: 'var(--tx)', color: '#fff', fontSize: 11,
+          padding: '7px 9px', borderRadius: 7, whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.7,
         }}>
           <div style={{ fontWeight: 700 }}>{tip.title}</div>
           {tip.rows.map(r => (
@@ -295,4 +376,8 @@ export default function DashboardChartsSection({ data }: { data: DashboardCharts
       )}
     </div>
   )
+}
+
+function ChartSkeleton() {
+  return <div style={{ height: 150, borderRadius: 8, background: 'var(--gl)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txm)', fontSize: 12 }}>Loading…</div>
 }
