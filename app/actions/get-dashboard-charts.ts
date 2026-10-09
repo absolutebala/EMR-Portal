@@ -21,6 +21,9 @@ function addDays(iso: string, n: number): string {
 function labelOf(iso: string): string {
   return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })
 }
+function rangeOf(start: string): string {
+  return `${labelOf(start)} – ${labelOf(addDays(start, 6))}`
+}
 // Index of the week bucket an IST date falls into, or -1.
 function bucketIdx(starts: string[], iso: string): number {
   for (let i = 0; i < starts.length; i++) if (iso >= starts[i] && iso <= addDays(starts[i], 6)) return i
@@ -35,7 +38,7 @@ type TsEmbedRow = { department_id: string | null }
 type WarrEmbed = { warranty_status: string | null; dispatch_date: string | null; warranty_years: number | null }
 
 export async function getDashboardCharts(): Promise<DashboardChartsData> {
-  const emptyWin: ChartWindow = { labels: [], ccc: { created: [], completed: [], closed: [] }, pt: { total: [], paid: [] }, job: [], dept: [], spare: { requested: [], approved: [], dispatched: [] } }
+  const emptyWin: ChartWindow = { labels: [], ranges: [], ccc: { created: [], completed: [], closed: [] }, pt: { total: [], paid: [] }, job: [], dept: [], spare: { requested: [], approved: [], dispatched: [] } }
   const emptyData: DashboardChartsData = {
     status: { unassigned: 0, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0, closed: 0 },
     warranty: { underWarranty: 0, expiring: 0, noWarranty: 0 },
@@ -148,7 +151,7 @@ export async function getDashboardCharts(): Promise<DashboardChartsData> {
 
       const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt] }))
       const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k] }))
-      return { labels: starts.map(labelOf), ccc, pt, job, dept, spare }
+      return { labels: starts.map(labelOf), ranges: starts.map(rangeOf), ccc, pt, job, dept, spare }
     }
 
     return { status, warranty, weeks: computeWindow(weekStarts), month: computeWindow(monthStarts) }

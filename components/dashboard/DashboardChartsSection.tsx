@@ -103,7 +103,8 @@ function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value:
 }
 
 // ── grouped bars ─────────────────────────────────────────────────────────────
-function Grouped({ cats, series, setTip, g = HALF }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; g?: Geo }) {
+function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
+  const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const ymax = niceMax(Math.max(0, ...series.flatMap(s => s.data)))
   const gw = IW / Math.max(1, cats.length), inner = gw * 0.72, bw = inner / Math.max(1, series.length)
@@ -117,7 +118,7 @@ function Grouped({ cats, series, setTip, g = HALF }: { cats: string[]; series: {
             {series.map((s, si) => {
               const v = s.data[ci] || 0, hh = (IH * v) / ymax, x = gx + bw * si, y = g.t + IH - hh
               return <rect key={si} x={x + 0.5} y={y} width={Math.max(1, bw - 1)} height={hh} rx={2} fill={s.color}
-                onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: c, rows: [{ color: s.color, label: s.label, value: v }] })}
+                onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: tt(ci), rows: [{ color: s.color, label: s.label, value: v }] })}
                 onMouseLeave={() => setTip({ show: false })} />
             })}
             <text x={gx + inner / 2} y={g.H - g.b + 15} textAnchor="middle" fontSize={10} fill={AXIS}>{c}</text>
@@ -129,7 +130,8 @@ function Grouped({ cats, series, setTip, g = HALF }: { cats: string[]; series: {
 }
 
 // ── stacked bars ──────────────────────────────────────────────────────────────
-function Stacked({ cats, series, setTip, g = HALF }: { cats: string[]; series: SeriesItem[]; setTip: SetTip; g?: Geo }) {
+function Stacked({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: SeriesItem[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
+  const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const totals = cats.map((_, i) => series.reduce((a, s) => a + (s.data[i] || 0), 0))
   const ymax = niceMax(Math.max(0, ...totals))
@@ -147,7 +149,7 @@ function Stacked({ cats, series, setTip, g = HALF }: { cats: string[]; series: S
               acc += v
               if (v === 0) return null
               return <rect key={si} x={x} y={y} width={barw} height={hh} fill={PAL[si % PAL.length]}
-                onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: c, rows: [{ color: PAL[si % PAL.length], label: s.label, value: v }] })}
+                onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: tt(ci), rows: [{ color: PAL[si % PAL.length], label: s.label, value: v }] })}
                 onMouseLeave={() => setTip({ show: false })} />
             })}
             <text x={x + barw / 2} y={g.H - g.b + 15} textAnchor="middle" fontSize={10} fill={AXIS}>{c}</text>
@@ -159,7 +161,7 @@ function Stacked({ cats, series, setTip, g = HALF }: { cats: string[]; series: S
 }
 
 // ── Created/Completed/Closed line, shared crosshair tooltip ─────────────────────
-function LineCombined({ cats, series, setTip, g = WIDE }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; g?: Geo }) {
+function LineCombined({ cats, series, setTip, titles, g = WIDE }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const ymax = niceMax(Math.max(0, ...series.flatMap(s => s.data)))
   const gw = IW / Math.max(1, cats.length)
@@ -184,7 +186,7 @@ function LineCombined({ cats, series, setTip, g = WIDE }: { cats: string[]; seri
           let idx = Math.round((vx - (g.l + gw / 2)) / gw)
           idx = Math.max(0, Math.min(cats.length - 1, idx))
           setGuide(idx)
-          setTip({ show: true, x: e.clientX, y: e.clientY, title: cats[idx], rows: series.map(s => ({ color: s.color, label: s.label, value: s.data[idx] || 0 })) })
+          setTip({ show: true, x: e.clientX, y: e.clientY, title: titles?.[idx] ?? cats[idx], rows: series.map(s => ({ color: s.color, label: s.label, value: s.data[idx] || 0 })) })
         }}
         onMouseLeave={() => { setGuide(-1); setTip({ show: false }) }} />
     </svg>
@@ -248,30 +250,30 @@ export default function DashboardChartsSection({ data }: { data: DashboardCharts
       </div>
 
       <div style={{ marginBottom: CARD_GAP }}>
-        <Card title="Created vs Completed vs Closed" caption="Hover any week to see Created / Completed / Closed">
-          <LineCombined cats={w.labels} series={ccc} setTip={setTip} />
+        <Card title="Created vs Completed vs Closed" caption="Hover any week to see its range and Created / Completed / Closed">
+          <LineCombined cats={w.labels} series={ccc} setTip={setTip} titles={w.ranges} />
           <Legend items={ccc} />
         </Card>
       </div>
 
       <div style={{ ...ROW, marginBottom: CARD_GAP }}>
         <Card title="Paid vs Total notifications" caption="Paid = Overhauling, against all notifications">
-          <Grouped cats={w.labels} series={pt} setTip={setTip} />
+          <Grouped cats={w.labels} series={pt} setTip={setTip} titles={w.ranges} />
           <Legend items={pt} />
         </Card>
         <Card title="Spare requests" caption="Spare (material) requests per week, by stage">
-          <Grouped cats={w.labels} series={spare} setTip={setTip} />
+          <Grouped cats={w.labels} series={spare} setTip={setTip} titles={w.ranges} />
           <Legend items={spare} />
         </Card>
       </div>
 
       <div style={ROW}>
         <Card title="Notifications by Job type" caption="Created per week, by job type">
-          <Stacked cats={w.labels} series={w.job} setTip={setTip} />
+          <Stacked cats={w.labels} series={w.job} setTip={setTip} titles={w.ranges} />
           <Legend items={w.job.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
         </Card>
         <Card title="Notifications by Department" caption="Created per week, by department">
-          <Stacked cats={w.labels} series={w.dept} setTip={setTip} />
+          <Stacked cats={w.labels} series={w.dept} setTip={setTip} titles={w.ranges} />
           <Legend items={w.dept.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
         </Card>
       </div>

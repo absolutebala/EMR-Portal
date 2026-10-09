@@ -6,6 +6,8 @@ export interface SeriesItem { label: string; data: number[] }
 
 export interface ChartWindow {
   labels: string[]
+  // Full "DD Mon – DD Mon" week span for each bucket, shown in hover tooltips.
+  ranges: string[]
   ccc: { created: number[]; completed: number[]; closed: number[] }
   pt: { total: number[]; paid: number[] }
   job: SeriesItem[]
