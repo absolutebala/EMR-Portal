@@ -194,17 +194,19 @@ export async function submitProductRequestCore(admin: AdminClient, userId: strin
     if (itemsError) return { error: itemsError.message }
 
     // Reassure the customer that material has been requested (fixed message, no params).
-    if (wo) {
-      const contact = await resolveWoCustomerContact(admin, wo)
-      if (contact) {
-        sendWhatsApp(admin, 'product_requested_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }], []).catch(() => {})
-      }
+    const contact = wo ? await resolveWoCustomerContact(admin, wo) : null
+    if (contact) {
+      sendWhatsApp(admin, 'product_requested_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }], []).catch(() => {})
     }
 
+    // Spell out the spares requested, the notification, and the client on the activity line.
+    const { data: prods } = await admin.from('products').select('id, name').in('id', params.items.map(i => i.productId))
+    const nameById = new Map((prods || []).map(p => [p.id as string, p.name as string]))
+    const itemList = params.items.map(i => `${nameById.get(i.productId) || 'item'}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ')
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
     logActivity(admin, {
       actorId: userId, actorName,
-      action: `Requested ${params.items.length} product${params.items.length > 1 ? 's' : ''} for notification ${wo?.wo_number || ''}`,
+      action: `Requested spare${params.items.length > 1 ? 's' : ''}: ${itemList}${wo?.wo_number ? ` for notification ${wo.wo_number}` : ''}${contact?.contactPerson ? ` (${contact.contactPerson})` : ''}`,
       entityType: 'product_request', entityId: request.id,
     }).catch(() => {})
 
@@ -285,7 +287,7 @@ export async function getPendingProductItemsCore(admin: AdminClient, userId: str
 // client) since this is reachable over the bearer-token mobile API.
 export async function markProductReceivedCore(admin: AdminClient, userId: string, itemId: string): Promise<{ error: string | null }> {
   try {
-    const { data: item } = await admin.from('product_request_items').select('id, status, request_id').eq('id', itemId).maybeSingle()
+    const { data: item } = await admin.from('product_request_items').select('id, status, request_id, products(name)').eq('id', itemId).maybeSingle()
     if (!item) return { error: 'Item not found' }
     if (item.status !== 'dispatched') return { error: 'This item is not yet dispatched.' }
 
@@ -297,7 +299,9 @@ export async function markProductReceivedCore(admin: AdminClient, userId: string
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Engineer'
-    logActivity(admin, { actorId: userId, actorName, action: 'Marked product request item received', entityType: 'product_request_item', entityId: itemId }).catch(() => {})
+    const rprod = item.products as unknown as { name?: string } | { name?: string }[] | null
+    const rProductName = (Array.isArray(rprod) ? rprod[0]?.name : rprod?.name) || 'spare'
+    logActivity(admin, { actorId: userId, actorName, action: `Marked spare "${rProductName}" received`, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {

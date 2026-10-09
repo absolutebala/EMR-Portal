@@ -41,7 +41,7 @@ export async function createProduct(params: { name: string; sapCode: string | nu
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
-    logActivity(admin, { actorId: user.id, actorName, action: `Added product "${params.name}" to catalog`, entityType: 'product' }).catch(() => {})
+    logActivity(admin, { actorId: user.id, actorName, action: `Added spare "${params.name}"${params.sapCode ? ` (SAP ${params.sapCode})` : ''} to catalog`, entityType: 'product' }).catch(() => {})
 
     return { error: null }
   } catch (e: unknown) {
@@ -273,8 +273,10 @@ export async function updateProductRequestItemStatus(
 
     const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle()
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
+    // `label` feeds the engineer push/WhatsApp (unchanged wording); `verb` is the
+    // cleaner prefix for the activity-log line.
     const label: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched for', delivered: 'Marked delivered for' }
-    logActivity(admin, { actorId: user.id, actorName, action: `${label[status]} product request item`, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
+    const verb: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', dispatched: 'Marked dispatched', delivered: 'Marked delivered' }
 
     if (item?.request_id) {
       const { data: reqRow } = await admin.from('product_requests').select('engineer_id, work_order_id').eq('id', item.request_id).maybeSingle()
@@ -286,6 +288,24 @@ export async function updateProductRequestItemStatus(
       const { data: wo } = reqRow?.work_order_id
         ? await admin.from('work_orders').select(`wo_number, customer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', reqRow.work_order_id).maybeSingle()
         : { data: null }
+
+      // Requester + client — resolved once, reused by the activity line and the messages.
+      let requester: { first_name: string | null; last_name: string | null; phone: string | null } | null = null
+      if (reqRow?.engineer_id) {
+        const { data: r } = await admin.from('profiles').select('first_name, last_name, phone').eq('id', reqRow.engineer_id).maybeSingle()
+        requester = r
+      }
+      const requesterName = requester ? `${requester.first_name ?? ''} ${requester.last_name ?? ''}`.trim() : ''
+      const clientContact = wo ? await resolveWoCustomerContact(admin, wo) : null
+      const clientName = clientContact?.contactPerson || ''
+
+      const action = `${verb[status]} spare "${productName}"`
+        + (wo?.wo_number ? ` on ${wo.wo_number}` : '')
+        + (clientName ? ` for ${clientName}` : '')
+        + (requesterName ? `, requested by ${requesterName}` : '')
+        + (status === 'approved' && zfod ? ` (ZFOD ${zfod})` : '')
+        + (status === 'dispatched' && docketNumber ? ` (docket ${docketNumber})` : '')
+      logActivity(admin, { actorId: user.id, actorName, action, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
 
       if (reqRow?.engineer_id) {
         // Engineer: dashboard bell + push. On dispatch, spell out the docket.
@@ -300,23 +320,21 @@ export async function updateProductRequestItemStatus(
           linkPath: reqRow.work_order_id ? `/mobile/work-orders/${reqRow.work_order_id}` : '/mobile/requests',
         }).catch(() => {})
 
-        const { data: eng } = await admin.from('profiles').select('first_name, phone').eq('id', reqRow.engineer_id).maybeSingle()
         // ZFOD: the value just entered on approve, else whatever was stored on the item
         // at approval (so dispatched/delivered messages carry it too). item.zfod is the
         // pre-update value, which equals the stored ZFOD for every non-approve status.
         const effectiveZfod = zfod || (item as { zfod?: string | null }).zfod || ''
-        sendWhatsApp(admin, 'product_request', [{ phone: eng?.phone, userName: eng?.first_name || 'Engineer' }],
-          [eng?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName, effectiveZfod]).catch(() => {})
+        sendWhatsApp(admin, 'product_request', [{ phone: requester?.phone, userName: requester?.first_name || 'Engineer' }],
+          [requester?.first_name || 'Engineer', wo?.wo_number || '', label[status], productName, effectiveZfod]).catch(() => {})
       }
 
       // Customer: WhatsApp that the material has been dispatched.
-      if (status === 'dispatched' && wo) {
-        const contact = await resolveWoCustomerContact(admin, wo)
-        if (contact) {
-          sendWhatsApp(admin, 'dispatched_customer', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
-            [contact.contactPerson, wo.wo_number || '', docketNumber || '-']).catch(() => {})
-        }
+      if (status === 'dispatched' && wo && clientContact) {
+        sendWhatsApp(admin, 'dispatched_customer', [{ phone: clientContact.whatsappNumber || clientContact.phone, userName: clientContact.contactPerson }],
+          [clientContact.contactPerson, wo.wo_number || '', docketNumber || '-']).catch(() => {})
       }
+    } else {
+      logActivity(admin, { actorId: user.id, actorName, action: `${verb[status]} a spare request`, entityType: 'product_request_item', entityId: itemId }).catch(() => {})
     }
 
     return { error: null }

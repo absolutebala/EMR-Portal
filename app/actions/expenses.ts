@@ -123,6 +123,15 @@ async function getActorName(admin: ReturnType<typeof adminClient>, userId: strin
   return actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
 }
 
+// " of ₹1,234 on SR26100306" — amount + notification context for the activity line.
+function expenseCtx(row: { amount?: number | null; work_orders?: { wo_number?: string | null } | { wo_number?: string | null }[] | null } | null): string {
+  if (!row) return ''
+  const wo = Array.isArray(row.work_orders) ? row.work_orders[0] : row.work_orders
+  const amt = typeof row.amount === 'number' ? ` of ₹${row.amount.toLocaleString('en-IN')}` : ''
+  const on = wo?.wo_number ? ` on ${wo.wo_number}` : ''
+  return `${amt}${on}`
+}
+
 // Stage 1: Service Manager (or anyone with "Expenses — Approve"). Approving moves
 // the claim to 'manager_approved' — it does NOT finalize it, even for a Super Admin
 // / Head of Service acting here; rejecting is final at either stage.
@@ -141,12 +150,12 @@ export async function submitManagerDecision(id: string, decision: 'approve' | 'r
       ? { status: 'manager_approved', manager_approved_by: user.id, manager_approved_at: now }
       : { status: 'rejected', reviewed_by: user.id, reviewed_at: now }
 
-    const { data: updated, error } = await admin.from('expense_logs').update(patch).eq('id', id).select('engineer_id, work_order_id').maybeSingle()
+    const { data: updated, error } = await admin.from('expense_logs').update(patch).eq('id', id).select('engineer_id, work_order_id, amount, work_orders(wo_number)').maybeSingle()
     if (error) return { error: error.message }
 
     logActivity(admin, {
       actorId: user.id, actorName,
-      action: decision === 'approve' ? 'Approved expense log (first level)' : 'Rejected expense log',
+      action: `${decision === 'approve' ? 'Approved' : 'Rejected'} expense${expenseCtx(updated)} (first level)`,
       entityType: 'expense_log', entityId: id,
     }).catch(() => {})
 
@@ -190,12 +199,12 @@ export async function submitHeadDecision(id: string, decision: 'approve' | 'reje
 
     const { data: updated, error } = await admin.from('expense_logs').update({
       status, reviewed_by: user.id, reviewed_at: new Date().toISOString(),
-    }).eq('id', id).select('engineer_id, work_order_id').maybeSingle()
+    }).eq('id', id).select('engineer_id, work_order_id, amount, work_orders(wo_number)').maybeSingle()
     if (error) return { error: error.message }
 
     logActivity(admin, {
       actorId: user.id, actorName,
-      action: `${decision === 'approve' ? 'Approved' : 'Rejected'} expense log (final)`,
+      action: `${decision === 'approve' ? 'Approved' : 'Rejected'} expense${expenseCtx(updated)} (final approval)`,
       entityType: 'expense_log', entityId: id,
     }).catch(() => {})
 
@@ -241,7 +250,7 @@ export async function updateExpenseLog(id: string, fields: {
 
     logActivity(admin, {
       actorId: user.id, actorName: await getActorName(admin, user.id),
-      action: 'Edited expense log', entityType: 'expense_log', entityId: id,
+      action: `Edited expense — set amount to ₹${fields.amount.toLocaleString('en-IN')}`, entityType: 'expense_log', entityId: id,
     }).catch(() => {})
 
     return { error: null }
@@ -256,12 +265,13 @@ export async function deleteExpenseLog(id: string): Promise<{ error: string | nu
     if (!user) return { error: 'Not authenticated' }
 
     const admin = adminClient()
+    const { data: toDelete } = await admin.from('expense_logs').select('amount, work_orders(wo_number)').eq('id', id).maybeSingle()
     const { error } = await admin.from('expense_logs').delete().eq('id', id)
     if (error) return { error: error.message }
 
     logActivity(admin, {
       actorId: user.id, actorName: await getActorName(admin, user.id),
-      action: 'Deleted expense log', entityType: 'expense_log', entityId: id,
+      action: `Deleted expense${expenseCtx(toDelete)}`, entityType: 'expense_log', entityId: id,
     }).catch(() => {})
 
     return { error: null }

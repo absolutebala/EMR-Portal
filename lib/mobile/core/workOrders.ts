@@ -16,6 +16,7 @@ import {
 } from './shared'
 import { uploadAsset } from '@/lib/storage/s3'
 import { nextTicketNumber } from './create-notification'
+import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 
 // "Engineer signature" and "Customer signature" are the fixed, standard field labels
 // every form built in the Form Builder includes (confirmed with the user) — used to
@@ -282,7 +283,7 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
     touchHeartbeat(admin, userId)
 
     const existingWoResult = await withTimeout(
-      admin.from('work_orders').select('status, engineer_id').eq('id', params.workOrderId).single(),
+      admin.from('work_orders').select('status, engineer_id, wo_number').eq('id', params.workOrderId).single(),
       8000
     )
     const existingWo = existingWoResult?.data
@@ -353,7 +354,8 @@ export async function submitCheckInCore(admin: AdminClient, userId: string, para
       engineer_status_updated_at: new Date().toISOString(),
     }).eq('id', userId).then(() => {}, () => {})
 
-    logActivity(admin, params.workOrderId, userId, params.offline ? 'Checked in at project (offline — no photo)' : 'Checked in at project').catch(() => {})
+    const checkinWoNum = existingWo?.wo_number ? ` ${existingWo.wo_number}` : ''
+    logActivity(admin, params.workOrderId, userId, params.offline ? `Checked in at project${checkinWoNum} (offline — no photo)` : `Checked in at project${checkinWoNum}`).catch(() => {})
 
     // Notify the monitoring roles (dashboard bell + push) that the engineer has reached
     // the site — so it's confirmed live instead of only on a manual page refresh.
@@ -826,9 +828,11 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       } catch { /* best-effort */ }
     }
 
+    let clientName = ''
     if (wo) {
       const contact = await resolveWoCustomerContact(admin, wo)
       if (contact) {
+        clientName = contact.contactPerson || ''
         const recipient = { phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }
         if (params.outcome === 'completed') {
           // Fixed completion message to the customer — no template variables.
@@ -840,11 +844,14 @@ export async function submitDailyClosureCore(admin: AdminClient, userId: string,
       }
     }
 
+    // Spell out which notification, for whom, and the job type on the activity line.
+    const jobLabel = wo?.job_type ? (JOB_TYPE_LABELS[wo.job_type] || wo.job_type) : ''
+    const woCtx = `${wo?.wo_number ? ` ${wo.wo_number}` : ''}${clientName ? ` — ${clientName}` : ''}${jobLabel ? `, ${jobLabel}` : ''}`
     const activityMsg = params.outcome === 'completed'
-      ? `Marked notification completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
+      ? `Marked notification${woCtx} completed${sentToSap ? ' — visit PDF sent to SAP' : ''}`
       : params.needsReassignment
-        ? 'Marked pending — needs reassignment to a different engineer'
-        : `Marked in progress — follow-up on ${new Date(params.revisitDate!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+        ? `Marked notification${woCtx} pending — needs reassignment to a different engineer`
+        : `Marked notification${woCtx} in progress — follow-up on ${new Date(params.revisitDate!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
     logActivity(admin, params.workOrderId, userId, activityMsg).catch(() => {})
 
     if (params.offSite || params.needsReassignment) {
@@ -972,7 +979,7 @@ function scheduledLabel(d: string | null | undefined): string {
 // change any status. Scoped to the assigned engineer.
 export async function notifyOnTheWayCore(admin: AdminClient, userId: string, workOrderId: string): Promise<{ error: string | null }> {
   try {
-    const { data: wo } = await admin.from('work_orders').select(`customer_id, engineer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).maybeSingle()
+    const { data: wo } = await admin.from('work_orders').select(`wo_number, customer_id, engineer_id, ${DIRECT_CUSTOMER_COLUMNS}`).eq('id', workOrderId).maybeSingle()
     if (!wo) return { error: 'Notification not found' }
     if (wo.engineer_id !== userId) return { error: 'Not authorized for this notification' }
 
@@ -988,7 +995,7 @@ export async function notifyOnTheWayCore(admin: AdminClient, userId: string, wor
     // global channel setting.
     await sendWhatsApp(admin, 'on_the_way', [{ phone: contact.whatsappNumber || contact.phone, userName: contact.contactPerson }],
       [engName, actor?.phone || ''])
-    logActivity(admin, workOrderId, userId, 'Notified customer: on the way').catch(() => {})
+    logActivity(admin, workOrderId, userId, `Notified customer ${contact.contactPerson} — on the way${wo.wo_number ? ` for ${wo.wo_number}` : ''}`).catch(() => {})
     return { error: null }
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -1009,7 +1016,7 @@ export async function rescheduleNotificationCore(admin: AdminClient, userId: str
       .update({ scheduled_date: newDate, updated_at: new Date().toISOString() }).eq('id', workOrderId)
     if (upErr) return { error: upErr.message }
 
-    logActivity(admin, workOrderId, userId, `Rescheduled to ${scheduledLabel(newDate)}`).catch(() => {})
+    logActivity(admin, workOrderId, userId, `Rescheduled${wo.wo_number ? ` ${wo.wo_number}` : ''} to ${scheduledLabel(newDate)}`).catch(() => {})
 
     {
       const [{ data: actor }, contact] = await Promise.all([

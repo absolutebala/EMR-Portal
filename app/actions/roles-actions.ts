@@ -111,13 +111,27 @@ export async function updateRolePermissions(
 ): Promise<{ error: string | null }> {
   try {
     const sb = adminClient()
+    // Snapshot the prior permissions so the activity line can spell out exactly what
+    // changed (granted / revoked), using the user-facing permission labels.
+    const { data: before } = await sb.from('roles').select('permissions').eq('name', roleName).maybeSingle()
+    const prev = (before?.permissions as Record<string, boolean> | null) || {}
     const { error } = await sb
       .from('roles')
       .update({ permissions })
       .eq('name', roleName)
     if (!error) {
       const actor = await currentActor(sb)
-      await logActivity(sb, { actorId: actor.id, actorName: actor.name, action: `Updated permissions for role ${roleName}`, entityType: 'role' })
+      const relabel = (k: string) => k.replace('Product Requests', 'Spare Requests').replace('Products', 'Spares')
+      const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(permissions)]))
+      const granted = keys.filter(k => permissions[k] === true && prev[k] !== true).map(relabel)
+      const revoked = keys.filter(k => permissions[k] !== true && prev[k] === true).map(relabel)
+      const parts: string[] = []
+      if (granted.length) parts.push(`granted: ${granted.join(', ')}`)
+      if (revoked.length) parts.push(`revoked: ${revoked.join(', ')}`)
+      const action = parts.length
+        ? `Updated role ${roleName} — ${parts.join('; ')}`
+        : `Updated role ${roleName} (no permission changes)`
+      await logActivity(sb, { actorId: actor.id, actorName: actor.name, action, entityType: 'role' })
     }
     return { error: error?.message || null }
   } catch (e: unknown) {

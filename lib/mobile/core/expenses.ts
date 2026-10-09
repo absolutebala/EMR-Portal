@@ -284,7 +284,7 @@ export async function submitExpenseLogCore(admin: AdminClient, userId: string, p
     const { data: wo } = await admin.from('work_orders').select('wo_number').eq('id', params.workOrderId).maybeSingle()
     logActivity(admin, {
       actorId: userId, actorName,
-      action: `Logged an expense for notification ${wo?.wo_number || ''}`,
+      action: `Logged an expense of ₹${Number(params.amount).toLocaleString('en-IN')}${wo?.wo_number ? ` for notification ${wo.wo_number}` : ''}`,
       entityType: 'expense_log', entityId: inserted?.id,
     }).catch(() => {})
 

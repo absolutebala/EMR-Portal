@@ -8,7 +8,21 @@ const ENTITY_LABELS: Record<string, string> = {
   work_order: 'Notification',
   user: 'User',
   role: 'Role',
+  product_request_item: 'Spare Request',
+  product_request: 'Spare Request',
+  product: 'Spare',
+  customer: 'Customer',
+  transformer: 'Transformer',
+  renewal_request: 'Renewal',
+  expense_log: 'Expense',
+  off_site_status_update: 'Off-site Update',
 }
+
+// Entity-type filter options, deduped by label (two keys map to "Spare Request").
+const ENTITY_FILTERS: [string, string][] = (() => {
+  const seen = new Set<string>()
+  return Object.entries(ENTITY_LABELS).filter(([, label]) => (seen.has(label) ? false : (seen.add(label), true)))
+})()
 
 const PAGE_SIZE = 50
 
@@ -23,16 +37,18 @@ interface Props {
   initialTotal: number
   initialError: string | null
   actors: ActivityActor[]
+  roles: string[]
   userName: string
   userRole: string
 }
 
-export default function ActivitiesPageClient({ initialActivities, initialTotal, initialError, actors, userName, userRole }: Props) {
+export default function ActivitiesPageClient({ initialActivities, initialTotal, initialError, actors, roles, userName, userRole }: Props) {
   const [activities, setActivities] = useState(initialActivities)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const [actorFilter, setActorFilter] = useState('')
   const [entityFilter, setEntityFilter] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(initialTotal)
   const isFirstRun = useRef(true)
@@ -42,13 +58,14 @@ export default function ActivitiesPageClient({ initialActivities, initialTotal, 
     const { activities: data, total: t, error: err } = await getActivities({
       actorId: actorFilter || undefined,
       entityType: entityFilter || undefined,
+      role: roleFilter || undefined,
       page,
     })
     setActivities(data)
     setTotal(t)
     setError(err)
     setLoading(false)
-  }, [actorFilter, entityFilter, page])
+  }, [actorFilter, entityFilter, roleFilter, page])
 
   // Initial page 1 (no filters) was already fetched server-side and passed in as
   // props — only re-fetch once the engineer actually changes a filter or page.
@@ -75,12 +92,21 @@ export default function ActivitiesPageClient({ initialActivities, initialTotal, 
           </select>
 
           <select
+            value={roleFilter}
+            onChange={e => { setRoleFilter(e.target.value); setPage(1) }}
+            style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--gm)', color: 'var(--tx)', background: '#fff', fontFamily: 'Poppins,sans-serif', minWidth: 170 }}
+          >
+            <option value="">All user groups</option>
+            {roles.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+
+          <select
             value={entityFilter}
             onChange={e => { setEntityFilter(e.target.value); setPage(1) }}
             style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--gm)', color: 'var(--tx)', background: '#fff', fontFamily: 'Poppins,sans-serif', minWidth: 160 }}
           >
             <option value="">All types</option>
-            {Object.entries(ENTITY_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            {ENTITY_FILTERS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
         </div>
 
@@ -103,7 +129,7 @@ export default function ActivitiesPageClient({ initialActivities, initialTotal, 
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                 <thead>
                   <tr>
-                    {['Timestamp', 'Actor', 'Action', 'Entity Type'].map(h => (
+                    {['Timestamp', 'Person', 'Action', 'Entity Type'].map(h => (
                       <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--txm)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--gm)', background: '#FAFAFA', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>

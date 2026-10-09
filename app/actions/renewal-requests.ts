@@ -164,10 +164,12 @@ export async function submitRenewalManagerDecision(id: string, decision: 'approv
     const perms = await getPerms(admin, actor.role)
     if (!isAdmin && perms['Renewal Requests — Approve'] !== true) return { error: 'You are not allowed to approve renewal requests.' }
 
-    const { data: current } = await admin.from('renewal_requests').select('status, transformer_id, requested_by').eq('id', id).maybeSingle()
+    const { data: current } = await admin.from('renewal_requests').select('status, transformer_id, requested_by, transformers(serial_number)').eq('id', id).maybeSingle()
     if (current?.status !== 'pending') return { error: 'This request is no longer awaiting first-level approval.' }
 
     const actorName = `${actor.first_name} ${actor.last_name}`.trim()
+    const tx1 = current.transformers as unknown as { serial_number?: string } | { serial_number?: string }[] | null
+    const serial1 = (Array.isArray(tx1) ? tx1[0]?.serial_number : tx1?.serial_number) || ''
     const now = new Date().toISOString()
     const patch = decision === 'approve'
       ? { status: 'manager_approved', manager_approved_by: user.id, manager_approved_at: now }
@@ -175,7 +177,7 @@ export async function submitRenewalManagerDecision(id: string, decision: 'approv
     const { error } = await admin.from('renewal_requests').update(patch).eq('id', id)
     if (error) return { error: error.message }
 
-    logActivity(admin, { actorId: user.id, actorName, action: decision === 'approve' ? 'Approved renewal request (first level)' : 'Rejected renewal request', entityType: 'renewal_request', entityId: id }).catch(() => {})
+    logActivity(admin, { actorId: user.id, actorName, action: `${decision === 'approve' ? 'Approved' : 'Rejected'} warranty renewal${serial1 ? ` for ${serial1}` : ''} (first level)`, entityType: 'renewal_request', entityId: id }).catch(() => {})
 
     if (decision === 'approve') {
       notifyUsers(admin, [{ role: 'Head of Service' }, { role: 'Super Admin' }], {
@@ -208,10 +210,12 @@ export async function submitRenewalHeadDecision(id: string, decision: 'approve' 
     const perms = await getPerms(admin, actor.role)
     if (!isAdmin && perms['Renewal Requests — Final Approve'] !== true) return { error: 'You are not allowed to give final approval.' }
 
-    const { data: current } = await admin.from('renewal_requests').select('status, transformer_id, requested_by, new_expiry_date').eq('id', id).maybeSingle()
+    const { data: current } = await admin.from('renewal_requests').select('status, transformer_id, requested_by, new_expiry_date, transformers(serial_number)').eq('id', id).maybeSingle()
     if (current?.status !== 'manager_approved') return { error: 'This request is not awaiting final approval.' }
 
     const actorName = `${actor.first_name} ${actor.last_name}`.trim()
+    const tx2 = current.transformers as unknown as { serial_number?: string } | { serial_number?: string }[] | null
+    const serial2 = (Array.isArray(tx2) ? tx2[0]?.serial_number : tx2?.serial_number) || ''
     const status = decision === 'approve' ? 'approved' : 'rejected'
     const { error } = await admin.from('renewal_requests').update({
       status, reviewed_by: user.id, reviewed_at: new Date().toISOString(),
@@ -221,7 +225,7 @@ export async function submitRenewalHeadDecision(id: string, decision: 'approve' 
     if (decision === 'approve') {
       await applyRenewal(admin, current.transformer_id as string, (current.new_expiry_date as string | null) ?? null)
     }
-    logActivity(admin, { actorId: user.id, actorName, action: `${decision === 'approve' ? 'Approved' : 'Rejected'} renewal request (final)`, entityType: 'renewal_request', entityId: id }).catch(() => {})
+    logActivity(admin, { actorId: user.id, actorName, action: `${decision === 'approve' ? 'Approved' : 'Rejected'} warranty renewal${serial2 ? ` for ${serial2}` : ''} (final approval)`, entityType: 'renewal_request', entityId: id }).catch(() => {})
 
     if (current.requested_by) {
       notifyUsers(admin, [{ userId: current.requested_by as string }], {

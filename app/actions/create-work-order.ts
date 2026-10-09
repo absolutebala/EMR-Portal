@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
 import { sendWhatsApp } from '@/lib/messaging/whatsapp'
 import { resolveWoCustomerContact } from '@/lib/mobile/core/shared'
+import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 
 function formatScheduledDate(d: string | null | undefined): string {
   return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not scheduled'
@@ -173,7 +174,13 @@ export async function createWorkOrder(payload: {
       activityRows.push({ work_order_id: wo.id, action: `Assigned to ${engName}`, actor_name: actorName })
     }
     await admin.from('work_order_activity').insert(activityRows)
-    await logActivity(admin, { actorId: user.id, actorName, action: `Created notification ${woNumber}`, entityType: 'work_order', entityId: wo.id })
+    // Resolve the customer once — reused by the activity line and the assignment WhatsApp.
+    const contact = await resolveWoCustomerContact(admin, payload)
+    const jobLabel = payload.job_type ? (JOB_TYPE_LABELS[payload.job_type] || payload.job_type) : ''
+    const createAction = `Created notification ${woNumber}`
+      + (contact?.name ? ` for ${contact.name}` : '')
+      + (jobLabel ? ` (${jobLabel})` : '')
+    await logActivity(admin, { actorId: user.id, actorName, action: createAction, entityType: 'work_order', entityId: wo.id })
 
     if (payload.engineer_id) {
       notifyUsers(admin, [{ userId: payload.engineer_id }], {
@@ -183,10 +190,7 @@ export async function createWorkOrder(payload: {
         entityType: 'work_order', entityId: wo.id, linkPath: `/mobile/work-orders/${wo.id}`,
       }).catch(() => {})
 
-      const [contact, serials] = await Promise.all([
-        resolveWoCustomerContact(admin, payload),
-        serialNumbersForTransformerIds(admin, payload.transformer_ids),
-      ])
+      const serials = await serialNumbersForTransformerIds(admin, payload.transformer_ids)
       const engName = assignedEngineer ? `${assignedEngineer.first_name} ${assignedEngineer.last_name}` : 'Engineer'
       const scheduledLabel = formatScheduledDate(payload.scheduled_date)
 
@@ -214,11 +218,14 @@ export async function updateWorkOrderStatus(id: string, status: string): Promise
     const { error } = await admin.from('work_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) return { error: error.message }
 
-    const { data: actor } = await admin.from('profiles').select('first_name, last_name').eq('id', user.id).single()
+    const [{ data: actor }, { data: woRow }] = await Promise.all([
+      admin.from('profiles').select('first_name, last_name').eq('id', user.id).single(),
+      admin.from('work_orders').select('wo_number').eq('id', id).maybeSingle(),
+    ])
     const actorName = actor ? `${actor.first_name} ${actor.last_name}` : 'Admin'
     const label: Record<string, string> = { in_progress: 'In Progress', pending: 'Pending', completed: 'Completed', closed: 'Closed' }
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Status updated to ${label[status] || status}`, actor_name: actorName })
-    await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Updated notification${woRow?.wo_number ? ` ${woRow.wo_number}` : ''} status to ${label[status] || status}`, entityType: 'work_order', entityId: id })
 
     return { error: null }
   } catch (e: unknown) {
@@ -448,7 +455,7 @@ export async function reassignWorkOrderEngineer(id: string, engineerId: string, 
     const engName = eng ? `${eng.first_name} ${eng.last_name}` : 'Engineer'
     const dateSuffix = scheduledDate ? ` for ${new Date(scheduledDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''
     await admin.from('work_order_activity').insert({ work_order_id: id, action: `Reassigned to ${engName}${dateSuffix}`, actor_name: actorName })
-    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification to ${engName}${dateSuffix}`, entityType: 'work_order', entityId: id })
+    await logActivity(admin, { actorId: user.id, actorName, action: `Reassigned notification${current?.wo_number ? ` ${current.wo_number}` : ''} to ${engName}${dateSuffix}`, entityType: 'work_order', entityId: id })
 
     if (engineerId !== current?.engineer_id) {
       notifyUsers(admin, [{ userId: engineerId }], {

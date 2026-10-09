@@ -9,6 +9,7 @@
 import { type AdminClient } from './shared'
 import { logActivity } from '@/lib/activity-log'
 import { notifyUsers } from '@/lib/notifications'
+import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 
 export const MOBILE_JOB_TYPES = [
   'site_inspection', 'amc', 'commissioning_activities', 'supervision',
@@ -179,7 +180,8 @@ export async function createWorkOrderMobileCore(admin: AdminClient, userId: stri
       { work_order_id: wo.id, action: `Notification created by ${actorName}`, actor_name: actorName },
       { work_order_id: wo.id, action: `Assigned to ${actorName}`, actor_name: actorName },
     ])
-    logActivity(admin, { actorId: userId, actorName, action: `Created notification ${wo.wo_number} (mobile)`, entityType: 'work_order', entityId: wo.id }).catch(() => {})
+    const createdJobLabel = params.jobType ? (JOB_TYPE_LABELS[params.jobType] || params.jobType) : ''
+    logActivity(admin, { actorId: userId, actorName, action: `Created notification ${wo.wo_number}${createdJobLabel ? ` (${createdJobLabel})` : ''} from mobile`, entityType: 'work_order', entityId: wo.id }).catch(() => {})
 
     // Only a Field-Engineer-created notification needs a manager to unlock expenses —
     // notify the approver roles so they can act on it without hunting for it.
