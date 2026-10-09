@@ -11,22 +11,28 @@ const NO_DEPT = 'no-department'
 const JOB_ORDER = Object.keys(JOB_TYPE_LABELS)
 const MAX_WEEKS = 53 // guard against an enormous custom range
 
-// ── IST week helpers (operate on YYYY-MM-DD strings, which sort chronologically) ──
-function mondayOf(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z'); const dow = (d.getUTCDay() + 6) % 7
-  d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10)
+// ── IST date/bucket helpers (operate on YYYY-MM-DD strings, which sort chronologically) ──
+// Weeks are Sunday-start to match the Reports/Attendance period selector (getRange).
+function weekStartOf(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.toISOString().slice(0, 10)
 }
 function addDays(iso: string, n: number): string {
   const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10)
 }
+function daysInclusive(from: string, to: string): number {
+  return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000) + 1
+}
 function labelOf(iso: string): string {
   return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })
 }
-function rangeOf(start: string): string {
+function weekRangeOf(start: string): string {
   return `${labelOf(start)} – ${labelOf(addDays(start, 6))}`
 }
-function bucketIdx(starts: string[], iso: string): number {
-  for (let i = 0; i < starts.length; i++) if (iso >= starts[i] && iso <= addDays(starts[i], 6)) return i
+function dayRangeOf(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' })
+}
+function bucketIdx(starts: string[], iso: string, span: number): number {
+  for (let i = 0; i < starts.length; i++) if (iso >= starts[i] && iso <= addDays(starts[i], span - 1)) return i
   return -1
 }
 
@@ -50,15 +56,22 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
     const scopeWo = (q: any): any => (departmentScope ? q.or(`department_id.in.(${departmentScope.join(',')}),department_id.is.null`) : q)
     const inScope = (dept: string | null | undefined) => !departmentScope || dept == null || departmentScope.includes(dept)
 
-    // ── Resolve the selected range → whole Mon–Sun weeks covering it. Default: this IST month. ──
+    // ── Resolve the selected range. Default: this IST month. A short range (≤ 8 days, e.g.
+    // "This Week") is shown day-by-day; anything longer is bucketed into Sun–Sat weeks. ──
     const todayIso = getISTDateStr()
     const from = range?.from || (todayIso.slice(0, 8) + '01')
     const to = range?.to || (() => { const d = new Date(todayIso + 'T00:00:00Z'); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10) })()
-    const weekStarts: string[] = []
-    for (let m = mondayOf(from); m <= to && weekStarts.length < MAX_WEEKS; m = addDays(m, 7)) weekStarts.push(m)
-    if (!weekStarts.length) weekStarts.push(mondayOf(from))
-    const fetchFrom = weekStarts[0]
-    const fetchTo = addDays(weekStarts[weekStarts.length - 1], 7) // exclusive upper bound
+    const daily = daysInclusive(from, to) >= 1 && daysInclusive(from, to) <= 8
+    const span = daily ? 1 : 7
+    const buckets: string[] = []
+    if (daily) {
+      for (let d = from; d <= to && buckets.length < 31; d = addDays(d, 1)) buckets.push(d)
+    } else {
+      for (let m = weekStartOf(from); m <= to && buckets.length < MAX_WEEKS; m = addDays(m, 7)) buckets.push(m)
+    }
+    if (!buckets.length) buckets.push(daily ? from : weekStartOf(from))
+    const fetchFrom = buckets[0]
+    const fetchTo = addDays(buckets[buckets.length - 1], span) // exclusive upper bound
 
     const nowMs = Date.now()
     const STATUSES = ['unassigned', 'assigned', 'in_progress', 'needs_reassignment', 'completed', 'closed'] as const
@@ -117,14 +130,14 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
     const deptOrder = [...depts.map(d => d.id), NO_DEPT]
     const istDay = (ts: string) => getISTDateStr(new Date(ts))
 
-    const N = weekStarts.length
+    const N = buckets.length
     const z = () => Array(N).fill(0) as number[]
     const ccc = { created: z(), completed: z(), closed: z() }
     const pt = { total: z(), paid: z() }
     const spare = { requested: z(), approved: z(), dispatched: z() }
     const jobAgg: Record<string, number[]> = {}
     const deptAgg: Record<string, number[]> = {}
-    const bi = (ts: string) => bucketIdx(weekStarts, istDay(ts))
+    const bi = (ts: string) => bucketIdx(buckets, istDay(ts), span)
 
     for (const r of wo) {
       const i = bi(r.created_at); if (i < 0) continue
@@ -144,7 +157,7 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
 
     const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt] }))
     const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k] }))
-    const window: ChartWindow = { labels: weekStarts.map(labelOf), ranges: weekStarts.map(rangeOf), ccc, pt, job, dept, spare }
+    const window: ChartWindow = { labels: buckets.map(labelOf), ranges: buckets.map(daily ? dayRangeOf : weekRangeOf), ccc, pt, job, dept, spare }
 
     return { status, warranty, window }
   } catch (e) {

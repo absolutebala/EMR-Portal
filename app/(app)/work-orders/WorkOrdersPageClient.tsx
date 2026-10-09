@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useAutoRefresh } from '@/lib/useAutoRefresh'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Topbar from '@/components/layout/Topbar'
 import NewWorkOrderModal from '@/components/work-orders/NewWorkOrderModal'
@@ -167,10 +166,8 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Auto-refresh the notifications list every 45s (and on return to the tab) so new/
-  // updated notifications appear without a manual reload — matches Dashboard and Live
-  // Map. The list renders from server props, so router.refresh() updates it in place.
-  useAutoRefresh(() => router.refresh())
+  // No whole-page auto-refresh here (it re-rendered the page on every tab switch, which
+  // was disruptive). The list still refreshes in place after an explicit create/edit.
 
   const [search, setSearch] = useState('')
   // Default to the open/active view (everything except Completed). 'all' shows every

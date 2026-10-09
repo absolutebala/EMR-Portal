@@ -317,7 +317,7 @@ export default function DashboardChartsSection() {
       ) : (
         <>
           <div style={{ marginBottom: CARD_GAP }}>
-            <Card title="Created vs Completed vs Closed" caption="Hover any week to see its range and Created / Completed / Closed">
+            <Card title="Created vs Completed vs Closed" caption="Hover any point to see Created / Completed / Closed">
               <LineCombined cats={w.labels} titles={w.ranges} setTip={setTip} series={[
                 { label: 'Created', data: w.ccc.created, color: '#2563EB' },
                 { label: 'Completed', data: w.ccc.completed, color: '#F59E0B' },
