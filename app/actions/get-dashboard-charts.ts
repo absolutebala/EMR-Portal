@@ -155,8 +155,8 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
       if (r.dispatched_at) spare.dispatched[i]++
     }
 
-    const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt] }))
-    const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k] }))
+    const job: SeriesItem[] = JOB_ORDER.filter(jt => jobAgg[jt]?.some(v => v > 0)).map(jt => ({ label: JOB_TYPE_LABELS[jt] || jt, data: jobAgg[jt], key: jt }))
+    const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k], key: k }))
     const window: ChartWindow = { labels: buckets.map(labelOf), ranges: buckets.map(daily ? dayRangeOf : weekRangeOf), ccc, pt, job, dept, spare }
 
     return { status, warranty, window }

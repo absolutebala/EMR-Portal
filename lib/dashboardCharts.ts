@@ -2,7 +2,7 @@
 // app/actions/get-dashboard-charts.ts computes these; the client component
 // components/dashboard/DashboardChartsSection.tsx renders them.
 
-export interface SeriesItem { label: string; data: number[] }
+export interface SeriesItem { label: string; data: number[]; key?: string }
 
 export interface ChartWindow {
   labels: string[]

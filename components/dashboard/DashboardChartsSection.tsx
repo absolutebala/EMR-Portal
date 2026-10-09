@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { getDashboardCharts } from '@/app/actions/get-dashboard-charts'
 import { getRange, type ViewMode } from '@/app/(app)/attendance/dateRange'
 import { useAutoRefresh } from '@/lib/useAutoRefresh'
@@ -24,12 +25,7 @@ const STATUS_ROWS: { key: keyof DashboardChartsData['status']; label: string }[]
   { key: 'in_progress', label: 'In Progress' }, { key: 'needs_reassignment', label: 'Reassign' },
   { key: 'completed', label: 'Completed' }, { key: 'closed', label: 'Closed' },
 ]
-const WARR_ROWS: { key: keyof DashboardChartsData['warranty']; label: string; color: string }[] = [
-  { key: 'underWarranty', label: 'Under Warranty', color: '#22C55E' },
-  { key: 'expiring', label: 'Expiring (3mo)', color: '#F59E0B' },
-  { key: 'noWarranty', label: 'No Warranty', color: '#EF4444' },
-]
-const PAL = ['#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#06B6D4', '#A855F7', '#F97316', '#14B8A6']
+const PAL =['#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#06B6D4', '#A855F7', '#F97316', '#14B8A6']
 
 interface TipRow { color: string; label: string; value: number }
 interface TipState { show: boolean; x: number; y: number; title: string; rows: TipRow[] }
@@ -80,9 +76,9 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   )
 }
 
-function Card({ title, caption, children }: { title: string; caption: string; children: React.ReactNode }) {
+function Card({ title, caption, children, onClick }: { title: string; caption: string; children: React.ReactNode; onClick?: () => void }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 14, padding: '16px 18px' }}>
+    <div onClick={onClick} style={{ background: '#fff', border: '1px solid var(--gm)', borderRadius: 14, padding: '16px 18px', cursor: onClick ? 'pointer' : 'default' }}>
       <h3 style={{ fontSize: 14, margin: '0 0 2px', color: 'var(--tx)' }}>{title}</h3>
       <p style={{ color: 'var(--txm)', fontSize: 11.5, margin: '0 0 10px' }}>{caption}</p>
       {children}
@@ -92,7 +88,7 @@ function Card({ title, caption, children }: { title: string; caption: string; ch
 
 const svgStyle: React.CSSProperties = { display: 'block', width: '100%', height: 'auto', overflow: 'visible' }
 
-function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value: number; color: string }[]; setTip: SetTip; g?: Geo }) {
+function SnapshotBar({ data, setTip, go, g = HALF }: { data: { label: string; value: number; color: string; href?: string }[]; setTip: SetTip; go?: (href?: string) => void; g?: Geo }) {
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const { ymax, ticks } = niceAxis(Math.max(0, ...data.map(d => d.value)))
   const gw = IW / data.length, barw = Math.min(54, gw * 0.6)
@@ -104,7 +100,8 @@ function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value:
         const hh = (IH * d.value) / ymax, y = g.t + IH - hh
         return (
           <g key={d.label}>
-            <rect x={x} y={y} width={barw} height={hh} rx={4} fill={d.color}
+            <rect x={x} y={y} width={barw} height={hh} rx={4} fill={d.color} style={{ cursor: d.href ? 'pointer' : 'default' }}
+              onClick={() => go?.(d.href)}
               onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: d.label, rows: [{ color: d.color, label: d.label, value: d.value }] })}
               onMouseLeave={() => setTip({ show: false })} />
             <text x={x + barw / 2} y={y - 5} textAnchor="middle" fontSize={11} fontWeight={700} fill={AXIS}>{d.value}</text>
@@ -116,7 +113,7 @@ function SnapshotBar({ data, setTip, g = HALF }: { data: { label: string; value:
   )
 }
 
-function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: { label: string; data: number[]; color: string }[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
+function Grouped({ cats, series, setTip, titles, go, g = HALF }: { cats: string[]; series: { label: string; data: number[]; color: string; href?: string }[]; setTip: SetTip; titles?: string[]; go?: (href?: string) => void; g?: Geo }) {
   const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const { ymax, ticks } = niceAxis(Math.max(0, ...series.flatMap(s => s.data)))
@@ -130,7 +127,8 @@ function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; s
           <g key={ci}>
             {series.map((s, si) => {
               const v = s.data[ci] || 0, hh = (IH * v) / ymax, x = gx + bw * si, y = g.t + IH - hh
-              return <rect key={si} x={x + 0.5} y={y} width={Math.max(1, bw - 1)} height={hh} rx={2} fill={s.color}
+              return <rect key={si} x={x + 0.5} y={y} width={Math.max(1, bw - 1)} height={hh} rx={2} fill={s.color} style={{ cursor: s.href ? 'pointer' : 'default' }}
+                onClick={() => go?.(s.href)}
                 onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: tt(ci), rows: [{ color: s.color, label: s.label, value: v }] })}
                 onMouseLeave={() => setTip({ show: false })} />
             })}
@@ -142,7 +140,7 @@ function Grouped({ cats, series, setTip, titles, g = HALF }: { cats: string[]; s
   )
 }
 
-function Stacked({ cats, series, setTip, titles, g = HALF }: { cats: string[]; series: SeriesItem[]; setTip: SetTip; titles?: string[]; g?: Geo }) {
+function Stacked({ cats, series, setTip, titles, go, hrefOf, g = HALF }: { cats: string[]; series: SeriesItem[]; setTip: SetTip; titles?: string[]; go?: (href?: string) => void; hrefOf?: (s: SeriesItem) => string | undefined; g?: Geo }) {
   const tt = (i: number) => titles?.[i] ?? cats[i]
   const IW = g.W - g.l - g.r, IH = g.H - g.t - g.b
   const totals = cats.map((_, i) => series.reduce((a, s) => a + (s.data[i] || 0), 0))
@@ -160,7 +158,9 @@ function Stacked({ cats, series, setTip, titles, g = HALF }: { cats: string[]; s
               const v = s.data[ci] || 0, hh = (IH * v) / ymax, y = g.t + IH - (IH * (acc + v)) / ymax
               acc += v
               if (v === 0) return null
-              return <rect key={si} x={x} y={y} width={barw} height={hh} fill={PAL[si % PAL.length]}
+              const href = hrefOf?.(s)
+              return <rect key={si} x={x} y={y} width={barw} height={hh} fill={PAL[si % PAL.length]} style={{ cursor: href ? 'pointer' : 'default' }}
+                onClick={() => go?.(href)}
                 onMouseMove={e => setTip({ show: true, x: e.clientX, y: e.clientY, title: tt(ci), rows: [{ color: PAL[si % PAL.length], label: s.label, value: v }] })}
                 onMouseLeave={() => setTip({ show: false })} />
             })}
@@ -209,6 +209,9 @@ const CARD_GAP = 16
 const ROW: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: CARD_GAP }
 
 export default function DashboardChartsSection() {
+  const router = useRouter()
+  const go = (href?: string) => { if (href) router.push(href) }
+
   // Period selector (This Week / This Month / Custom + prev-next nav), mirroring Reports.
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [anchor, setAnchor] = useState(new Date())
@@ -296,14 +299,12 @@ export default function DashboardChartsSection() {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Snapshots — current totals, independent of the period selector */}
-      <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Snapshots — current totals</div>
-      <div style={{ ...ROW, marginBottom: CARD_GAP }}>
-        <Card title="Notifications by status" caption="Snapshot of the six statuses">
-          {data ? <SnapshotBar data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key] }))} setTip={setTip} /> : <ChartSkeleton />}
-        </Card>
-        <Card title="Open notifications by warranty" caption="Open notifications by their transformer’s warranty state">
-          {data ? <SnapshotBar data={WARR_ROWS.map(r => ({ label: r.label, value: data.warranty[r.key], color: r.color }))} setTip={setTip} /> : <ChartSkeleton />}
+      {/* Snapshot — current totals, independent of the period selector. (Warranty breakdown
+          lives in the KPI card above, so it isn't duplicated here.) */}
+      <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Snapshot — current totals</div>
+      <div style={{ marginBottom: CARD_GAP }}>
+        <Card title="Notifications by status" caption="Snapshot of the six statuses — click a bar to view that list">
+          {data ? <SnapshotBar g={WIDE} setTip={setTip} go={go} data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key], href: `/work-orders?status=${r.key}` }))} /> : <ChartSkeleton />}
         </Card>
       </div>
 
@@ -317,7 +318,7 @@ export default function DashboardChartsSection() {
       ) : (
         <>
           <div style={{ marginBottom: CARD_GAP }}>
-            <Card title="Created vs Completed vs Closed" caption="Hover any point to see Created / Completed / Closed">
+            <Card title="Created vs Completed vs Closed" caption="Hover any point to see Created / Completed / Closed — click to open Notifications" onClick={() => go('/work-orders?status=all')}>
               <LineCombined cats={w.labels} titles={w.ranges} setTip={setTip} series={[
                 { label: 'Created', data: w.ccc.created, color: '#2563EB' },
                 { label: 'Completed', data: w.ccc.completed, color: '#F59E0B' },
@@ -328,14 +329,14 @@ export default function DashboardChartsSection() {
           </div>
 
           <div style={{ ...ROW, marginBottom: CARD_GAP }}>
-            <Card title="Paid vs Total notifications" caption="Paid = Overhauling, against all notifications">
-              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
-                { label: 'Total', data: w.pt.total, color: '#C9AEB8' },
-                { label: 'Paid', data: w.pt.paid, color: '#7D1D3F' },
+            <Card title="Paid vs Total notifications" caption="Paid = Overhauling — click a bar to view that list">
+              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} go={go} series={[
+                { label: 'Total', data: w.pt.total, color: '#C9AEB8', href: '/work-orders?status=all' },
+                { label: 'Paid', data: w.pt.paid, color: '#7D1D3F', href: '/work-orders?job=overhauling&status=all' },
               ]} />
               <Legend items={[{ color: '#C9AEB8', label: 'Total' }, { color: '#7D1D3F', label: 'Paid' }]} />
             </Card>
-            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched">
+            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched. Click to open Spare Requests" onClick={() => go('/requests')}>
               <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
                 { label: 'Requested', data: w.spare.requested, color: '#F59E0B' },
                 { label: 'Approved', data: w.spare.approved, color: '#3B82F6' },
@@ -346,12 +347,12 @@ export default function DashboardChartsSection() {
           </div>
 
           <div style={ROW}>
-            <Card title="Notifications by Job type" caption="Created per week, by job type">
-              <Stacked cats={w.labels} titles={w.ranges} series={w.job} setTip={setTip} />
+            <Card title="Notifications by Job type" caption="Created per week, by job type — click a segment to view that list">
+              <Stacked cats={w.labels} titles={w.ranges} series={w.job} setTip={setTip} go={go} hrefOf={s => s.key ? `/work-orders?job=${s.key}&status=all` : undefined} />
               <Legend items={w.job.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
             </Card>
-            <Card title="Notifications by Department" caption="Created per week, by department">
-              <Stacked cats={w.labels} titles={w.ranges} series={w.dept} setTip={setTip} />
+            <Card title="Notifications by Department" caption="Created per week, by department — click a segment to view that list">
+              <Stacked cats={w.labels} titles={w.ranges} series={w.dept} setTip={setTip} go={go} hrefOf={s => s.key ? `/work-orders?department=${s.key}&status=all` : undefined} />
               <Legend items={w.dept.map((s, i) => ({ color: PAL[i % PAL.length], label: s.label }))} />
             </Card>
           </div>
