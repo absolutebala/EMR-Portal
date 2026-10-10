@@ -299,15 +299,6 @@ export default function DashboardChartsSection() {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Snapshot — current totals, independent of the period selector. (Warranty breakdown
-          lives in the KPI card above, so it isn't duplicated here.) */}
-      <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Snapshot — current totals</div>
-      <div style={{ marginBottom: CARD_GAP }}>
-        <Card title="Notifications by status" caption="Snapshot of the six statuses — click a bar to view that list">
-          {data ? <SnapshotBar g={WIDE} setTip={setTip} go={go} data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key], href: `/work-orders?status=${r.key}` }))} /> : <ChartSkeleton />}
-        </Card>
-      </div>
-
       <div style={{ fontSize: 11, color: 'var(--txm)', margin: '4px 2px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>Trends</div>
       {periodSelector}
 
@@ -318,13 +309,19 @@ export default function DashboardChartsSection() {
       ) : (
         <>
           <div style={{ marginBottom: CARD_GAP }}>
-            <Card title="Created vs Completed vs Closed" caption="Hover any point to see Created / Completed / Closed — click to open Notifications" onClick={() => go('/work-orders?status=all')}>
+            <Card title="Created vs Completed vs Closed" caption="Hover any point to see Created / Completed / Closed">
               <LineCombined cats={w.labels} titles={w.ranges} setTip={setTip} series={[
                 { label: 'Created', data: w.ccc.created, color: '#2563EB' },
                 { label: 'Completed', data: w.ccc.completed, color: '#F59E0B' },
                 { label: 'Closed', data: w.ccc.closed, color: '#22C55E' },
               ]} />
               <Legend items={[{ color: '#2563EB', label: 'Created' }, { color: '#F59E0B', label: 'Completed' }, { color: '#22C55E', label: 'Closed' }]} />
+            </Card>
+          </div>
+
+          <div style={{ marginBottom: CARD_GAP }}>
+            <Card title="Notifications by status" caption="Current totals (not affected by the period) — click a bar to view that list">
+              {data ? <SnapshotBar g={WIDE} setTip={setTip} go={go} data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key], href: `/work-orders?status=${r.key}` }))} /> : <ChartSkeleton />}
             </Card>
           </div>
 
@@ -336,7 +333,7 @@ export default function DashboardChartsSection() {
               ]} />
               <Legend items={[{ color: '#C9AEB8', label: 'Total' }, { color: '#7D1D3F', label: 'Paid' }]} />
             </Card>
-            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched. Click to open Spare Requests" onClick={() => go('/requests')}>
+            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched">
               <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
                 { label: 'Requested', data: w.spare.requested, color: '#F59E0B' },
                 { label: 'Approved', data: w.spare.approved, color: '#3B82F6' },
