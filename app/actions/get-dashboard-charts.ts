@@ -3,7 +3,6 @@
 import { adminClient } from '@/lib/db/admin-client'
 import { getMyDepartmentScope } from './departments'
 import { getISTDateStr } from '@/lib/mobile/core/attendance'
-import { classifyWarranty } from '@/lib/warranty'
 import { JOB_TYPE_LABELS } from '@/components/mobile/constants'
 import type { ChartWindow, DashboardChartsData, SeriesItem } from '@/lib/dashboardCharts'
 
@@ -38,15 +37,13 @@ function bucketIdx(starts: string[], iso: string, span: number): number {
 
 function one<T>(v: T | T[] | null | undefined): T | undefined { return Array.isArray(v) ? v[0] : (v ?? undefined) }
 
-type WoRow = { created_at: string; job_type: string; department_id: string | null }
+type WoRow = { created_at: string; job_type: string; department_id: string | null; status: string }
 type TsEmbedRow = { department_id: string | null }
-type WarrEmbed = { warranty_status: string | null; dispatch_date: string | null; warranty_years: number | null }
 
 export async function getDashboardCharts(range?: { from: string; to: string }): Promise<DashboardChartsData> {
   const emptyWin: ChartWindow = { labels: [], ranges: [], ccc: { created: [], completed: [], closed: [] }, pt: { total: [], paid: [] }, job: [], dept: [], spare: { requested: [], approved: [], dispatched: [] } }
   const emptyData: DashboardChartsData = {
     status: { unassigned: 0, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0, closed: 0 },
-    warranty: { underWarranty: 0, expiring: 0, noWarranty: 0 },
     window: emptyWin,
   }
   try {
@@ -73,21 +70,11 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
     const fetchFrom = buckets[0]
     const fetchTo = addDays(buckets[buckets.length - 1], span) // exclusive upper bound
 
-    const nowMs = Date.now()
-    const STATUSES = ['unassigned', 'assigned', 'in_progress', 'needs_reassignment', 'completed', 'closed'] as const
-
     const [
-      statusCounts,
-      { data: openWarrRows },
       { data: woRows }, { data: completedRows }, { data: closedRows },
       { data: spareItemRows }, { data: deptRows },
     ] = await Promise.all([
-      Promise.all(STATUSES.map(async s => {
-        const { count } = await scopeWo(admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('status', s))
-        return count || 0
-      })),
-      scopeWo(admin.from('work_orders').select('department_id, work_order_transformers(transformers(warranty_status, dispatch_date, warranty_years))').not('status', 'in', '(completed,closed)')),
-      scopeWo(admin.from('work_orders').select('created_at, job_type, department_id').gte('created_at', fetchFrom).lt('created_at', fetchTo)),
+      scopeWo(admin.from('work_orders').select('created_at, job_type, department_id, status').gte('created_at', fetchFrom).lt('created_at', fetchTo)),
       admin.from('work_order_daily_closures').select('created_at, work_orders(department_id)').eq('outcome', 'completed').gte('created_at', fetchFrom).lt('created_at', fetchTo),
       admin.from('work_order_activity').select('created_at, work_orders(department_id)').eq('action', 'Status updated to Closed').gte('created_at', fetchFrom).lt('created_at', fetchTo),
       // Spare funnel — items keyed on the PARENT REQUEST's week, counting how far each
@@ -96,26 +83,14 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
       admin.from('departments').select('id, name').order('sort_order').order('name'),
     ])
 
-    const status = Object.fromEntries(STATUSES.map((s, i) => [s, statusCounts[i]])) as DashboardChartsData['status']
-
-    // ── Warranty snapshot: best warranty state among each open notification's transformers. ──
-    const warranty = { underWarranty: 0, expiring: 0, noWarranty: 0 }
-    type OpenWoRow = { work_order_transformers: { transformers: WarrEmbed | WarrEmbed[] | null }[] | null }
-    for (const wo of ((openWarrRows as unknown as OpenWoRow[]) || [])) {
-      const txs = (wo.work_order_transformers || []).map(wt => one(wt.transformers)).filter((t): t is WarrEmbed => !!t)
-      if (!txs.length) continue
-      let best: 'under' | 'expiring' | 'no' = 'no'
-      for (const t of txs) {
-        const { bucket, expiringSoon } = classifyWarranty(t, nowMs)
-        if (bucket === 'under_warranty' && !expiringSoon) { best = 'under'; break }
-        if (bucket === 'under_warranty' && expiringSoon) best = 'expiring'
-      }
-      if (best === 'under') warranty.underWarranty++
-      else if (best === 'expiring') warranty.expiring++
-      else warranty.noWarranty++
-    }
-
     const wo = (woRows as WoRow[] | null) || []
+    // Notifications by status — counts notifications CREATED in the selected range, grouped
+    // by their current status (so the chart responds to the This Week / This Month picker).
+    const status: DashboardChartsData['status'] = { unassigned: 0, assigned: 0, in_progress: 0, needs_reassignment: 0, completed: 0, closed: 0 }
+    for (const r of wo) {
+      const d = getISTDateStr(new Date(r.created_at))
+      if (d >= from && d <= to && r.status in status) (status as Record<string, number>)[r.status]++
+    }
     const completed = ((completedRows as unknown as { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[]) || [])
       .filter(r => inScope(one(r.work_orders)?.department_id))
     const closed = ((closedRows as unknown as { created_at: string; work_orders: TsEmbedRow | TsEmbedRow[] | null }[]) || [])
@@ -159,7 +134,7 @@ export async function getDashboardCharts(range?: { from: string; to: string }): 
     const dept: SeriesItem[] = deptOrder.filter(k => deptAgg[k]?.some(v => v > 0)).map(k => ({ label: deptName[k] || k, data: deptAgg[k], key: k }))
     const window: ChartWindow = { labels: buckets.map(labelOf), ranges: buckets.map(daily ? dayRangeOf : weekRangeOf), ccc, pt, job, dept, spare }
 
-    return { status, warranty, window }
+    return { status, window }
   } catch (e) {
     console.error('getDashboardCharts failed:', e)
     return emptyData

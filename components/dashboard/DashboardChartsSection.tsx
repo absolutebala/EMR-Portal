@@ -320,7 +320,7 @@ export default function DashboardChartsSection() {
           </div>
 
           <div style={{ marginBottom: CARD_GAP }}>
-            <Card title="Notifications by status" caption="Current totals (not affected by the period) — click a bar to view that list">
+            <Card title="Notifications by status" caption="Notifications created in this period, by status — click a bar to view that list">
               {data ? <SnapshotBar g={WIDE} setTip={setTip} go={go} data={STATUS_ROWS.map(r => ({ label: r.label, value: data.status[r.key], color: STATUS_COLORS[r.key], href: `/work-orders?status=${r.key}` }))} /> : <ChartSkeleton />}
             </Card>
           </div>

@@ -17,10 +17,8 @@ export interface ChartWindow {
 }
 
 export interface DashboardChartsData {
-  // Point-in-time snapshots (not windowed — unaffected by the selected period).
+  // Notifications created in the selected range, grouped by current status.
   status: { unassigned: number; assigned: number; in_progress: number; needs_reassignment: number; completed: number; closed: number }
-  // Open notifications (status ∉ completed/closed) by the warranty bucket of their transformer(s).
-  warranty: { underWarranty: number; expiring: number; noWarranty: number }
   // Weekly trend buckets covering the selected date range.
   window: ChartWindow
 }
