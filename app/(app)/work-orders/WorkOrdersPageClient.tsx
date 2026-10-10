@@ -358,7 +358,7 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
             <option value="open">Open (active) ({facets.status.open || 0})</option>
-            <option value="all">All statuses ({facets.status.all || 0})</option>
+            <option value="all">All statuses</option>
             <option value="unassigned">Unassigned ({facets.status.unassigned || 0})</option>
             <option value="assigned">Assigned ({facets.status.assigned || 0})</option>
             <option value="in_progress">In Progress ({facets.status.in_progress || 0})</option>
@@ -367,26 +367,26 @@ export default function WorkOrdersPageClient({ workOrders, engineers, serviceMan
             <option value="closed">Closed ({facets.status.closed || 0})</option>
           </select>
           <select value={jobFilter} onChange={e => setJobFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All job types ({facets.jobAll})</option>
+            <option value="">All job types</option>
             {Object.entries(JOB_LABELS).map(([v, l]) => <option key={v} value={v}>{l} ({facets.job[v] || 0})</option>)}
           </select>
           <select value={engFilter} onChange={e => setEngFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All engineers ({facets.engAll})</option>
+            <option value="">All engineers</option>
             {engineers.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({facets.eng[e.id] || 0})</option>)}
           </select>
           <select value={warrantyFilter} onChange={e => setWarrantyFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All warranty ({facets.warrantyAll})</option>
+            <option value="">All warranty</option>
             <option value="under_warranty">Under Warranty ({facets.warranty.under_warranty || 0})</option>
             <option value="expired">Expired ({facets.warranty.expired || 0})</option>
             <option value="amc">AMC ({facets.warranty.amc || 0})</option>
           </select>
           <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All departments ({facets.deptAll})</option>
+            <option value="">All departments</option>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({facets.dept[d.id] || 0})</option>)}
             <option value={NO_DEPARTMENT_ID}>No Department ({facets.noDept})</option>
           </select>
           <select value={smFilter} onChange={e => setSmFilter(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--gm)', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'Poppins,sans-serif', background: '#fff', color: 'var(--tx)' }}>
-            <option value="">All service managers ({facets.smAll})</option>
+            <option value="">All service managers</option>
             {serviceManagers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({facets.sm[m.id] || 0})</option>)}
           </select>
           {canEdit && (
