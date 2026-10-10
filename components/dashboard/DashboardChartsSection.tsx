@@ -333,11 +333,11 @@ export default function DashboardChartsSection() {
               ]} />
               <Legend items={[{ color: '#C9AEB8', label: 'Total' }, { color: '#7D1D3F', label: 'Paid' }]} />
             </Card>
-            <Card title="Spare requests" caption="By the week raised — requested, then how many approved / dispatched">
-              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} series={[
-                { label: 'Requested', data: w.spare.requested, color: '#F59E0B' },
-                { label: 'Approved', data: w.spare.approved, color: '#3B82F6' },
-                { label: 'Dispatched', data: w.spare.dispatched, color: '#A855F7' },
+            <Card title="Spare requests" caption="By the week raised — click a bar to view that list">
+              <Grouped cats={w.labels} titles={w.ranges} setTip={setTip} go={go} series={[
+                { label: 'Requested', data: w.spare.requested, color: '#F59E0B', href: '/requests?tab=pending' },
+                { label: 'Approved', data: w.spare.approved, color: '#3B82F6', href: '/requests?tab=approved' },
+                { label: 'Dispatched', data: w.spare.dispatched, color: '#A855F7', href: '/requests?tab=dispatched' },
               ]} />
               <Legend items={[{ color: '#F59E0B', label: 'Requested' }, { color: '#3B82F6', label: 'Approved' }, { color: '#A855F7', label: 'Dispatched' }]} />
             </Card>
